@@ -76,7 +76,7 @@ type EditorRefreshDetail = { workspaceId: string };
 export function createFileEditorController(Controller: WorkspaceClientControllerConstructor): WorkspaceClientControllerConstructor {
   return class FileEditorController extends Controller {
     static values = { workspaceId: String, path: String, contentUrl: String, line: Number, column: Number, positionRequest: String };
-    static targets = ["host", "loading", "status", "conflict", "conflictMine", "conflictTheirs", "renderedMarkdown", "markdownDisplayOptions", "copyButton", "diagramPreview", "diagramDisplayOptions"];
+    static targets = ["host", "loading", "status", "conflict", "conflictMine", "conflictTheirs", "renderedMarkdown", "markdownDisplayOptions", "copyButton"];
 
     declare readonly element: HTMLElement;
     declare readonly workspaceIdValue: string;
@@ -94,15 +94,10 @@ export function createFileEditorController(Controller: WorkspaceClientController
     declare readonly markdownDisplayOptionsTarget: HTMLElement;
     declare readonly copyButtonTarget: HTMLButtonElement;
     declare readonly hasRenderedMarkdownTarget: boolean;
-    declare readonly diagramPreviewTarget: HTMLElement;
-    declare readonly diagramDisplayOptionsTarget: HTMLElement;
-    declare readonly hasDiagramPreviewTarget: boolean;
 
     private view?: EditorView;
     private connection!: AbortController;
     private markdownRenderSequence = 0;
-    private diagramRenderSequence = 0;
-    private diagramPreviewContent?: string;
     private draft?: FileDraft;
     private saveTimer?: ReturnType<typeof setTimeout>;
     private applyingDisk = false;
@@ -137,7 +132,6 @@ export function createFileEditorController(Controller: WorkspaceClientController
       this.connection.abort();
       if (this.saveTimer) clearTimeout(this.saveTimer);
       this.markdownRenderSequence++;
-      this.diagramRenderSequence++;
       this.draft?.listeners.delete(this.renderDraft);
       const draft = this.draft;
       if (draft) void draft.flush().then(() => {
@@ -159,11 +153,6 @@ export function createFileEditorController(Controller: WorkspaceClientController
       } else {
         this.showSource();
       }
-    }
-
-    async selectDiagramDisplayMode(event: ToggleChangeEvent): Promise<void> {
-      if (event.detail.value === "preview") await this.showDiagramPreview();
-      else this.showSource();
     }
 
     useTheirs(): void {
@@ -227,7 +216,6 @@ export function createFileEditorController(Controller: WorkspaceClientController
       if (!file.writable) this.setStatus("Read only", "");
       this.jumpTo(this.lineValue, this.columnValue);
       if (this.hasRenderedMarkdownTarget && this.lineValue < 1) await this.showRenderedMarkdown();
-      if (this.hasDiagramPreviewTarget && this.lineValue < 1) await this.showDiagramPreview();
     }
 
     private readonly refreshRequested = (event: CustomEvent<EditorRefreshDetail>): void => {
@@ -273,7 +261,6 @@ export function createFileEditorController(Controller: WorkspaceClientController
         this.view.dispatch({ changes: { from: 0, to: this.view.state.doc.length, insert: content } });
         this.applyingDisk = false;
         if (this.hasRenderedMarkdownTarget && !this.renderedMarkdownTarget.hidden) void this.showRenderedMarkdown();
-        if (this.hasDiagramPreviewTarget && !this.diagramPreviewTarget.hidden) void this.showDiagramPreview();
       }
       this.copyButtonTarget.dataset.copyText = draft.content;
       if (draft.conflict) {
@@ -327,43 +314,7 @@ export function createFileEditorController(Controller: WorkspaceClientController
       }
     }
 
-    private async showDiagramPreview(): Promise<void> {
-      const content = this.draft!.content;
-      const sequence = ++this.diagramRenderSequence;
-      const { signal } = this.connection;
-      this.diagramDisplayOptionsTarget.setAttribute("aria-busy", "true");
-      try {
-        if (this.diagramPreviewContent !== content) {
-          const response = await fetch(`/workspaces/${encodeURIComponent(this.workspaceIdValue)}/drawio/preview`, {
-            method: "POST", signal, headers: { "Content-Type": "application/xml", Accept: "text/html" }, body: content,
-          });
-          if (sequence !== this.diagramRenderSequence || !this.isCurrentConnection(signal)) return;
-          if (!response.ok) throw new Error(await response.text());
-          const html = await response.text();
-          if (sequence !== this.diagramRenderSequence || !this.isCurrentConnection(signal)) return;
-          this.diagramPreviewTarget.innerHTML = html;
-          this.diagramPreviewContent = content;
-        }
-        this.hostTarget.hidden = true;
-        this.diagramPreviewTarget.hidden = false;
-        setToggleValue(this.diagramDisplayOptionsTarget, "preview");
-      } catch (error) {
-        if (sequence !== this.diagramRenderSequence || !this.isCurrentConnection(signal)) return;
-        this.showSource();
-        this.setStatus(String(error), "error");
-      } finally {
-        if (sequence === this.diagramRenderSequence) this.diagramDisplayOptionsTarget.setAttribute("aria-busy", "false");
-      }
-    }
-
     private showSource(): void {
-      if (this.hasDiagramPreviewTarget) {
-        this.diagramRenderSequence++;
-        this.diagramDisplayOptionsTarget.setAttribute("aria-busy", "false");
-        this.diagramPreviewTarget.hidden = true;
-        this.hostTarget.hidden = false;
-        setToggleValue(this.diagramDisplayOptionsTarget, "source");
-      }
       if (!this.hasRenderedMarkdownTarget) return;
       this.invalidateMarkdownRender();
       this.setRenderedMarkdownVisible(false);

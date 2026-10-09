@@ -14,6 +14,7 @@
 .drawio-preview iframe { width: 100%; flex: 1; min-height: 0; border: 0; }
 .drawio-preview-status { position: absolute; inset: 0 0 40px; display: grid; place-items: center; background: var(--panel); color: var(--text-muted); }
 .drawio-preview-status[hidden] { display: none; }
-.drawio-preview-tabs { display: flex; flex: none; gap: 6px; overflow-x: auto; padding: 6px 10px; border-top: 1px solid var(--line); background: var(--panel); }
-.drawio-preview-tabs > button { flex-shrink: 0; }
-.drawio-preview-tabs > [aria-selected="true"] { color: var(--accent); background: var(--accent-soft); border-color: var(--accent); }
+.drawio-preview-tabs { display: flex; flex: none; overflow-x: auto; border-top: 1px solid var(--line); background: var(--panel); }
+.drawio-preview-tab { flex-shrink: 0; padding: 10px 16px; border: 0; border-right: 1px solid var(--line); border-bottom: 2px solid transparent; border-radius: 0; color: var(--text-muted); background: transparent; font: 12px var(--font-sans); cursor: pointer; }
+.drawio-preview-tab:hover { background: var(--accent-soft); }
+.drawio-preview-tab[aria-selected="true"] { color: var(--text-bright); background: var(--elev); border-bottom-color: var(--accent); }
