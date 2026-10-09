@@ -9,6 +9,7 @@ import { escapeHtml, type WorkspaceModule, type WorkspaceWorkViewPresentation } 
 import { textResponse } from "@agents-in-the-cloud/shared/http";
 import { createView, views, type DiagramView } from "./state.ts";
 import { diagramPath, emptyDiagram, vendorPath } from "./paths.ts";
+import { renderDiagramPreview } from "./preview.ts";
 
 const referenceSchema = Type.Object({ type: Type.Literal("drawio"), id: Type.String({ pattern: "^drawio-[a-zA-Z0-9-]+$" }) });
 type Reference = Static<typeof referenceSchema>;
@@ -84,6 +85,16 @@ export const agentsInTheCloudServerModule: WorkspaceModule = {
     return { workViews: views.read(workspaceId).map(presentation), commands: [{ id: "drawio.create", label: "New Draw.io", scope: "workspace", surfaces: { ui: { placement: "work-launcher", iconHtml: Icons.Code, label: "Draw.io" } } }] };
   },
   routes: [{ async handle(request, url, context) {
+    if (/^\/workspaces\/[^/]+\/drawio\/preview$/.test(url.pathname)) {
+      if (request.method !== "POST") return textResponse("Method not allowed", { status: 405 });
+      const xml = await request.text();
+      if (xml.length > 2 * 1024 * 1024) return textResponse("Diagram is too large to preview", { status: 413 });
+      try {
+        return new Response(renderDiagramPreview(xml), { headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" } });
+      } catch (error) {
+        return textResponse(`Could not preview diagram: ${String(error)}`, { status: 422 });
+      }
+    }
     const openMatch = url.pathname.match(/^\/workspaces\/([^/]+)\/drawio\/open$/);
     if (openMatch) {
       if (request.method !== "POST") return textResponse("Method not allowed", { status: 405 });

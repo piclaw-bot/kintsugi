@@ -97,3 +97,8 @@
 .file-media-preview :is(img, video) { display: block; max-width: 100%; max-height: 100%; object-fit: contain; }
 
 .file-media-preview audio { width: min(100%, 640px); }
+.file-editor-diagram-preview { min-height: 0; overflow: hidden; }
+.file-editor-diagram-preview[hidden] { display: none; }
+.file-editor-diagram-pane { grid-template-rows: auto minmax(0, 1fr); }
+.file-editor-diagram-pane > .file-editor-toolbar { flex-wrap: wrap; gap: 6px; }
+.file-editor-diagram-pane .file-editor-toolbar-actions { flex-wrap: wrap; flex-shrink: 1; min-width: 0; }

@@ -2,13 +2,17 @@
   "name": "@agents-in-the-cloud/drawio",
   "private": true,
   "type": "module",
-  "exports": { "./server": "./src/server/index.ts", "./client": "./src/client/index.ts" },
+  "exports": {
+    "./server": "./src/server/index.ts",
+    "./client": "./src/client/index.ts"
+  },
   "dependencies": {
     "@agents-in-the-cloud/core": "workspace:*",
     "@agents-in-the-cloud/design-system": "workspace:*",
     "@agents-in-the-cloud/files": "workspace:*",
     "@agents-in-the-cloud/shared": "workspace:*",
     "@agents-in-the-cloud/workspace": "workspace:*",
+    "@xmldom/xmldom": "0.9.12",
     "typebox": "^1.0.57"
   }
 }

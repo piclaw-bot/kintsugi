@@ -1,6 +1,7 @@
 /// <reference lib="dom" />
 import { Type } from "typebox";
 import { Value } from "typebox/value";
+import { previewController } from "./preview-controller.ts";
 
 const messageSchema = Type.Union([Type.Object({ event: Type.Union([Type.Literal("configure"), Type.Literal("init")]) }), Type.Object({ event: Type.Union([Type.Literal("autosave"), Type.Literal("save")]), xml: Type.String() })]);
 const fileSchema = Type.Object({ content: Type.String(), revision: Type.String(), writable: Type.Boolean() });
@@ -8,6 +9,17 @@ const revisionSchema = Type.Object({ revision: Type.String() });
 type EditorAction = { action: "configure"; config: { customCss: string } } | { action: "load"; xml: string; autosave: number } | { action: "status"; message: string; modified: boolean };
 
 import type { WorkspaceClientModule, WorkspaceClientControllerConstructor } from "@agents-in-the-cloud/shared";
+
+function syncFrameTheme(frame: HTMLIFrameElement, element: HTMLElement): void {
+  const root = frame.contentDocument!.documentElement;
+  const styles = getComputedStyle(element);
+  root.dataset.aitcChrome = "";
+  root.dataset.aitcAppearance = getComputedStyle(document.documentElement).colorScheme === "dark" ? "dark" : "light";
+  root.style.setProperty("--aitc-color-scheme", root.dataset.aitcAppearance);
+  for (const token of ["bg", "panel", "elev", "line", "line-strong", "text", "text-bright", "text-muted", "accent", "accent-soft", "font-sans", "radius-control"]) {
+    root.style.setProperty(`--aitc-${token}`, styles.getPropertyValue(`--${token}`).trim());
+  }
+}
 
 function controller(Controller: WorkspaceClientControllerConstructor): WorkspaceClientControllerConstructor {
   return class DrawioController extends Controller {
@@ -21,14 +33,7 @@ function controller(Controller: WorkspaceClientControllerConstructor): Workspace
     private ready = false;
     private theme = new MutationObserver(() => this.syncTheme());
     private syncTheme(): void {
-      const root = this.frame().contentDocument!.documentElement;
-      const styles = getComputedStyle(this.element);
-      root.dataset.aitcChrome = "";
-      root.dataset.aitcAppearance = getComputedStyle(document.documentElement).colorScheme === "dark" ? "dark" : "light";
-      root.style.setProperty("--aitc-color-scheme", root.dataset.aitcAppearance);
-      for (const token of ["bg", "panel", "elev", "line", "line-strong", "text", "text-bright", "text-muted", "accent", "accent-soft", "font-sans", "radius-control"]) {
-        root.style.setProperty(`--aitc-${token}`, styles.getPropertyValue(`--${token}`).trim());
-      }
+      syncFrameTheme(this.frame(), this.element);
     }
     private async configure(): Promise<void> {
       try {
@@ -149,5 +154,5 @@ function controller(Controller: WorkspaceClientControllerConstructor): Workspace
   };
 }
 export const agentsInTheCloudClientModule: WorkspaceClientModule = {
-  id: "drawio", install({ application, Controller }) { application.register("drawio", controller(Controller)); },
+  id: "drawio", install({ application, Controller }) { application.register("drawio", controller(Controller)); application.register("drawio-preview", previewController(Controller, syncFrameTheme)); },
 };
