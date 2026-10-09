@@ -92,6 +92,7 @@ function ignored(path: string): boolean {
   return normalized.includes(`${sep}node_modules${sep}`)
     || normalized.includes(`${sep}.git${sep}`)
     || normalized.includes(`${sep}apps${sep}web${sep}public${sep}assets${sep}`)
+    || normalized.includes(`${sep}apps${sep}web${sep}public${sep}drawio${sep}`)
     || normalized.endsWith(`${sep}apps${sep}web${sep}public${sep}assets-manifest.json`)
     || normalized.includes(`${sep}apps${sep}web${sep}public${sep}.assets-manifest-`)
     || normalized.endsWith(`${sep}apps${sep}web${sep}src${sep}client${sep}workspace-client-modules.generated.ts`)
