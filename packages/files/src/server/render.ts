@@ -87,11 +87,15 @@ function selectedFileActions(workspaceId: string, view: FilesView, readOnly = fa
     <input type="hidden" name="path" value="${escapeHtml(path)}"><input type="hidden" name="filesView" value="${escapeHtml(view.id)}">
     ${deleteButton}
   </form>`;
+  const diagramButton = /\.drawio(?:\.xml)?$/i.test(path) ? `<form method="post" action="/workspaces/${encodeURIComponent(workspaceId)}/drawio/open" data-turbo-stream="true">
+    <input type="hidden" name="path" value="${escapeHtml(path)}">
+    ${buttonHtml({ type: "submit", variant: "secondary", content: { kind: "caption", caption: "Open in Draw.io" } })}
+  </form>` : "";
   return buttonGroupHtml({
     orientation: "horizontal",
     semantics: "group",
     label: "Actions for selected file",
-    itemsHtml: `${readOnly ? "" : copyButton}${downloadButton}${deleteForm}`,
+    itemsHtml: `${diagramButton}${readOnly ? "" : copyButton}${downloadButton}${deleteForm}`,
   });
 }
 

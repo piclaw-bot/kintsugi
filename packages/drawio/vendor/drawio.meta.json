@@ -1,0 +1,15 @@
+{
+  "manifest_id": "drawio",
+  "package_name": "drawio",
+  "package_version": "v31.4.2",
+  "package_license": "Apache-2.0",
+  "package_repository": "https://github.com/jgraph/drawio",
+  "source_url": "https://github.com/jgraph/drawio/releases/download/v31.4.2/draw.war",
+  "source_sha256": "cfc35c3da0ad40f7b16f163e60eaef75b267919a97f939f6bf2f6f2ee608239b",
+  "output_dir": "apps/web/public/drawio/vendor",
+  "archive_file": "packages/drawio/vendor/drawio-31.4.2.tar.gz",
+  "archive_sha256": "e0c7414715bcddafc071b5aadba984237313a59310523cdfcaef0da1bd8b41c7",
+  "total_size_bytes": 96164953,
+  "copied_items": 2769,
+  "metadata_file": "packages/drawio/vendor/drawio.meta.json"
+}

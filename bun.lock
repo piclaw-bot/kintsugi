@@ -29,6 +29,7 @@
         "@agents-in-the-cloud/core": "workspace:*",
         "@agents-in-the-cloud/design-system": "workspace:*",
         "@agents-in-the-cloud/desktop": "workspace:*",
+        "@agents-in-the-cloud/drawio": "workspace:*",
         "@agents-in-the-cloud/files": "workspace:*",
         "@agents-in-the-cloud/host": "workspace:*",
         "@agents-in-the-cloud/inline-content": "workspace:*",
@@ -216,6 +217,17 @@
         "@agents-in-the-cloud/workspace": "workspace:*",
         "@hotwired/stimulus": "github:hotwired/dev-builds#339df548999c34d440e04c24b59ad9dc57ce3eb1",
         "@novnc/novnc": "1.7.0",
+        "typebox": "^1.0.57",
+      },
+    },
+    "packages/drawio": {
+      "name": "@agents-in-the-cloud/drawio",
+      "dependencies": {
+        "@agents-in-the-cloud/core": "workspace:*",
+        "@agents-in-the-cloud/design-system": "workspace:*",
+        "@agents-in-the-cloud/files": "workspace:*",
+        "@agents-in-the-cloud/shared": "workspace:*",
+        "@agents-in-the-cloud/workspace": "workspace:*",
         "typebox": "^1.0.57",
       },
     },
@@ -511,6 +523,8 @@
     "@agents-in-the-cloud/design-system": ["@agents-in-the-cloud/design-system@workspace:packages/design-system"],
 
     "@agents-in-the-cloud/desktop": ["@agents-in-the-cloud/desktop@workspace:packages/desktop"],
+
+    "@agents-in-the-cloud/drawio": ["@agents-in-the-cloud/drawio@workspace:packages/drawio"],
 
     "@agents-in-the-cloud/files": ["@agents-in-the-cloud/files@workspace:packages/files"],
 

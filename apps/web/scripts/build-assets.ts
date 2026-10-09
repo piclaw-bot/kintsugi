@@ -14,6 +14,7 @@ const manifestUrl = new URL("../public/assets-manifest.json", import.meta.url);
 const manifestTempUrl = new URL(`../.assets-manifest-${process.pid}.json`, import.meta.url);
 const maxCssManifestPasses = 10;
 const clientOnly = process.argv.includes("--client-only") && await Bun.file(manifestUrl).exists();
+if (!clientOnly) await import("../../../packages/drawio/scripts/unpack.ts");
 
 type StaticFileRecord = [logicalPath: string, entry: StaticFileEntry];
 

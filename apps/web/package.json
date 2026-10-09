@@ -42,6 +42,7 @@
     "@agents-in-the-cloud/artifact-preview": "workspace:*",
     "@agents-in-the-cloud/builtin-agent": "workspace:*",
     "@agents-in-the-cloud/changes": "workspace:*",
-    "@agents-in-the-cloud/codex-agent": "workspace:*"
+    "@agents-in-the-cloud/codex-agent": "workspace:*",
+    "@agents-in-the-cloud/drawio": "workspace:*"
   }
 }

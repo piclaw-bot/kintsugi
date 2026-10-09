@@ -10,3 +10,8 @@ AgentsInTheCloud's Codex-compatible subagent tool descriptions and message envel
 from OpenAI Codex (https://github.com/openai/codex), commit
 574a36ff99f0807a24f5b043f593122bf151908d, licensed under Apache License 2.0.
 Copyright OpenAI. The license is included in docs/licenses/codex-LICENSE.
+
+The Draw.io Work view uses the embed protocol approach of Rui Carmo's piclaw-addons
+(drawio-editor), MIT licensed, and bundles draw.io v31.4.2, Apache-2.0 licensed.
+Source: https://github.com/rcarmo/piclaw-addons and https://github.com/jgraph/drawio
+Licenses and vendor provenance are included in packages/drawio/vendor/.

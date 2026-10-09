@@ -157,3 +157,6 @@ const filesWorkspaceModule: WorkspaceModule = {
 };
 
 export { filesWorkspaceModule as agentsInTheCloudServerModule };
+
+// Shared file operations for specialized workspace editors.
+export { readEditableFile, writeEditableFile, EditableFileError, uploadFile, FilesPathError, filesDiskChanged };

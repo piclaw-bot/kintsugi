@@ -1,0 +1,83 @@
+/* Bridge shell tokens into the bundled editor without recoloring the drawing. */
+:root[data-aitc-chrome] {
+  --ge-panel-color: var(--aitc-panel);
+  --toolbar-color: var(--aitc-panel);
+  --dark-toolbar-color: var(--aitc-panel);
+  --ge-dark-panel-color: var(--aitc-panel);
+  --dialog-color: var(--aitc-elev);
+  --dark-dialog-color: var(--aitc-elev);
+  --dark-header-color: var(--aitc-panel);
+  --inactive-color: var(--aitc-bg);
+  --active-color: var(--aitc-accent-soft);
+  --highlight-color: var(--aitc-accent-soft);
+  --dark-highlight-color: var(--aitc-accent-soft);
+  --primary-color: var(--aitc-accent-soft);
+  --primary-hover-color: var(--aitc-accent-soft);
+  --accent-color: var(--aitc-accent-soft);
+  --accent-hover-color: var(--aitc-accent-soft);
+  --accent-text-color: var(--aitc-accent);
+  --dark-accent-color: var(--aitc-accent-soft);
+  --dark-accent-text-color: var(--aitc-accent);
+  --dark-active-accent-color: var(--aitc-accent-soft);
+  --border-color: var(--aitc-line);
+  --dark-border-color: var(--aitc-line);
+  --strong-border-color: var(--aitc-line-strong);
+  --dark-strong-border-color: var(--aitc-line-strong);
+  --text-color: var(--aitc-text-bright);
+  --dark-text-color: var(--aitc-text-bright);
+  --strong-text-color: var(--aitc-text-bright);
+  --dark-strong-text-color: var(--aitc-text-bright);
+  --secondary-text-color: var(--aitc-text);
+  --dark-secondary-text-color: var(--aitc-text);
+  --faint-text-color: var(--aitc-text-muted);
+  --dark-faint-text-color: var(--aitc-text-muted);
+  --field-color: var(--aitc-elev);
+  --dark-field-color: var(--aitc-elev);
+  --field-border-color: var(--aitc-line-strong);
+  --dark-field-border-color: var(--aitc-line-strong);
+  --card-color: var(--aitc-elev);
+  --dark-card-color: var(--aitc-elev);
+  --soft-color: var(--aitc-bg);
+  --dark-soft-color: var(--aitc-bg);
+  --soft-hover-color: var(--aitc-accent-soft);
+  --dark-soft-hover-color: var(--aitc-accent-soft);
+  --focus-color: var(--aitc-accent);
+  --dark-focus-color: var(--aitc-accent);
+  --selected-color: var(--aitc-accent-soft);
+  --selected-hover-color: var(--aitc-accent-soft);
+  --active-item-color: var(--aitc-accent-soft);
+  --dark-active-item-color: var(--aitc-accent-soft);
+  --scrollbar-color: var(--aitc-line-strong);
+  --dark-scrollbar-color: var(--aitc-line-strong);
+  --scrollbar-hover-color: var(--aitc-text-muted);
+}
+
+[data-aitc-chrome] .geEditor {
+  font-family: var(--aitc-font-sans);
+  color-scheme: var(--aitc-color-scheme) !important;
+}
+
+/* Leave the artboard, shape colors, labels and inline label editor alone. */
+[data-aitc-chrome] .geDiagramContainer {
+  color-scheme: light;
+}
+
+[data-aitc-chrome] :is(.geMenubarContainer, .geToolbarContainer, .geSidebarContainer, .geTabContainer, .geDialog, .mxPopupMenu, .mxWindow) {
+  font-family: var(--aitc-font-sans);
+}
+
+[data-aitc-chrome] :is(.geDialog, .mxPopupMenu, .mxWindow) {
+  background-color: var(--aitc-elev);
+  border-color: var(--aitc-line-strong);
+  color: var(--aitc-text-bright);
+}
+
+[data-aitc-chrome] :is(button, input, select, textarea):not(.geDiagramContainer *) {
+  font-family: var(--aitc-font-sans);
+  border-radius: var(--aitc-radius-control);
+}
+
+/* draw.io uses black image/sprite icons, independent of its color tokens. */
+[data-aitc-appearance="dark"] :is(.geButton, .geAdaptiveAsset, .geTitle, .geBtnStepper > div, .geColorDropper, .geStyleMenuItem, .gePropHeader):not(.geDiagramContainer *, .geDarkMode *) {
+  filter: invert(1);
+}
