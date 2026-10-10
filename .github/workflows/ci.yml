@@ -18,10 +18,19 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: 1.4.2
       - run: bun ci
+      - name: Install test runtime dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends socat tmux ffmpeg
+          sudo mkdir -p /work
+          sudo chmod 1777 /work
+          sudo --preserve-env=PATH "$(command -v bun)" x playwright install --with-deps chromium
       - run: bun run check
-      - run: bun run test
+      # Installer ownership tests exercise chown to agent's numeric UID/GID.
+      - name: Run the full test suite
+        run: sudo --preserve-env=PATH "$(command -v bun)" run test
