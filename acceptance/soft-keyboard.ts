@@ -1,17 +1,17 @@
 /**
  * Acceptance script, Tier 2: soft-keyboard behaviour on the workspace-owned
- * remote iOS simulator (iPhone 15 Pro), in the installed Atelier PWA.
+ * remote iOS simulator (iPhone 15 Pro), in the installed Kintsugi PWA.
  * Everything without a soft keyboard is Tier 1 (acceptance/composer-layout.ts).
  *
- * Run by hand or by an agent against a running Atelier; never part of a test suite or CI.
+ * Run by hand or by an agent against a running Kintsugi; never part of a test suite or CI.
  * Prerequisites (see .agents/skills/ios-serve-sim/SKILL.md):
  *   - `bun tools/ios-serve-sim/cli.ts serve --model "iPhone 15 Pro" -- --fit --panes tools` running (viewer on :4101),
  *   - `bun tools/ios-serve-sim/cli.ts forward 3000 43000` running,
- *   - Atelier added to the simulator's Home Screen from http://localhost:43000 and open,
+ *   - Kintsugi added to the simulator's Home Screen from http://localhost:43000 and open,
  *   - the simulator's soft keyboard enabled (com.apple.keyboard.preferences
  *     AutomaticMinimizationEnabled=false, HardwareKeyboardLastSeen=false).
  *
- *   bun acceptance/soft-keyboard.ts [--atelier http://localhost:3000] [--app http://localhost:43000]
+ *   bun acceptance/soft-keyboard.ts [--kintsugi http://localhost:3000] [--app http://localhost:43000]
  *     [--workspace <id>] [--model provider::model] [--out <dir>] [--only <regex>]
  *
  * The page is traced per frame through the Web Inspector (ios_webkit_debug_proxy),
@@ -30,7 +30,7 @@ import { analyseKeyboardVideo } from "./lib/video.ts";
 
 const { values: args } = parseArgs({
   options: {
-    atelier: { type: "string", default: "http://localhost:3000" },
+    kintsugi: { type: "string", default: "http://localhost:3000" },
     app: { type: "string", default: "http://localhost:43000" },
     workspace: { type: "string" },
     model: { type: "string" },
@@ -44,7 +44,7 @@ const out = args.out ?? `/persistent/acceptance-reports/soft-keyboard-${stamp}`;
 await mkdir(out, { recursive: true });
 const log = (message: string): void => console.log(`[soft-keyboard] ${message}`);
 
-const setup: Stage = await stage({ atelier: args.atelier, workspaceId: args.workspace, model: args.model, log });
+const setup: Stage = await stage({ kintsugi: args.kintsugi, workspaceId: args.workspace, model: args.model, log });
 const sim = await Simulator.connect();
 const inspector = await sim.inspector();
 log(`simulator ${sim.udid}; inspector ${inspector.url}`);
@@ -57,13 +57,13 @@ async function openPwa(): Promise<WebKitPage> {
     if (await page.evaluate<boolean>("navigator.standalone === true")) return page;
     page.close();
   }
-  throw new Error(`The Atelier PWA (${args.app}) is not running on the simulator. Add it to the Home Screen and open it.`);
+  throw new Error(`The Kintsugi PWA (${args.app}) is not running on the simulator. Add it to the Home Screen and open it.`);
 }
 
 let page = await openPwa();
 await page.enableNetwork();
 const report = new Report(out, "Soft keyboard acceptance (Tier 2, iPhone 15 Pro simulator, PWA)", {
-  atelier: args.atelier, app: args.app, simulator: sim.udid, workspace: setup.workspaceId, "built-in agent": setup.builtinId, "Pi agent": setup.piId, "Terminal view": setup.terminalKey, started: new Date().toISOString(),
+  kintsugi: args.kintsugi, app: args.app, simulator: sim.udid, workspace: setup.workspaceId, "built-in agent": setup.builtinId, "Pi agent": setup.piId, "Terminal view": setup.terminalKey, started: new Date().toISOString(),
 });
 
 const builtinPath = `/workspaces/${setup.workspaceId}?agent=${setup.builtinId}`;

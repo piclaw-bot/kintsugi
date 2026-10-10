@@ -135,7 +135,7 @@ Update also installs the newest Kintsugi app on the installation's selected chan
   --access-mode MODE  localhost or tailscale (default selected for this machine)
   --action ACTION     install, update, rollback, connect, or open
                       connect enables Tailscale without replacing an existing installation
-  --uninstall         Permanently delete installation data (also supports Atelier System)
+  --uninstall         Permanently delete Kintsugi installation data
   -h, --help          Show help
 
 Setup prompts for a release repository and a Tailscale hostname. Updates retain saved selections.

@@ -78,7 +78,7 @@ _Avoid_: Project, workspace folder, repository
 Secrets, SSH keys, trusted SSH servers and Environment variables that apply to every new workspace, including Empty workspaces. They are edited in Settings and in each Workspace template's settings. A template's own Secret or Environment variable with the same name overrides the global one; SSH keys and trusted SSH servers from both apply.
 _Avoid_: Shared secrets, default template settings
 
-**Atelier-in-Atelier seeding**:
+**Kintsugi-in-Kintsugi seeding**:
 A fringe Workspace template permission for copying Model provider credentials and saved Workspace template configuration into new Workspaces, primarily to prepare a nested installation. Unlike Secrets, this can put real credentials inside the Workspace, so it is only appropriate for trusted repositories and Agents.
 
 **Secrets**:
