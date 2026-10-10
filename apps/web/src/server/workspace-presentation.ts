@@ -227,7 +227,7 @@ function renderKintsugiNextAttentionButton(): string {
 
 export function renderKintsugiBar(): string {
   const close = barButton("Close workspace list", "click->workspace-navigation#closeWorkspacePane", Icons.Close, "data-close-workspace-pane disabled");
-  const newWorkspace = barButton("New workspace from same template", "click->kintsugi-shortcuts#runCommand", Icons.Plus, 'data-command-id="agent.open-launch-composer"');
+  const newWorkspace = barButton("New workspace", "click->kintsugi-shortcuts#runCommand", Icons.Plus, 'data-command-id="agent.open-launch-composer"');
   return `<nav class="fixed-shell-mobile-nav fixed-shell-kintsugi-bar" data-popular-button aria-label="Kintsugi">${close}${renderKintsugiNextAttentionButton()}${newWorkspace}</nav>`;
 }
 
