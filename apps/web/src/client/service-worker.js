@@ -10,7 +10,7 @@ self.addEventListener("push", (event) => {
   const notification = event.data.json();
   event.waitUntil(self.registration.showNotification(notification.title, {
     tag: notification.tag,
-    icon: "/icon.svg",
+    icon: "/icon-192.png",
     data: { url: notification.url },
   }));
 });

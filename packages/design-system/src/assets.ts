@@ -4,7 +4,7 @@ import type { StaticFileContribution } from "@kintsugi/shared";
 export const designSystemStaticFiles = {
   "/scrollbar.css": { url: new URL("./scrollbar/scrollbar.css", import.meta.url), contentType: "text/css; charset=utf-8" },
   "/builtin-agent.svg": { url: new URL("./icons/builtin-agent.svg", import.meta.url), contentType: "image/svg+xml" },
-  "/kintsugi-brand.svg": { url: new URL("./icons/kintsugi-brand.svg", import.meta.url), contentType: "image/svg+xml" },
+  "/kintsugi-brand.png": { url: new URL("./icons/kintsugi-brand.png", import.meta.url), contentType: "image/png" },
   "/tab-strip.css": { url: new URL("./tab-strip/tab-strip.css", import.meta.url), contentType: "text/css; charset=utf-8" },
   "/warning-banner.css": { url: new URL("./warning-banner/warning-banner.css", import.meta.url), contentType: "text/css; charset=utf-8" },
   "/text-entry.css": {

@@ -3,7 +3,7 @@ function iconHtml(paths: string): string {
 }
 
 /** Product mark for app branding. Accessible names belong on the containing UI. */
-export const kintsugiBrandIconHtml = '<img class="kintsugi-brand-icon" src="/kintsugi-brand.svg" width="24" height="24" alt="" aria-hidden="true">';
+export const kintsugiBrandIconHtml = '<img class="kintsugi-brand-icon" src="/kintsugi-brand.png" width="24" height="24" alt="" aria-hidden="true">';
 
 /** The social-card A robot identifies Builtin agents, distinct from app branding. */
 export const builtinAgentIconHtml = '<img class="builtin-agent-icon" src="/builtin-agent.svg" width="20" height="24" alt="" aria-hidden="true">';

@@ -60,7 +60,8 @@ ${options.devReload ? `
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="turbo-cache-control" content="no-cache">
 <title>${escapeHtml(kintsugiName)}</title>
-<link rel="icon" type="image/svg+xml" href="/icon.svg" sizes="any">
+<link rel="icon" type="image/png" href="/favicon-32.png" sizes="32x32">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png" sizes="180x180">
 <link rel="manifest" href="/manifest.webmanifest">
 <meta name="theme-color" content="#eadcc6">
 <link rel="stylesheet" href="${assetPath("/design-system.css")}">

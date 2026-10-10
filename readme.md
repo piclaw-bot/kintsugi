@@ -1,6 +1,6 @@
 # Kintsugi
 
-![Kintsugi](docs/readme/hero.svg)
+[![Kintsugi](docs/icon-256.png)](docs/icon.png)
 
 Kintsugi is an opinionated fork of [AgentsInTheCloud](https://github.com/lucasmeijer/AgentsInTheCloud), created by Lucas Meijer. It runs coding agents on your own infrastructure, with your choice of model providers and tools for evaluating their work.
 
