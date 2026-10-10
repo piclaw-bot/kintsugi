@@ -1,8 +1,8 @@
-import { nativeJsonlRows, nativeImageTypes, nativeImageResponse, nativeTimestamp } from "@agents-in-the-cloud/cli-agent/server";
+import { nativeJsonlRows, nativeImageTypes, nativeImageResponse, nativeTimestamp } from "@kintsugi/cli-agent/server";
 import { join } from "node:path";
-import { getAgentsInTheCloudRuntimeContext, readTextIfExists } from "@agents-in-the-cloud/core";
-import type { TranscriptRecord } from "@agents-in-the-cloud/agent/server/transcript";
-import { workspaceRoot } from "@agents-in-the-cloud/workspace";
+import { getKintsugiRuntimeContext, readTextIfExists } from "@kintsugi/core";
+import type { TranscriptRecord } from "@kintsugi/agent/server/transcript";
+import { workspaceRoot } from "@kintsugi/workspace";
 import { Type, type Static } from "typebox";
 import { Value } from "typebox/value";
 
@@ -113,7 +113,7 @@ export function claudeTurnSettled(jsonl: string): boolean {
 }
 
 function nativeSessionPath(sessionId: string): string {
-  return join(getAgentsInTheCloudRuntimeContext().agentsInTheCloudDataDir, "home", ".claude", "projects", workspaceRoot.replaceAll("/", "-"), `${sessionId}.jsonl`);
+  return join(getKintsugiRuntimeContext().kintsugiDataDir, "home", ".claude", "projects", workspaceRoot.replaceAll("/", "-"), `${sessionId}.jsonl`);
 }
 export async function loadClaudeTranscript(_workspaceId: string, sessionId: string): Promise<TranscriptRecord[] | undefined> {
   const text = await readTextIfExists(nativeSessionPath(sessionId));

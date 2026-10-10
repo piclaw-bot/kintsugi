@@ -1,7 +1,7 @@
 import { availableProviderModels } from "./known-model-provider-incorrectness.ts";
 import { providerAvailability } from "./provider-availability.ts";
 import type { ModelRef } from "./model-reference.ts";
-import { readJsonSettings, updateJsonSettings } from "@agents-in-the-cloud/core/json-settings";
+import { readJsonSettings, updateJsonSettings } from "@kintsugi/core/json-settings";
 import { syncSubscriptionClis } from "./subscription-cli.ts";
 import { anthropicUsageSource } from "./anthropic-subscription-usage.ts";
 import { forgetSubscriptionInference } from "./recent-subscription-activity.ts";
@@ -9,8 +9,8 @@ import { defaultProviderModels, modelDisplayName } from "./hardcoded-provider-kn
 import { mkdir, readFile, unlink, writeFile } from "node:fs/promises";
 import { arch, platform, release } from "node:os";
 import { dirname, join } from "node:path";
-import { agentsInTheCloudDataPath, getAgentsInTheCloudRuntimeContext, isJsonObject, readTextIfExists, writeJsonAtomic, type JsonObject, type JsonValue } from "@agents-in-the-cloud/core";
-import { errorMessage } from "@agents-in-the-cloud/shared";
+import { kintsugiDataPath, getKintsugiRuntimeContext, isJsonObject, readTextIfExists, writeJsonAtomic, type JsonObject, type JsonValue } from "@kintsugi/core";
+import { errorMessage } from "@kintsugi/shared";
 import type { Api, AuthInteraction, AuthPrompt, Model, ProviderHeaders } from "@earendil-works/pi-ai";
 import { InMemoryCredentialStore } from "@earendil-works/pi-ai";
 import { ModelRuntime } from "@earendil-works/pi-coding-agent";
@@ -25,7 +25,7 @@ export interface CustomModelsSaveResult {
   skippedOfficialModels: ModelRef[];
 }
 
-function piConfigDir(): string { return agentsInTheCloudDataPath(getAgentsInTheCloudRuntimeContext(), "pi-config"); }
+function piConfigDir(): string { return kintsugiDataPath(getKintsugiRuntimeContext(), "pi-config"); }
 function piModelsJsonPath(): string { return join(piConfigDir(), "models.json"); }
 function piCustomModelsJsonPath(): string { return join(piConfigDir(), "custom-models.json"); }
 function piAuthJsonPath(): string { return join(piConfigDir(), "auth.json"); }
@@ -186,14 +186,14 @@ export function cheapestProviderModel(runtime: Pick<ModelRuntime, "getModels">, 
   return runtime.getModels(provider).toSorted((a, b) => a.cost.input - b.cost.input)[0];
 }
 
-const agentsInTheCloudUserAgent = `AgentsInTheCloud (${platform()} ${release()}; ${arch()})`;
+const kintsugiUserAgent = `Kintsugi (${platform()} ${release()}; ${arch()})`;
 
-/** Introduces AgentsInTheCloud to providers instead of pi. Caller headers still win. */
-function identifyAsAgentsInTheCloud(runtime: ModelRuntime): ModelRuntime {
+/** Introduces Kintsugi to providers instead of pi. Caller headers still win. */
+function identifyAsKintsugi(runtime: ModelRuntime): ModelRuntime {
   const withIdentity = (model: Model<Api>, headers: ProviderHeaders | undefined): ProviderHeaders | undefined => {
     // Anthropic subscriptions only accept requests that identify as Claude Code.
     if (model.provider === "anthropic" && runtime.isUsingOAuth(model.provider)) return headers;
-    const identity: ProviderHeaders = model.api === "openai-codex-responses" ? { "User-Agent": agentsInTheCloudUserAgent, originator: "AgentsInTheCloud" } : { "User-Agent": agentsInTheCloudUserAgent };
+    const identity: ProviderHeaders = model.api === "openai-codex-responses" ? { "User-Agent": kintsugiUserAgent, originator: "Kintsugi" } : { "User-Agent": kintsugiUserAgent };
     return { ...identity, ...headers };
   };
   // Instance overrides also catch completeSimple, fetchDeferred, and the runtime's own re-entry when it routes virtual models.
@@ -212,7 +212,7 @@ export function claudeCodeHeaders(model: Model<Api>): ProviderHeaders | undefine
 export function createPiModelRuntime(): Promise<ModelRuntime> {
   return modelRuntime ??= (async () => {
     await preparePiModelsJson();
-    return identifyAsAgentsInTheCloud(await ModelRuntime.create({ authPath: piAuthJsonPath(), modelsPath: piModelsJsonPath() }));
+    return identifyAsKintsugi(await ModelRuntime.create({ authPath: piAuthJsonPath(), modelsPath: piModelsJsonPath() }));
   })();
 }
 
@@ -244,7 +244,7 @@ function forgetSubscriptionState(provider: string): void {
 export async function loginPiOAuthProvider(providerId: string, interaction: AuthInteraction): Promise<void> {
   const runtime = await createPiModelRuntime();
   const deviceId = await piDeviceId();
-  await runtime.login(providerId, "oauth", interaction, { getDeviceId: () => deviceId, agentName: "AgentsInTheCloud" });
+  await runtime.login(providerId, "oauth", interaction, { getDeviceId: () => deviceId, agentName: "Kintsugi" });
   forgetSubscriptionState(providerId);
   if (providerId === "openai" || providerId === "anthropic") await syncSubscriptionClis(runtime);
   await refreshConnectedProviderCatalogue(runtime, providerId, interaction.signal);
@@ -256,7 +256,7 @@ export async function validateModelProviderApiKey(provider: string, key: string,
   if (!trimmed) throw new Error("API key is required");
   const credentials = new InMemoryCredentialStore();
   await credentials.modify(provider, async () => ({ type: "api_key", key: trimmed }));
-  const runtime = identifyAsAgentsInTheCloud(await ModelRuntime.create({ credentials, modelsPath: customModel ? null : piModelsJsonPath(), allowModelNetwork: false }));
+  const runtime = identifyAsKintsugi(await ModelRuntime.create({ credentials, modelsPath: customModel ? null : piModelsJsonPath(), allowModelNetwork: false }));
   if (customModel) runtime.registerProvider(provider, { api: customModel.api, baseUrl: customModel.baseUrl, models: [customModel] });
   const models = runtime.getModels(provider);
   const model = models[Math.floor(Math.random() * models.length)];

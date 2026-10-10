@@ -1,10 +1,10 @@
-import type { AgentsInTheCloudEventBus } from "@agents-in-the-cloud/core";
+import type { KintsugiEventBus } from "@kintsugi/core";
 import { durableWorkspaceOwner } from "./runtime.ts";
 import { allowWorkspaceAgentResume } from "./runtime.ts";
 import { listWorkspaceAgents } from "./agent-store.ts";
 
 /** Legacy transcripts are read-only. Resume committed native tasks, never synthetic input. */
-export async function resumeInterruptedAgentSessions(workspaces: readonly { id: string; parked: boolean }[], events: AgentsInTheCloudEventBus): Promise<void> {
+export async function resumeInterruptedAgentSessions(workspaces: readonly { id: string; parked: boolean }[], events: KintsugiEventBus): Promise<void> {
   await Promise.all(workspaces.filter(workspace => !workspace.parked).map(async workspace => {
     try {
       allowWorkspaceAgentResume(workspace.id);

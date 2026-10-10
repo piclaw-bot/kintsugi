@@ -2,7 +2,7 @@ import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
 import { CallToolRequestSchema, ListToolsRequestSchema, ErrorCode, McpError } from "@modelcontextprotocol/sdk/types.js";
 import { Value } from "typebox/value";
-import { errorMessage } from "@agents-in-the-cloud/shared";
+import { errorMessage } from "@kintsugi/shared";
 import type { WorkspaceTool } from "./workspace-tool.ts";
 import { authenticateAgentRequest, type AgentMcpIdentity } from "./mcp-credentials.ts";
 
@@ -28,7 +28,7 @@ export function createAgentMcpServer(options: AgentMcpServerOptions) {
       if (request.method !== "POST") return new Response("MCP initialization required", { status: 400 });
       // Tool visibility is fixed for the workspace lifetime; build definitions once per session.
       const tools = new Map(options.tools(identity).map((tool) => [tool.name, tool]));
-      const server = new Server({ name: "agents-in-the-cloud", version: "1.0.0" }, { capabilities: { tools: {} }, instructions: identity.instructionDelivery === "system-prompt" ? undefined : await options.instructions(identity) });
+      const server = new Server({ name: "kintsugi", version: "1.0.0" }, { capabilities: { tools: {} }, instructions: identity.instructionDelivery === "system-prompt" ? undefined : await options.instructions(identity) });
       const transport = new WebStandardStreamableHTTPServerTransport({
         sessionIdGenerator: () => crypto.randomUUID(),
         onsessioninitialized: (id) => { sessions.set(id, { identity, server, transport }); },

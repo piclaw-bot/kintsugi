@@ -1,4 +1,4 @@
-import type { WorkspaceClientControllerConstructor as StimulusControllerConstructor } from "@agents-in-the-cloud/shared";
+import type { WorkspaceClientControllerConstructor as StimulusControllerConstructor } from "@kintsugi/shared";
 
 declare global {
   interface Window { Turbo?: { renderStreamMessage(html: string): void }; }

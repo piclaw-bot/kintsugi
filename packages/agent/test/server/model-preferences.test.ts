@@ -1,15 +1,15 @@
-import { updateJsonSettings } from "@agents-in-the-cloud/core/json-settings";
+import { updateJsonSettings } from "@kintsugi/core/json-settings";
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { getAgentModelPreference, setAgentModelPreference, getAgentModelThinkingLevel, setAgentModelThinkingLevel, createPiModelRuntime, disconnectModelProvider, seedProviderEnabledModels, getCustomModelsJson, setCustomModelsJson, setEnabledModels } from "@agents-in-the-cloud/llm/server";
+import { getAgentModelPreference, setAgentModelPreference, getAgentModelThinkingLevel, setAgentModelThinkingLevel, createPiModelRuntime, disconnectModelProvider, seedProviderEnabledModels, getCustomModelsJson, setCustomModelsJson, setEnabledModels } from "@kintsugi/llm/server";
 import { reconcileAgentModelPreferences, getAgentEnabledModels } from "../../src/server/model-preferences.ts";
 
 let dataDir: string;
 
 beforeEach(async () => {
-  dataDir = await mkdtemp(join(tmpdir(), "agents-in-the-cloud-custom-models-"));
+  dataDir = await mkdtemp(join(tmpdir(), "kintsugi-custom-models-"));
   process.env.ATELIER_DATA_DIR = dataDir;
 });
 

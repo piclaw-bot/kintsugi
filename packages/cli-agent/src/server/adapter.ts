@@ -1,7 +1,7 @@
-import type { JsonObject } from "@agents-in-the-cloud/core";
-import type { CliAgentConnection } from "@agents-in-the-cloud/agent/server";
-import type { TranscriptRecord } from "@agents-in-the-cloud/agent/server/transcript";
-import type { AgentLaunchFooterContext, AgentWorkspaceParameters, WorkspaceAgentInput } from "@agents-in-the-cloud/shared";
+import type { JsonObject } from "@kintsugi/core";
+import type { CliAgentConnection } from "@kintsugi/agent/server";
+import type { TranscriptRecord } from "@kintsugi/agent/server/transcript";
+import type { AgentLaunchFooterContext, AgentWorkspaceParameters, WorkspaceAgentInput } from "@kintsugi/shared";
 
 /** Identity of the session being launched, so adapters can address their session-local files. */
 export interface CliAgentSession {

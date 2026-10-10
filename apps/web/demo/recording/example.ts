@@ -1,10 +1,10 @@
 import { basename, extname } from "node:path";
-import { recordAgentsInTheCloudDemo } from "./agents-in-the-cloud-recording.ts";
+import { recordKintsugiDemo } from "./kintsugi-recording.ts";
 
 const outputPath = process.argv[2] ?? "/work/artifacts/recording-harness-example.mp4";
 const name = basename(outputPath, extname(outputPath));
 
-const report = await recordAgentsInTheCloudDemo(
+const report = await recordKintsugiDemo(
 	{
 		name,
 		outputPath,
@@ -20,7 +20,7 @@ const report = await recordAgentsInTheCloudDemo(
 				#result { color: #3157d5; font-weight: 700; }
 			</style>
 			<main>
-				<h1>AgentsInTheCloud recording harness</h1>
+				<h1>Kintsugi recording harness</h1>
 				<label>Demo title <input aria-label="Demo title"></label>
 				<button>Preview title</button>
 				<p id="result"></p>

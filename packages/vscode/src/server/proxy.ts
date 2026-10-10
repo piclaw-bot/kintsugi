@@ -1,10 +1,10 @@
 import { pathToFileURL } from "node:url";
 import { Type } from "typebox";
 import { Value } from "typebox/value";
-import type { WorkspaceHttpAppBackend } from "@agents-in-the-cloud/shared";
-import { isJsonObject } from "@agents-in-the-cloud/core";
-import { workspacePortBackend, workspaceVSCodePort } from "@agents-in-the-cloud/workspace";
-import { publicWorkspaceAppOrigin, type WorkspaceAppHost } from "@agents-in-the-cloud/proxy-ingress/server";
+import type { WorkspaceHttpAppBackend } from "@kintsugi/shared";
+import { isJsonObject } from "@kintsugi/core";
+import { workspacePortBackend, workspaceVSCodePort } from "@kintsugi/workspace";
+import { publicWorkspaceAppOrigin, type WorkspaceAppHost } from "@kintsugi/proxy-ingress/server";
 import { ensureWorkspaceVSCodeServer } from "./workspace-vscode.ts";
 
 const gallerySchema = Type.Object({ resourceUrlTemplate: Type.Optional(Type.String()) });
@@ -40,12 +40,12 @@ function luminance(hex: string): number {
 
 function themeDefaultsForRequest(request: Request): VSCodeThemeDefaults | undefined {
   const url = new URL(request.url);
-  const bg = requestColor(url, "agentsInTheCloudBg");
-  const panel = requestColor(url, "agentsInTheCloudPanel");
-  const elev = requestColor(url, "agentsInTheCloudElev");
-  const text = requestColor(url, "agentsInTheCloudText");
-  const line = requestColor(url, "agentsInTheCloudLine");
-  const accent = requestColor(url, "agentsInTheCloudAccent");
+  const bg = requestColor(url, "kintsugiBg");
+  const panel = requestColor(url, "kintsugiPanel");
+  const elev = requestColor(url, "kintsugiElev");
+  const text = requestColor(url, "kintsugiText");
+  const line = requestColor(url, "kintsugiLine");
+  const accent = requestColor(url, "kintsugiAccent");
   if (!bg || !panel || !elev || !text) return undefined;
   interface VSCodeColorCustomizations {
     [name: string]: string;
@@ -110,7 +110,7 @@ export async function patchVSCodeWorkspaceAppResponse(app: WorkspaceAppHost, res
   if (app.appKey !== vscodeAppKey || !response.ok) return response;
   if (!response.headers.get("content-type")?.includes("text/html")) return response;
   const requestUrl = new URL(request.url);
-  const file = requestUrl.searchParams.get("agentsInTheCloudOpenFile");
+  const file = requestUrl.searchParams.get("kintsugiOpenFile");
   if (file !== null) {
     await response.body?.cancel();
     if (!file.startsWith("/")) return new Response("File path must be absolute", { status: 422 });
@@ -118,10 +118,10 @@ export async function patchVSCodeWorkspaceAppResponse(app: WorkspaceAppHost, res
     const resource = new URL(`vscode-remote://${origin.host}`);
     resource.pathname = pathToFileURL(file).pathname;
     const payload = [["openFile", resource.href]];
-    if (requestUrl.searchParams.get("agentsInTheCloudGotoLine") === "1") payload.push(["gotoLineMode", "true"]);
+    if (requestUrl.searchParams.get("kintsugiGotoLine") === "1") payload.push(["gotoLineMode", "true"]);
     const destination = new URL(requestUrl.pathname + requestUrl.search, origin);
-    destination.searchParams.delete("agentsInTheCloudOpenFile");
-    destination.searchParams.delete("agentsInTheCloudGotoLine");
+    destination.searchParams.delete("kintsugiOpenFile");
+    destination.searchParams.delete("kintsugiGotoLine");
     destination.searchParams.set("payload", JSON.stringify(payload));
     return new Response(null, { status: 302, headers: { location: destination.href, "cache-control": "no-store" } });
   }
@@ -175,9 +175,9 @@ export async function patchVSCodeWorkspaceAppResponse(app: WorkspaceAppHost, res
 export async function resolveVSCodeWorkspaceAppBackend(app: WorkspaceAppHost, requestUrl: URL): Promise<WorkspaceHttpAppBackend> {
   if (app.appKey !== vscodeAppKey) throw new Error(`unknown workspace app: ${app.appKey}`);
   await ensureVSCodeServer(app.workspaceId);
-  const targetUrl = new URL(requestUrl.pathname + requestUrl.search, "http://agents-in-the-cloud.local");
+  const targetUrl = new URL(requestUrl.pathname + requestUrl.search, "http://kintsugi.local");
   [...targetUrl.searchParams.keys()].forEach((key) => {
-    if (key.startsWith("agents-in-the-cloud")) targetUrl.searchParams.delete(key);
+    if (key.startsWith("kintsugi")) targetUrl.searchParams.delete(key);
   });
   const path = targetUrl.pathname + targetUrl.search;
   return await workspacePortBackend(app.workspaceId, workspaceVSCodePort, path);

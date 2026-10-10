@@ -5,7 +5,7 @@ set -euo pipefail
 # Native-only development: append --platform linux/arm64 (or linux/amd64).
 # Derived images: FROM REGISTRY/IMAGE@sha256:... . Use the default docker Buildx
 # driver inside them; docker-container builders have an independent BuildKit.
-build_image=agents-in-the-cloud-patched-docker:dev
+build_image=kintsugi-patched-docker:dev
 if [[ $# -gt 0 && "$1" != -* ]]; then
     build_image=$1
     shift

@@ -1,7 +1,7 @@
 # Highlighting results — 2026-09-04
 
 Apple M4 Max, macOS arm64, Bun 1.3.14; same fixture bytes as the baseline.
-52/52 cases pass the tightened budgets documented in README.md. No server deployment or local AgentsInTheCloud launch.
+52/52 cases pass the tightened budgets documented in README.md. No server deployment or local Kintsugi launch.
 
 ## First invocation / third invocation (ms)
 

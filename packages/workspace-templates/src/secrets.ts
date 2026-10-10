@@ -1,7 +1,7 @@
 import { Type } from "typebox";
 import { workspaceTemplateSecretAllowsPath, secretPathInjectionDefaultHosts } from "./secret-path-policy.ts";
 import { randomUUID } from "node:crypto";
-import { AgentsInTheCloudCoreError } from "@agents-in-the-cloud/core";
+import { KintsugiCoreError } from "@kintsugi/core";
 import { decryptWorkspaceTemplateValue, encryptWorkspaceTemplateValue } from "./secret-crypto.ts";
 import { configurationScopeKey, findConfigurationRecord, workspaceScopes, workspaceTemplateSecretSummary, workspaceTemplatesFile, readWorkspaceTemplateStore, updateWorkspaceTemplateStore, type ConfigurationRecord, type ConfigurationScope, type WorkspaceTemplateSecretSummary, type StoredWorkspaceTemplateSecret } from "./workspace-template.ts";
 
@@ -20,13 +20,13 @@ export interface WorkspaceTemplateSecretInput {
 
 function normalizeEnvName(value: string): string {
   const envName = value.trim();
-  if (!/^[A-Z_][A-Z0-9_]*$/.test(envName)) throw new AgentsInTheCloudCoreError("invalid_arguments", "ENV must be an uppercase environment variable name");
+  if (!/^[A-Z_][A-Z0-9_]*$/.test(envName)) throw new KintsugiCoreError("invalid_arguments", "ENV must be an uppercase environment variable name");
   return envName;
 }
 
 function normalizeHostPattern(value: string): string {
   const hostPattern = value.trim().toLowerCase();
-  if (!hostPattern) throw new AgentsInTheCloudCoreError("invalid_arguments", "HOST is required");
+  if (!hostPattern) throw new KintsugiCoreError("invalid_arguments", "HOST is required");
   return hostPattern;
 }
 
@@ -36,12 +36,12 @@ function normalizePlaceholder(value: string | undefined): string | undefined {
 
 function findWorkspaceTemplateSecret(configuration: ConfigurationRecord, secretId: string): StoredWorkspaceTemplateSecret {
   const secret = configuration.secrets?.find((candidate) => candidate.id === secretId);
-  if (!secret) throw new AgentsInTheCloudCoreError("workspace_template_secret_not_found", `template secret not found: ${secretId}`);
+  if (!secret) throw new KintsugiCoreError("workspace_template_secret_not_found", `template secret not found: ${secretId}`);
   return secret;
 }
 
 function assertEnvNameAvailable(configuration: ConfigurationRecord, envName: string, exceptSecretId?: string): void {
-  if (configuration.secrets?.some((secret) => secret.id !== exceptSecretId && secret.envName === envName)) throw new AgentsInTheCloudCoreError("workspace_template_secret_exists", `A secret named ${envName} already exists here`);
+  if (configuration.secrets?.some((secret) => secret.id !== exceptSecretId && secret.envName === envName)) throw new KintsugiCoreError("workspace_template_secret_exists", `A secret named ${envName} already exists here`);
 }
 
 export async function createWorkspaceTemplateSecret(scope: ConfigurationScope, values: WorkspaceTemplateSecretInput, file = workspaceTemplatesFile(), keyFile?: string): Promise<WorkspaceTemplateSecretSummary> {
@@ -84,7 +84,7 @@ export async function updateWorkspaceTemplateSecret(scope: ConfigurationScope, s
 }
 
 export function workspaceTemplateSecretPlaceholder(name: string): string {
-  return `AGENTSINTHECLOUD_PROXY_READY_${name.replaceAll(/[^A-Za-z0-9_]/g, "_").toUpperCase()}`;
+  return `KINTSUGI_PROXY_READY_${name.replaceAll(/[^A-Za-z0-9_]/g, "_").toUpperCase()}`;
 }
 
 export const workspaceTemplateSecretPathPermissionSchema = Type.Boolean({

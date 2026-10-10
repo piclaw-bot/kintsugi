@@ -1,29 +1,29 @@
 import { homedir, platform } from "node:os";
 import { isAbsolute, join } from "node:path";
 
-export interface AgentsInTheCloudRuntimeContext {
-  /** Path as seen by the AgentsInTheCloud process itself. Use this for normal AgentsInTheCloud file IO. */
-  agentsInTheCloudDataDir: string;
+export interface KintsugiRuntimeContext {
+  /** Path as seen by the Kintsugi process itself. Use this for normal Kintsugi file IO. */
+  kintsugiDataDir: string;
   /** Same directory as seen by the Docker daemon. Use this for Docker bind mount sources. */
-  dockerHostAgentsInTheCloudDataDir: string;
-  /** Host-side Docker bridge IP used for AgentsInTheCloud/workspace traffic. */
+  dockerHostKintsugiDataDir: string;
+  /** Host-side Docker bridge IP used for Kintsugi/workspace traffic. */
   dockerBridgeHost: string;
 }
 
-let cachedRuntimeContext: AgentsInTheCloudRuntimeContext | undefined;
+let cachedRuntimeContext: KintsugiRuntimeContext | undefined;
 let cachedRuntimeContextKey: string | undefined;
 
-export function agentsInTheCloudDataPath(context: AgentsInTheCloudRuntimeContext, ...segments: string[]): string {
-  return join(context.agentsInTheCloudDataDir, ...segments);
+export function kintsugiDataPath(context: KintsugiRuntimeContext, ...segments: string[]): string {
+  return join(context.kintsugiDataDir, ...segments);
 }
 
-export function dockerHostAgentsInTheCloudDataPath(context: AgentsInTheCloudRuntimeContext, ...segments: string[]): string {
-  return join(context.dockerHostAgentsInTheCloudDataDir, ...segments);
+export function dockerHostKintsugiDataPath(context: KintsugiRuntimeContext, ...segments: string[]): string {
+  return join(context.dockerHostKintsugiDataDir, ...segments);
 }
 
-export function getAgentsInTheCloudRuntimeContext(): AgentsInTheCloudRuntimeContext {
+export function getKintsugiRuntimeContext(): KintsugiRuntimeContext {
   const paths = runtimePathsFromEnv();
-  const key = `${paths.agentsInTheCloudDataDir}\0${paths.dockerHostAgentsInTheCloudDataDir}`;
+  const key = `${paths.kintsugiDataDir}\0${paths.dockerHostKintsugiDataDir}`;
   if (!cachedRuntimeContext || cachedRuntimeContextKey !== key) {
     cachedRuntimeContext = createRuntimeContext(paths);
     cachedRuntimeContextKey = key;
@@ -31,12 +31,12 @@ export function getAgentsInTheCloudRuntimeContext(): AgentsInTheCloudRuntimeCont
   return cachedRuntimeContext;
 }
 
-export function resetAgentsInTheCloudRuntimeContextForTests(): void {
+export function resetKintsugiRuntimeContextForTests(): void {
   cachedRuntimeContext = undefined;
   cachedRuntimeContextKey = undefined;
 }
 
-function createRuntimeContext(paths: Pick<AgentsInTheCloudRuntimeContext, "agentsInTheCloudDataDir" | "dockerHostAgentsInTheCloudDataDir">): AgentsInTheCloudRuntimeContext {
+function createRuntimeContext(paths: Pick<KintsugiRuntimeContext, "kintsugiDataDir" | "dockerHostKintsugiDataDir">): KintsugiRuntimeContext {
   let dockerBridgeHost: string | undefined;
   return {
     ...paths,
@@ -46,11 +46,11 @@ function createRuntimeContext(paths: Pick<AgentsInTheCloudRuntimeContext, "agent
   };
 }
 
-function runtimePathsFromEnv(): Pick<AgentsInTheCloudRuntimeContext, "agentsInTheCloudDataDir" | "dockerHostAgentsInTheCloudDataDir"> {
-  const agentsInTheCloudDataDir = envString("ATELIER_DATA_DIR") ?? defaultDataDir();
+function runtimePathsFromEnv(): Pick<KintsugiRuntimeContext, "kintsugiDataDir" | "dockerHostKintsugiDataDir"> {
+  const kintsugiDataDir = envString("ATELIER_DATA_DIR") ?? defaultDataDir();
   return {
-    agentsInTheCloudDataDir,
-    dockerHostAgentsInTheCloudDataDir: envString("ATELIER_DOCKER_HOST_DATA_DIR") ?? agentsInTheCloudDataDir,
+    kintsugiDataDir,
+    dockerHostKintsugiDataDir: envString("ATELIER_DOCKER_HOST_DATA_DIR") ?? kintsugiDataDir,
   };
 }
 
@@ -61,9 +61,9 @@ function xdgDataHome(): string {
 }
 
 function defaultDataDir(): string {
-  if (platform() === "darwin") return join(homedir(), "Library", "Application Support", "agents-in-the-cloud-host");
-  if (platform() === "linux") return join(xdgDataHome(), "agents-in-the-cloud-host");
-  return "/var/lib/agents-in-the-cloud-host";
+  if (platform() === "darwin") return join(homedir(), "Library", "Application Support", "kintsugi-host");
+  if (platform() === "linux") return join(xdgDataHome(), "kintsugi-host");
+  return "/var/lib/kintsugi-host";
 }
 
 function envString(name: string): string | undefined {

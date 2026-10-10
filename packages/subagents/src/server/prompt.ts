@@ -9,9 +9,9 @@ interface ModelDelegationText {
   mode?: { hint_text?: string | null; explicit?: string | null; proactive?: string | null } | null;
 }
 
-/** Codex's V2 role/mode resolution, with AgentsInTheCloud transport and capacity facts kept local.
+/** Codex's V2 role/mode resolution, with Kintsugi transport and capacity facts kept local.
  * Provider-specific ids resolve to catalogue models; other models use Codex's V2 defaults.
- * This deliberately does not replace AgentsInTheCloud's base prompt with the Codex CLI prompt. */
+ * This deliberately does not replace Kintsugi's base prompt with the Codex CLI prompt. */
 export function delegationPrompt(modelId: string | undefined, thinkingLevel: string, role: "root" | "subagent"): string[] {
   const canonicalId = codexModelId(modelId);
   const model = canonicalId ? models[canonicalId] : undefined;
@@ -22,14 +22,14 @@ export function delegationPrompt(modelId: string | undefined, thinkingLevel: str
     ? mode?.proactive ?? upstream.defaults.proactive
     : mode?.explicit ?? upstream.defaults.explicit)).replaceAll("sub-agent", "subagent");
   return [
-    ...(roleText ? [`<multi_agent_role>\n${roleText.replace("You will receive messages in the analysis channel in the form:", "You will receive agent messages in the form:")}\n${agentsInTheCloudCollaborationGuidance}\n\n${upstream.defaults.wait}\n</multi_agent_role>`] : []),
+    ...(roleText ? [`<multi_agent_role>\n${roleText.replace("You will receive messages in the analysis channel in the form:", "You will receive agent messages in the form:")}\n${kintsugiCollaborationGuidance}\n\n${upstream.defaults.wait}\n</multi_agent_role>`] : []),
     ...(modeText ? [`<multi_agent_mode>\n${modeText}\n</multi_agent_mode>`] : []),
   ];
 }
 
 // Codex's shared guidance assumes functions.exec and a six-slot limit including root.
-// AgentsInTheCloud exposes direct collaboration tools and permits six running subagents plus root.
-const agentsInTheCloudCollaborationGuidance = `Call collaboration tools directly using the names in their tool definitions.
+// Kintsugi exposes direct collaboration tools and permits six running subagents plus root.
+const kintsugiCollaborationGuidance = `Call collaboration tools directly using the names in their tool definitions.
 
 All agents share the same container, filesystem, and current working directory. Edits made by one agent are immediately visible to all other agents; coordinate edits.
 

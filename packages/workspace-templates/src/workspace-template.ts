@@ -1,10 +1,10 @@
 import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { basename, join } from "node:path";
-import { acquireFileLock, AgentsInTheCloudCoreError, getAgentsInTheCloudRuntimeContext, isNotFoundError, writeJsonAtomic } from "@agents-in-the-cloud/core";
+import { acquireFileLock, KintsugiCoreError, getKintsugiRuntimeContext, isNotFoundError, writeJsonAtomic } from "@kintsugi/core";
 import { Type, type Static } from "typebox";
 import { Value } from "typebox/value";
-import type { WorkspaceInitInstruction } from "@agents-in-the-cloud/workspace";
+import type { WorkspaceInitInstruction } from "@kintsugi/workspace";
 
 export type WorkspaceTemplateSummary = Omit<WorkspaceTemplateRecord, "secrets" | "sshKeys" | "sshKnownHosts" | "environment"> & {
   configurationFingerprint?: string;
@@ -116,7 +116,7 @@ const gitWorkspaceTemplateInitSchema = Type.Object({
 
 export type GitWorkspaceTemplateInitInstruction = Static<typeof gitWorkspaceTemplateInitSchema>;
 
-declare module "@agents-in-the-cloud/workspace" {
+declare module "@kintsugi/workspace" {
   interface WorkspaceInitInstructionMap {
     "project.git": GitWorkspaceTemplateInitInstruction;
   }
@@ -128,7 +128,7 @@ const workspaceTemplateStoreSchema = Type.Object({
   global: Type.Optional(configurationRecordSchema),
 });
 
-export function workspaceTemplatesFile(dataDir = getAgentsInTheCloudRuntimeContext().agentsInTheCloudDataDir): string {
+export function workspaceTemplatesFile(dataDir = getKintsugiRuntimeContext().kintsugiDataDir): string {
   return join(dataDir, "projects.json");
 }
 
@@ -137,7 +137,7 @@ export function workspaceTemplateNameFromGitUrl(url: string): string {
   const last = basename(trimmed);
   const withoutGit = last.endsWith(".git") ? last.slice(0, -4) : last;
   const safe = withoutGit.replace(/[^a-zA-Z0-9._-]/g, "-");
-  if (!safe || safe === "." || safe === "..") throw new AgentsInTheCloudCoreError("invalid_git_url", `could not derive template name from ${url}`);
+  if (!safe || safe === "." || safe === "..") throw new KintsugiCoreError("invalid_git_url", `could not derive template name from ${url}`);
   return safe;
 }
 
@@ -153,7 +153,7 @@ export function formatWorkspaceTemplateSpec(workspaceTemplate: Pick<WorkspaceTem
 
 export function parseWorkspaceTemplateSpec(spec: string): { gitUrl: string; branch: string | null } {
   const trimmed = spec.trim();
-  if (!trimmed) throw new AgentsInTheCloudCoreError("invalid_git_url", "git url is required");
+  if (!trimmed) throw new KintsugiCoreError("invalid_git_url", "git url is required");
 
   const normalized = /^github\.com\//i.test(trimmed) ? `https://${trimmed}` : trimmed;
   const [gitUrl, branch] = normalized.split(/#(.+)/, 2).map((part) => part.trim());
@@ -204,7 +204,7 @@ export async function updateWorkspaceTemplateStore<Result>(file: string, mutate:
 
 export function findWorkspaceTemplateRecord(store: WorkspaceTemplateStore, workspaceTemplateId: string): WorkspaceTemplateRecord {
   const workspaceTemplate = store.workspaceTemplates.find((candidate) => candidate.id === workspaceTemplateId);
-  if (!workspaceTemplate) throw new AgentsInTheCloudCoreError("workspace_template_not_found", `template not found: ${workspaceTemplateId}`);
+  if (!workspaceTemplate) throw new KintsugiCoreError("workspace_template_not_found", `template not found: ${workspaceTemplateId}`);
   return workspaceTemplate;
 }
 
@@ -341,7 +341,7 @@ export async function addWorkspaceTemplate(spec: string, file = workspaceTemplat
   const id = workspaceTemplateId(gitUrl, branch);
   return await updateWorkspaceTemplateStore(file, (store) => {
     if (store.workspaceTemplates.some((workspaceTemplate) => workspaceTemplate.id === id || (workspaceTemplate.gitUrl === gitUrl && workspaceTemplate.branch === branch))) {
-      throw new AgentsInTheCloudCoreError("workspace_template_exists", `template already exists: ${formatWorkspaceTemplateSpec({ gitUrl, branch })}`);
+      throw new KintsugiCoreError("workspace_template_exists", `template already exists: ${formatWorkspaceTemplateSpec({ gitUrl, branch })}`);
     }
     const baseName = workspaceTemplateNameFromGitUrl(gitUrl);
     const name = store.workspaceTemplates.some((workspaceTemplate) => workspaceTemplate.gitUrl === gitUrl)
@@ -365,13 +365,13 @@ export async function updateWorkspaceTemplate(id: string, values: { name: string
   return await updateWorkspaceTemplateStore(file, (store) => {
     const workspaceTemplate = findWorkspaceTemplateRecord(store, id);
     const name = values.name.trim();
-    if (!name) throw new AgentsInTheCloudCoreError("invalid_arguments", "template name is required");
+    if (!name) throw new KintsugiCoreError("invalid_arguments", "template name is required");
     const { gitUrl, branch } = parseWorkspaceTemplateSpec(values.spec);
     if (store.workspaceTemplates.some((candidate) => candidate.id !== id && candidate.gitUrl === gitUrl && candidate.branch === branch)) {
-      throw new AgentsInTheCloudCoreError("workspace_template_exists", `template already exists: ${formatWorkspaceTemplateSpec({ gitUrl, branch })}`);
+      throw new KintsugiCoreError("workspace_template_exists", `template already exists: ${formatWorkspaceTemplateSpec({ gitUrl, branch })}`);
     }
     if (values.swatchColor !== undefined) {
-      if (values.swatchColor !== "" && !/^#[0-9a-fA-F]{6}$/.test(values.swatchColor)) throw new AgentsInTheCloudCoreError("invalid_arguments", "Swatch color must be a six-digit hex color");
+      if (values.swatchColor !== "" && !/^#[0-9a-fA-F]{6}$/.test(values.swatchColor)) throw new KintsugiCoreError("invalid_arguments", "Swatch color must be a six-digit hex color");
       if (values.swatchColor === "") delete workspaceTemplate.swatchColor;
       else workspaceTemplate.swatchColor = values.swatchColor.toLowerCase();
     }
@@ -415,8 +415,8 @@ export function workspaceTemplateIdOfInit(init: WorkspaceInitInstruction | undef
 }
 
 export function validateWorkspaceTemplateDockerfile(dockerfile: string): void {
-  if (dockerfile.trim() && dockerfile.split("\n")[0]!.trim() !== "FROM agents-in-the-cloud-workspace") {
-    throw new AgentsInTheCloudCoreError("invalid_arguments", "Dockerfile must start with FROM agents-in-the-cloud-workspace");
+  if (dockerfile.trim() && dockerfile.split("\n")[0]!.trim() !== "FROM kintsugi-workspace") {
+    throw new KintsugiCoreError("invalid_arguments", "Dockerfile must start with FROM kintsugi-workspace");
   }
 }
 
@@ -432,7 +432,7 @@ export async function setWorkspaceTemplateDockerfile(id: string, dockerfile: str
 
 export function validateWorkspaceTemplatePreloadImage(image: string): void {
   if (!/^[a-zA-Z0-9][a-zA-Z0-9._:/@+-]*$/.test(image) || image.includes("://")) {
-    throw new AgentsInTheCloudCoreError("invalid_arguments", `Invalid image reference: ${image || "(empty)"}`);
+    throw new KintsugiCoreError("invalid_arguments", `Invalid image reference: ${image || "(empty)"}`);
   }
 }
 

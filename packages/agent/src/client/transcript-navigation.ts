@@ -1,4 +1,4 @@
-import { layoutAfterEvent, layoutBeforeEvent } from "@agents-in-the-cloud/shared";
+import { layoutAfterEvent, layoutBeforeEvent } from "@kintsugi/shared";
 
 interface TranscriptGeometry {
   viewport: number;

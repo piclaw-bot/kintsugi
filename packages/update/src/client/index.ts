@@ -1,4 +1,4 @@
-import { errorMessage, type WorkspaceClientModule } from "@agents-in-the-cloud/shared";
+import { errorMessage, type WorkspaceClientModule } from "@kintsugi/shared";
 
 declare global {
   interface Window {
@@ -6,8 +6,8 @@ declare global {
   }
 }
 
-export const agentsInTheCloudClientModule: WorkspaceClientModule = {
-  id: "agents-in-the-cloud-update",
+export const kintsugiClientModule: WorkspaceClientModule = {
+  id: "kintsugi-update",
   install({ application, Controller }) {
     class UpdateRestartController extends Controller {
       static targets = ["error"];
@@ -25,7 +25,7 @@ export const agentsInTheCloudClientModule: WorkspaceClientModule = {
 
         try {
           const response = await fetch(action, { method: "POST", headers: { Accept: "text/vnd.turbo-stream.html" }, credentials: "same-origin" });
-          if (response.headers.get("x-agents-in-the-cloud-reload") === "true") {
+          if (response.headers.get("x-kintsugi-reload") === "true") {
             // The app origin now points at the System supervisor, not workspace routes.
             window.location.replace("/");
             return;

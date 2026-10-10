@@ -1,5 +1,5 @@
 import { resolveNewWorkspaceAgentModel } from "./model-state.ts";
-import { cheapestAvailableProviderModel, claudeCodeHeaders, createPiModelRuntime, type ModelRef } from "@agents-in-the-cloud/llm/server";
+import { cheapestAvailableProviderModel, claudeCodeHeaders, createPiModelRuntime, type ModelRef } from "@kintsugi/llm/server";
 import { clampThinkingLevel, type Api, type Model, type ThinkingLevel } from "@earendil-works/pi-ai";
 
 /**

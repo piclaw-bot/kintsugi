@@ -1,6 +1,6 @@
-import { shellQuote } from "@agents-in-the-cloud/core";
-import type { WorkspaceAgentInput } from "@agents-in-the-cloud/shared";
-import { workspaceRoot } from "@agents-in-the-cloud/workspace";
+import { shellQuote } from "@kintsugi/core";
+import type { WorkspaceAgentInput } from "@kintsugi/shared";
+import { workspaceRoot } from "@kintsugi/workspace";
 
 /** Resume launches restore native context without submitting a prompt. */
 export function emptyAgentInput(): WorkspaceAgentInput {
@@ -95,8 +95,8 @@ cd ${shellQuote(workspaceRoot)}
 }
 
 /**
- * Shell lines for `setup` that write a file AgentsInTheCloud owns, such as an agent theme.
- * Rewritten on every launch so changes ship with AgentsInTheCloud. `path` is a shell expression.
+ * Shell lines for `setup` that write a file Kintsugi owns, such as an agent theme.
+ * Rewritten on every launch so changes ship with Kintsugi. `path` is a shell expression.
  */
 export function writeFileScript(path: string, content: string): string {
   return `mkdir -p "$(dirname ${path})"

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { workspaceRoot } from "@agents-in-the-cloud/workspace";
+import { workspaceRoot } from "@kintsugi/workspace";
 import { fileCompletionSearchSpec, renderFileCompletionMenu } from "../../src/server/file-completions.ts";
 
 describe("file completions", () => {

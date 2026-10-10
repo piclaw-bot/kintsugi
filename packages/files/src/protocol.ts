@@ -1,4 +1,4 @@
-import type { JsonValue } from "@agents-in-the-cloud/core";
+import type { JsonValue } from "@kintsugi/core";
 import { Type, type Static } from "typebox";
 import { Value } from "typebox/value";
 

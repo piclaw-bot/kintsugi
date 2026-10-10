@@ -1,11 +1,11 @@
 import { cp, mkdir } from "node:fs/promises";
 import { basename, join } from "node:path";
-import { createKeyedOperationQueue, readTextIfExists, requireDocker, writeJsonAtomic } from "@agents-in-the-cloud/core";
+import { createKeyedOperationQueue, readTextIfExists, requireDocker, writeJsonAtomic } from "@kintsugi/core";
 import { Type } from "typebox";
 import { Value } from "typebox/value";
 import type { WorkspaceDockerContainerFile } from "./types.ts";
 
-export const workspaceConfigurationLabel = "com.agents-in-the-cloud.configuration-checkpoint";
+export const workspaceConfigurationLabel = "com.kintsugi.configuration-checkpoint";
 
 const serialize = createKeyedOperationQueue();
 

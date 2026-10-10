@@ -3,12 +3,12 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { prepareAgentLaunch, nativeAgentLaunch } from "../../src/server/launch.ts";
-import { stageAttachment } from "@agents-in-the-cloud/prompt/server";
+import { stageAttachment } from "@kintsugi/prompt/server";
 import { listWorkspaceAgents } from "../../src/server/agent-store.ts";
 
 let directory: string;
 beforeEach(async () => {
-  directory = await mkdtemp(join(tmpdir(), "agents-in-the-cloud-agent-launch-"));
+  directory = await mkdtemp(join(tmpdir(), "kintsugi-agent-launch-"));
   process.env.ATELIER_DATA_DIR = directory;
 });
 afterEach(async () => {

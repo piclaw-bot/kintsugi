@@ -1,6 +1,6 @@
-# Automating AgentsInTheCloud
+# Automating Kintsugi
 
-AgentsInTheCloud's web UI operations also provide compact JSON representations for agents and scripts. They are the same operations used by the Turbo UI, not a separate REST implementation.
+Kintsugi's web UI operations also provide compact JSON representations for agents and scripts. They are the same operations used by the Turbo UI, not a separate REST implementation.
 
 ## Discovery
 
@@ -33,6 +33,66 @@ The check uses the request URL's hostname and port, not forwarded-host/public-or
 
 This is CSRF protection, not authentication. Keep management unreachable from untrusted containers and untrusted HTML on separate origins or opaque-origin sandboxes. Token-authenticated agent MCP and turn-boundary endpoints retain their separate policy.
 
+## Fork release sources (development branch)
+
+App updates and the host installer consume the persisted release selection below. Fork publication and upstream-sync CI remain pending. Installer install/update requires a System image carrying `kintsugi.installer-config=1`, built from this branch; an incompatible image is rejected before the existing System is stopped. A retained older System image can still be restored with installer rollback.
+
+System-managed installations store release selection in `/data/app/update.json`. Stable and Latest explicitly select this fork’s release images; Custom selects the saved Docker repositories and pins. Switching to a standard channel retains the custom source for later use. Existing files with a `releaseSource` show Custom and keep their previous Stable/Latest tag selection. Custom never silently falls back to the default source. Invalid settings disable updates without preventing the app from starting.
+
+App-owned update settings endpoints (through the normal authenticated app; no separate admin listener or token API):
+
+- `GET/POST /settings/release-source`: read or replace both GHCR or Docker Hub repositories and optional pins. Saving selects Custom.
+- `POST /settings/update-channel`: select `{"channel":"stable"}`, `{"channel":"latest"}`, or `{"channel":"custom"}`.
+- `GET/POST/DELETE /settings/release-registry`: inspect credential availability, store package read credentials, or remove them. POST takes `{"username":"github-user","token":"package-read-token"}`; no read operation returns credentials.
+- `GET /update/status`: inspect app update state.
+- `POST /update/check-now`, `/update/start`, `/update/restart`: check, prepare, then restart the app. Send `{}` for these mutations.
+- `POST /update/rollback`: restart the previous locally retained app image. Its workspace dependencies must still be present. Mutable dependency aliases are not yet restored on rollback; avoid mutable workspace dependency tags. This does not roll back stored app data or System.
+
+A release-source body contains:
+
+```json
+{
+  "appRepository": "ghcr.io/example/kintsugi",
+  "systemRepository": "ghcr.io/example/kintsugi-system",
+  "appVersion": "v1.2.3"
+}
+```
+
+`appVersion` and `systemVersion` accept a tag or `sha256:` digest. Omit a custom version to use the last selected Stable/Latest tag (Latest on a new installation). Public Docker Hub sources use an explicit `docker.io/owner/name` repository; private authentication currently supports GHCR only. Source changes discard a prepared app update. A successful save remains successful even when the subsequent registry check fails; `/update/status` reports that failure. System resolves the app and its declared dependency metadata before pulling immutable references; it retains the previous app image before replacement for recovery.
+
+Private GHCR credentials live in System's `/data/supervisor/docker-auth/config.json` (mode `0600`, directory `0700`), outside the app/workspace bind mounts. Registry token requests cannot redirect. Recognised signed blob-storage redirects receive no registry bearer token. The installer reuses saved GHCR auth for host pulls through a temporary Docker configuration with restrictive permissions, removed on exit. It never sends those credentials to workspace containers.
+
+### Installer setup, update and rollback
+
+Fresh setup prompts for a **release image repository** and a **Tailscale hostname**, including when localhost access is selected. The repository is an app Docker repository, not a Git URL. System defaults to the matching repository with `-system` appended. For example, `ghcr.io/example/kintsugi` selects `ghcr.io/example/kintsugi-system`. Use `--system-image` when the two repositories have different names. The hostname is a short machine name: 1–63 lowercase letters, digits or hyphens, without a tailnet domain.
+
+```sh
+bash scripts/install.sh --action install
+# Or supply the setup answers:
+bash scripts/install.sh --action install \
+  --source-repository ghcr.io/example/kintsugi \
+  --tailscale-hostname cloud-home
+```
+
+These selections are persisted in `/data/app/update.json` and `/data/supervisor/state.json`. Tailscale receives the hostname on login; an already connected node is updated with `tailscale set --hostname`. Setup does not connect to a tailnet without the existing sign-in flow.
+
+For private GHCR setup, add `--registry-config /secure/docker-config.json`. The file must contain an inline `auths["ghcr.io"].auth` entry (base64 of `username:package-read-token`) and no credential helper configuration. Keep the original file private (`0600`); base64 is not encryption. The installer copies only the GHCR auth entry into System. Subsequent updates reuse that saved entry, or an explicitly supplied replacement file. Existing host Docker authentication remains available when no System/explicit registry configuration is present.
+
+```sh
+bash scripts/install.sh --action update
+bash scripts/install.sh --action rollback
+```
+
+Update reads the saved source even when the app is unavailable. It downloads and pins System, validates its installer capability, and pulls/inspects the selected app and its declared workspace dependencies before stopping the existing System. An existing stopped System is started only to prepare images. A preparation failure does not replace the container. The prepared immutable app ID is handed to the new System for startup and retained until health succeeds.
+
+Explicit `--app-image` and `--system-image` overrides also work on existing installations. GHCR/Docker Hub overrides update the saved Custom source and tag/digest pin; local image references are deliberate one-off overrides and must already be available to the corresponding Docker daemon. A local app override must exist in System's inner daemon, not merely in the host daemon.
+
+`/data/supervisor/installer.json` retains the previous host System ID and app ID. Rollback uses those local images without registry pulls; it fails if the pair is not retained. It preserves the current hostname, settings, data and existing host port publications. It does not roll back stored data or restore mutable dependency aliases; release images should declare content-addressed workspace dependencies. No automatic upstream fallback or automatic rollback is performed.
+
+Verification: `bun run check`, focused server tests, and `bun scripts/verify-release-sources-system.ts --app LOCAL_APP --system LOCAL_SYSTEM --release-updates`. Add `--installer-system LOCAL_NEW_SYSTEM` to exercise real host installer replacement and rollback against a disposable older System. The integration checks credential isolation, and two-version app/System replacement/rollback, including hostname, source and publication persistence. Real private GHCR publication and authenticated private image downloads have not been tested.
+
+Local fork verification images are currently `linux/amd64` only. App publishing supports `--platform linux/amd64,linux/arm64`; the System publisher also requires both architectures. Current upstream Latest app and System manifests include both. ARM execution and fork ARM images remain unverified.
+
 ## Present a workspace
 
 Workspace, Agent, and Work-view destinations are browser-navigable surfaces:
@@ -54,7 +114,7 @@ Workspace template settings has a browser-navigable surface that agents can pass
 /workspace-templates/:workspaceTemplateId/settings?section=environment
 ```
 
-Supported sections are `index`, `general`, `secrets`, `ssh`, `environment`, and `container`. The index lists the five settings sections; each section opens a focused page in the complete AgentsInTheCloud shell. Use `editor=new` or a record ID for Secrets, SSH keys, or Environment Variables, and `editor=docker`, `images`, or `dockerfile` for Container. Legacy section links (`repository`, `ssh-keys`, `privileged`, `dockerfile`, `preload-images`, and `danger`) still resolve to their corresponding pages.
+Supported sections are `index`, `general`, `secrets`, `ssh`, `environment`, and `container`. The index lists the five settings sections; each section opens a focused page in the complete Kintsugi shell. Use `editor=new` or a record ID for Secrets, SSH keys, or Environment Variables, and `editor=docker`, `images`, or `dockerfile` for Container. Legacy section links (`repository`, `ssh-keys`, `privileged`, `dockerfile`, `preload-images`, and `danger`) still resolve to their corresponding pages.
 
 **Secrets** manages protected credential entries shared with a template's Workspaces. Agents receive placeholders; real values are substituted into requests to allowed hosts. Secret changes apply to existing Workspaces, while Environment Variables only apply to new containers. Secret summaries never return real values.
 
@@ -76,13 +136,13 @@ Other browser-navigable surfaces are:
 /design-system-catalogue.html           # Live component catalogue (HTML)
 ```
 
-Host targets AgentsInTheCloud System, outside individual Workspaces, rather than necessarily the physical machine running Docker. `GET /host` with `Accept: application/json` reports availability and the access boundary; it does not create a terminal.
+Host targets Kintsugi System, outside individual Workspaces, rather than necessarily the physical machine running Docker. `GET /host` with `Accept: application/json` reports availability and the access boundary; it does not create a terminal.
 
 **Developer tools** is the app-level maintenance and design-system inspection page, separate from Workspace template configuration. The existing `/settings/development` URL remains valid.
 
 **Theme** is an app-wide setting shared across open pages, not a per-Workspace or per-browser preference. Its settings section is `theme`.
 
-Settings shows the **AgentsInTheCloud URL** for the current browser connection, with copy and QR-code actions. It is not necessarily reachable from other devices; a local-only address must be opened on the Installation computer.
+Settings shows the **Kintsugi URL** for the current browser connection, with copy and QR-code actions. It is not necessarily reachable from other devices; a local-only address must be opened on the Installation computer.
 
 The `access` section controls **Connection mode** in a System-managed installation: **Installation computer only** or **Devices on your Tailscale network**. The existing access API spelling is unchanged.
 
@@ -90,7 +150,7 @@ The `access` section controls **Connection mode** in a System-managed installati
 
 The `update-channel` section is **Update channel**, with **Stable** and **Latest** choices. Its POST endpoint is `/settings/update-channel` with form field `channel=stable` or `channel=latest`. The image tags and saved settings format are unchanged.
 
-The `update` section is **Updates**, the feature for managing AgentsInTheCloud installation Updates. It is separate from Workspace package and agent CLI updates.
+The `update` section is **Updates**, the feature for managing Kintsugi installation Updates. It is separate from Workspace package and agent CLI updates.
 
 Settings is app-level, not configuration for the selected Workspace, a Workspace template, or an individual Agent. The GitHub connection is shared across Workspaces; its GitHub token is distinct from the Commit identity used to author commits. The settings section is a registered settings contribution ID, such as `theme`, `commit-identity`, `github`, `models`, `dictation`, or `update`.
 
@@ -99,7 +159,7 @@ Settings is app-level, not configuration for the selected Workspace, a Workspace
 Creation is asynchronous and returns `202 Accepted` immediately. The response’s
 `workspace.url` and `Location` header are origin-relative paths, like workspace
 detail URLs. Resolve them against the public request URL to preserve HTTPS
-when AgentsInTheCloud runs behind a TLS-terminating proxy:
+when Kintsugi runs behind a TLS-terminating proxy:
 
 ```sh
 created=$(curl -sS -X POST http://localhost:3000/workspaces \
@@ -131,12 +191,12 @@ saved image preload list. Failure retains the container for repair and presents
 `POST /workspaces/:id/provisioning/continue?action=retry` to retry runtime preparation,
 or omit the query parameter to explicitly bypass the failure. Bypassing makes the
 workspace enter `runningPhase` while retaining its preparation warning. Until startup completes,
-the workspace shows its checklist instead of its Agents or Work views. AgentsInTheCloud and
+the workspace shows its checklist instead of its Agents or Work views. Kintsugi and
 other workspaces remain available throughout.
 
 The list and detail responses include optional `issues` entries with `kind` and
-`message`. Image inspection runs independently at AgentsInTheCloud startup. Readiness checks
-run again when a workspace resumes or AgentsInTheCloud restarts; bypassing a failure does not
+`message`. Image inspection runs independently at Kintsugi startup. Readiness checks
+run again when a workspace resumes or Kintsugi restarts; bypassing a failure does not
 permanently disable checks. Existing workspaces keep their saved preload references
 when template settings change.
 

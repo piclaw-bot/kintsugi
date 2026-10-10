@@ -1,7 +1,7 @@
-import { AgentsInTheCloudCoreError } from "@agents-in-the-cloud/core";
-import { createObservableTerminalSocket, terminalSocketDimensions } from "@agents-in-the-cloud/observable-terminal/server";
-import type { WorkspaceServerSocketHandler } from "@agents-in-the-cloud/shared";
-import { workspaceContainerName, workspaceRoot } from "@agents-in-the-cloud/workspace";
+import { KintsugiCoreError } from "@kintsugi/core";
+import { createObservableTerminalSocket, terminalSocketDimensions } from "@kintsugi/observable-terminal/server";
+import type { WorkspaceServerSocketHandler } from "@kintsugi/shared";
+import { workspaceContainerName, workspaceRoot } from "@kintsugi/workspace";
 import type { CliAgents } from "./agents.ts";
 
 export function cliSocketHandler(providerId: string, agents: CliAgents): WorkspaceServerSocketHandler {
@@ -10,11 +10,11 @@ export function cliSocketHandler(providerId: string, agents: CliAgents): Workspa
     if (!match || match[2] !== `${providerId}-agents`) return undefined;
     const workspaceId = decodeURIComponent(match[1]!);
     const session = await agents.ready(workspaceId, decodeURIComponent(match[3]!));
-    if (session.error) throw new AgentsInTheCloudCoreError("agent_session_failed", session.error);
+    if (session.error) throw new KintsugiCoreError("agent_session_failed", session.error);
     return createObservableTerminalSocket({
       containerName: workspaceContainerName(workspaceId), session: session.tmuxSession,
       ...terminalSocketDimensions(url),
-      user: "agents-in-the-cloud", workdir: workspaceRoot, readonly: false,
+      user: "agent", workdir: workspaceRoot, readonly: false,
     });
   };
 }

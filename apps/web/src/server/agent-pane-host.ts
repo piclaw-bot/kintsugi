@@ -1,7 +1,7 @@
-import { AgentsInTheCloudCoreError, agentsInTheCloudDataPath, createKeyedOperationQueue, getAgentsInTheCloudRuntimeContext, readTextIfExists, writeJsonAtomic } from "@agents-in-the-cloud/core";
+import { KintsugiCoreError, kintsugiDataPath, createKeyedOperationQueue, getKintsugiRuntimeContext, readTextIfExists, writeJsonAtomic } from "@kintsugi/core";
 import { Type } from "typebox";
 import { Value } from "typebox/value";
-import type { WorkspaceAgentType, WorkspaceAgentTabSummary } from "@agents-in-the-cloud/shared";
+import type { WorkspaceAgentType, WorkspaceAgentTabSummary } from "@kintsugi/shared";
 
 const tabOrderSchema = Type.Array(Type.String());
 
@@ -24,7 +24,7 @@ export function createAgentPaneHost(agentTypes: readonly WorkspaceAgentType[]) {
       ))).flat();
       const byAgent = new Map(tabs.map(tab => [tab.id, tab]));
       if (byAgent.size !== tabs.length) throw new Error("Duplicate agent identity");
-      const path = agentsInTheCloudDataPath(getAgentsInTheCloudRuntimeContext(), "workspaces", context.workspaceId, "metadata", "agent-tab-order.json");
+      const path = kintsugiDataPath(getKintsugiRuntimeContext(), "workspaces", context.workspaceId, "metadata", "agent-tab-order.json");
       const content = await readTextIfExists(path);
       const saved: unknown = content === undefined ? [] : JSON.parse(content);
       Value.Assert(tabOrderSchema, saved);
@@ -39,7 +39,7 @@ export function createAgentPaneHost(agentTypes: readonly WorkspaceAgentType[]) {
 
   async function owner(context: { workspaceId: string; agentId: string }) {
     const tab = (await list(context)).find((tab) => tab.id === context.agentId);
-    if (!tab) throw new AgentsInTheCloudCoreError("agent_not_found", `Agent not found: ${context.agentId}`);
+    if (!tab) throw new KintsugiCoreError("agent_not_found", `Agent not found: ${context.agentId}`);
     return byId.get(tab.agentTypeId)!;
   }
 

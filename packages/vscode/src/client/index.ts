@@ -1,18 +1,18 @@
 /// <reference lib="dom" />
 
-import type { WorkspaceClientModule } from "@agents-in-the-cloud/shared";
+import type { WorkspaceClientModule } from "@kintsugi/shared";
 
 function cssVariable(name: string): string {
   return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 }
 
-function addAgentsInTheCloudThemeParams(url: URL): void {
-  url.searchParams.set("agentsInTheCloudBg", cssVariable("--bg"));
-  url.searchParams.set("agentsInTheCloudPanel", cssVariable("--panel"));
-  url.searchParams.set("agentsInTheCloudElev", cssVariable("--elev"));
-  url.searchParams.set("agentsInTheCloudText", cssVariable("--text"));
-  url.searchParams.set("agentsInTheCloudLine", cssVariable("--line"));
-  url.searchParams.set("agentsInTheCloudAccent", cssVariable("--accent"));
+function addKintsugiThemeParams(url: URL): void {
+  url.searchParams.set("kintsugiBg", cssVariable("--bg"));
+  url.searchParams.set("kintsugiPanel", cssVariable("--panel"));
+  url.searchParams.set("kintsugiElev", cssVariable("--elev"));
+  url.searchParams.set("kintsugiText", cssVariable("--text"));
+  url.searchParams.set("kintsugiLine", cssVariable("--line"));
+  url.searchParams.set("kintsugiAccent", cssVariable("--accent"));
 }
 
 export const vscodeClientModule: WorkspaceClientModule = {
@@ -70,7 +70,7 @@ export const vscodeClientModule: WorkspaceClientModule = {
     application.register("vscode-starting", VSCodeStartingController);
     hooks.onWorkspaceAppFrameUrl(({ appKey, url }) => {
       if (appKey !== "vscode") return;
-      addAgentsInTheCloudThemeParams(url);
+      addKintsugiThemeParams(url);
     });
     hooks.onWorkspaceAppFrameRefresh(({ appKey, frame, load }) => {
       if (appKey === "vscode" && frame.src) load();
@@ -78,4 +78,4 @@ export const vscodeClientModule: WorkspaceClientModule = {
   },
 };
 
-export { vscodeClientModule as agentsInTheCloudClientModule };
+export { vscodeClientModule as kintsugiClientModule };

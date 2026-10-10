@@ -40,7 +40,7 @@ mkdir "$work/test"
 cp "$work/moby/moby/vendor/github.com/moby/buildkit/snapshot/"*.go "$work/test/"
 cp "$here/"*_test.go "$work/test/"
 cat > "$work/test/go.mod" <<MOD
-module agents-in-the-cloud-mount-lifetime-repro
+module kintsugi-mount-lifetime-repro
 
 go 1.26.3
 

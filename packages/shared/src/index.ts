@@ -1,4 +1,4 @@
-import type { AgentsInTheCloudEventBus, JsonObject, JsonValue } from "@agents-in-the-cloud/core";
+import type { KintsugiEventBus, JsonObject, JsonValue } from "@kintsugi/core";
 import type { TSchema } from "typebox";
 import { escapeHtml } from "./html.ts";
 import type { WorkspaceGateway } from "./workspace-gateway.ts";
@@ -9,7 +9,7 @@ export { escapeHtml } from "./html.ts";
 export { errorMessage, formatBytes } from "./format.ts";
 export { isHopByHopHeader, stripHopByHopHeaders } from "./proxy-headers.ts";
 
-export const agentsInTheCloudName = "AgentsInTheCloud" as const;
+export const kintsugiName = "Kintsugi" as const;
 
 export { parseWorkspaceFileTarget, workspaceFileOpenUrl, type WorkspaceFileTarget } from "./file-target.ts";
 
@@ -76,7 +76,7 @@ export function turboStreamResponse(body: string, init: ResponseInit = {}): Resp
 interface WorkspaceAttachContext {
   workspaceId: string;
   init?: unknown;
-  events?: AgentsInTheCloudEventBus;
+  events?: KintsugiEventBus;
 }
 
 export interface WorkspaceAgentTabSummary {
@@ -182,7 +182,7 @@ export interface WorkspaceModuleCommandResult {
 
 interface WorkspaceModuleCommandContext<Input = unknown> {
   workspaceId: string;
-  events?: AgentsInTheCloudEventBus;
+  events?: KintsugiEventBus;
   input: Input;
 }
 
@@ -195,16 +195,16 @@ export interface WorkspaceModuleCommandHandler<Input = unknown> {
   execute(context: WorkspaceModuleCommandContext<Input>): Promise<WorkspaceModuleCommandResult> | WorkspaceModuleCommandResult;
 }
 
-/** One active module dialog, shared by module routes and the AgentsInTheCloud shell. */
+/** One active module dialog, shared by module routes and the Kintsugi shell. */
 export const workspaceModuleModalFrameId = "workspace_module_modal_host";
 
 export interface WorkspaceModuleRouteContext {
   /** Full themed page with the host's fingerprinted assets. */
   renderPage?(body: string): Response;
-  events?: AgentsInTheCloudEventBus;
+  events?: KintsugiEventBus;
   /** Refresh server-owned Work-view presentation, opening the view if needed. */
   openWorkView(workspaceId: string, reference: WorkspaceWorkViewReference, options?: { select?: boolean }): Promise<Response>;
-  /** Render a full AgentsInTheCloud page with this server-rendered dialog body in the shared modal frame. */
+  /** Render a full Kintsugi page with this server-rendered dialog body in the shared modal frame. */
   renderModalPage(dialogHtml: string): Promise<Response>;
 }
 
@@ -272,7 +272,7 @@ export interface WorkspaceServerProvisioningHook {
   id: string;
   label: string;
   recovery?: WorkspaceProvisionRecovery;
-  run(context: { workspaceId: string; creationContext?: WorkspaceCreationContext; events?: AgentsInTheCloudEventBus }): Promise<void> | void;
+  run(context: { workspaceId: string; creationContext?: WorkspaceCreationContext; events?: KintsugiEventBus }): Promise<void> | void;
 }
 
 export interface GlobalSidebarContributionRegistry {
@@ -310,7 +310,7 @@ export interface WorkspaceAgentInput {
 
 export interface AgentWorkspaceParameters {
   agentTypeId?: string;
-  /** Filled by AgentsInTheCloud before prepareWorkspace and workspace_created. */
+  /** Filled by Kintsugi before prepareWorkspace and workspace_created. */
   input?: WorkspaceAgentInput;
   initialPrompt?: string;
   initialPromptMode?: "composer";
@@ -324,7 +324,7 @@ export interface WorkspaceCreationContext extends Record<string, unknown> {
 }
 
 export interface WorkspaceServerModuleContext {
-  events: AgentsInTheCloudEventBus;
+  events: KintsugiEventBus;
   registry: {
     setAgentBusy(workspaceId: string, agentKey: string, busy: boolean): void;
     requestSurfaceAttention(workspaceId: string, surfaceKey: string): void;
@@ -350,7 +350,7 @@ export interface WorkspaceModule {
   cableChannels?: import("./cable.ts").CableChannelAdapter[];
   /** Declarative lazy surfaces. The host owns loading, publication, subscriptions and invalidation. */
   liveSurfaces?: { name: string; load(context: { workspaceId: string; key: string }): Promise<readonly import("./live-presentation.ts").LiveRegion[]> }[];
-  openApiPaths?: Record<string, import("@agents-in-the-cloud/core").JsonObject>;
+  openApiPaths?: Record<string, import("@kintsugi/core").JsonObject>;
   id: string;
   staticFiles?: Record<string, StaticFileContribution>;
   settingsContributions?: SettingsContribution[];
@@ -439,7 +439,7 @@ export interface WorkspacePaletteProvider {
   search(context: WorkspacePaletteSearchContext): WorkspacePaletteItem[] | Promise<WorkspacePaletteItem[]>;
 }
 
-export const recentWorkspaceTemplateStorageKey = "agents-in-the-cloud:recent-workspace-template-id";
+export const recentWorkspaceTemplateStorageKey = "kintsugi:recent-workspace-template-id";
 
 /** The hot path for starting work: a launch composer seeded from the current workspace's template. */
 export const launchComposerCommand = {
@@ -486,7 +486,7 @@ export {
   decodeCableClientMessage,
   decodeCableServerMessage,
   serializeCableIdentifier,
-  type AgentsInTheCloudCableClient, type CableClientMessage,
+  type KintsugiCableClient, type CableClientMessage,
   type CableIdentifier,
   type CableServerMessage,
   type CableSubscription,
@@ -508,7 +508,7 @@ export type { CableChannelAdapter, CableChannelSubscription } from "./cable.ts";
 export function selectedWorkspaceAgent(element: Element): string | undefined {
   return element.closest<HTMLElement>("[data-workspace-selected-agent]")?.dataset.workspaceSelectedAgent || undefined;
 }
-export const workspaceAgentSelectionEvent = "agents-in-the-cloud:workspace-agent-selected";
+export const workspaceAgentSelectionEvent = "kintsugi:workspace-agent-selected";
 
 export interface AgentLaunchFooterContext {
   /** Show the submitted settings without editing or resolving current preferences. */
@@ -528,7 +528,7 @@ export interface WorkspaceAgentLaunch {
   refreshConfiguration?(frameId: string): Promise<string>;
 }
 
-/** Agent types own contents and lifecycle; AgentsInTheCloud owns tabs, chrome and creation UI.
+/** Agent types own contents and lifecycle; Kintsugi owns tabs, chrome and creation UI.
  * Agent IDs must be globally unique within a workspace (UUIDs are recommended).
  * Metadata listing must not create an agent or boot a runtime.
  */
@@ -537,7 +537,7 @@ export interface WorkspaceAgentType {
   label: string;
   iconHtml: string;
   tabs: WorkspaceAgentTabProvider;
-  create(context: { workspaceId: string; events?: AgentsInTheCloudEventBus }): Promise<string>;
+  create(context: { workspaceId: string; events?: KintsugiEventBus }): Promise<string>;
   launch: WorkspaceAgentLaunch;
 }
 

@@ -1,8 +1,8 @@
 import { globalWorkspaceSettingsErrorId, globalWorkspaceSettingsFrameId, globalWorkspaceSettingsPath, globalWorkspaceSettingsUrl, renderGlobalWorkspaceSettingsFrame, renderTemplateSettings, renderTemplateSettingsFrame, templateSettingsErrorHtml, templateSettingsErrorId, templateSettingsFrameId, templateSettingsHostId, templateSettingsUrl, type TemplateSettingsLocation, type TemplateSettingsSection, type TemplateSettingsReference } from "./template-settings.ts";
-import { AgentsInTheCloudCoreError, invalidArguments, readJsonObject, requestAcceptsJson, type JsonObject } from "@agents-in-the-cloud/core";
-import { buttonHtml } from "@agents-in-the-cloud/design-system/button";
-import { dialogHtml } from "@agents-in-the-cloud/design-system/dialog";
-import { Icons } from "@agents-in-the-cloud/design-system/icons";
+import { KintsugiCoreError, invalidArguments, readJsonObject, requestAcceptsJson, type JsonObject } from "@kintsugi/core";
+import { buttonHtml } from "@kintsugi/design-system/button";
+import { dialogHtml } from "@kintsugi/design-system/dialog";
+import { Icons } from "@kintsugi/design-system/icons";
 import {
   addWorkspaceTemplate, createWorkspaceTemplateEnvironmentVariable,
   createWorkspaceTemplateSecret,
@@ -16,12 +16,12 @@ import {
   updateWorkspaceTemplate,
   updateWorkspaceTemplateEnvironmentVariable, updateWorkspaceTemplateSecret,
   type ConfigurationScope, type WorkspaceTemplateEnvironmentVariable, type WorkspaceTemplateSecretInput, type WorkspaceTemplateSecretSummary, type WorkspaceTemplateSshKeySummary, type WorkspaceTemplateSummary,
-} from "@agents-in-the-cloud/workspace-templates";
-import { shouldSearchGitHubRepositories, turboStreamResponse } from "@agents-in-the-cloud/shared";
+} from "@kintsugi/workspace-templates";
+import { shouldSearchGitHubRepositories, turboStreamResponse } from "@kintsugi/shared";
 import { Type } from "typebox";
 import { Value } from "typebox/value";
 import { GitHubRepositorySearchRateLimitError, renderGitHubRepositorySearchMenu, renderGitHubRepositorySearchRateLimitMenu, searchGitHubRepositories } from "./github-repo-search.ts";
-import { jsonResponse, matchRoute, replace, response, textResponse, update, wantsStream } from "@agents-in-the-cloud/shared/http";
+import { jsonResponse, matchRoute, replace, response, textResponse, update, wantsStream } from "@kintsugi/shared/http";
 
 const jsonStringSchema = Type.String();
 const jsonBooleanSchema = Type.Boolean();
@@ -64,7 +64,7 @@ export function createWorkspaceTemplateRoutes(deps: {
   async function workspaceTemplateById(id: string): Promise<WorkspaceTemplateSummary> {
     const { workspaceTemplates } = await listWorkspaceTemplates();
     const workspaceTemplate = workspaceTemplates.find((candidate) => candidate.id === id);
-    if (!workspaceTemplate) throw new AgentsInTheCloudCoreError("workspace_template_not_found", `template not found: ${id}`);
+    if (!workspaceTemplate) throw new KintsugiCoreError("workspace_template_not_found", `template not found: ${id}`);
     return workspaceTemplate;
   }
 
@@ -100,7 +100,7 @@ export function createWorkspaceTemplateRoutes(deps: {
     try {
       workspaceTemplate = (await addWorkspaceTemplate(gitUrl)).workspaceTemplate;
     } catch (error) {
-      if (!(error instanceof AgentsInTheCloudCoreError && error.code === "workspace_template_exists")) throw error;
+      if (!(error instanceof KintsugiCoreError && error.code === "workspace_template_exists")) throw error;
       const specification = parseWorkspaceTemplateSpec(gitUrl);
       const workspaceTemplates = (await listWorkspaceTemplates()).workspaceTemplates;
       workspaceTemplate = workspaceTemplates.find((candidate) => candidate.gitUrl === specification.gitUrl && candidate.branch === specification.branch)!;
@@ -375,7 +375,7 @@ export function createWorkspaceTemplateRoutes(deps: {
     const byName = workspaceTemplates.filter((workspaceTemplate) => workspaceTemplate.name === reference);
     if (byName.length === 1) return byName[0]!;
     if (byName.length > 1) throw invalidArguments(`template name is ambiguous: ${reference}`);
-    throw new AgentsInTheCloudCoreError("workspace_template_not_found", `template not found: ${reference}`);
+    throw new KintsugiCoreError("workspace_template_not_found", `template not found: ${reference}`);
   }
 
   async function handleRoute(request: Request, url: URL): Promise<Response | undefined> {
@@ -402,7 +402,7 @@ export function createWorkspaceTemplateRoutes(deps: {
     try {
       return await handleRoute(request, url);
     } catch (error) {
-      if (!requestAcceptsJson(request) && request.method === "POST" && (url.pathname.startsWith("/workspace-templates/") || url.pathname.startsWith(`${globalWorkspaceSettingsPath}/`)) && error instanceof AgentsInTheCloudCoreError && ["invalid_arguments", "invalid_ssh_private_key", "workspace_template_secret_exists", "workspace_template_environment_variable_exists", "workspace_template_exists", "workspace_template_secret_not_found", "workspace_template_environment_variable_not_found", "workspace_template_ssh_key_not_found"].includes(error.code)) {
+      if (!requestAcceptsJson(request) && request.method === "POST" && (url.pathname.startsWith("/workspace-templates/") || url.pathname.startsWith(`${globalWorkspaceSettingsPath}/`)) && error instanceof KintsugiCoreError && ["invalid_arguments", "invalid_ssh_private_key", "workspace_template_secret_exists", "workspace_template_environment_variable_exists", "workspace_template_exists", "workspace_template_secret_not_found", "workspace_template_environment_variable_not_found", "workspace_template_ssh_key_not_found"].includes(error.code)) {
         const errorId = url.pathname.startsWith(`${globalWorkspaceSettingsPath}/`) && !editedTemplateId(globalWorkspaceConfiguration, url) ? globalWorkspaceSettingsErrorId : templateSettingsErrorId;
         return turboStreamResponse(update(errorId, templateSettingsErrorHtml(error.code === "invalid_ssh_private_key" ? "This key couldn’t be read. Paste an unencrypted OpenSSH private key and try again." : error.message)), { status: 422 });
       }

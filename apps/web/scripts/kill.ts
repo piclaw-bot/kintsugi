@@ -1,4 +1,4 @@
-import { listAgentsInTheCloudProcesses, sortAgentsInTheCloudProcesses } from "./processes.ts";
+import { listKintsugiProcesses, sortKintsugiProcesses } from "./processes.ts";
 
 const termWaitMs = 1_000;
 
@@ -25,16 +25,16 @@ function sleep(ms: number): Promise<void> {
 }
 
 async function main(): Promise<void> {
-  const matches = await listAgentsInTheCloudProcesses({ excludePid: process.pid });
+  const matches = await listKintsugiProcesses({ excludePid: process.pid });
   if (matches.length === 0) {
-    console.log("No AgentsInTheCloud web servers found.");
+    console.log("No Kintsugi web servers found.");
     return;
   }
 
-  const ordered = sortAgentsInTheCloudProcesses(matches);
+  const ordered = sortKintsugiProcesses(matches);
 
   for (const proc of ordered) {
-    console.log(`Stopping AgentsInTheCloud ${proc.kind} process ${proc.pid}: ${proc.command}`);
+    console.log(`Stopping Kintsugi ${proc.kind} process ${proc.pid}: ${proc.command}`);
     signal(proc.pid, "SIGTERM");
   }
 
@@ -42,11 +42,11 @@ async function main(): Promise<void> {
 
   const stubborn = ordered.filter((proc) => isRunning(proc.pid));
   for (const proc of stubborn) {
-    console.log(`Force killing AgentsInTheCloud ${proc.kind} process ${proc.pid}`);
+    console.log(`Force killing Kintsugi ${proc.kind} process ${proc.pid}`);
     signal(proc.pid, "SIGKILL");
   }
 
-  console.log(`Stopped ${ordered.length} AgentsInTheCloud process${ordered.length === 1 ? "" : "es"}.`);
+  console.log(`Stopped ${ordered.length} Kintsugi process${ordered.length === 1 ? "" : "es"}.`);
 }
 
 await main();

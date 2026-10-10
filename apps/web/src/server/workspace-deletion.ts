@@ -1,5 +1,5 @@
-import { AgentsInTheCloudCoreError, withCommandSignal, type JsonValue } from "@agents-in-the-cloud/core";
-import { errorMessage, type DeleteCurrentWorkspaceResult, type WorkspaceDeletionAssessment } from "@agents-in-the-cloud/shared";
+import { KintsugiCoreError, withCommandSignal, type JsonValue } from "@kintsugi/core";
+import { errorMessage, type DeleteCurrentWorkspaceResult, type WorkspaceDeletionAssessment } from "@kintsugi/shared";
 import type { WorkspaceDeletionState, WorkspaceRegistry } from "./workspace-registry.ts";
 
 /** Owns deletion assessment, confirmation, retries, and restart recovery. */
@@ -15,7 +15,7 @@ export function createWorkspaceDeletion(options: {
 
   function requireWorkspace(id: string) {
     const entry = registry.get(id);
-    if (!entry) throw new AgentsInTheCloudCoreError("workspace_not_found", `workspace not found: ${id}`);
+    if (!entry) throw new KintsugiCoreError("workspace_not_found", `workspace not found: ${id}`);
     return entry;
   }
 
@@ -73,10 +73,10 @@ export function createWorkspaceDeletion(options: {
   async function request(id: string, input: { force?: boolean; fingerprint?: string } = {}): Promise<DeleteCurrentWorkspaceResult> {
     const entry = requireWorkspace(id);
     if (input.fingerprint !== undefined) {
-      if (entry.phase.deletion?.status !== "blocked" || entry.phase.deletion.fingerprint !== input.fingerprint) throw new AgentsInTheCloudCoreError("workspace_not_ready", "The deletion assessment is no longer current");
+      if (entry.phase.deletion?.status !== "blocked" || entry.phase.deletion.fingerprint !== input.fingerprint) throw new KintsugiCoreError("workspace_not_ready", "The deletion assessment is no longer current");
       return check(id, input.fingerprint);
     }
-    if (!canRequest(id)) throw new AgentsInTheCloudCoreError("workspace_not_ready", `workspace ${id} is not ready for deletion`);
+    if (!canRequest(id)) throw new KintsugiCoreError("workspace_not_ready", `workspace ${id} is not ready for deletion`);
     if (entry.phase.deletion?.status === "blocked" && !input.force) return { deleted: false, blocked: true, details: evidence.get(id) };
     const retryForced = entry.phase.deletion?.status === "failed" && entry.phase.deletion.operation === "deleting" ? entry.phase.deletion.forced : undefined;
     if (input.force || (entry.phase.kind === "provisioningPhase" && entry.phase.status === "failed") || retryForced !== undefined) return schedule(id, input.force === true || retryForced === true);

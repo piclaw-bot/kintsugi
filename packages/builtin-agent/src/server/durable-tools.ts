@@ -3,11 +3,11 @@ import { copyJson } from "@earendil-works/chord";
 import { createReadTool, createWriteTool, createEditTool, type ReadToolOptions } from "@earendil-works/pi-coding-agent";
 import { defineTool, type ToolRegistration } from "@earendil-works/pi-durable";
 import type { Models } from "@earendil-works/pi-ai";
-import { workspaceRoot } from "@agents-in-the-cloud/workspace";
+import { workspaceRoot } from "@kintsugi/workspace";
 import type { TSchema } from "typebox";
-import { createAgentsInTheCloudControlTools, type WorkspaceAgentToolOptions } from "@agents-in-the-cloud/agent/server/tools";
-import { workspaceFileToolOptions } from "@agents-in-the-cloud/agent/server/workspace-file-tools";
-import type { WorkspaceTool } from "@agents-in-the-cloud/agent/server/workspace-tool";
+import { createKintsugiControlTools, type WorkspaceAgentToolOptions } from "@kintsugi/agent/server/tools";
+import { workspaceFileToolOptions } from "@kintsugi/agent/server/workspace-file-tools";
+import type { WorkspaceTool } from "@kintsugi/agent/server/workspace-tool";
 
 /**
  * Adapt a context-free workspace capability, not an AgentSession extension.
@@ -93,7 +93,7 @@ export function createDurableWorkspaceTools(workspaceId: string, models: Pick<Mo
     createDurableReadTool(workspaceRoot, models, operations.read),
     durableWorkspaceTool(createWriteTool(workspaceRoot, operations.write)),
     durableWorkspaceTool(createEditTool(workspaceRoot, operations.edit)),
-    ...createAgentsInTheCloudControlTools(workspaceId, { ...options, embeds: true }).map((tool) => durableWorkspaceTool(tool)),
+    ...createKintsugiControlTools(workspaceId, { ...options, embeds: true }).map((tool) => durableWorkspaceTool(tool)),
     // Install createDurableBashExtension alongside these tools; it owns both
     // the receipt-backed bash task and its tool registration.
   ];

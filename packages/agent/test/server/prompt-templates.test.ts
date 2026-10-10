@@ -5,11 +5,11 @@ import { describe, expect, test } from "bun:test";
 import { expandPromptTemplateText, loadPromptTemplatesFromRoot } from "../../src/server/prompt-templates.ts";
 
 describe("prompt templates", () => {
-  test("loads .agents-in-the-cloud and .pi prompt templates", async () => {
-    const root = await mkdtemp(join(tmpdir(), "agents-in-the-cloud-prompts-"));
-    await mkdir(join(root, ".agents-in-the-cloud/prompts"), { recursive: true });
+  test("loads .kintsugi and .pi prompt templates", async () => {
+    const root = await mkdtemp(join(tmpdir(), "kintsugi-prompts-"));
+    await mkdir(join(root, ".kintsugi/prompts"), { recursive: true });
     await mkdir(join(root, ".pi/prompts"), { recursive: true });
-    await writeFile(join(root, ".agents-in-the-cloud/prompts/land.md"), `---\ndescription: Land the workspace\nargument-hint: "[branch]"\ncomposer-button: true\nshortcut: L\n---\ncommit to ${"$"}{1:-main}`);
+    await writeFile(join(root, ".kintsugi/prompts/land.md"), `---\ndescription: Land the workspace\nargument-hint: "[branch]"\ncomposer-button: true\nshortcut: L\n---\ncommit to ${"$"}{1:-main}`);
     await writeFile(join(root, ".pi/prompts/review.md"), "---\nshortcut: command-r\n---\nReview $ARGUMENTS");
 
     const templates = await loadPromptTemplatesFromRoot(root);
@@ -20,9 +20,9 @@ describe("prompt templates", () => {
   });
 
   test("reads settings from older prompt files", async () => {
-    const root = await mkdtemp(join(tmpdir(), "agents-in-the-cloud-prompts-"));
-    await mkdir(join(root, ".agents-in-the-cloud/prompts"), { recursive: true });
-    await writeFile(join(root, ".agents-in-the-cloud/prompts/legacy.md"), "---\nhotkey: L\nquick-launch: true\n---\nLegacy prompt");
+    const root = await mkdtemp(join(tmpdir(), "kintsugi-prompts-"));
+    await mkdir(join(root, ".kintsugi/prompts"), { recursive: true });
+    await writeFile(join(root, ".kintsugi/prompts/legacy.md"), "---\nhotkey: L\nquick-launch: true\n---\nLegacy prompt");
 
     const templates = await loadPromptTemplatesFromRoot(root);
     const template = templates.find((template) => template.name === "legacy");
@@ -32,10 +32,10 @@ describe("prompt templates", () => {
   });
 
   test("composer buttons are opt-in", async () => {
-    const root = await mkdtemp(join(tmpdir(), "agents-in-the-cloud-prompts-"));
-    await mkdir(join(root, ".agents-in-the-cloud/prompts"), { recursive: true });
-    await writeFile(join(root, ".agents-in-the-cloud/prompts/disabled.md"), "---\ncomposer-button: false\n---\nDisabled button");
-    await writeFile(join(root, ".agents-in-the-cloud/prompts/plain.md"), "No button setting");
+    const root = await mkdtemp(join(tmpdir(), "kintsugi-prompts-"));
+    await mkdir(join(root, ".kintsugi/prompts"), { recursive: true });
+    await writeFile(join(root, ".kintsugi/prompts/disabled.md"), "---\ncomposer-button: false\n---\nDisabled button");
+    await writeFile(join(root, ".kintsugi/prompts/plain.md"), "No button setting");
 
     const templates = await loadPromptTemplatesFromRoot(root);
     expect(templates.find((template) => template.name === "disabled")?.composerButton).toBe(false);
@@ -43,7 +43,7 @@ describe("prompt templates", () => {
   });
 
   test("includes builtin land template when repository does not provide one", async () => {
-    const root = await mkdtemp(join(tmpdir(), "agents-in-the-cloud-prompts-"));
+    const root = await mkdtemp(join(tmpdir(), "kintsugi-prompts-"));
 
     const templates = await loadPromptTemplatesFromRoot(root);
     expect(templates.map((template) => template.trigger)).toEqual(["/land"]);
@@ -51,9 +51,9 @@ describe("prompt templates", () => {
   });
 
   test("keeps built-in Slash commands out of the template loader", async () => {
-    const root = await mkdtemp(join(tmpdir(), "agents-in-the-cloud-prompts-"));
-    await mkdir(join(root, ".agents-in-the-cloud/prompts"), { recursive: true });
-    await writeFile(join(root, ".agents-in-the-cloud/prompts/new.md"), "Do not replace the built-in action");
+    const root = await mkdtemp(join(tmpdir(), "kintsugi-prompts-"));
+    await mkdir(join(root, ".kintsugi/prompts"), { recursive: true });
+    await writeFile(join(root, ".kintsugi/prompts/new.md"), "Do not replace the built-in action");
     const templates = await loadPromptTemplatesFromRoot(root);
     expect(templates.map((template) => template.trigger)).toEqual(["/land"]);
   });

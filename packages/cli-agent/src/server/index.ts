@@ -1,17 +1,17 @@
-import { registerAgentTurnSettler } from "@agents-in-the-cloud/agent/server";
-import { renderWorkspaceCompletionCatalog } from "@agents-in-the-cloud/agent/server/completion-catalog";
-import { agentAttachmentDraftId, listStagedAttachments, renderComposerBody, renderFloatingStack, renderOpenComposerButton, agentComposerActions, composerAttachmentAttributes } from "@agents-in-the-cloud/prompt/server";
-import { dictationComposerController } from "@agents-in-the-cloud/dictation/server";
-import { observableTerminalStaticFiles, renderTerminalKeyBar, renderTerminalConnectionStatus } from "@agents-in-the-cloud/observable-terminal/server";
-import { domId, escapeHtml, type WorkspaceModule } from "@agents-in-the-cloud/shared";
-import type { AgentsInTheCloudEventBus } from "@agents-in-the-cloud/core";
+import { registerAgentTurnSettler } from "@kintsugi/agent/server";
+import { renderWorkspaceCompletionCatalog } from "@kintsugi/agent/server/completion-catalog";
+import { agentAttachmentDraftId, listStagedAttachments, renderComposerBody, renderFloatingStack, renderOpenComposerButton, agentComposerActions, composerAttachmentAttributes } from "@kintsugi/prompt/server";
+import { dictationComposerController } from "@kintsugi/dictation/server";
+import { observableTerminalStaticFiles, renderTerminalKeyBar, renderTerminalConnectionStatus } from "@kintsugi/observable-terminal/server";
+import { domId, escapeHtml, type WorkspaceModule } from "@kintsugi/shared";
+import type { KintsugiEventBus } from "@kintsugi/core";
 import type { CliAgentAdapter } from "./adapter.ts";
 import { createCliAgents } from "./agents.ts";
 import { cliSocketHandler } from "./sockets.ts";
 import { cliComposerRoutes } from "./composer-routes.ts";
 import { cliCompletionCatalogId, cliTranscriptAttributes, cliTranscriptChannel, cliTranscriptRoutes, renderCliTranscriptControls, renderCliTranscriptView } from "./transcript-routes.ts";
 
-export type { CliAgentConnection } from "@agents-in-the-cloud/agent/server";
+export type { CliAgentConnection } from "@kintsugi/agent/server";
 export type { CliAgentSession } from "./adapter.ts";
 
 function terminalStatus(terminal: { ended: boolean; exitCode?: number }): string {
@@ -20,7 +20,7 @@ function terminalStatus(terminal: { ended: boolean; exitCode?: number }): string
 
 /** One adapter supplies CLI policy; this module owns the complete terminal-agent lifecycle. */
 export function createCliAgentModule(adapter: CliAgentAdapter): WorkspaceModule {
-  let events: AgentsInTheCloudEventBus;
+  let events: KintsugiEventBus;
   const agents = createCliAgents(adapter, async (workspaceId, agentId, title, workspaceNamed) => {
     await events.emit("workspace_agent_title_changed", { workspaceId, agentId, title });
     if (workspaceNamed) await events.emit("workspace_title_changed", { workspaceId, title });
@@ -81,7 +81,7 @@ export function createCliAgentModule(adapter: CliAgentAdapter): WorkspaceModule 
               <div id="${cliCompletionCatalogId(workspaceId, agentId)}" data-agent-completions-target="catalog" hidden>${await renderWorkspaceCompletionCatalog(workspaceId, "cli")}</div>
             </div>
           </div>` : "";
-          return `<section id="${domId("cli_agent", workspaceId, agentId)}" data-turbo-permanent class="cli-agent-body agent-composer-pane" data-controller="cli-terminal agent-composer composer-focus${composer ? " agent-attachments" : ""}" data-agent-composer-open-on-select-value="false" data-cli-terminal-url-value="${escapeHtml(url)}" data-cli-terminal-workspace-id-value="${escapeHtml(workspaceId)}" ${cliTranscriptAttributes(adapter, agentId)} ${composerAttachmentAttributes(draftId, rowId, `agents-in-the-cloud:workspace-pane-visible@window->cli-terminal#refresh agents-in-the-cloud:workspace-agent-focus->cli-terminal#focus agents-in-the-cloud:theme-change@document->cli-terminal#theme ${agentComposerActions}`)}>
+          return `<section id="${domId("cli_agent", workspaceId, agentId)}" data-turbo-permanent class="cli-agent-body agent-composer-pane" data-controller="cli-terminal agent-composer composer-focus${composer ? " agent-attachments" : ""}" data-agent-composer-open-on-select-value="false" data-cli-terminal-url-value="${escapeHtml(url)}" data-cli-terminal-workspace-id-value="${escapeHtml(workspaceId)}" ${cliTranscriptAttributes(adapter, agentId)} ${composerAttachmentAttributes(draftId, rowId, `kintsugi:workspace-pane-visible@window->cli-terminal#refresh kintsugi:workspace-agent-focus->cli-terminal#focus kintsugi:theme-change@document->cli-terminal#theme ${agentComposerActions}`)}>
             <div class="cli-terminal-status" role="status">${session.error ? failureStatus(session.error) : terminalStatus(terminal)}</div>
             <div class="cli-agent-stage">
               ${terminal.exists ? renderTerminalConnectionStatus("cli-terminal") : ""}

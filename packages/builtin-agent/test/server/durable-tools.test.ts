@@ -10,8 +10,8 @@ import { createRegistry, defineExtension } from "@earendil-works/pi-durable";
 import { Type } from "typebox";
 import { createDurableWorkspaceTools, durableWorkspaceTool } from "../../src/server/durable-tools.ts";
 import { openDurableWorkspace, type DurableWorkspace } from "../../src/server/durable-workspace.ts";
-import { defineWorkspaceTool, type WorkspaceTool } from "@agents-in-the-cloud/agent/server/workspace-tool";
-import { registerWorkspacePresenter } from "@agents-in-the-cloud/agent/server/tools";
+import { defineWorkspaceTool, type WorkspaceTool } from "@kintsugi/agent/server/workspace-tool";
+import { registerWorkspacePresenter } from "@kintsugi/agent/server/tools";
 
 const context = BACKGROUND_CONTEXT;
 const directories: string[] = [];
@@ -22,7 +22,7 @@ afterEach(async () => {
 });
 
 async function directory() {
-  const path = await mkdtemp(join(tmpdir(), "agents-in-the-cloud-durable-tools-"));
+  const path = await mkdtemp(join(tmpdir(), "kintsugi-durable-tools-"));
   directories.push(path);
   return path;
 }

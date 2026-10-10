@@ -1,4 +1,4 @@
-import type { WorkspaceClientControllerConstructor as StimulusControllerConstructor } from "@agents-in-the-cloud/shared";
+import type { WorkspaceClientControllerConstructor as StimulusControllerConstructor } from "@kintsugi/shared";
 
 export function createComposerSelectionAutosubmitController(Controller: StimulusControllerConstructor) {
   return class ComposerSelectionAutosubmitController extends Controller {

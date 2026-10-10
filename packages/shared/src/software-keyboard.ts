@@ -7,8 +7,8 @@ import { changeLayout } from "./layout-transaction.ts";
 const softwareKeyboardInputMediaQuery = "(hover: none) and (pointer: coarse)";
 
 /** Dispatched on document, inside the layout transaction, whenever the keyboard arrangement changes. */
-export const softwareKeyboardEvent = "agents-in-the-cloud:software-keyboard";
-export const softwareKeyboardStorageKey = "agents-in-the-cloud:software-keyboard";
+export const softwareKeyboardEvent = "kintsugi:software-keyboard";
+export const softwareKeyboardStorageKey = "kintsugi:software-keyboard";
 
 export function focusLikelyOpensSoftwareKeyboard(): boolean {
   return window.matchMedia(softwareKeyboardInputMediaQuery).matches;

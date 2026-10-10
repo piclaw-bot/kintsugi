@@ -1,6 +1,6 @@
 import type { ModelThinkingLevel } from "@earendil-works/pi-ai";
 import { getAgentEnabledModels } from "./model-preferences.ts";
-import { createPiModelRuntime, modelUnavailableReason, providerAvailability, modelThinkingLevels, parseModelRef, usesProviderSubscription, getAgentModelThinkingLevel, type ModelRef } from "@agents-in-the-cloud/llm/server";
+import { createPiModelRuntime, modelUnavailableReason, providerAvailability, modelThinkingLevels, parseModelRef, usesProviderSubscription, getAgentModelThinkingLevel, type ModelRef } from "@kintsugi/llm/server";
 
 export interface AgentModelOptionView {
   provider: string;

@@ -1,5 +1,5 @@
 {
-  "name": "@agents-in-the-cloud/proxy-egress",
+  "name": "@kintsugi/proxy-egress",
   "private": true,
   "type": "module",
   "exports": {
@@ -7,10 +7,10 @@
     "./server": "./src/server/index.ts"
   },
   "dependencies": {
-    "@agents-in-the-cloud/core": "workspace:*",
-    "@agents-in-the-cloud/workspace-templates": "workspace:*",
-    "@agents-in-the-cloud/shared": "workspace:*",
-    "@agents-in-the-cloud/workspace": "workspace:*",
+    "@kintsugi/core": "workspace:*",
+    "@kintsugi/workspace-templates": "workspace:*",
+    "@kintsugi/shared": "workspace:*",
+    "@kintsugi/workspace": "workspace:*",
     "https-proxy-agent": "7.0.6",
     "proxy-from-env": "1.1.0"
   },

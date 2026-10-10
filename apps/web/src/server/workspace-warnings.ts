@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { isGitWorkspaceTemplateInit, workspaceTemplateIdFromInit, type WorkspaceTemplateConfiguration } from "@agents-in-the-cloud/workspace-templates";
+import { isGitWorkspaceTemplateInit, workspaceTemplateIdFromInit, type WorkspaceTemplateConfiguration } from "@kintsugi/workspace-templates";
 import type { WorkspaceEntry, WorkspaceIssueKind } from "./workspace-registry.ts";
 
 export interface WorkspaceWarning {
@@ -34,6 +34,6 @@ export function workspaceWarnings(entry: WorkspaceEntry, workspaceTemplate: Work
     }
   }
   for (const issue of entry.issues ?? []) add(issue.kind, issueTitles[issue.kind], issue.message, issue.message);
-  if (entry.imageOutdated && !warnings.some((warning) => warning.kind === "image")) add("image", "Workspace image is outdated", "New workspaces get a newer image, after an AgentsInTheCloud update or a Dockerfile change. Make a new workspace to use it.", "outdated");
+  if (entry.imageOutdated && !warnings.some((warning) => warning.kind === "image")) add("image", "Workspace image is outdated", "New workspaces get a newer image, after an Kintsugi update or a Dockerfile change. Make a new workspace to use it.", "outdated");
   return warnings;
 }

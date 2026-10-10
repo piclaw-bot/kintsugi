@@ -1,3 +1,3 @@
-module agents-in-the-cloud/workspace-gateway
+module kintsugi/workspace-gateway
 
 go 1.26.0

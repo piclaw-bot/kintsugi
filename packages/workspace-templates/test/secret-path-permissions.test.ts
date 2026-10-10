@@ -16,7 +16,7 @@ test("default path permission requires exact known hosts, never broad wildcards 
 });
 
 test("path overrides persist, omitted updates preserve them, and older files get hostname defaults", async () => {
-  const directory = await mkdtemp(join(tmpdir(), "agents-in-the-cloud-path-permissions-"));
+  const directory = await mkdtemp(join(tmpdir(), "kintsugi-path-permissions-"));
   const file = join(directory, "projects.json");
   try {
     const { workspaceTemplate } = await addWorkspaceTemplate("https://github.com/example/permissions.git", file);

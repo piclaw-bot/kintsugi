@@ -1,9 +1,9 @@
-import { requestAcceptsJson } from "@agents-in-the-cloud/core";
+import { requestAcceptsJson } from "@kintsugi/core";
 import { Type } from "typebox";
 import { Value } from "typebox/value";
-import { turboStream, turboStreamResponse } from "@agents-in-the-cloud/shared";
+import { turboStream, turboStreamResponse } from "@kintsugi/shared";
 import { notificationFeedbackId, notificationFrameId, renderNotificationControl, renderNotificationFeedback } from "./render-notification.ts";
-import { jsonResponse, matchRoute, response } from "@agents-in-the-cloud/shared/http";
+import { jsonResponse, matchRoute, response } from "@kintsugi/shared/http";
 import { requireAgentPresentation, type AgentRouteHandler } from "./route-support.ts";
 import { currentNotificationTurn, setTurnNotification } from "./turn-notifications.ts";
 import { parsePushSubscription, pushPublicKey } from "./web-push.ts";

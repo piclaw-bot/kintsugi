@@ -1,4 +1,4 @@
-import { focusLikelyOpensSoftwareKeyboard, type WorkspaceClientControllerConstructor } from "@agents-in-the-cloud/shared";
+import { focusLikelyOpensSoftwareKeyboard, type WorkspaceClientControllerConstructor } from "@kintsugi/shared";
 
 /** Preserve editor focus on submit and keep touch controls in place until click. */
 export function createComposerFocusController(Controller: WorkspaceClientControllerConstructor) {

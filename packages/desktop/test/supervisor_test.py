@@ -11,7 +11,7 @@ from unittest.mock import Mock, patch
 
 # The deployed tools directory contains only executable files.
 sys.dont_write_bytecode = True
-loader = SourceFileLoader("desktop", str(Path(__file__).parent.parent / "workspace_tools/agents-in-the-cloud-desktop"))
+loader = SourceFileLoader("desktop", str(Path(__file__).parent.parent / "workspace_tools/kintsugi-desktop"))
 spec = importlib.util.spec_from_loader(loader.name, loader)
 desktop = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(desktop)
@@ -53,13 +53,16 @@ class SupervisorTests(unittest.TestCase):
     def test_chromium_launch_disables_namespace_sandbox_in_workspace(self):
         read_fd, write_fd = desktop.os.pipe()
         with desktop.os.fdopen(read_fd) as result, \
+                patch.object(desktop, "CDP_PORT", 0), \
+                patch.object(desktop, "VNC_PORT", 0), \
+                patch.object(desktop, "WEB_PORT", 0), \
                 patch.object(subprocess, "run"), \
                 patch.object(subprocess, "Popen") as spawn, \
                 patch.object(desktop, "wait_ready", side_effect=[None, None, RuntimeError("probe stopped")]), \
                 patch.object(desktop, "stop_children"):
             desktop.supervise(write_fd)
             chromium = spawn.call_args_list[2].args[0]
-            self.assertEqual(chromium[:3], ["dbus-run-session", "--", "/opt/agents-in-the-cloud/bin/chromium"])
+            self.assertEqual(chromium[:3], ["dbus-run-session", "--", "/opt/kintsugi/bin/chromium"])
             self.assertIn("--no-sandbox", chromium)
             self.assertIn("--remote-debugging-address=127.0.0.1", chromium)
             self.assertIn('"phase": "failed"', result.read())

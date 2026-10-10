@@ -1,4 +1,4 @@
-import type { JsonObject } from "@agents-in-the-cloud/core";
+import type { JsonObject } from "@kintsugi/core";
 const workspaceId = { name: "id", in: "path", required: true, schema: { type: "string" } };
 const agent = { name: "agent", in: "query", schema: { type: "string" } };
 const errorResponse = { description: "Not found" };

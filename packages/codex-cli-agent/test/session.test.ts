@@ -8,9 +8,9 @@ test("Codex keeps session config and MCP credentials private without overriding 
     import { mkdtemp, mkdir, writeFile, readFile, rm } from "node:fs/promises";
     import { tmpdir } from "node:os";
     import { join } from "node:path";
-    const cli = await import("@agents-in-the-cloud/cli-agent/server");
+    const cli = await import("@kintsugi/cli-agent/server");
     const calls = [];
-    mock.module("@agents-in-the-cloud/cli-agent/server", () => ({ ...cli, writeCliSessionFiles: async (...args) => { calls.push(args); } }));
+    mock.module("@kintsugi/cli-agent/server", () => ({ ...cli, writeCliSessionFiles: async (...args) => { calls.push(args); } }));
     const { prepareCodexSession } = await import(${JSON.stringify(source)});
     const root = await mkdtemp(join(tmpdir(), "codex-session-"));
     try {
@@ -21,7 +21,7 @@ test("Codex keeps session config and MCP credentials private without overriding 
       expect(calls).toHaveLength(1);
       const [, , files] = calls[0];
       expect(Bun.TOML.parse(files["codex/instructions.override"]).developer_instructions).toBe(instructions);
-      const server = Bun.TOML.parse(files["codex/mcp.override"]).mcp_servers["agents-in-the-cloud"];
+      const server = Bun.TOML.parse(files["codex/mcp.override"]).mcp_servers["kintsugi"];
       expect(server).toMatchObject({ url: mcp.url, required: true, tool_timeout_sec: 3600 });
       expect(server.http_headers_helper).toContain("http-headers.json");
       expect(files["codex/mcp.override"]).not.toContain(mcp.token);

@@ -1,9 +1,9 @@
-import { registerMarkdownEmbed } from "@agents-in-the-cloud/markdown";
-import type { WorkspaceModule } from "@agents-in-the-cloud/shared";
+import { registerMarkdownEmbed } from "@kintsugi/markdown";
+import type { WorkspaceModule } from "@kintsugi/shared";
 import { handleInlineContentRequest } from "./inline-content-routes.ts";
 import { renderInlineContentReference } from "./render-reference.ts";
 
-export const agentsInTheCloudServerModule: WorkspaceModule = {
+export const kintsugiServerModule: WorkspaceModule = {
   id: "inline-content",
   staticFiles: {
     "/inline-content.css": { url: new URL("../client/style.css", import.meta.url), contentType: "text/css; charset=utf-8" },

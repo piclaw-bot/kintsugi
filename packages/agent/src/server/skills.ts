@@ -1,8 +1,8 @@
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, posix } from "node:path";
-import { execWorkspaceCommand, workspaceRoot } from "@agents-in-the-cloud/workspace";
-import { escapeHtml } from "@agents-in-the-cloud/shared";
+import { execWorkspaceCommand, workspaceRoot } from "@kintsugi/workspace";
+import { escapeHtml } from "@kintsugi/shared";
 import {
   createSyntheticSourceInfo,
   loadSkills,
@@ -21,7 +21,7 @@ interface WorkspaceSkillFile {
 }
 
 const skillRoots = [
-  `${workspaceRoot}/.agents-in-the-cloud/skills`,
+  `${workspaceRoot}/.kintsugi/skills`,
   `${workspaceRoot}/.agents/skills`,
   `${workspaceRoot}/.pi/skills`,
 ] as const;
@@ -60,7 +60,7 @@ function workspaceDiagnostic(snapshotRoot: string, diagnostic: ResourceDiagnosti
 /** Use Pi's skill parser and validation against files copied from a workspace container. */
 export async function workspaceSkillsFromFiles(files: WorkspaceSkillFile[]): Promise<{ skills: WorkspaceSkill[]; diagnostics: ResourceDiagnostic[] }> {
   const contents = new Map(files.map((file) => [file.path, file.content]));
-  const snapshotRoot = await mkdtemp(join(tmpdir(), "agents-in-the-cloud-skills-"));
+  const snapshotRoot = await mkdtemp(join(tmpdir(), "kintsugi-skills-"));
   try {
     const paths: string[] = [];
     for (const file of orderedSkillFiles(files)) {
@@ -94,7 +94,7 @@ export async function workspaceSkillsFromFiles(files: WorkspaceSkillFile[]): Pro
   }
 }
 
-/** Discover Skills without assuming the AgentsInTheCloud server can mount the workspace filesystem. */
+/** Discover Skills without assuming the Kintsugi server can mount the workspace filesystem. */
 export async function loadWorkspaceSkills(workspaceId: string): Promise<{ skills: WorkspaceSkill[]; diagnostics: ResourceDiagnostic[] }> {
   const script = `set -eu
 for root in ${skillRoots.map((root) => `'${root}'`).join(" ")}; do

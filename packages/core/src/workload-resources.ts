@@ -1,5 +1,5 @@
 import { readTextIfExists } from "./fs.ts";
-const descriptor = "/run/agents-in-the-cloud-system/resources.json";
+const descriptor = "/run/kintsugi-system/resources.json";
 async function resources(): Promise<
   { workloadsCgroupParent: string } | undefined
 > {
@@ -17,8 +17,8 @@ export async function workloadCommand(args: string[]): Promise<string[]> {
   return [
     "sh",
     "-ec",
-    'echo $$ > /run/agents-in-the-cloud-system/workload-processes/cgroup.procs; exec "$@"',
-    "agents-in-the-cloud-workload",
+    'echo $$ > /run/kintsugi-system/workload-processes/cgroup.procs; exec "$@"',
+    "kintsugi-workload",
     ...args,
   ];
 }

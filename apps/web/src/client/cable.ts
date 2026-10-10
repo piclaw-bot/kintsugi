@@ -1,10 +1,10 @@
 /// <reference lib="dom" />
 
-import { decodeCableServerMessage, serializeCableIdentifier, type AgentsInTheCloudCableClient, type CableClientMessage, type CableIdentifier, type CableSubscription, type CableSubscriptionOptions, type WorkspaceVisibilityReport } from "@agents-in-the-cloud/shared";
+import { decodeCableServerMessage, serializeCableIdentifier, type KintsugiCableClient, type CableClientMessage, type CableIdentifier, type CableSubscription, type CableSubscriptionOptions, type WorkspaceVisibilityReport } from "@kintsugi/shared";
 
 declare global {
   interface Window {
-    AgentsInTheCloudCable?: AgentsInTheCloudCableClient;
+    KintsugiCable?: KintsugiCableClient;
     Turbo?: { renderStreamMessage(html: string): void };
   }
 }
@@ -22,7 +22,7 @@ type DesiredSubscription = {
 
 export type CableStreamRenderer = (html: string, isCurrent: () => boolean, onApplied: () => void) => void;
 
-export function createAgentsInTheCloudCableClient(renderStreams: CableStreamRenderer): AgentsInTheCloudCableClient {
+export function createKintsugiCableClient(renderStreams: CableStreamRenderer): KintsugiCableClient {
   const desired = new Map<string, DesiredSubscription>();
   const delays = [100, 250, 500, 1000, 2000, 5000];
   let socket: WebSocket | undefined;
@@ -161,7 +161,7 @@ export function createAgentsInTheCloudCableClient(renderStreams: CableStreamRend
     if (desired.size > 0) connect();
   });
 
-  const client: AgentsInTheCloudCableClient = {
+  const client: KintsugiCableClient = {
     ready() { return socket?.readyState === WebSocket.OPEN && !recovering; },
     reconnect() { socket?.close(); },
     reportVisibility(next) {

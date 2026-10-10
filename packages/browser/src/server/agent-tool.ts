@@ -1,4 +1,4 @@
-import type { WorkspacePresenterDefinition } from "@agents-in-the-cloud/agent/server/tools";
+import type { WorkspacePresenterDefinition } from "@kintsugi/agent/server/tools";
 import { Type } from "typebox";
 import { createWorkspaceBrowserView, listWorkspaceBrowserViews, setWorkspaceBrowserTarget, type WorkspaceBrowserView } from "./state.ts";
 
@@ -9,7 +9,7 @@ interface BrowserPresenterDeps {
 export function createBrowserPresenter(workspaceId: string, deps: BrowserPresenterDeps): WorkspacePresenterDefinition<{ kind: "browser"; url: string }> {
   return {
     kind: "browser",
-    description: "Present a URL in an AgentsInTheCloud Browser view.",
+    description: "Present a URL in an Kintsugi Browser view.",
     parameters: {
       url: Type.String({
         description: "URL to load in the Browser view, written from the network perspective of the workspace container.",

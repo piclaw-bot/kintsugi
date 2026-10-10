@@ -1,9 +1,9 @@
-import { disclosureHtml, type DisclosureSummary } from "@agents-in-the-cloud/design-system/disclosure";
-import { listWorkspaceAgents, durableWorkspaceOwner, WorkspaceAgents, type AgentLivePresentationSubscription, type AgentRouteHandler } from "@agents-in-the-cloud/builtin-agent/server";
-import { ids } from "@agents-in-the-cloud/agent/server/render-context";
-import { requestAcceptsJson } from "@agents-in-the-cloud/core";
-import { createLivePresentation, escapeHtml as h } from "@agents-in-the-cloud/shared";
-import { response } from "@agents-in-the-cloud/shared/http";
+import { disclosureHtml, type DisclosureSummary } from "@kintsugi/design-system/disclosure";
+import { listWorkspaceAgents, durableWorkspaceOwner, WorkspaceAgents, type AgentLivePresentationSubscription, type AgentRouteHandler } from "@kintsugi/builtin-agent/server";
+import { ids } from "@kintsugi/agent/server/render-context";
+import { requestAcceptsJson } from "@kintsugi/core";
+import { createLivePresentation, escapeHtml as h } from "@kintsugi/shared";
+import { response } from "@kintsugi/shared/http";
 import { nativeSnapshot, viewPath, type NativeSubagentView as SubagentRecord } from "./native-view-state.ts";
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
 import { Delegation } from "./native-state.ts";
@@ -12,7 +12,7 @@ export async function renderSubagentsControl(workspaceId: string, agentId: strin
   const agents = (await nativeSnapshot(workspaceId)).agents.filter(agent => agent.rootId === agentId);
   return `<div class="subagents-control" data-controller="subagents"
     data-subagents-workspace-id-value="${h(workspaceId)}" data-subagents-agent-id-value="${h(agentId)}"
-    data-action="agents-in-the-cloud:workspace-agent-selected@document->subagents#sync agents-in-the-cloud:workspace-pane-visible@document->subagents#sync agents-in-the-cloud:workspace-pane-hidden@document->subagents#sync visibilitychange@document->subagents#sync agent:turn-reveal->subagents#loaded:stop toggle->subagents#toggle:capture">${disclosureHtml({
+    data-action="kintsugi:workspace-agent-selected@document->subagents#sync kintsugi:workspace-pane-visible@document->subagents#sync kintsugi:workspace-pane-hidden@document->subagents#sync visibilitychange@document->subagents#sync agent:turn-reveal->subagents#loaded:stop toggle->subagents#toggle:capture">${disclosureHtml({
     element: { attributesHtml: `data-subagents-target="panel"${agents.length ? "" : " hidden"}` },
     summary: { kind: "compact", width: "fill", label: { kind: "text", text: "Subagents" },
       trailingHtml: `<span id="subagents-status-${h(agentId)}">${statusHtml(agents)}</span>` },

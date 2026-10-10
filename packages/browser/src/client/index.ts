@@ -1,6 +1,6 @@
 /// <reference lib="dom" />
 
-import type { WorkspaceClientControllerConstructor, WorkspaceClientModule } from "@agents-in-the-cloud/shared";
+import type { WorkspaceClientControllerConstructor, WorkspaceClientModule } from "@kintsugi/shared";
 
 function createBrowserAddressController(Controller: WorkspaceClientControllerConstructor): WorkspaceClientControllerConstructor {
   return class BrowserAddressController extends Controller {
@@ -47,4 +47,4 @@ const browserClientModule: WorkspaceClientModule = {
   },
 };
 
-export { browserClientModule as agentsInTheCloudClientModule };
+export { browserClientModule as kintsugiClientModule };

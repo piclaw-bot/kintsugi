@@ -1,6 +1,6 @@
-import { listFileCompletions, renderFileCompletionMenu } from "@agents-in-the-cloud/agent/server/file-completions";
-import { expandSlashCommand } from "@agents-in-the-cloud/agent/server/slash-command-input";
-import { matchRoute, response, textResponse } from "@agents-in-the-cloud/shared/http";
+import { listFileCompletions, renderFileCompletionMenu } from "@kintsugi/agent/server/file-completions";
+import { expandSlashCommand } from "@kintsugi/agent/server/slash-command-input";
+import { matchRoute, response, textResponse } from "@kintsugi/shared/http";
 import { type AgentRouteHandler } from "./route-support.ts";
 import { resolveAgent } from "./delegation.ts";
 

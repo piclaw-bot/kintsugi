@@ -1,4 +1,4 @@
-import type { WorkspaceClientControllerConstructor as StimulusControllerConstructor } from "@agents-in-the-cloud/shared";
+import type { WorkspaceClientControllerConstructor as StimulusControllerConstructor } from "@kintsugi/shared";
 
 const htmlPreviewBaselineHeight = 420;
 const htmlPreviewResourceGraceMs = 2_000;

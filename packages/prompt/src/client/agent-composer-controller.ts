@@ -1,5 +1,5 @@
 import { composerViewportHeight, focusComposerText, sizeComposer } from "./composer-editor.ts";
-import { changeLayout, focusLikelyOpensSoftwareKeyboard, isWorkspacePaneVisible, mobileComposerMediaQuery, type WorkspaceClientControllerConstructor } from "@agents-in-the-cloud/shared";
+import { changeLayout, focusLikelyOpensSoftwareKeyboard, isWorkspacePaneVisible, mobileComposerMediaQuery, type WorkspaceClientControllerConstructor } from "@kintsugi/shared";
 
 /** The composer may grow to this share of the space above the keyboard (or of the window). */
 const composerMaxShare = 0.4;
@@ -81,7 +81,7 @@ export function createAgentComposerController(Controller: WorkspaceClientControl
       if (focusLikelyOpensSoftwareKeyboard()) this.blurInput();
       else if (document.hasFocus()) {
         if (this.isOpen) input.focus({ preventScroll: true });
-        else this.element.dispatchEvent(new Event("agents-in-the-cloud:workspace-agent-focus"));
+        else this.element.dispatchEvent(new Event("kintsugi:workspace-agent-focus"));
       }
     }
 

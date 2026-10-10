@@ -39,7 +39,7 @@ func importLeased(ctx context.Context, client *containerd.Client, archive *metad
 	// The image record is only published after successful unpack. The lease keeps
 	// new metadata and snapshots alive until then, including during cancellation.
 	for _, d := range []ocispec.Descriptor{archive.manifest.Config, archive.target} {
-		if err := content.WriteBlob(ctx, cs, "agents-in-the-cloud-transfer-"+d.Digest.String(), bytes.NewReader(archive.blobs[blobPath(d)]), d); err != nil {
+		if err := content.WriteBlob(ctx, cs, "kintsugi-transfer-"+d.Digest.String(), bytes.NewReader(archive.blobs[blobPath(d)]), d); err != nil {
 			return "", err
 		}
 	}

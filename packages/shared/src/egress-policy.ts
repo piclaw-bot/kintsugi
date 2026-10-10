@@ -4,7 +4,7 @@ import { BlockList, isIP } from "node:net";
  * The workspace egress invariant: over IP, a workspace may reach global
  * unicast destinations (the public internet) and nothing else.
  *
- * AgentsInTheCloud's own services are never valid destinations. The app, the
+ * Kintsugi's own services are never valid destinations. The app, the
  * supervisor and every other control channel are reached through per-workspace
  * Unix sockets with fixed route lists, not through the network. Private
  * networks (LAN, VPN, tailnet, Docker bridges) are not reachable either; when

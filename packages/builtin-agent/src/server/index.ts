@@ -9,7 +9,7 @@ export {
 } from "./runtime.ts";
 export { registerAgentEvents } from "./agent-events.ts";
 export { handleAgentRequest } from "./routes.ts";
-export { builtinAgentWorkspaceModule, builtinAgentWorkspaceModule as agentsInTheCloudServerModule, workspaceAgentTabProvider } from "./web.ts";
+export { builtinAgentWorkspaceModule, builtinAgentWorkspaceModule as kintsugiServerModule, workspaceAgentTabProvider } from "./web.ts";
 export { configureAgentDelegation, resolveAgent, type AgentDelegation, type AgentToolPresentation } from "./delegation.ts";
 export { type AgentRouteHandler, requireAgentPresentation } from "./route-support.ts";
 export { maybeNameWorkspaceFromPrompt } from "./agent-title-suggestion.ts";

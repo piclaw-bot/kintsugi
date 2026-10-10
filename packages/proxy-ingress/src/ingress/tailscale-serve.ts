@@ -1,6 +1,6 @@
 import { spawn } from "node:child_process";
 import { request as httpRequest } from "node:http";
-import { isJsonObject, type JsonObject, type JsonValue } from "@agents-in-the-cloud/core";
+import { isJsonObject, type JsonObject, type JsonValue } from "@kintsugi/core";
 
 export interface PortRange {
   start: number;
@@ -10,7 +10,7 @@ export interface PortRange {
 export const defaultPublicOriginPortRange: PortRange = { start: 41000, end: 41999 };
 
 export const defaultTailscaleLocalApiSocketPath = "/var/run/tailscale/tailscaled.sock";
-export const defaultTailscaleServeHelperPath = "/usr/local/bin/agents-in-the-cloud-tailscale-serve-helper";
+export const defaultTailscaleServeHelperPath = "/usr/local/bin/kintsugi-tailscale-serve-helper";
 
 export interface OriginPublisher {
   publish(port: number): Promise<void>;

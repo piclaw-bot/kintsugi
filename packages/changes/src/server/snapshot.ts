@@ -1,7 +1,7 @@
 import { resolveDiffEndpoints } from "../diff-endpoints.ts";
 import { captureSyntheticStats } from "./synthetic-stats.ts";
 import { collectChangesComparison, collectChangesIndex, type ChangesFile, type ChangesFileStats, type ChangesIndex } from "./diff.ts";
-import { git, type Repository } from "@agents-in-the-cloud/workspace/git";
+import { git, type Repository } from "@kintsugi/workspace/git";
 import { endpointName, diffEndpointsDescription, stagedChanges, workingTree, type ChangesCommit, type DiffEndpoints, type HistoryModel } from "../history.ts";
 export { stagedChanges, workingTree } from "../history.ts";
 export type { ChangesCommit, DiffEndpoints } from "../history.ts";

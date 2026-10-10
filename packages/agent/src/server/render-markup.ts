@@ -1,7 +1,7 @@
-import { type ContentRowContent, type ContentRowLabel } from "@agents-in-the-cloud/design-system/content-row";
-import { renderMarkdown } from "@agents-in-the-cloud/markdown";
-import { highlightCodeHtmlForPath } from "@agents-in-the-cloud/syntax";
-import { escapeHtml } from "@agents-in-the-cloud/shared";
+import { type ContentRowContent, type ContentRowLabel } from "@kintsugi/design-system/content-row";
+import { renderMarkdown } from "@kintsugi/markdown";
+import { highlightCodeHtmlForPath } from "@kintsugi/syntax";
+import { escapeHtml } from "@kintsugi/shared";
 import type { AgentRenderContext } from "./render-context.ts";
 
 export function markdown(ctx: AgentRenderContext, text: string): string {
@@ -27,11 +27,11 @@ export function renderMarkdownRow(ctx: AgentRenderContext, text: string, classNa
 }
 
 export function fullscreenAttributes(title: string, mode: "template" | "media" = "template"): string {
-  return ` data-controller="agents-in-the-cloud-fullscreen" data-agents-in-the-cloud-fullscreen-mode-value="${mode}" data-agents-in-the-cloud-fullscreen-title-value="${escapeHtml(title)}"`;
+  return ` data-controller="kintsugi-fullscreen" data-kintsugi-fullscreen-mode-value="${mode}" data-kintsugi-fullscreen-title-value="${escapeHtml(title)}"`;
 }
 
 export function detailFullscreen(title: string, html: string): string {
-  return `<div class="agent-detail-fullscreen"${fullscreenAttributes(title)}>${html}<template data-agents-in-the-cloud-fullscreen-target="content">${html}</template></div>`;
+  return `<div class="agent-detail-fullscreen"${fullscreenAttributes(title)}>${html}<template data-kintsugi-fullscreen-target="content">${html}</template></div>`;
 }
 
 export function codeBlockHtml(code: string, filePath: string | undefined, className = "agent-tool-code"): string {

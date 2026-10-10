@@ -1,15 +1,15 @@
 /// <reference lib="dom" />
 
 import {
-  agentsInTheCloudObservableTerminalTheme,
+  kintsugiObservableTerminalTheme,
   createObservableTerminalViewer,
   observableWebSocketUrl,
   TerminalFrame,
   TerminalTouchFocus,
   createTerminalKeyBarController,
   type ObservableTerminalViewer,
-} from "@agents-in-the-cloud/observable-terminal/client";
-import { focusLikelyOpensSoftwareKeyboard, isTextEntry, isWorkspacePaneVisible, type WorkspaceClientControllerConstructor, type WorkspaceClientModule } from "@agents-in-the-cloud/shared";
+} from "@kintsugi/observable-terminal/client";
+import { focusLikelyOpensSoftwareKeyboard, isTextEntry, isWorkspacePaneVisible, type WorkspaceClientControllerConstructor, type WorkspaceClientModule } from "@kintsugi/shared";
 import { terminalViewKey } from "../shared.ts";
 
 function createTerminalSessionPickerController(Controller: WorkspaceClientControllerConstructor) {
@@ -66,7 +66,7 @@ function createTerminalViewController(Controller: WorkspaceClientControllerConst
           websocketUrl: observableWebSocketUrl(`/workspaces/${encodeURIComponent(this.workspaceIdValue)}/views/${encodeURIComponent(terminalViewKey(this.idValue))}/ws`),
           fontFamily: style.getPropertyValue("--font-mono"),
           fontSize: Number.parseFloat(style.getPropertyValue("--text-code")),
-          theme: agentsInTheCloudObservableTerminalTheme(),
+          theme: kintsugiObservableTerminalTheme(),
           connectionStatus: this.connectionStatusTarget,
           onConnectionStateChange: (state) => {
             this.endedTarget.hidden = state !== "ended";
@@ -95,7 +95,7 @@ function createTerminalViewController(Controller: WorkspaceClientControllerConst
       this.resetAccessoryKeys();
     }
 
-    theme(): void { this.viewer?.setTheme(agentsInTheCloudObservableTerminalTheme()); }
+    theme(): void { this.viewer?.setTheme(kintsugiObservableTerminalTheme()); }
 
     connect(): void {
       if (isWorkspacePaneVisible(this.element)) {

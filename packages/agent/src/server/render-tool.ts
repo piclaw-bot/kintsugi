@@ -1,19 +1,19 @@
-import { disclosureHtml } from "@agents-in-the-cloud/design-system/disclosure";
-import { contentRowHtml } from "@agents-in-the-cloud/design-system/content-row";
+import { disclosureHtml } from "@kintsugi/design-system/disclosure";
+import { contentRowHtml } from "@kintsugi/design-system/content-row";
 import { agentToolPresentations } from "./tool-presentations.ts";
-import { copyButtonHtml } from "@agents-in-the-cloud/design-system/copy-button";
-import { buttonGroupHtml } from "@agents-in-the-cloud/design-system/button-group";
-import { buttonHtml } from "@agents-in-the-cloud/design-system/button";
-import { dialogHtml } from "@agents-in-the-cloud/design-system/dialog";
-import { Icons } from "@agents-in-the-cloud/design-system/icons";
-import { toggleHtml } from "@agents-in-the-cloud/design-system/toggle";
-import { isJsonObject, type JsonObject } from "@agents-in-the-cloud/core";
+import { copyButtonHtml } from "@kintsugi/design-system/copy-button";
+import { buttonGroupHtml } from "@kintsugi/design-system/button-group";
+import { buttonHtml } from "@kintsugi/design-system/button";
+import { dialogHtml } from "@kintsugi/design-system/dialog";
+import { Icons } from "@kintsugi/design-system/icons";
+import { toggleHtml } from "@kintsugi/design-system/toggle";
+import { isJsonObject, type JsonObject } from "@kintsugi/core";
 import { Type, type Static, type TSchema } from "typebox";
 import { Value } from "typebox/value";
 import { parseDiffFromFile, processPatch, type FileDiffMetadata } from "@pierre/diffs";
 import { diffStats, type DiffOperation } from "./diff.ts";
 import { embeddedBashCommand, formatBashCommandForDisplay, highlightedBashCommandHtml } from "./embedded-code.ts";
-import { domId, escapeHtml } from "@agents-in-the-cloud/shared";
+import { domId, escapeHtml } from "@kintsugi/shared";
 import { isBashTool, formatDuration, type ToolView } from "./transcript.ts";
 import { agentPath, ids, sessionImageUrl, transcriptItemPath, type AgentRenderContext } from "./render-context.ts";
 import { codeBlockHtml, detailFullscreen, fullscreenAttributes, transcriptRowContent } from "./render-markup.ts";
@@ -246,7 +246,7 @@ function renderBashDetail(ctx: AgentRenderContext, key: string, tool: ToolView, 
 }
 
 function fullscreenSourceRegion(title: string, inlineHtml: string, fullHtml: string): string {
-  return `<div class="agent-detail-fullscreen"${fullscreenAttributes(title)}>${inlineHtml}<template data-agents-in-the-cloud-fullscreen-target="content">${fullHtml}</template></div>`;
+  return `<div class="agent-detail-fullscreen"${fullscreenAttributes(title)}>${inlineHtml}<template data-kintsugi-fullscreen-target="content">${fullHtml}</template></div>`;
 }
 
 function renderReadDetail(ctx: AgentRenderContext, key: string, tool: ToolView, count: number): string {
@@ -294,7 +294,7 @@ function editDiffHtml(tool: ToolView, contextual: boolean): string {
   const diffs = editDiffs(tool, contextual);
   if (!diffs.length) return "";
   const model = JSON.stringify(diffs).replaceAll("<", "\\u003c").replaceAll("&", "\\u0026");
-  return `<div class="agents-in-the-cloud-pierre-host agent-edit-pierre" data-controller="agent-edit-diff">${diffs.map(() => "<diffs-container></diffs-container>").join("")}<script type="application/json" data-agent-edit-diff-target="model">${model}</script></div>`;
+  return `<div class="kintsugi-pierre-host agent-edit-pierre" data-controller="agent-edit-diff">${diffs.map(() => "<diffs-container></diffs-container>").join("")}<script type="application/json" data-agent-edit-diff-target="model">${model}</script></div>`;
 }
 
 function renderEditDetail(tool: ToolView): string {

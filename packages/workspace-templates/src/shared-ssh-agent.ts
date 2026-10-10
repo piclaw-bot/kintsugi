@@ -3,7 +3,7 @@ import { createHash } from "node:crypto";
 import { chmod, mkdir, rm, stat } from "node:fs/promises";
 import { createConnection, createServer, type Server, type Socket } from "node:net";
 import { dirname, join } from "node:path";
-import { AgentsInTheCloudCoreError, isNotFoundError } from "@agents-in-the-cloud/core";
+import { KintsugiCoreError, isNotFoundError } from "@kintsugi/core";
 
 const failure = Buffer.from([5]);
 const maxPacketLength = 256 * 1024; // OpenSSH's SSH_AGENT_MAX_LEN.
@@ -43,7 +43,7 @@ async function sshAdd(socketPath: string, args: string[], privateKey?: string): 
     stdin: privateKey === undefined ? "ignore" : new Blob([`${privateKey.trimEnd()}\n`]), stdout: "ignore", stderr: "pipe",
   });
   const [status, stderr] = await Promise.all([child.exited, new Response(child.stderr).text()]);
-  if (status !== 0) throw new AgentsInTheCloudCoreError("ssh_agent_failed", stderr.trim() || "ssh-add failed");
+  if (status !== 0) throw new KintsugiCoreError("ssh_agent_failed", stderr.trim() || "ssh-add failed");
 }
 
 /** One signing backend, with trusted workspace identity supplied by each listener.
@@ -67,7 +67,7 @@ export class SharedSshAgent {
     for (const signal of ["SIGTERM", "SIGINT"] as const) {
       const handler = () => {
         this.exitHandler();
-        // Preserve the default termination behavior when AgentsInTheCloud has no other
+        // Preserve the default termination behavior when Kintsugi has no other
         // shutdown handler. If it does, that handler owns process termination.
         if (process.listenerCount(signal) === 1) {
           process.off(signal, handler);
@@ -111,13 +111,13 @@ export class SharedSshAgent {
       this.backendFailed(child, error);
     });
     child.once("exit", (code, signal) => {
-      this.backendFailed(child, new AgentsInTheCloudCoreError("ssh_agent_failed", `Shared SSH signing backend exited (${signal ?? code}): ${stderr.trim()}`));
+      this.backendFailed(child, new KintsugiCoreError("ssh_agent_failed", `Shared SSH signing backend exited (${signal ?? code}): ${stderr.trim()}`));
     });
     child.stderr!.setEncoding("utf8");
     child.stderr!.on("data", (chunk) => { stderr += chunk; });
     for (let attempt = 0; attempt < 100; attempt++) {
       if (spawnError) throw spawnError;
-      if (child.exitCode !== null || child.signalCode !== null) throw new AgentsInTheCloudCoreError("ssh_agent_failed", stderr.trim() || "Shared SSH signing backend exited");
+      if (child.exitCode !== null || child.signalCode !== null) throw new KintsugiCoreError("ssh_agent_failed", stderr.trim() || "Shared SSH signing backend exited");
       try {
         if ((await stat(this.backendPath)).isSocket()) return child;
       } catch (error) {
@@ -128,7 +128,7 @@ export class SharedSshAgent {
     const exited = new Promise<void>((resolve) => child.once("exit", () => resolve()));
     child.kill("SIGTERM");
     await exited;
-    throw new AgentsInTheCloudCoreError("ssh_agent_failed", "Timed out waiting for shared SSH signing backend");
+    throw new KintsugiCoreError("ssh_agent_failed", "Timed out waiting for shared SSH signing backend");
   }
 
   private async synchronize(child: ChildProcess, workspaceTemplateId?: string): Promise<void> {
@@ -139,7 +139,7 @@ export class SharedSshAgent {
     this.loadedKeys = undefined;
     await sshAdd(this.backendPath, ["-D"]);
     for (const key of keys) await sshAdd(this.backendPath, ["-"], key);
-    if (this.child !== child) throw new AgentsInTheCloudCoreError("ssh_agent_failed", "Shared SSH signing backend changed during key synchronization");
+    if (this.child !== child) throw new KintsugiCoreError("ssh_agent_failed", "Shared SSH signing backend changed during key synchronization");
     this.loadedKeys = digest;
   }
 
@@ -169,7 +169,7 @@ export class SharedSshAgent {
           if (client.destroyed || this.child !== child) return failure;
           upstream.write(packet(body));
           const response = await responses!.next();
-          if (response.done) throw new AgentsInTheCloudCoreError("ssh_agent_failed", "Shared SSH signing backend closed its connection");
+          if (response.done) throw new KintsugiCoreError("ssh_agent_failed", "Shared SSH signing backend closed its connection");
           return response.value;
         });
         if (!client.destroyed) client.write(packet(response));

@@ -6,9 +6,9 @@ import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
 import { createModels, fauxAssistantMessage, fauxProvider, fauxToolCall } from "@earendil-works/pi-ai";
 import { createRegistry, defineExtension, defineTool, type AgentChange } from "@earendil-works/pi-durable";
 import { Type } from "typebox";
-import { AgentsInTheCloudCoreError, createAgentsInTheCloudEventBus } from "@agents-in-the-cloud/core";
-import type { WorkspaceAgentToolOptions } from "@agents-in-the-cloud/agent/server/tools";
-import { subscribeWorkspaceAgentBusy } from "@agents-in-the-cloud/agent/server";
+import { KintsugiCoreError, createKintsugiEventBus } from "@kintsugi/core";
+import type { WorkspaceAgentToolOptions } from "@kintsugi/agent/server/tools";
+import { subscribeWorkspaceAgentBusy } from "@kintsugi/agent/server";
 import { currentNotificationTurn } from "../../src/server/turn-notifications.ts";
 import { openDurableAgentRuntime, type DurableAgentRuntime } from "../../src/server/durable-runtime.ts";
 import { durableEntryContent } from "../../src/server/durable-images.ts";
@@ -24,7 +24,7 @@ afterEach(async () => {
 });
 
 async function setup(options: WorkspaceAgentToolOptions = {}) {
-  const path = await mkdtemp(join(tmpdir(), "agents-in-the-cloud-durable-runtime-"));
+  const path = await mkdtemp(join(tmpdir(), "kintsugi-durable-runtime-"));
   paths.push(path);
   const models = createModels();
   const faux = fauxProvider({ tokensPerSecond: 100_000, models: [
@@ -159,7 +159,7 @@ test.each(["suspend", "stop"] as const)("native %s preserves or withdraws commit
     fauxAssistantMessage([fauxToolCall("block", {})], { stopReason: "toolUse" }),
     (request) => {
       expect(JSON.stringify(request)).toContain("Queued instruction");
-      expect(JSON.stringify(request)).not.toContain("AgentsInTheCloud restarted");
+      expect(JSON.stringify(request)).not.toContain("Kintsugi restarted");
       return fauxAssistantMessage("Recovered");
     },
   ]);
@@ -791,7 +791,7 @@ test("Stop does not signal another root's active tool", async () => {
 
 
 test("execution owner publishes busy and finished turns without a presentation mount", async () => {
-  const events = createAgentsInTheCloudEventBus();
+  const events = createKintsugiEventBus();
   const finished: Array<{ workspaceId: string; agentId: string }> = [];
   const completed = Promise.withResolvers<void>();
   events.on("workspace_agent_turn_finished", async event => { finished.push(event); completed.resolve(); });
@@ -875,7 +875,7 @@ test("model availability is validated by commands after request deduplication", 
 });
 
 test("owner resumes retained work and emits completion without callers acquiring a controller", async () => {
-  const events = createAgentsInTheCloudEventBus();
+  const events = createKintsugiEventBus();
   const finished = Promise.withResolvers<{ workspaceId: string; agentId: string }>();
   events.on("workspace_agent_turn_finished", event => { finished.resolve(event); });
   const { runtime, faux, registry, open } = await setup({ events });
@@ -908,7 +908,7 @@ test("owner resumes retained work and emits completion without callers acquiring
 
 
 test("completion-handler failure is reported without disabling execution observation", async () => {
-  const events = createAgentsInTheCloudEventBus();
+  const events = createKintsugiEventBus();
   const failure = new Error("Completion consumer failed");
   const reported = Promise.withResolvers<void>();
   const completed = Promise.withResolvers<void>();
@@ -971,7 +971,7 @@ test("unknown model selection rejects with invalid_arguments and leaves settings
   const agent = await runtime.agent(record);
   const before = (await agent.settings()).model;
   const result = agent.configure({ model: { provider: "faux", modelId: "missing" } });
-  await expect(result).rejects.toBeInstanceOf(AgentsInTheCloudCoreError);
+  await expect(result).rejects.toBeInstanceOf(KintsugiCoreError);
   await expect(result).rejects.toMatchObject({ code: "invalid_arguments" });
   expect((await agent.settings()).model).toEqual(before);
   await agent.configure({ model: { provider: "faux", modelId: "large" } });

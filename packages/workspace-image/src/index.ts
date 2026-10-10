@@ -2,9 +2,9 @@ import { existsSync } from "node:fs";
 import { createHash } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { runDocker, waitForCommand, commandSignal, workloadCgroupArgs, shellQuote, type AgentsInTheCloudEventBus } from "@agents-in-the-cloud/core";
-import { runHostObservableCommand, tailTerminalText } from "@agents-in-the-cloud/observable-terminal/server";
-import { errorMessage } from "@agents-in-the-cloud/shared";
+import { runDocker, waitForCommand, commandSignal, workloadCgroupArgs, shellQuote, type KintsugiEventBus } from "@kintsugi/core";
+import { runHostObservableCommand, tailTerminalText } from "@kintsugi/observable-terminal/server";
+import { errorMessage } from "@kintsugi/shared";
 import { type WorkspaceImageMetadata } from "./metadata.ts";
 import { ensureGeneratedDefaultWorkspaceImage, prepareDefaultWorkspaceImage } from "./default-image.ts";
 export { ensureGeneratedDefaultWorkspaceImage, prepareDefaultWorkspaceImage } from "./default-image.ts";
@@ -26,7 +26,7 @@ interface WorkspaceImageBuildTask {
 
 interface ResolveWorkspaceImageOptions {
   workspaceId?: string;
-  events?: AgentsInTheCloudEventBus;
+  events?: KintsugiEventBus;
   sourcePath?: string;
   dockerfile?: string;
   buildOutput?: "inherit";
@@ -34,14 +34,14 @@ interface ResolveWorkspaceImageOptions {
 
 const maxBuildOutputChars = 64 * 1024;
 const buildTasks = new Map<string, WorkspaceImageBuildTask>();
-const defaultImageRefFile = new URL("../../../.agents-in-the-cloud-default-workspace-image", import.meta.url);
+const defaultImageRefFile = new URL("../../../.kintsugi-default-workspace-image", import.meta.url);
 
 function namespaceSlug(): string {
   return (process.env.ATELIER_NAMESPACE || "host").replaceAll(/[^a-zA-Z0-9_.-]/g, "-");
 }
 
 function contextBaseDir(): string {
-  return join("/tmp", "agents-in-the-cloud-workspace-image-context", namespaceSlug());
+  return join("/tmp", "kintsugi-workspace-image-context", namespaceSlug());
 }
 
 async function pullImage(tag: string, options: ResolveWorkspaceImageOptions): Promise<void> {
@@ -54,7 +54,7 @@ async function pullImage(tag: string, options: ResolveWorkspaceImageOptions): Pr
   if (result.exitCode !== 0) throw new Error(result.stderr.trim() || `docker pull ${tag} failed`);
 }
 
-async function reportImageProgress(events: AgentsInTheCloudEventBus | undefined, workspaceId: string | undefined, task: WorkspaceImageBuildTask): Promise<void> {
+async function reportImageProgress(events: KintsugiEventBus | undefined, workspaceId: string | undefined, task: WorkspaceImageBuildTask): Promise<void> {
   if (!events || !workspaceId) return;
   await events.emit("workspace_provision_progress", {
     workspaceId,
@@ -98,7 +98,7 @@ function startBuildTask(metadata: WorkspaceImageMetadata, source: WorkspaceImage
         if (exitCode !== 0) throw new Error(`docker build failed with exit code ${exitCode}`);
       } else {
         const result = await runHostObservableCommand({
-          session: `agents-in-the-cloud-provision-image-${crypto.randomUUID().slice(0, 8)}`,
+          session: `kintsugi-provision-image-${crypto.randomUUID().slice(0, 8)}`,
           cwd: contextDir,
           command: `echo "Starting Docker image build..."\nDOCKER_BUILDKIT=1 ${[...dockerCommand, ...args].map(shellQuote).join(" ")}`,
           onSessionStarted: async (session) => {
@@ -155,13 +155,13 @@ export async function ensureDefaultWorkspaceImage(options: ResolveWorkspaceImage
     await pullImage(baked, options);
     return baked;
   }
-  const innerAgentsInTheCloud = existsSync("/run/agents-in-the-cloud-parent");
+  const innerKintsugi = existsSync("/run/kintsugi-parent");
   return ensureGeneratedDefaultWorkspaceImage({
-    force: !innerAgentsInTheCloud && process.env.ATELIER_WORKSPACE_IMAGE_NO_CACHE === "1",
+    force: !innerKintsugi && process.env.ATELIER_WORKSPACE_IMAGE_NO_CACHE === "1",
     build: async ({ contextDir, dockerfile, metadata }) => {
-      if (innerAgentsInTheCloud) {
-        const signature = metadata.tag.slice("agents-in-the-cloud-workspace:".length);
-        throw new Error(`Inner AgentsInTheCloud needs a default workspace image with signature ${signature} but that has not been preloaded. Exiting instead of building this image, so we do not flood the outer agents-in-the-cloud with many parallel image builds.`);
+      if (innerKintsugi) {
+        const signature = metadata.tag.slice("kintsugi-workspace:".length);
+        throw new Error(`Inner Kintsugi needs a default workspace image with signature ${signature} but that has not been preloaded. Exiting instead of building this image, so we do not flood the outer kintsugi with many parallel image builds.`);
       }
       await waitForBuildTask(startBuildTask(metadata, { kind: "default" }, dockerfile, contextDir, options), options);
     },
@@ -221,20 +221,20 @@ async function optimizedRepoDockerfile(sourcePath: string, dockerfile: string): 
 export function repositoryWorkspaceImageTag(baseImage: string, dockerfileContents: string | Uint8Array): string {
   const hash = createHash("sha256");
   // Do not reuse repository images produced before builder isolation.
-  hash.update("agents-in-the-cloud-repo-workspace-dockerfile-v6\n");
+  hash.update("kintsugi-repo-workspace-dockerfile-v6\n");
   hash.update(baseImage); hash.update("\0");
   hash.update(dockerfileContents); hash.update("\0");
-  return `agents-in-the-cloud-workspace:${hash.digest("hex").slice(0, 16)}`;
+  return `kintsugi-workspace:${hash.digest("hex").slice(0, 16)}`;
 }
 
 async function repoWorkspaceImageMetadata(dockerfile: string, baseImage: string): Promise<WorkspaceImageMetadata> {
   const contents = await readFile(dockerfile);
-  if (contents.toString("utf8").split("\n")[0].trim() !== "FROM agents-in-the-cloud-workspace") throw new Error(`${dockerfile} must start with FROM agents-in-the-cloud-workspace`);
+  if (contents.toString("utf8").split("\n")[0].trim() !== "FROM kintsugi-workspace") throw new Error(`${dockerfile} must start with FROM kintsugi-workspace`);
   return { tag: repositoryWorkspaceImageTag(baseImage, contents), modules: ["repo"] };
 }
 
 export async function workspaceDockerfile(sourcePath: string, override?: string): Promise<string> {
-  if (!override?.trim()) return join(sourcePath, ".agents-in-the-cloud", "Dockerfile");
+  if (!override?.trim()) return join(sourcePath, ".kintsugi", "Dockerfile");
   const dir = join(contextBaseDir(), "project-dockerfiles");
   await mkdir(dir, { recursive: true });
   const path = join(dir, `${createHash("sha256").update(override).digest("hex")}.Dockerfile`);

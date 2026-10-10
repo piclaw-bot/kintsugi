@@ -1,9 +1,9 @@
-import { configureAgentMcp, handleAgentMcpRequest } from "@agents-in-the-cloud/agent/server";
-import { createAgentsInTheCloudEventBus, getAgentsInTheCloudRuntimeContext } from "@agents-in-the-cloud/core";
-import { designSystemCatalogueHtml } from "@agents-in-the-cloud/design-system/catalogue";
-import { attachHostObservableTerminal, observableTerminalCols, observableTerminalRows, type ObservableTerminalConnection } from "@agents-in-the-cloud/observable-terminal/server";
-import { deliverAttachmentDraft, removeAttachmentDraft, validDraftId } from "@agents-in-the-cloud/prompt/server";
-import { requestWorkspaceSshTrust } from "@agents-in-the-cloud/workspace-templates";
+import { configureAgentMcp, handleAgentMcpRequest } from "@kintsugi/agent/server";
+import { createKintsugiEventBus, getKintsugiRuntimeContext } from "@kintsugi/core";
+import { designSystemCatalogueHtml } from "@kintsugi/design-system/catalogue";
+import { attachHostObservableTerminal, observableTerminalCols, observableTerminalRows, type ObservableTerminalConnection } from "@kintsugi/observable-terminal/server";
+import { deliverAttachmentDraft, removeAttachmentDraft, validDraftId } from "@kintsugi/prompt/server";
+import { requestWorkspaceSshTrust } from "@kintsugi/workspace-templates";
 import {
   createFileOriginIdentityStore,
   createWorkspaceIngress,
@@ -13,11 +13,11 @@ import {
   managementOriginRejection,
   handleCanonicalWorkspaceRequest,
   StoppedWorkspaceError,
-} from "@agents-in-the-cloud/proxy-ingress/server";
-import { agentsInTheCloudName, errorMessage, type WorkspaceAppBackend, type WorkspaceAppRef, type WorkspaceServerAppResolver, type WorkspaceServerProvisioningHook, type WorkspaceServerSocketHandler, type WorkspaceServerSocketSession } from "@agents-in-the-cloud/shared";
-import { response, textResponse } from "@agents-in-the-cloud/shared/http";
-import { checkWorkspaceReadiness, createWorkspace, ensureWorkspaceStarted, deleteWorkspace, ensureHostInotifyLimit, isWorkspaceRunning, listWorkspaces, resolveWorkspace, stopWorkspaceContainer, setWorkspaceParked, workspaceImageOutdated, workspacePortBackend, workspaceSetupProvisioningHook } from "@agents-in-the-cloud/workspace";
-import { ensureDefaultWorkspaceImage } from "@agents-in-the-cloud/workspace-image";
+} from "@kintsugi/proxy-ingress/server";
+import { kintsugiName, errorMessage, type WorkspaceAppBackend, type WorkspaceAppRef, type WorkspaceServerAppResolver, type WorkspaceServerProvisioningHook, type WorkspaceServerSocketHandler, type WorkspaceServerSocketSession } from "@kintsugi/shared";
+import { response, textResponse } from "@kintsugi/shared/http";
+import { checkWorkspaceReadiness, createWorkspace, ensureWorkspaceStarted, deleteWorkspace, ensureHostInotifyLimit, isWorkspaceRunning, listWorkspaces, resolveWorkspace, stopWorkspaceContainer, setWorkspaceParked, workspaceImageOutdated, workspacePortBackend, workspaceSetupProvisioningHook } from "@kintsugi/workspace";
+import { ensureDefaultWorkspaceImage } from "@kintsugi/workspace-image";
 import type { ServerWebSocket } from "bun";
 import { join } from "node:path";
 import { gzipSync } from "node:zlib";
@@ -34,59 +34,59 @@ import { createFileWorkspaceActivityStore, createFileWorkspaceAttentionStore, cr
 
 const requestedPort = Number(process.env.PORT ?? 3000);
 const hostname = process.env.HOST ?? "0.0.0.0";
-const devReloadFile = process.argv.find((argument) => argument.startsWith("--agents-in-the-cloud-dev-reload-file="))?.slice("--agents-in-the-cloud-dev-reload-file=".length);
+const devReloadFile = process.argv.find((argument) => argument.startsWith("--kintsugi-dev-reload-file="))?.slice("--kintsugi-dev-reload-file=".length);
 
 function displayUrl(host: string, port: number): string {
   const displayHost = host === "0.0.0.0" ? "127.0.0.1" : host;
   const formattedHost = displayHost.includes(":") && !displayHost.startsWith("[") ? `[${displayHost}]` : displayHost;
   return `http://${formattedHost}${port === 80 ? "" : `:${port}`}`;
 }
-const agentsInTheCloudEvents = createAgentsInTheCloudEventBus();
-configureAgentMcp(agentsInTheCloudEvents);
+const kintsugiEvents = createKintsugiEventBus();
+configureAgentMcp(kintsugiEvents);
 const socketHandlers: WorkspaceServerSocketHandler[] = [];
 const workspaceAppResolvers: WorkspaceServerAppResolver[] = [];
 const provisioningHooks: WorkspaceServerProvisioningHook[] = [workspaceSetupProvisioningHook];
 const workspaceRemovedHandlers: Array<(workspaceId: string) => void | Promise<void>> = [];
 
-const runtimeContext = getAgentsInTheCloudRuntimeContext();
+const runtimeContext = getKintsugiRuntimeContext();
 
 
 const parentOriginPublisher = await detectParentOriginPublisher(defaultPublicOriginPortRange);
 
 const registry = createWorkspaceRegistry({
-  activityStore: createFileWorkspaceActivityStore(join(runtimeContext.agentsInTheCloudDataDir, "view-state", "workspace-activity.json")),
-  attentionStore: createFileWorkspaceAttentionStore(join(runtimeContext.agentsInTheCloudDataDir, "view-state", "workspace-attention.json")),
-  deletionStore: createFileWorkspaceDeletionStore(join(runtimeContext.agentsInTheCloudDataDir, "view-state", "workspace-deletions.json")),
+  activityStore: createFileWorkspaceActivityStore(join(runtimeContext.kintsugiDataDir, "view-state", "workspace-activity.json")),
+  attentionStore: createFileWorkspaceAttentionStore(join(runtimeContext.kintsugiDataDir, "view-state", "workspace-attention.json")),
+  deletionStore: createFileWorkspaceDeletionStore(join(runtimeContext.kintsugiDataDir, "view-state", "workspace-deletions.json")),
 });
 let app: WebApp;
 const workspaceStartupOperations = {
   ensureStarted: ensureWorkspaceStarted,
   stop: stopWorkspaceContainer,
   checkReadiness: checkWorkspaceReadiness,
-  runtimeReady: (workspaceId: string) => agentsInTheCloudEvents.emit("workspace_runtime_ready", { workspaceId }),
-  imageOutdated: (id: string) => workspaceImageOutdated(id, undefined, agentsInTheCloudEvents),
+  runtimeReady: (workspaceId: string) => kintsugiEvents.emit("workspace_runtime_ready", { workspaceId }),
+  imageOutdated: (id: string) => workspaceImageOutdated(id, undefined, kintsugiEvents),
   get provisioning() { return app.provisioning; },
 };
-const cableServer = createCableServer({ registry, channels: [...workspaceModules.flatMap((module) => module.cableChannels ?? []), { name: "surface", subscribe: (identifier, listener) => app.subscribeSurface(identifier, listener) }, { name: "shell", subscribe: (_identifier, listener) => app.subscribeShell(listener) }], events: agentsInTheCloudEvents });
+const cableServer = createCableServer({ registry, channels: [...workspaceModules.flatMap((module) => module.cableChannels ?? []), { name: "surface", subscribe: (identifier, listener) => app.subscribeSurface(identifier, listener) }, { name: "shell", subscribe: (_identifier, listener) => app.subscribeShell(listener) }], events: kintsugiEvents });
 
 app = createWebApp({
   registry,
-  events: agentsInTheCloudEvents,
+  events: kintsugiEvents,
   devReload: devReloadFile !== undefined,
   workspaceRemovedHandlers,
   async provisionWorkspace(id, options) {
-    await createWorkspace({ id, events: agentsInTheCloudEvents, init: options.init, context: options.context, run: options.run });
+    await createWorkspace({ id, events: kintsugiEvents, init: options.init, context: options.context, run: options.run });
     for (const hook of provisioningHooks) {
-      const work = () => hook.run({ workspaceId: id, creationContext: options.context, events: agentsInTheCloudEvents });
+      const work = () => hook.run({ workspaceId: id, creationContext: options.context, events: kintsugiEvents });
       await options.run.step(hook.id, hook.label, work, hook.recovery);
     }
-    await options.run.step("workspace.integrations", "Run workspace startup integrations", () => agentsInTheCloudEvents.emit("workspace_created", { workspaceId: id, init: options.init, context: options.context }));
-    await rememberAgentType(options.context?.agent?.agentTypeId ?? "builtin", agentsInTheCloudEvents);
+    await options.run.step("workspace.integrations", "Run workspace startup integrations", () => kintsugiEvents.emit("workspace_created", { workspaceId: id, init: options.init, context: options.context }));
+    await rememberAgentType(options.context?.agent?.agentTypeId ?? "builtin", kintsugiEvents);
     const draft = options.context?.agent?.attachmentDraft;
     if (draft && validDraftId(draft)) await removeAttachmentDraft(draft);
   },
   async persistWorkspaceParked(id, parked) {
-    if (parked) await agentsInTheCloudEvents.emit("workspace_suspending", { workspaceId: id });
+    if (parked) await kintsugiEvents.emit("workspace_suspending", { workspaceId: id });
     await setWorkspaceParked(id, parked);
     if (!parked && registry.get(id)!.phase.kind === "runningPhase") {
       registry.startProvisioning(id);
@@ -94,20 +94,20 @@ app = createWebApp({
     }
   },
   destroyWorkspace: async (id) => {
-    await deleteWorkspace(id, { force: true, events: agentsInTheCloudEvents });
+    await deleteWorkspace(id, { force: true, events: kintsugiEvents });
   },
 });
 
 
-agentsInTheCloudEvents.on("workspace_user_activity", ({ workspaceId }) => registry.touch(workspaceId));
-agentsInTheCloudEvents.on("workspace_title_changed", ({ workspaceId, title }) => registry.setTitle(workspaceId, title || null));
+kintsugiEvents.on("workspace_user_activity", ({ workspaceId }) => registry.touch(workspaceId));
+kintsugiEvents.on("workspace_title_changed", ({ workspaceId, title }) => registry.setTitle(workspaceId, title || null));
 // Discover identity and template metadata before serving. Runtime health is checked in the background.
 const persistedWorkspaces = (await listWorkspaces({ inspectImages: false })).workspaces;
 await registry.seed(persistedWorkspaces.map((workspace) => ({ ...workspace, provisioning: !workspace.parked })));
 
 for (const module of workspaceModules) {
   await module.initialize?.({
-    events: agentsInTheCloudEvents,
+    events: kintsugiEvents,
     registry,
     globalSidebarContributions: app.globalSidebarContributions,
     createWorkView: (workspaceId, reference) => app.createWorkView(workspaceId, reference),
@@ -152,7 +152,7 @@ function requestAcceptsGzip(request: Request): boolean {
 }
 
 async function serveStatic(pathname: string, request: Request): Promise<Response | undefined> {
-  if (pathname === "/design-system-catalogue.html") return response(await designSystemCatalogueHtml({ reloadUrl: devReloadFile ? "/__agents-in-the-cloud_dev_reload" : undefined }));
+  if (pathname === "/design-system-catalogue.html") return response(await designSystemCatalogueHtml({ reloadUrl: devReloadFile ? "/__kintsugi_dev_reload" : undefined }));
   let assetCacheControl = "public, max-age=31536000, immutable";
   if (pathname === "/design-system.js") {
     const manifest = parseAssetManifest(await Bun.file(new URL("../../public/assets-manifest.json", import.meta.url)).text());
@@ -237,7 +237,7 @@ const workspaceIngress = createWorkspaceIngress({
   originIdentityStore: createFileOriginIdentityStore(),
 });
 
-const ingressSockets = createWorkspaceIngressSockets(workspaceIngress, join(runtimeContext.agentsInTheCloudDataDir, "workspace-sockets"), async (request, workspaceId) => {
+const ingressSockets = createWorkspaceIngressSockets(workspaceIngress, join(runtimeContext.kintsugiDataDir, "workspace-sockets"), async (request, workspaceId) => {
   if (new URL(request.url).pathname === "/ssh/host-keys" && request.method === "POST") {
     const form = await request.formData();
     const host = form.get("host");
@@ -253,8 +253,8 @@ const ingressSockets = createWorkspaceIngressSockets(workspaceIngress, join(runt
   }
   return handleAgentMcpRequest(request, workspaceId);
 });
-agentsInTheCloudEvents.on("workspace_plan_prepare", ({ workspaceId }) => ingressSockets.ensure(workspaceId));
-agentsInTheCloudEvents.on("workspace_deleted", ({ workspaceId }) => ingressSockets.remove(workspaceId));
+kintsugiEvents.on("workspace_plan_prepare", ({ workspaceId }) => ingressSockets.ensure(workspaceId));
+kintsugiEvents.on("workspace_deleted", ({ workspaceId }) => ingressSockets.remove(workspaceId));
 
 async function validateSocket(request: Request, url: URL): Promise<SocketData | undefined> {
   const cableData = cableServer.validate(request, url);
@@ -262,7 +262,7 @@ async function validateSocket(request: Request, url: URL): Promise<SocketData | 
   const provisionMatch = url.pathname.match(/^\/provision-term\/([^/]+)\/ws$/);
   if (provisionMatch) {
     const session = decodeURIComponent(provisionMatch[1]);
-    if (!session.startsWith("agents-in-the-cloud-provision-")) return undefined;
+    if (!session.startsWith("kintsugi-provision-")) return undefined;
     return { kind: "provision-term", session };
   }
   for (const handler of socketHandlers) {
@@ -331,7 +331,7 @@ const server = Bun.serve<SocketData>({
       return new Response(JSON.stringify({ cable: cableServer.stats(), ingress: workspaceIngress.inspect() }, null, 2), { headers: { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" } });
     }
 
-    if (devReloadFile && url.pathname === "/__agents-in-the-cloud_dev_reload" && request.method === "GET") {
+    if (devReloadFile && url.pathname === "/__kintsugi_dev_reload" && request.method === "GET") {
       return new Response(Bun.file(devReloadFile), { headers: { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" } });
     }
 
@@ -359,11 +359,11 @@ const server = Bun.serve<SocketData>({
 });
 const serverPort = server.port ?? requestedPort;
 
-void agentsInTheCloudEvents.emit("agents_in_the_cloud_host_started", {
+void kintsugiEvents.emit("kintsugi_host_started", {
   workspaces: persistedWorkspaces.map(({ id, parked }) => ({ id, parked: Boolean(parked) })),
-}).catch((error) => console.error("AgentsInTheCloud startup handlers failed", error));
+}).catch((error) => console.error("Kintsugi startup handlers failed", error));
 
-console.log(`${agentsInTheCloudName} is available at ${displayUrl(hostname, serverPort)}`);
+console.log(`${kintsugiName} is available at ${displayUrl(hostname, serverPort)}`);
 
 void recoverWorkspaces(registry, workspaceStartupOperations).catch((error) => console.error("Workspace recovery failed", error));
 
@@ -381,8 +381,8 @@ for (const signal of ["SIGINT", "SIGTERM"] as const) process.on(signal, () => {
   if (hostStopping) return;
   hostStopping = true;
   server.stop();
-  void app.provisioning.drain().then(() => agentsInTheCloudEvents.emit("agents_in_the_cloud_host_stopping", {})).then(() => process.exit(0), error => {
-    console.error("AgentsInTheCloud shutdown failed", error);
+  void app.provisioning.drain().then(() => kintsugiEvents.emit("kintsugi_host_stopping", {})).then(() => process.exit(0), error => {
+    console.error("Kintsugi shutdown failed", error);
     process.exit(1);
   });
 });

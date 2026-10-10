@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { createProcessFileLock } from "../src/file-lock.ts";
 
 let directory: string;
-beforeEach(async () => { directory = await mkdtemp(join(tmpdir(), "agents-in-the-cloud-file-lock-")); });
+beforeEach(async () => { directory = await mkdtemp(join(tmpdir(), "kintsugi-file-lock-")); });
 afterEach(async () => { await rm(directory, { recursive: true, force: true }); });
 
 test("runs queued callbacks exclusively in FIFO order and returns their results", async () => {

@@ -7,8 +7,8 @@ export async function prepareWorkspaceSystemd(plan: WorkspaceDockerPlan, directo
   await mkdir(directory, { recursive: true });
   const source = join(directory, "init.sh");
   await writeFile(source, init);
-  plan.containerFiles.push({ source, target: "/.agents-in-the-cloud/init.sh" });
-  const configuration = join(directory, "agents-in-the-cloud");
+  plan.containerFiles.push({ source, target: "/.kintsugi/init.sh" });
+  const configuration = join(directory, "kintsugi");
   await mkdir(configuration, { recursive: true });
   await writeFile(join(configuration, "docker-support"), `${plan.privileged ? "enabled" : "disabled"}\n${plan.dockerSupportSettingsUrl ?? ""}\n`);
   // docker cp cannot create a file's missing parent directory in a stopped container.

@@ -2,14 +2,14 @@ import { AppSettingsController } from "./app-settings-controller.ts";
 import { SettingsEditorController } from "./settings-editor-controller.ts";
 import { TemplateSettingsController } from "./template-settings-controller.ts";
 import { WorkspaceTemplateSecretPathController } from "./workspace-template-secret-path-controller.ts";
-import type { ToggleChangeEvent } from "@agents-in-the-cloud/design-system/toggle/client";
-import { showButtonConfirmation } from "@agents-in-the-cloud/design-system/button-confirmation/client";
-import { copyTextToClipboard } from "@agents-in-the-cloud/shared";
+import type { ToggleChangeEvent } from "@kintsugi/design-system/toggle/client";
+import { showButtonConfirmation } from "@kintsugi/design-system/button-confirmation/client";
+import { copyTextToClipboard } from "@kintsugi/shared";
 import { Controller } from "@hotwired/stimulus";
 import { registerWorkspaceControllers } from "./workspace-controller-registry.ts";
 
 /** Applies the server's theme setting, on page load and when the shell region pushes a change. */
-class AgentsInTheCloudThemeController extends Controller<HTMLElement> {
+class KintsugiThemeController extends Controller<HTMLElement> {
   static values = { name: String };
   declare readonly nameValue: string;
 
@@ -17,7 +17,7 @@ class AgentsInTheCloudThemeController extends Controller<HTMLElement> {
     const root = document.documentElement;
     if (root.dataset.theme === this.nameValue) return;
     root.dataset.theme = this.nameValue;
-    document.dispatchEvent(new CustomEvent("agents-in-the-cloud:theme-change", { detail: { theme: this.nameValue } }));
+    document.dispatchEvent(new CustomEvent("kintsugi:theme-change", { detail: { theme: this.nameValue } }));
   }
 }
 
@@ -193,7 +193,7 @@ class SshPublicKeyCopyController extends Controller<HTMLElement> {
 
 export function registerWorkspaceSettingsControllers(): void {
   registerWorkspaceControllers({
-    "agents-in-the-cloud-theme": AgentsInTheCloudThemeController,
+    "kintsugi-theme": KintsugiThemeController,
     "commit-identity": CommitIdentityController,
     "settings-autosave": SettingsAutosaveController,
     "ssh-public-key-copy": SshPublicKeyCopyController,

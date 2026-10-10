@@ -1,4 +1,4 @@
-import { disclosureHtml } from "@agents-in-the-cloud/design-system/disclosure";
+import { disclosureHtml } from "@kintsugi/design-system/disclosure";
 import { canEditFile, type EditModel } from "../editing.ts";
 import { canRevertFile } from "../reverting.ts";
 import { renderEditFeedback, renderFileEditActions } from "./editing-render.ts";
@@ -6,11 +6,11 @@ import { workingTree } from "./snapshot.ts";
 import { placeReviewComments, reviewComments } from "./comments.ts";
 import { renderCommentsModel, renderCommentActions, renderOrphanComments, renderCopyCommentButton } from "./comment-render.ts";
 import { renderHistoryGraph } from "./history-render.ts";
-import { buttonHtml } from "@agents-in-the-cloud/design-system/button";
-import { Icons } from "@agents-in-the-cloud/design-system/icons";
-import { contentRowHtml } from "@agents-in-the-cloud/design-system/content-row";
-import { popupHtml } from "@agents-in-the-cloud/design-system/popup";
-import { domId, escapeHtml } from "@agents-in-the-cloud/shared";
+import { buttonHtml } from "@kintsugi/design-system/button";
+import { Icons } from "@kintsugi/design-system/icons";
+import { contentRowHtml } from "@kintsugi/design-system/content-row";
+import { popupHtml } from "@kintsugi/design-system/popup";
+import { domId, escapeHtml } from "@kintsugi/shared";
 import { parseDiffFromFile, type CodeViewItem } from "@pierre/diffs";
 import type { ChangesFile } from "./diff.ts";
 import { type HistoryModel } from "../history.ts";
@@ -147,7 +147,7 @@ export function renderDiff(workspaceId: string, snapshot: ChangesSnapshot, colla
     <div data-controller="live-surface" data-live-surface-workspace-value="${escapeHtml(workspaceId)}" data-live-surface-kind-value="review-comments" data-live-surface-key-value="${snapshot.id}" data-live-surface-eager-value="true">${renderCommentsModel(snapshot.id, comments)}</div>
     ${renderCommentActions(workspaceId, snapshot.id, comments)}
     <div id="${changesBodyId(workspaceId, snapshot.id)}-error" class="changes-error" data-changes-target="error" role="alert" hidden><span data-changes-target="errorMessage"></span>${iconButton("Dismiss file error", "dismissError", Icons.Close)}</div>
-    <div class="changes-surface"><div class="changes-viewer agents-in-the-cloud-pierre-host" data-changes-target="viewer" aria-label="Changes diff">${files.length ? "" : `<div class="changes-empty">${escapeHtml(empty)}</div>`}<div data-changes-target="imageHost">${images}</div><div data-changes-target="orphanHost">${renderOrphanComments(snapshot.id, comments)}<div class="changes-orphan-editor" data-changes-target="listEditor" hidden></div></div></div></div>
+    <div class="changes-surface"><div class="changes-viewer kintsugi-pierre-host" data-changes-target="viewer" aria-label="Changes diff">${files.length ? "" : `<div class="changes-empty">${escapeHtml(empty)}</div>`}<div data-changes-target="imageHost">${images}</div><div data-changes-target="orphanHost">${renderOrphanComments(snapshot.id, comments)}<div class="changes-orphan-editor" data-changes-target="listEditor" hidden></div></div></div></div>
     <script type="application/json" data-changes-target="model">${json({ files, items })}</script><script type="application/json" data-changes-diff-endpoints-target="comparisonModel">${json({ endpoints: snapshot.endpoints, label: snapshot.label, baseLabel: snapshot.baseLabel, targetLabel: snapshot.targetLabel })}</script>${headers}${commentTemplates}
   </section>`;
 }

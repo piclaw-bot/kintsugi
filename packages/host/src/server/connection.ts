@@ -2,7 +2,7 @@ import { createConnection } from "node:net";
 import { createInterface } from "node:readline";
 import { existsSync } from "node:fs";
 import { hostSocketPath, terminalSize, type HostReply, type HostCommand, type HostResults } from "../protocol.ts";
-import type { WorkspaceServerSocketHandler } from "@agents-in-the-cloud/shared";
+import type { WorkspaceServerSocketHandler } from "@kintsugi/shared";
 
 export const hostAvailable = () => existsSync(hostSocketPath);
 export function hostRequest<Command extends HostCommand>(request: Command, socketPath = hostSocketPath): Promise<HostResults[Command["operation"]]> {

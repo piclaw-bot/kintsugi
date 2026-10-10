@@ -5,7 +5,7 @@ import {
   workspaceGatewayProtocolHeader,
   workspaceGatewayTokenHeader,
   type WorkspaceHttpAppBackend,
-} from "@agents-in-the-cloud/shared";
+} from "@kintsugi/shared";
 
 /** Keep workspace routing credentials out of browser traffic and app requests. */
 export function backendTransport(backend: WorkspaceHttpAppBackend, headers: Headers) {

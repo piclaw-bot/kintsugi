@@ -1,16 +1,17 @@
 {
-  "name": "@agents-in-the-cloud/shared",
+  "name": "@kintsugi/shared",
   "private": true,
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
     "./egress-policy": "./src/egress-policy.ts",
     "./http": "./src/http.ts",
+    "./release-source": "./src/release-source.ts",
     "./theme": "./src/theme-setting.ts",
     "./file-metadata": "./src/file-metadata.ts"
   },
   "dependencies": {
-    "@agents-in-the-cloud/core": "workspace:*",
+    "@kintsugi/core": "workspace:*",
     "typebox": "^1.0.57"
   }
 }

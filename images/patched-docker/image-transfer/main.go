@@ -17,14 +17,14 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	if err := run(ctx, os.Args[1:]); err != nil {
-		fmt.Fprintln(os.Stderr, "agents-in-the-cloud-image-transfer:", err)
+		fmt.Fprintln(os.Stderr, "kintsugi-image-transfer:", err)
 		os.Exit(1)
 	}
 }
 
 func run(ctx context.Context, args []string) error {
 	if len(args) == 0 {
-		return fmt.Errorf("usage: agents-in-the-cloud-image-transfer export [--platform linux/arm64] IMAGE | agents-in-the-cloud-image-transfer import")
+		return fmt.Errorf("usage: kintsugi-image-transfer export [--platform linux/arm64] IMAGE | kintsugi-image-transfer import")
 	}
 	flags := flag.NewFlagSet(args[0], flag.ContinueOnError)
 	address := flags.String("address", "/run/containerd/containerd.sock", "local containerd socket")

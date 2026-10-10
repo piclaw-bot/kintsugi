@@ -1,14 +1,14 @@
 {
-  "name": "@agents-in-the-cloud/workspace-image",
+  "name": "@kintsugi/workspace-image",
   "private": true,
   "type": "module",
   "exports": {
     ".": "./src/index.ts"
   },
   "dependencies": {
-    "@agents-in-the-cloud/core": "workspace:*",
-    "@agents-in-the-cloud/observable-terminal": "workspace:*",
-    "@agents-in-the-cloud/shared": "workspace:*",
+    "@kintsugi/core": "workspace:*",
+    "@kintsugi/observable-terminal": "workspace:*",
+    "@kintsugi/shared": "workspace:*",
     "typebox": "^1.0.57"
   }
 }

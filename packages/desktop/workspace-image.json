@@ -13,7 +13,7 @@
   "files": [
     {
       "from": "workspace-image/openbox.xml",
-      "to": "/opt/agents-in-the-cloud/desktop/openbox.xml",
+      "to": "/opt/kintsugi/desktop/openbox.xml",
       "afterRun": true
     }
   ],

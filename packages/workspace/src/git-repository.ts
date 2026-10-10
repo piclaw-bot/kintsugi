@@ -40,13 +40,13 @@ export function createWorkspaceRepository(
     try {
       // Avoid runner startup for operations such as a single history page.
       if (batch.length === 1 && batch[0]!.request.kind === "git") {
-        const result = await execute(workspaceId, safeGitArguments(batch[0]!.request.args), { workdir, user: "agents-in-the-cloud" });
+        const result = await execute(workspaceId, safeGitArguments(batch[0]!.request.args), { workdir, user: "agent" });
         batch[0]!.resolve(result);
         return;
       }
       const requests = batch.map(({ request }) => request.kind === "git" ? { ...request, args: safeGitArguments(request.args) }
         : request.kind === "index-tree" ? { ...request, args: safeGitArguments(["rev-parse", "--git-path", "index"]), writeArgs: safeGitArguments(["write-tree"]) } : request);
-      const result = await execute(workspaceId, ["bun", "--no-env-file", "--config=/dev/null", "--eval", repositoryBatchRunner], { workdir, user: "agents-in-the-cloud", stdin: JSON.stringify(requests) });
+      const result = await execute(workspaceId, ["bun", "--no-env-file", "--config=/dev/null", "--eval", repositoryBatchRunner], { workdir, user: "agent", stdin: JSON.stringify(requests) });
       if (result.exitCode !== 0) throw new Error(result.stderr.trim() || "Workspace repository batch failed");
       const results = decodeRepositoryBatch(result.stdout, batch.length);
       batch.forEach((request, index) => request.resolve(results[index]!));

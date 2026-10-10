@@ -1,9 +1,9 @@
 import { mkdir, rm, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
-import { agentsInTheCloudDataPath, getAgentsInTheCloudRuntimeContext } from "@agents-in-the-cloud/core";
-import { turboStream, turboStreamResponse } from "@agents-in-the-cloud/shared";
+import { kintsugiDataPath, getKintsugiRuntimeContext } from "@kintsugi/core";
+import { turboStream, turboStreamResponse } from "@kintsugi/shared";
 
-function completionPath(): string { return agentsInTheCloudDataPath(getAgentsInTheCloudRuntimeContext(), "onboarding-completed"); }
+function completionPath(): string { return kintsugiDataPath(getKintsugiRuntimeContext(), "onboarding-completed"); }
 
 export async function onboardingCompleted(): Promise<boolean> {
   return Bun.file(completionPath()).exists();

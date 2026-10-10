@@ -1,6 +1,6 @@
-import { withCommandSignal } from "@agents-in-the-cloud/core";
-import { errorMessage } from "@agents-in-the-cloud/shared";
-import type { WorkspaceProvisioning, WorkspaceProvisionRun } from "@agents-in-the-cloud/workspace";
+import { withCommandSignal } from "@kintsugi/core";
+import { errorMessage } from "@kintsugi/shared";
+import type { WorkspaceProvisioning, WorkspaceProvisionRun } from "@kintsugi/workspace";
 import type { WorkspaceRegistry } from "./workspace-registry.ts";
 
 interface WorkspaceReadinessOperations {

@@ -1,9 +1,9 @@
-import { shellQuote } from "@agents-in-the-cloud/core";
-import { execWorkspaceShell } from "@agents-in-the-cloud/workspace";
-import { createPiModelRuntime, getEnabledModels } from "@agents-in-the-cloud/llm/server";
+import { shellQuote } from "@kintsugi/core";
+import { execWorkspaceShell } from "@kintsugi/workspace";
+import { createPiModelRuntime, getEnabledModels } from "@kintsugi/llm/server";
 import { createPiCliConfiguration } from "./pi-cli-bridge.ts";
 
-/** Pi's standard config location is managed by AgentsInTheCloud; other Pi settings are preserved. */
+/** Pi's standard config location is managed by Kintsugi; other Pi settings are preserved. */
 export async function installPiCliConfiguration(workspaceId: string): Promise<void> {
   const configuration = await createPiCliConfiguration(await createPiModelRuntime(), await getEnabledModels());
   const script = `
@@ -24,6 +24,6 @@ for (const [name, content] of Object.entries({ 'auth.json': input.auth, 'models.
   const result = await execWorkspaceShell(workspaceId, `set -eu
 umask 077
 mkdir -p "$HOME/.pi/agent"
-flock "$HOME/.pi/agents-in-the-cloud-config.lock" node -e ${shellQuote(script)}`, { stdin: JSON.stringify(configuration) });
+flock "$HOME/.pi/kintsugi-config.lock" node -e ${shellQuote(script)}`, { stdin: JSON.stringify(configuration) });
   if (result.exitCode !== 0) throw new Error(`Could not configure Pi: ${result.stderr.trim() || result.stdout.trim()}`);
 }

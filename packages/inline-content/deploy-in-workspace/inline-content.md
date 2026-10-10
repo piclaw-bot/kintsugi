@@ -22,13 +22,13 @@ The two approaches put the waiting in different places:
 I recommend queuing before processing so overload stays bounded.
 ```
 
-The optional image description is the accessible frame title. Never use an HTML code fence to display inline content. No publishing tool or dev server is needed. Write the file **before** sending the reference. AgentsInTheCloud reads it when the visual loads; edits appear when earlier replies are reloaded, and deleting the file breaks their references. Use a new filename for each revision when earlier versions should stay intact.
+The optional image description is the accessible frame title. Never use an HTML code fence to display inline content. No publishing tool or dev server is needed. Write the file **before** sending the reference. Kintsugi reads it when the visual loads; edits appear when earlier replies are reloaded, and deleting the file breaks their references. Use a new filename for each revision when earlier versions should stay intact.
 
 Use prose outside the fragment unless its arrangement helps explain the idea. Do not repeat the same explanation inside and outside. Do not announce the file, HTML, or rendering mechanism.
 
 ## Host-owned appearance
 
-AgentsInTheCloud supplies its font, current theme, typography, native controls, and automatic height sizing. Do not add your own stylesheet dependency, page background, app header, navigation, fullscreen button, or download toolbar. Keep the top-level surface transparent and unframed. Use as little chrome as possible; don't nest cards.
+Kintsugi supplies its font, current theme, typography, native controls, and automatic height sizing. Do not add your own stylesheet dependency, page background, app header, navigation, fullscreen button, or download toolbar. Keep the top-level surface transparent and unframed. Use as little chrome as possible; don't nest cards.
 
 Semantic HTML gets default styling: `p`, `h2`, `h3`, lists, `dl`, links, code, tables, `details`/`summary`, labels, buttons, inputs, selects, textareas, and outputs. Use native controls. Buttons default to secondary; add `ic-primary` for the main action or `ic-quiet` for a low-emphasis action. Do not override standard control geometry, colors, or focus styles.
 
@@ -65,7 +65,7 @@ Use visible labels, keyboard-accessible controls, semantic headings, and accessi
 
 `details`/`summary` needs no JavaScript.
 
-For tabs, place a tablist and its panels inside `data-ic-tabs`. Use buttons with `role="tab"`, unique IDs, `aria-controls`, and `aria-selected`. Panels have matching IDs, `role="tabpanel"`, `aria-labelledby`, and `hidden` when inactive. AgentsInTheCloud implements clicks and arrow/Home/End keyboard navigation. Don't hide comparison data behind tabs when users need to compare it simultaneously.
+For tabs, place a tablist and its panels inside `data-ic-tabs`. Use buttons with `role="tab"`, unique IDs, `aria-controls`, and `aria-selected`. Panels have matching IDs, `role="tabpanel"`, `aria-labelledby`, and `hidden` when inactive. Kintsugi implements clicks and arrow/Home/End keyboard navigation. Don't hide comparison data behind tabs when users need to compare it simultaneously.
 
 ```html
 <section id="platforms" data-ic-tabs>
@@ -78,11 +78,11 @@ For tabs, place a tablist and its panels inside `data-ic-tabs`. Use buttons with
 </section>
 ```
 
-Use `data-ic-tooltip="Short supplementary help"` on a labeled native control. AgentsInTheCloud handles focus, hover, and tap; essential information stays visible.
+Use `data-ic-tooltip="Short supplementary help"` on a labeled native control. Kintsugi handles focus, hover, and tap; essential information stays visible.
 
 ## Custom interaction
 
-Only add JavaScript when the explanation needs custom behavior. Use a small Stimulus controller. The sandbox provides the module `@agents-in-the-cloud/inline-content`, exporting `Controller`, `registerController`, and `colors`. Do not load Stimulus yourself. Use unique controller names. Keep markup in HTML rather than generating an entire UI in JavaScript.
+Only add JavaScript when the explanation needs custom behavior. Use a small Stimulus controller. The sandbox provides the module `@kintsugi/inline-content`, exporting `Controller`, `registerController`, and `colors`. Do not load Stimulus yourself. Use unique controller names. Keep markup in HTML rather than generating an entire UI in JavaScript.
 
 ```html
 <section id="capacity" class="ic-stack" data-controller="capacity-example">
@@ -94,7 +94,7 @@ Only add JavaScript when the explanation needs custom behavior. Use a small Stim
   <output class="ic-number" aria-live="polite" data-capacity-example-target="result">20 requests / second</output>
 </section>
 <script type="module">
-import { Controller, registerController } from "@agents-in-the-cloud/inline-content";
+import { Controller, registerController } from "@kintsugi/inline-content";
 registerController("capacity-example", class extends Controller {
   static targets = ["workers", "result"];
   connect() { this.update(); }

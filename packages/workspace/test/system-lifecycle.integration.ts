@@ -1,4 +1,4 @@
-/** Run inside a disposable AgentsInTheCloud System with the real app already healthy:
+/** Run inside a disposable Kintsugi System with the real app already healthy:
  * bun system-lifecycle.integration.ts [--app-url http://127.0.0.1:3000] [--supervisor-url http://127.0.0.1:3001]
  * Exercises APIs and container behavior, not UI. On failure it retains fixtures for diagnosis.
  */
@@ -13,7 +13,7 @@ const { values } = parseArgs({ args: Bun.argv.slice(2), options: {
 } });
 const appUrl = values["app-url"]!;
 const supervisorUrl = values["supervisor-url"]!;
-const marker = `agents-in-the-cloud-lifecycle-${randomUUID()}`;
+const marker = `kintsugi-lifecycle-${randomUUID()}`;
 const repository = `/data/app/${marker}`;
 const fixtures: string[] = [];
 let workspaceTemplateId: string | undefined;
@@ -59,7 +59,7 @@ async function create(source: { type: "empty" } | { type: "workspace-template"; 
   return workspace.id;
 }
 async function containerFor(id: string): Promise<Container> {
-  const name = await docker("ps", "-aq", "--filter", `label=com.agents-in-the-cloud.workspace-id=${id}`);
+  const name = await docker("ps", "-aq", "--filter", `label=com.kintsugi.workspace-id=${id}`);
   assert(name && !name.includes("\n"), `exactly one container for ${id}`);
   return JSON.parse(await docker("inspect", name))[0];
 }
@@ -73,13 +73,13 @@ function topology(container: Container): ResourceIdentity {
   assert(volume?.Type === "volume" && volume.RW && volume.Name, "workspace has a private writable /data volume");
   const cache = container.Mounts.find((mount) => mount.Destination === "/data/erofs-cache");
   assert(cache?.Type === "bind" && cache.Source === "/data/erofs-cache" && !cache.RW, "shared EROFS cache is a readonly bind mount");
-  const sockets = container.Mounts.find((mount) => mount.Destination === "/run/agents-in-the-cloud-parent");
+  const sockets = container.Mounts.find((mount) => mount.Destination === "/run/kintsugi-parent");
   assert(sockets?.Type === "bind" && !sockets.RW && sockets.Source.startsWith("/data/app/workspace-sockets/"), "mount the scoped parent socket directory readonly");
   return { containerId: container.Id, networkId: network.NetworkID, networkName, volumeName: volume.Name };
 }
 async function daemon(container: string, name: string) { return exec(container, "systemctl", "show", "--property=ActiveState", "--value", `${name}.service`); }
 async function publish(container: string): Promise<{ origin: string }> {
-  return JSON.parse(await exec(container, "curl", "--noproxy", "*", "--fail", "--silent", "--show-error", "--unix-socket", "/run/agents-in-the-cloud-parent/ingress.sock", "-H", "Content-Type: application/json", "--data", '{"port":8080}', "http://localhost/origins"));
+  return JSON.parse(await exec(container, "curl", "--noproxy", "*", "--fail", "--silent", "--show-error", "--unix-socket", "/run/kintsugi-parent/ingress.sock", "-H", "Content-Type: application/json", "--data", '{"port":8080}', "http://localhost/origins"));
 }
 async function startPreview(container: string) {
   await docker("exec", "--user", "root", "-d", container, "bun", "-e", `Bun.serve({hostname:'127.0.0.1',port:8080,fetch(r){return new Response(${JSON.stringify(marker)}+new URL(r.url).pathname+new URL(r.url).search)}})`);
@@ -118,7 +118,7 @@ async function terminalChecks(workspaceId: string, container: string) {
   const views = async () => (await api<{ workspace: { workViews: View[] } }>(`/workspaces/${workspaceId}`)).workspace.workViews;
   const metadata = async (): Promise<Terminal[]> => JSON.parse(await readFile(`/data/app/workspaces/${workspaceId}/metadata/terminals.json`, "utf8"));
   const initialViews = await views();
-  await docker("exec", "--user", "agents-in-the-cloud", container, "tmux", "new-session", "-d", "-s", externalSession);
+  await docker("exec", "--user", "agent", container, "tmux", "new-session", "-d", "-s", externalSession);
   assert.deepEqual(await views(), initialViews, "unattached tmux sessions do not become terminal views");
   const attachedResponse = await fetch(new URL(`/workspaces/${workspaceId}/terminals/attach`, appUrl), {
     method: "POST", headers: { accept: "application/json" }, body: new URLSearchParams({ session: externalSession }),
@@ -129,26 +129,26 @@ async function terminalChecks(workspaceId: string, container: string) {
   assert(attached && attached.sessionRelationship === "attached");
   await api(`/workspaces/${workspaceId}/work-views/close`, { reference: { type: "terminal", terminalId: attached.id } });
   assert(!(await metadata()).some((terminal) => terminal.id === attached.id));
-  await docker("exec", "--user", "agents-in-the-cloud", container, "tmux", "has-session", "-t", externalSession);
-  await docker("exec", "--user", "agents-in-the-cloud", container, "tmux", "kill-session", "-t", externalSession);
+  await docker("exec", "--user", "agent", container, "tmux", "has-session", "-t", externalSession);
+  await docker("exec", "--user", "agent", container, "tmux", "kill-session", "-t", externalSession);
   const title = `owned-${randomUUID()}`;
   const created = await api<{ command: { workView: { type: "terminal"; terminalId: string } } }>(`/workspaces/${workspaceId}/commands/terminal.create`, { title, cwd: "/work" });
   const owned = (await metadata()).find((terminal) => terminal.id === created.command.workView.terminalId);
   assert(owned && owned.sessionRelationship === "owned" && owned.tmuxSession === title);
-  await docker("exec", "--user", "agents-in-the-cloud", container, "tmux", "has-session", "-t", title);
+  await docker("exec", "--user", "agent", container, "tmux", "has-session", "-t", title);
   await api(`/workspaces/${workspaceId}/work-views/close`, { reference: created.command.workView });
   assert(!(await metadata()).some((terminal) => terminal.id === owned.id));
-  assert.notEqual((await run(["docker", "exec", "--user", "agents-in-the-cloud", container, "tmux", "has-session", "-t", title], false)).code, 0, "closing owned terminal kills its tmux session");
+  assert.notEqual((await run(["docker", "exec", "--user", "agent", container, "tmux", "has-session", "-t", title], false)).code, 0, "closing owned terminal kills its tmux session");
 }
 async function digest(path: string) { return createHash("sha256").update(await readFile(path)).digest("hex"); }
 async function replaceApp() {
-  const before: Container = JSON.parse(await docker("inspect", "agents-in-the-cloud"))[0];
+  const before: Container = JSON.parse(await docker("inspect", "kintsugi"))[0];
   await api("/update", { image: before.Image }, supervisorUrl);
   await waitFor("supervisor app replacement", async () => {
     const status = await api<{ busy: boolean; healthy: boolean; failure?: string }>("/status", undefined, supervisorUrl);
     if (status.failure) throw new Error(status.failure);
     if (status.busy || !status.healthy) return false;
-    return JSON.parse(await docker("inspect", "agents-in-the-cloud"))[0].Id !== before.Id;
+    return JSON.parse(await docker("inspect", "kintsugi"))[0].Id !== before.Id;
   }, 180_000);
 }
 
@@ -186,7 +186,7 @@ try {
   await terminalChecks(emptyId, empty.Id);
 
   console.log("Create a Workspace template with Alpine preload and a test-only egress Secret");
-  await docker("exec", "--user", "1000", "agents-in-the-cloud", "sh", "-eu", "-c", `mkdir '${repository}'; cd '${repository}'; git init -b main; git config user.name Acceptance; git config user.email acceptance@example.invalid; printf fixture > README; git add README; git commit -m fixture`);
+  await docker("exec", "--user", "1000", "kintsugi", "sh", "-eu", "-c", `mkdir '${repository}'; cd '${repository}'; git init -b main; git config user.name Acceptance; git config user.email acceptance@example.invalid; printf fixture > README; git add README; git commit -m fixture`);
   workspaceTemplateId = (await api<{ workspaceTemplate: { id: string } }>("/workspace-templates", { gitUrl: repository })).workspaceTemplate.id;
   await api(`/workspace-templates/${workspaceTemplateId}/preload-images`, { preloadImages: ["alpine:3.21"] });
   const secret = `test-only-${randomUUID()}`;
@@ -221,13 +221,13 @@ try {
   const afterContent = (await content()).split("\n").filter(Boolean);
   for (const layer of manifest.layers) assert(!afterContent.includes(layer.digest), "running adds no base-layer blobs");
   await exec(loaded.Id, "sh", "-ec", "mkdir -p /data/lifecycle-build; printf 'FROM alpine:3.21\\nRUN echo built-offline > /built-marker\\n' > /data/lifecycle-build/Dockerfile");
-  await exec(loaded.Id, "docker", "build", "--network=none", "--output", "type=image,store-allow-incomplete=true", "-t", "agents-in-the-cloud-lifecycle-built:local", "/data/lifecycle-build");
-  assert.equal(await exec(loaded.Id, "docker", "run", "--rm", "--pull=never", "--network=none", "agents-in-the-cloud-lifecycle-built:local", "cat", "/built-marker"), "built-offline");
+  await exec(loaded.Id, "docker", "build", "--network=none", "--output", "type=image,store-allow-incomplete=true", "-t", "kintsugi-lifecycle-built:local", "/data/lifecycle-build");
+  assert.equal(await exec(loaded.Id, "docker", "run", "--rm", "--pull=never", "--network=none", "kintsugi-lifecycle-built:local", "cat", "/built-marker"), "built-offline");
   const afterBuild = (await content()).split("\n").filter(Boolean);
   for (const layer of manifest.layers) assert(!afterBuild.includes(layer.digest), "building with incomplete export adds no base-layer blobs");
   for (const [path, hash] of hashes) assert.equal(await digest(path), hash, "shared EROFS files remain unchanged");
-  const echoed: { headers: Record<string, string> } = JSON.parse(await exec(loaded.Id, "sh", "-c", 'curl --fail --silent --show-error --max-time 30 -H "X-Agents-In-The-Cloud-Test: $LIFECYCLE_TEST_SECRET" https://httpbin.org/headers'));
-  const injected = Object.entries(echoed.headers).find(([name]) => name.toLowerCase() === "x-agents-in-the-cloud-test")?.[1];
+  const echoed: { headers: Record<string, string> } = JSON.parse(await exec(loaded.Id, "sh", "-c", 'curl --fail --silent --show-error --max-time 30 -H "X-Kintsugi-Test: $LIFECYCLE_TEST_SECRET" https://httpbin.org/headers'));
+  const injected = Object.entries(echoed.headers).find(([name]) => name.toLowerCase() === "x-kintsugi-test")?.[1];
   assert.equal(injected, secret, "egress socket injects the Workspace template Secret");
   await api(`/workspace-templates/${workspaceTemplateId}/preload-images`, { preloadImages: [] });
   await parkResume(loadedId, loadedIdentity);
@@ -252,7 +252,7 @@ try {
   await removeWorkspace(emptyId, emptyIdentity);
   for (const [path, hash] of hashes) assert.equal(await digest(path), hash, "workspace deletion preserves shared cache");
   await api(`/workspace-templates/${workspaceTemplateId}/delete`, {});
-  await exec("agents-in-the-cloud", "rm", "-rf", repository);
+  await exec("kintsugi", "rm", "-rf", repository);
   console.log("PASS: System workspace lifecycle, lazy daemons, shared EROFS, stable ingress, app replacement and egress injection");
 } catch (error) {
   console.error("FAILED; fixtures retained for diagnosis:", { workspaces: fixtures, workspaceTemplateId, repository });

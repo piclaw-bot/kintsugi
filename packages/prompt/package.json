@@ -1,5 +1,5 @@
 {
-  "name": "@agents-in-the-cloud/prompt",
+  "name": "@kintsugi/prompt",
   "private": true,
   "type": "module",
   "exports": {
@@ -7,10 +7,10 @@
     "./client": "./src/client/index.ts"
   },
   "dependencies": {
-    "@agents-in-the-cloud/core": "workspace:*",
-    "@agents-in-the-cloud/shared": "workspace:*",
-    "@agents-in-the-cloud/design-system": "workspace:*",
-    "@agents-in-the-cloud/dictation": "workspace:*",
-    "@agents-in-the-cloud/workspace": "workspace:*"
+    "@kintsugi/core": "workspace:*",
+    "@kintsugi/shared": "workspace:*",
+    "@kintsugi/design-system": "workspace:*",
+    "@kintsugi/dictation": "workspace:*",
+    "@kintsugi/workspace": "workspace:*"
   }
 }

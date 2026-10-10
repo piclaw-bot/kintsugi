@@ -1,4 +1,4 @@
-import type { WorkspaceClientControllerConstructor } from "@agents-in-the-cloud/shared";
+import type { WorkspaceClientControllerConstructor } from "@kintsugi/shared";
 
 /** Priorities are declared in markup: lower numbers yield space first. */
 export function createAgentFooterController(Controller: WorkspaceClientControllerConstructor) {

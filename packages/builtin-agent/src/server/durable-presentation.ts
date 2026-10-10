@@ -1,13 +1,13 @@
 import type { Context } from "@earendil-works/chord";
 import { getCurrentSystemPrompt, getCurrentTools } from "@earendil-works/pi-ai/utils/transcript";
 import { type Conversation, type ConversationView, type WatchHandle } from "@earendil-works/pi-durable";
-import { StreamingMarkdownRenderer } from "@agents-in-the-cloud/markdown";
-import { createLivePresentation } from "@agents-in-the-cloud/shared";
-import type { AgentRenderContext } from "@agents-in-the-cloud/agent/server/render-context";
+import { StreamingMarkdownRenderer } from "@kintsugi/markdown";
+import { createLivePresentation } from "@kintsugi/shared";
+import type { AgentRenderContext } from "@kintsugi/agent/server/render-context";
 import { LiveTranscriptRenderer } from "./render-live-transcript.ts";
-import { renderModelContextDetailFrame, renderTranscriptItemDetailFrame, type AgentModelContextView } from "@agents-in-the-cloud/agent/server/render-transcript";
+import { renderModelContextDetailFrame, renderTranscriptItemDetailFrame, type AgentModelContextView } from "@kintsugi/agent/server/render-transcript";
 import type { AgentLivePresentationListener, AgentLivePresentationSubscription } from "./runtime-types.ts";
-import { findTranscriptItem, type TranscriptItem } from "@agents-in-the-cloud/agent/server/transcript";
+import { findTranscriptItem, type TranscriptItem } from "@kintsugi/agent/server/transcript";
 import { durableViewState, projectDurableTranscript } from "./durable-transcript.ts";
 
 /**

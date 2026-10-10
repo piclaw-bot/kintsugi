@@ -1,8 +1,8 @@
-import { createNativeTerminalTextInputController, createTerminalKeyBarController, agentsInTheCloudObservableTerminalTheme, createObservableTerminalViewer, observableWebSocketUrl, TerminalFrame, type ObservableTerminalViewer } from "@agents-in-the-cloud/observable-terminal/client";
-import { latestExchangeTop } from "@agents-in-the-cloud/agent/client/transcript-navigation";
-import { anchorScrollBottom, CableTopics, changeLayout, type CableSubscription, composerSubmitKey, errorMessage, type AgentComposerSendPromptDetail, isWorkspacePaneVisible, setTextInputValue, workspaceFileOpenUrl, type WorkspaceClientModule } from "@agents-in-the-cloud/shared";
+import { createNativeTerminalTextInputController, createTerminalKeyBarController, kintsugiObservableTerminalTheme, createObservableTerminalViewer, observableWebSocketUrl, TerminalFrame, type ObservableTerminalViewer } from "@kintsugi/observable-terminal/client";
+import { latestExchangeTop } from "@kintsugi/agent/client/transcript-navigation";
+import { anchorScrollBottom, CableTopics, changeLayout, type CableSubscription, composerSubmitKey, errorMessage, type AgentComposerSendPromptDetail, isWorkspacePaneVisible, setTextInputValue, workspaceFileOpenUrl, type WorkspaceClientModule } from "@kintsugi/shared";
 
-export const agentsInTheCloudClientModule: WorkspaceClientModule = {
+export const kintsugiClientModule: WorkspaceClientModule = {
   id: "cli-agent",
   install({ application, Controller, hooks }) {
     const terminals = new Set<{ element: HTMLElement; canToggleMode: boolean; toggleMode(): void; becomeVisible(): void }>();
@@ -40,7 +40,7 @@ export const agentsInTheCloudClientModule: WorkspaceClientModule = {
       protected get accessoryViewer(): ObservableTerminalViewer | undefined { return this.viewer; }
       private connected = false;
       private sending = false;
-      private get draftKey(): string { return `agents-in-the-cloud.cliComposerText:${JSON.stringify([this.workspaceIdValue, this.urlValue])}`; }
+      private get draftKey(): string { return `kintsugi.cliComposerText:${JSON.stringify([this.workspaceIdValue, this.urlValue])}`; }
       private readonly inputChanged = (): void => { localStorage.setItem(this.draftKey, this.inputTarget.value); };
       private touch?: { id: number; startX: number; startY: number; x: number; y: number; time: number; velocity: number; scrolling: boolean };
       private momentum = 0;
@@ -54,7 +54,7 @@ export const agentsInTheCloudClientModule: WorkspaceClientModule = {
 
       connect(): void {
         terminals.add(this);
-        window.addEventListener("agents-in-the-cloud:workspace-pane-visible", this.activate);
+        window.addEventListener("kintsugi:workspace-pane-visible", this.activate);
         if (this.hasFormTarget) {
           setTextInputValue(this.inputTarget, localStorage.getItem(this.draftKey) ?? "");
           this.inputTarget.addEventListener("input", this.inputChanged);
@@ -88,7 +88,7 @@ export const agentsInTheCloudClientModule: WorkspaceClientModule = {
         this.frame.update();
         this.viewer = createObservableTerminalViewer({
           host: this.terminalTarget, mode: "interactive", websocketUrl: observableWebSocketUrl(`${this.urlValue}/ws`), hideUnfocusedCursor: true,
-          theme: agentsInTheCloudObservableTerminalTheme(),
+          theme: kintsugiObservableTerminalTheme(),
           connectionStatus: this.connectionStatusTarget,
           transformInput: (data) => this.transformAccessoryInput(data),
           nativeTextInput: true,
@@ -110,7 +110,7 @@ export const agentsInTheCloudClientModule: WorkspaceClientModule = {
       }
       disconnect(): void {
         terminals.delete(this);
-        window.removeEventListener("agents-in-the-cloud:workspace-pane-visible", this.activate);
+        window.removeEventListener("kintsugi:workspace-pane-visible", this.activate);
         this.resize.disconnect();
         this.frame?.dispose();
         this.frame = undefined;
@@ -232,7 +232,7 @@ export const agentsInTheCloudClientModule: WorkspaceClientModule = {
       private subscribeTranscript(): void {
         this.transcriptSubscription?.unsubscribe();
         const agentId = this.agentIdValue;
-        this.transcriptSubscription = window.AgentsInTheCloudCable!.subscribe(CableTopics.module(this.transcriptChannelValue, this.workspaceIdValue, this.transcriptMode ? { agentId, transcript: "shown" } : { agentId }));
+        this.transcriptSubscription = window.KintsugiCable!.subscribe(CableTopics.module(this.transcriptChannelValue, this.workspaceIdValue, this.transcriptMode ? { agentId, transcript: "shown" } : { agentId }));
       }
       private syncTranscript(): void {
         this.element.classList.toggle("cli-transcript-pending", this.transcriptMode && !this.transcriptAvailable);
@@ -367,7 +367,7 @@ export const agentsInTheCloudClientModule: WorkspaceClientModule = {
         this.frame?.update();
         this.viewer?.refresh();
       }
-      theme(): void { this.viewer?.setTheme(agentsInTheCloudObservableTerminalTheme()); }
+      theme(): void { this.viewer?.setTheme(kintsugiObservableTerminalTheme()); }
     });
   },
 };

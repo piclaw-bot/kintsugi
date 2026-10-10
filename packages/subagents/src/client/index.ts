@@ -1,7 +1,7 @@
-import type { WorkspaceClientModule } from "@agents-in-the-cloud/shared";
+import type { WorkspaceClientModule } from "@kintsugi/shared";
 import { createSubagentsController } from "./subagents-controller.ts";
 import { createCommunicationController } from "./communication-controller.ts";
-export const agentsInTheCloudClientModule: WorkspaceClientModule = {
+export const kintsugiClientModule: WorkspaceClientModule = {
   id: "subagents",
   install({ application, Controller }) {
     application.register("subagents", createSubagentsController(Controller));

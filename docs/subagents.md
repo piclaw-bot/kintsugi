@@ -1,6 +1,6 @@
 # Subagents
 
-Implementation: `@agents-in-the-cloud/subagents`. See [Agent delegation integration](agent-delegation.md) for assembly, lifecycle, and disabling the module.
+Implementation: `@kintsugi/subagents`. See [Agent delegation integration](agent-delegation.md) for assembly, lifecycle, and disabling the module.
 
 A **Subagent** is a collaborator created by an Agent for delegated work in the same Workspace. **Subagents** is the feature for inspecting their activity and messages.
 
@@ -12,9 +12,9 @@ and does not change the pinned tool descriptions below.
 
 ## Pinned model-facing contract
 
-Reference: OpenAI Codex [`574a36ff99f0807a24f5b043f593122bf151908d`](https://github.com/openai/codex/tree/574a36ff99f0807a24f5b043f593122bf151908d), cloned at `/persistent/agents-in-the-cloud-codex-reference` in the implementation workspace. Source descriptions and schemas are attributed in NOTICE; the Apache-2.0 license is in `docs/licenses/codex-LICENSE`.
+Reference: OpenAI Codex [`574a36ff99f0807a24f5b043f593122bf151908d`](https://github.com/openai/codex/tree/574a36ff99f0807a24f5b043f593122bf151908d), cloned at `/persistent/kintsugi-codex-reference` in the implementation workspace. Source descriptions and schemas are attributed in NOTICE; the Apache-2.0 license is in `docs/licenses/codex-LICENSE`.
 
-AgentsInTheCloud uses the **MultiAgentV2** surface with optional role/model overrides disabled and nickname metadata hidden. This is a specific supported Codex configuration, not a mixture of the v1 and v2 tools:
+Kintsugi uses the **MultiAgentV2** surface with optional role/model overrides disabled and nickname metadata hidden. This is a specific supported Codex configuration, not a mixture of the v1 and v2 tools:
 
 | Tool | Input | Result |
 | --- | --- | --- |
@@ -29,7 +29,7 @@ Descriptions are copied from the pinned `multi_agents_spec.rs`. Input property d
 
 Canonical names are `/root`, `/root/review`, `/root/review/check`, etc. Relative references resolve beneath the caller. The same leaf name can exist under different parents. IDs remain internal correlation data rather than part of the message text. A non-root agent can receive follow-up tasks or interruption from another agent in the same tree. Other root trees/workspaces remain isolated.
 
-`fork_turns` defaults to `all`; `none` starts from the explicit task, and a positive integer string selects recent user turns. Selection happens before filtering, matching the pinned Codex fork policy: user messages and turn-triggering tasks count as turns, but inherited agent traffic is then removed. The child retains user messages and assistant final-answer text, not reasoning, intermediate commentary, tool calls or tool results (including completed exchanges). A numeric mode with no turn boundaries inherits nothing; an oversized count starts at the first boundary, not an earlier summary preamble. Pi supplies the effective post-navigation, compaction-aware context. Its opaque compaction/branch summaries are retained when selected and seeded as child-local summary entries. Host instructions are rebuilt for the child. For providers without Codex phase metadata, final answers use AgentsInTheCloud's existing terminal-stop/no-tool-call classification. This matches the filtering policy over Pi's representation; it does not implement Codex-specific rollout metadata or guardian authorization state. Existing sessions are not re-forked on reload. Children inherit model and Thinking level settings, tools, skills and workspace instructions. They share the workspace filesystem—not separate worktrees.
+`fork_turns` defaults to `all`; `none` starts from the explicit task, and a positive integer string selects recent user turns. Selection happens before filtering, matching the pinned Codex fork policy: user messages and turn-triggering tasks count as turns, but inherited agent traffic is then removed. The child retains user messages and assistant final-answer text, not reasoning, intermediate commentary, tool calls or tool results (including completed exchanges). A numeric mode with no turn boundaries inherits nothing; an oversized count starts at the first boundary, not an earlier summary preamble. Pi supplies the effective post-navigation, compaction-aware context. Its opaque compaction/branch summaries are retained when selected and seeded as child-local summary entries. Host instructions are rebuilt for the child. For providers without Codex phase metadata, final answers use Kintsugi's existing terminal-stop/no-tool-call classification. This matches the filtering policy over Pi's representation; it does not implement Codex-specific rollout metadata or guardian authorization state. Existing sessions are not re-forked on reload. Children inherit model and Thinking level settings, tools, skills and workspace instructions. They share the workspace filesystem—not separate worktrees.
 
 `followup_task` starts an idle child directly from its attributed task message; while running, it steers at message boundaries rather than waiting behind the entire run. There is no fabricated “Carry out the task above” user prompt. `send_message` and automatic completions do not start idle recipients. Wait defaults to 30 seconds, clamps short requests to 10 seconds, and permits up to one hour. It observes undrained session input: pending user steering takes priority over agent mail, including input queued before the wait starts. Waiting never drains input. Pi adding mail to context removes it from wait activity; historical receipts, initial tasks already in context, and child-control operations cannot satisfy a later wait. Clearing the Pi queue removes pending activity; abort cancels the wait. No wait read position is persisted or reconstructed from history.
 
@@ -60,11 +60,11 @@ Pi persists these as attributed `custom_message` entries. For inference, `Subage
 
 On Codex Responses, this is not a `user` message with a decorative prefix. Per-conversion opaque placeholders keep the typed identity through Pi's conversion, and the provider payload hook replaces them before transmission. No placeholder or UUID enters the textual envelope. Ordinary user text, even if it looks like the envelope, does not acquire agent-message semantics. The payload hook also supplies the pinned tool output schemas.
 
-**Provider mapping:** `openai-codex-responses` receives native agent-message items. Other transports, including Anthropic, receive ordinary user messages containing the same attributed plaintext envelope. This mapping happens before Pi serializes the provider request; no native placeholder reaches those APIs. Delivery records retain which format was used. Ordinary conversations without subagent traffic are unchanged. This implementation does not claim to reproduce Codex's entire Rust runtime, provider-independent compaction machinery, role configuration, or residency scheduler. AgentsInTheCloud bounds execution to six concurrent children per tree and depth three.
+**Provider mapping:** `openai-codex-responses` receives native agent-message items. Other transports, including Anthropic, receive ordinary user messages containing the same attributed plaintext envelope. This mapping happens before Pi serializes the provider request; no native placeholder reaches those APIs. Delivery records retain which format was used. Ordinary conversations without subagent traffic are unchanged. This implementation does not claim to reproduce Codex's entire Rust runtime, provider-independent compaction machinery, role configuration, or residency scheduler. Kintsugi bounds execution to six concurrent children per tree and depth three.
 
 ## Presentation is separate from model delivery
 
-Open **Subagents** from the Work-view launcher. It follows the selected root Agent. There is no root selector, repeated header, or separate communication dashboard. Subagents form a divider-free content-row list with normal body typography, canonical paths and lifecycle state; each opens its native AgentsInTheCloud transcript. Nested Subagents appear beneath their parent. Multiple transcripts can stay open, with browser-local expansion state retained per root.
+Open **Subagents** from the Work-view launcher. It follows the selected root Agent. There is no root selector, repeated header, or separate communication dashboard. Subagents form a divider-free content-row list with normal body typography, canonical paths and lifecycle state; each opens its native Kintsugi transcript. Nested Subagents appear beneath their parent. Multiple transcripts can stay open, with browser-local expansion state retained per root.
 
 Incoming messages appear in the recipient transcript from the durable routing ledger, immediately after receipt is persisted—not only when Pi incorporates them into model context. They are foldable content-rows with a green incoming-message dot and labels such as “Incoming message from: /root/review type: update”. Message, completion and task traffic display as update, completed and task. Expanding the row reveals the body and delivery state, without transport IDs. A subtle **Pending context** label distinguishes queued traffic; failure remains visible. Updating delivery changes the same identified entry, rather than inserting a second copy. Arrival order is a presentation timeline; it is not a claim about provider message ordering or that a model read/acted on a message.
 
@@ -166,7 +166,7 @@ Root and child transcripts remain separate, but both are inside the same durable
 read-only session share. From a workspace:
 
 ```text
-/agents-in-the-cloud/session-share/
+/kintsugi/session-share/
   builtin--<topic>--<workspace-id>--agent-<number>--<root-id>.jsonl
   SUBAGENTS.md
   subagents/<workspace-id>/

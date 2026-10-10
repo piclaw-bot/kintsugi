@@ -1,6 +1,6 @@
 import { createPiModelRuntime } from "./pi-config-models.ts";
 import { modelSettingsContribution } from "./models-panel.ts";
-import type { WorkspaceModule } from "@agents-in-the-cloud/shared";
+import type { WorkspaceModule } from "@kintsugi/shared";
 import { installSubscriptionCli, registerSubscriptionCli } from "./subscription-cli.ts";
 export const llmWorkspaceModule: WorkspaceModule = {
   id: "llm",

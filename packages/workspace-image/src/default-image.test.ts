@@ -3,8 +3,8 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-for (const innerAgentsInTheCloud of [false, true]) for (const scenario of ["cached", "missing", "different-signature", "no-cache"] as const) {
-  test(`default image resolution: ${scenario}, inner=${innerAgentsInTheCloud}`, async () => {
+for (const innerKintsugi of [false, true]) for (const scenario of ["cached", "missing", "different-signature", "no-cache"] as const) {
+  test(`default image resolution: ${scenario}, inner=${innerKintsugi}`, async () => {
     const directory = await mkdtemp(join(tmpdir(), "default-image-test-"));
     const namespace = directory.split("/").at(-1)!;
     try {
@@ -14,7 +14,7 @@ for (const innerAgentsInTheCloud of [false, true]) for (const scenario of ["cach
       await writeFile(client, `
         import {mock} from 'bun:test';
         const fs = await import('node:fs');
-        mock.module('node:fs', () => ({...fs, existsSync: path => path === '/run/agents-in-the-cloud-parent' ? ${innerAgentsInTheCloud} : fs.existsSync(path)}));
+        mock.module('node:fs', () => ({...fs, existsSync: path => path === '/run/kintsugi-parent' ? ${innerKintsugi} : fs.existsSync(path)}));
         const localPath = ${JSON.stringify(join(import.meta.dir, "local-images.ts"))};
         const local = await import(localPath);
         const checks = [], builds = [], prunes = [];
@@ -26,7 +26,7 @@ for (const innerAgentsInTheCloud of [false, true]) for (const scenario of ["cach
         mock.module(localPath, () => ({...local, reuseDefaultWorkspaceImage: async tag => {
           checks.push(tag);
           // A different signature must not count as the requested image.
-          return ${JSON.stringify(scenario)} === 'different-signature' ? tag === 'agents-in-the-cloud-workspace:old-default' : ${scenario === "cached" || scenario === "no-cache"};
+          return ${JSON.stringify(scenario)} === 'different-signature' ? tag === 'kintsugi-workspace:old-default' : ${scenario === "cached" || scenario === "no-cache"};
         }}));
         const observablePath = ${JSON.stringify(join(import.meta.dir, "../../observable-terminal/src/server/index.ts"))};
         const observable = await import(observablePath);
@@ -54,21 +54,21 @@ for (const innerAgentsInTheCloud of [false, true]) for (const scenario of ["cach
         const [code, stdout, stderr] = await Promise.all([child.exited, new Response(child.stdout).text(), new Response(child.stderr).text()]);
         expect(stderr).toBe("");
         const result = JSON.parse(stdout);
-        if (innerAgentsInTheCloud && (scenario === "missing" || scenario === "different-signature")) {
+        if (innerKintsugi && (scenario === "missing" || scenario === "different-signature")) {
           expect(code).toBe(1);
           expect(result.checks).toHaveLength(1);
-          const signature = result.checks[0].slice("agents-in-the-cloud-workspace:".length);
+          const signature = result.checks[0].slice("kintsugi-workspace:".length);
           expect(signature).toMatch(/^[a-f0-9]{16}$/);
-          expect(result.error).toBe(`Inner AgentsInTheCloud needs a default workspace image with signature ${signature} but that has not been preloaded. Exiting instead of building this image, so we do not flood the outer agents-in-the-cloud with many parallel image builds.`);
+          expect(result.error).toBe(`Inner Kintsugi needs a default workspace image with signature ${signature} but that has not been preloaded. Exiting instead of building this image, so we do not flood the outer kintsugi with many parallel image builds.`);
           expect(result.builds).toEqual([]);
           expect(result.prunes).toEqual([]);
           continue;
         }
         expect(code).toBe(0);
-        expect(result.first).toMatch(/^agents-in-the-cloud-workspace:[a-f0-9]{16}$/);
+        expect(result.first).toMatch(/^kintsugi-workspace:[a-f0-9]{16}$/);
         expect(result.second).toBe(result.first);
-        expect(result.checks).toEqual(!innerAgentsInTheCloud && scenario === "no-cache" ? [] : [result.first, result.first]);
-        expect(result.builds).toHaveLength(innerAgentsInTheCloud || scenario === "cached" ? 0 : 2);
+        expect(result.checks).toEqual(!innerKintsugi && scenario === "no-cache" ? [] : [result.first, result.first]);
+        expect(result.builds).toHaveLength(innerKintsugi || scenario === "cached" ? 0 : 2);
         expect(result.prunes).toEqual(result.builds.map(() => "default"));
         for (const command of result.builds) {
           expect(command).toContain("docker");
@@ -78,7 +78,7 @@ for (const innerAgentsInTheCloud of [false, true]) for (const scenario of ["cach
       }
     } finally {
       await rm(directory, { recursive: true });
-      await rm(join("/tmp/agents-in-the-cloud-workspace-image-context", namespace), { recursive: true, force: true });
+      await rm(join("/tmp/kintsugi-workspace-image-context", namespace), { recursive: true, force: true });
     }
   });
 }

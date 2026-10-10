@@ -1,5 +1,5 @@
 import { expect, spyOn, test } from "bun:test";
-import { createWorkspaceSecretContext } from "@agents-in-the-cloud/proxy-egress/server";
+import { createWorkspaceSecretContext } from "@kintsugi/proxy-egress/server";
 import { maskCodexAccountDiscovery, registerSubscriptionCli, subscriptionCliFiles } from "../../src/server/subscription-cli.ts";
 import { anthropicUsageSource } from "../../src/server/anthropic-subscription-usage.ts";
 import { forgetSubscriptionInference, providersInLastInferenceWindow } from "../../src/server/recent-subscription-activity.ts";
@@ -39,18 +39,18 @@ test("workspace proxy translates Codex discovery only on ChatGPT's account endpo
   registerSubscriptionCli(async () => ({ getAuth: async () => ({ source: "OAuth", auth: { apiKey: token } }) }) as any);
   const context = await createWorkspaceSecretContext("codex-discovery-test");
   // SAFETY: The workspace secret context always returns a rewritten Request for matched hosts.
-  const request = await context.hooks.onRequest!(new Request("https://chatgpt.com/backend-api/wham/accounts/check", { headers: { authorization: "Bearer agents-in-the-cloud-subscription-codex-access", "chatgpt-account-id": "agents-in-the-cloud-subscription-codex-account" } })) as Request;
+  const request = await context.hooks.onRequest!(new Request("https://chatgpt.com/backend-api/wham/accounts/check", { headers: { authorization: "Bearer kintsugi-subscription-codex-access", "chatgpt-account-id": "kintsugi-subscription-codex-account" } })) as Request;
   expect(request.headers.get("authorization")).toBe(`Bearer ${token}`);
   expect(request.headers.get("chatgpt-account-id")).toBe("account-123");
   const upstream = new Response(JSON.stringify({ accounts: [{ id: "account-123" }] }));
   // SAFETY: The registered codex-accounts-check transform returns a Response for accounts/check.
   const result = await context.hooks.onResponse!(upstream, request) as Response;
-  expect((await result.json()).accounts[0].id).toBe("agents-in-the-cloud-subscription-codex-account");
+  expect((await result.json()).accounts[0].id).toBe("kintsugi-subscription-codex-account");
   const unrelated = new Response("untouched");
   expect(await context.hooks.onResponse!(unrelated, new Request("https://chatgpt.com/backend-api/wham/usage"))).toBe(unrelated);
 });
 
-test("proxy records only successful Codex inference using AgentsInTheCloud's subscription", async () => {
+test("proxy records only successful Codex inference using Kintsugi's subscription", async () => {
   forgetSubscriptionInference("openai-codex");
   // SAFETY: registerSubscriptionCli only calls getAuth on the runtime.
   registerSubscriptionCli(async () => ({ getAuth: async () => ({ source: "OAuth", auth: { apiKey: "real-token" } }) }) as any);
@@ -81,7 +81,7 @@ test("Claude Code receives inference-scoped OAuth placeholders", () => {
   expect(auth.expiresAt).toBeGreaterThan(Date.now());
 });
 
-test("workspace proxy records Claude Code's subscription limits only for AgentsInTheCloud's credential", async () => {
+test("workspace proxy records Claude Code's subscription limits only for Kintsugi's credential", async () => {
   // SAFETY: registerSubscriptionCli only calls getAuth on the runtime.
   registerSubscriptionCli(async () => ({ getAuth: async () => ({ source: "OAuth", auth: { apiKey: "real-token" } }) }) as any);
   const context = await createWorkspaceSecretContext("anthropic-usage-test");
@@ -89,7 +89,7 @@ test("workspace proxy records Claude Code's subscription limits only for AgentsI
   const observe = spyOn(anthropicUsageSource, "observe");
   const warn = spyOn(console, "warn").mockImplementation(() => {});
   // SAFETY: The workspace secret context always returns a rewritten Request for matched hosts.
-  const request = await context.hooks.onRequest!(new Request("https://api.anthropic.com/v1/messages", { method: "POST", headers: { authorization: "Bearer agents-in-the-cloud-subscription-anthropic-access" } })) as Request;
+  const request = await context.hooks.onRequest!(new Request("https://api.anthropic.com/v1/messages", { method: "POST", headers: { authorization: "Bearer kintsugi-subscription-anthropic-access" } })) as Request;
   const limits = { "anthropic-ratelimit-unified-status": "allowed", "anthropic-ratelimit-unified-5h-utilization": "0.2" };
   const upstream = new Response("stream", { headers: limits });
   expect(await context.hooks.onResponse!(upstream, request)).toBe(upstream);
@@ -121,12 +121,12 @@ test("Codex placeholders use legacy OAuth when both OpenAI subscriptions are con
   const context = await createWorkspaceSecretContext("openai-hosts-test");
   for (const host of ["chatgpt.com", "api.openai.com"]) {
     // SAFETY: The workspace secret context returns a rewritten Request for these matched hosts.
-    const request = await context.hooks.onRequest!(new Request(`https://${host}/v1/responses`, { headers: { authorization: "Bearer agents-in-the-cloud-subscription-codex-access", "chatgpt-account-id": "agents-in-the-cloud-subscription-codex-account" } })) as Request;
+    const request = await context.hooks.onRequest!(new Request(`https://${host}/v1/responses`, { headers: { authorization: "Bearer kintsugi-subscription-codex-access", "chatgpt-account-id": "kintsugi-subscription-codex-account" } })) as Request;
     expect(request.headers.get("authorization")).toBe(`Bearer ${token}`);
     expect(request.headers.get("chatgpt-account-id")).toBe("account-123");
   }
   for (const host of ["auth.openai.com", "other.openai.com", "api.openai.com.example.com"]) {
-    await expect(context.hooks.onRequest!(new Request(`https://${host}/`, { headers: { authorization: "Bearer agents-in-the-cloud-subscription-codex-access" } }))).rejects.toThrow("not allowed for host");
+    await expect(context.hooks.onRequest!(new Request(`https://${host}/`, { headers: { authorization: "Bearer kintsugi-subscription-codex-access" } }))).rejects.toThrow("not allowed for host");
   }
   forgetSubscriptionInference("openai-codex");
   await context.hooks.onResponse!(new Response("ok"), new Request("https://api.openai.com/v1/responses", { method: "POST", headers: { authorization: `Bearer ${token}` } }));

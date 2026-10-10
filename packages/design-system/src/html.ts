@@ -1,4 +1,4 @@
-import { escapeHtml } from "@agents-in-the-cloud/shared";
+import { escapeHtml } from "@kintsugi/shared";
 
 export type HtmlContent =
   | { kind: "text"; text: string }

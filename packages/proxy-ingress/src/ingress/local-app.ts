@@ -1,4 +1,4 @@
-import { isWorkspaceLoopbackHost, localhostSubdomain, type WorkspaceHttpAppBackend } from "@agents-in-the-cloud/shared";
+import { isWorkspaceLoopbackHost, localhostSubdomain, type WorkspaceHttpAppBackend } from "@kintsugi/shared";
 
 /** Only the current local app; never turn a redirect into publication of another port or *.localhost app. */
 export function isSameLocalApp(backend: WorkspaceHttpAppBackend, candidate: URL): boolean {

@@ -81,9 +81,9 @@ async function scenario(script: string) {
       }));
       const rendering = await import(${JSON.stringify(join(import.meta.dir, "../src/server/render.ts"))});
       mock.module(${JSON.stringify(join(import.meta.dir, "../src/server/render.ts"))}, () => ({ ...rendering, liveRegions: runtime => [{ target: "state", html: JSON.stringify(runtime.state.turns) }] }));
-      const busy = await import("@agents-in-the-cloud/agent/server");
+      const busy = await import("@kintsugi/agent/server");
       const busyEvents = [];
-      mock.module("@agents-in-the-cloud/agent/server", () => ({ ...busy, publishWorkspaceAgentBusy(event) { busyEvents.push(event); } }));
+      mock.module("@kintsugi/agent/server", () => ({ ...busy, publishWorkspaceAgentBusy(event) { busyEvents.push(event); } }));
       const handlers = new Map();
       const events = { on(name, handler) { handlers.set(name, [...(handlers.get(name) ?? []), handler]); }, async emit(name, payload) { for (const handler of handlers.get(name) ?? []) await handler(payload); } };
       const { createCodexAgents } = await import(${JSON.stringify(join(import.meta.dir, "../src/server/runtime.ts"))});
@@ -153,14 +153,14 @@ test("reveal resolves nested activity to its owning turn, but not final answers"
 
 test("completion requests workspace attention only for this module's agents", () => scenario(`
   const attention = [];
-  const { agentsInTheCloudServerModule: module } = await import(${JSON.stringify(join(import.meta.dir, "../src/server/index.ts"))});
+  const { kintsugiServerModule: module } = await import(${JSON.stringify(join(import.meta.dir, "../src/server/index.ts"))});
   module.initialize({ events, registry: { requestAttention: id => attention.push(id) }, onWorkspaceRemoved() {} });
   const id = await module.agentType.create({ workspaceId: "workspace" });
   await events.emit("workspace_agent_turn_finished", { workspaceId: "workspace", agentId: id });
   await events.emit("workspace_agent_turn_finished", { workspaceId: "workspace", agentId: "builtin" });
   await events.emit("workspace_agent_turn_finished", { workspaceId: "other", agentId: id });
   expect(attention).toEqual(["workspace"]);
-  await events.emit("agents_in_the_cloud_host_stopping", {});
+  await events.emit("kintsugi_host_stopping", {});
 `));
 
 test("compaction and review use native RPCs and reject unsafe active-turn operations", () => scenario(`
@@ -313,12 +313,12 @@ test("review operation IDs never become phantom turns and pending starts stay bu
 
 test("a finished turn reloads prompt templates it added for the composer", () => scenario(`
   const { mkdir, writeFile } = await import("node:fs/promises");
-  const { workspaceWorkHostPath } = await import("@agents-in-the-cloud/workspace");
+  const { workspaceWorkHostPath } = await import("@kintsugi/workspace");
   const id = await agents.create("workspace");
   const runtime = await agents.ready("workspace", id);
   await runtime.send(input, "first");
   expect(runtime.completionCatalog).not.toContain('data-command-trigger="/ship"');
-  const prompts = workspaceWorkHostPath("workspace") + "/.agents-in-the-cloud/prompts";
+  const prompts = workspaceWorkHostPath("workspace") + "/.kintsugi/prompts";
   await mkdir(prompts, { recursive: true });
   await writeFile(prompts + "/ship.md", "---\\ncomposer-button: true\\n---\\nShip it");
   connections[0].notification({ method: "turn/started", params: { threadId: "thread-1", turn: turn("turn-0", "inProgress") } });

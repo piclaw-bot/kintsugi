@@ -7,7 +7,7 @@ const entrypoint = await Bun.file(new URL("../docker-entrypoint.sh", import.meta
 const defaultCommand = ["bun", "run", "apps/web/src/server/main.ts"];
 
 function run(args: string[]) {
-  const directory = mkdtempSync(join(tmpdir(), "agents-in-the-cloud-entrypoint-"));
+  const directory = mkdtempSync(join(tmpdir(), "kintsugi-entrypoint-"));
   try {
     const bin = join(directory, "bin");
     mkdirSync(bin);
@@ -17,8 +17,8 @@ function run(args: string[]) {
       return path;
     };
     command("getent", `case "$1" in
-      group) echo 'agents-in-the-cloud:x:1000:' ;;
-      passwd) echo 'agents-in-the-cloud:x:1000:1000:AgentsInTheCloud:/home/agents-in-the-cloud:/bin/sh' ;;
+      group) echo 'agent:x:1000:' ;;
+      passwd) echo 'agent:x:1000:1000:Kintsugi:/home/agent:/bin/sh' ;;
       *) exit 1 ;;
     esac`);
     for (const name of ["chown", "usermod"]) command(name, ":");
@@ -28,7 +28,7 @@ function run(args: string[]) {
       .replaceAll("/var/run/docker.sock", join(directory, "docker.sock"))
       .replaceAll("/run/containerd/containerd.sock", join(directory, "containerd.sock"))
       .replaceAll("/data/app", join(directory, "data"))
-      .replaceAll("/etc/sudoers.d/agents-in-the-cloud-tailscale-serve", join(directory, "sudoers")));
+      .replaceAll("/etc/sudoers.d/kintsugi-tailscale-serve", join(directory, "sudoers")));
     const result = Bun.spawnSync(["sh", script, ...args], {
       stdin: "ignore",
       env: {
@@ -45,6 +45,6 @@ for (const args of [[], defaultCommand, ["custom-app", "argument with spaces"]])
   test(`app entrypoint runs command without starting infrastructure: ${JSON.stringify(args)}`, () => {
     const result = run(args);
     expect(result.status).toBe(0);
-    expect(result.stdout).toBe(`APP\n${["agents-in-the-cloud", ...(args.length ? args : defaultCommand)].map((arg) => `<${arg}>\n`).join("")}`);
+    expect(result.stdout).toBe(`APP\n${["agent", ...(args.length ? args : defaultCommand)].map((arg) => `<${arg}>\n`).join("")}`);
   });
 }

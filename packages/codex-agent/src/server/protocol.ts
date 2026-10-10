@@ -1,4 +1,4 @@
-import type { JsonValue } from "@agents-in-the-cloud/core";
+import type { JsonValue } from "@kintsugi/core";
 import type * as Protocol from "../protocol.ts";
 
 // The executable and generated types are pinned together. Experimental catalog APIs are negotiated during initialize.

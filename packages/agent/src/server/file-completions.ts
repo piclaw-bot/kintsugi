@@ -1,8 +1,8 @@
 import { posix } from "node:path";
-import { contentRowHtml } from "@agents-in-the-cloud/design-system/content-row";
-import { autocompleteHtml } from "@agents-in-the-cloud/design-system/autocomplete";
-import { execWorkspaceCommand, workspaceRoot } from "@agents-in-the-cloud/workspace";
-import { escapeHtml } from "@agents-in-the-cloud/shared";
+import { contentRowHtml } from "@kintsugi/design-system/content-row";
+import { autocompleteHtml } from "@kintsugi/design-system/autocomplete";
+import { execWorkspaceCommand, workspaceRoot } from "@kintsugi/workspace";
+import { escapeHtml } from "@kintsugi/shared";
 
 type FileCompletionMode = "direct" | "fuzzy";
 

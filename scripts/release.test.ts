@@ -35,7 +35,7 @@ test("verification requires both architectures and matching revision labels", as
   const run: Run = async (args) => {
     if (args.includes("{{json .Manifest}}")) return ok(JSON.stringify(manifest));
     const index = manifest.manifests.findIndex((entry) => args.some((arg) => arg.endsWith(entry.digest)));
-    return ok(JSON.stringify({ os: "linux", architecture: architectures[index], config: { Labels: { "org.opencontainers.image.revision": commit, "eagerly-preload": JSON.stringify([`ghcr.io/lucasmeijer/agents-in-the-cloud-workspace:signature@${digest}`]) } } }));
+    return ok(JSON.stringify({ os: "linux", architecture: architectures[index], config: { Labels: { "org.opencontainers.image.revision": commit, "eagerly-preload": JSON.stringify([`ghcr.io/rcarmo/kintsugi-workspace:signature@${digest}`]) } } }));
   };
   expect(await verifyRevision(run, "ref", commit)).toBe(digest);
   await expect(verifyRevision(run, "ref", "wrong-sha")).rejects.toThrow("does not match revision");
@@ -51,7 +51,7 @@ test("promotion uses the verified digest and reports partial success", async () 
     return ok(JSON.stringify(manifest));
   }, current, () => saves.push(JSON.stringify(current.channels)))).rejects.toThrow("push failed");
   expect(current.channels).toEqual({ latest: "published", stable: "failed" });
-  expect(calls.filter((args) => args.includes("create")).every((args) => args.at(-1) === `ghcr.io/lucasmeijer/agents-in-the-cloud@${digest}`)).toBe(true);
+  expect(calls.filter((args) => args.includes("create")).every((args) => args.at(-1) === `ghcr.io/rcarmo/kintsugi@${digest}`)).toBe(true);
   expect(saves.length).toBe(4);
 });
 
@@ -62,7 +62,7 @@ test("both channels are promoted in order on success", async () => {
     if (args.includes("create")) channels.push(args[args.indexOf("--tag") + 1]!);
     return ok(JSON.stringify(manifest));
   }, current, () => {});
-  expect(channels).toEqual(["ghcr.io/lucasmeijer/agents-in-the-cloud:latest", "ghcr.io/lucasmeijer/agents-in-the-cloud:stable"]);
+  expect(channels).toEqual(["ghcr.io/rcarmo/kintsugi:latest", "ghcr.io/rcarmo/kintsugi:stable"]);
   expect(current.channels).toEqual({ latest: "published", stable: "published" });
 });
 
@@ -73,7 +73,7 @@ test("promotion fails if registry readback differs", async () => {
 });
 
 async function scenario(options: { check?: boolean; exists?: boolean; moved?: boolean; buildFailure?: boolean; sameArch?: boolean; localArm?: boolean; badDriver?: boolean; missingHelper?: boolean }) {
-  const directory = mkdtempSync(join(tmpdir(), "agents-in-the-cloud-release-test-"));
+  const directory = mkdtempSync(join(tmpdir(), "kintsugi-release-test-"));
   const calls: { args: string[]; cwd?: string }[] = [];
   let uploaded = options.exists ?? false;
   const current = status();
@@ -102,7 +102,7 @@ async function scenario(options: { check?: boolean; exists?: boolean; moved?: bo
       }
       if (args.includes("{{json .Image}}")) {
         const index = manifest.manifests.findIndex((entry) => args.some((arg) => arg.endsWith(entry.digest)));
-        return ok(JSON.stringify({ os: "linux", architecture: architectures[index], config: { Labels: { "org.opencontainers.image.revision": commit, "eagerly-preload": JSON.stringify([`ghcr.io/lucasmeijer/agents-in-the-cloud-workspace:signature@${digest}`]) } } }));
+        return ok(JSON.stringify({ os: "linux", architecture: architectures[index], config: { Labels: { "org.opencontainers.image.revision": commit, "eagerly-preload": JSON.stringify([`ghcr.io/rcarmo/kintsugi-workspace:signature@${digest}`]) } } }));
       }
       if (args[0] === "bun") {
         if (options.buildFailure) throw new Error("build failed");
@@ -132,7 +132,7 @@ test("check exercises both platforms without registry writes or worktree creatio
   expect(probes).toHaveLength(2);
   expect(probes[0]!.args.slice(0, 5)).toEqual(["docker", "--context", "default", "buildx", "build"]);
   expect(probes[1]!.args[1]).toBe("--context");
-  expect(probes[1]!.args[2]).toStartWith("agents-in-the-cloud-release-");
+  expect(probes[1]!.args[2]).toStartWith("kintsugi-release-");
   for (const { args } of probes) expect(args).not.toContain("--builder");
   expect(probes.map(({ args }) => args[args.indexOf("--platform") + 1])).toEqual(["linux/amd64", "linux/arm64"]);
   expect(calls.some(({ args }) => args.includes("login") || args.includes("--push") || args.includes("imagetools") || args.includes("worktree"))).toBe(false);
@@ -149,14 +149,14 @@ test("new commit is built in an isolated checkout with no latest tag before veri
   expect(error).toBeUndefined();
   expect(current.state).toBe("published");
   expect(calls.find(({ args }) => args.includes("ls-remote"))!.args).toEqual(["git", "ls-remote", "origin", "refs/heads/main"]);
-  expect(calls.flatMap(({ args }) => args).some(arg => /^ghcr\.io\/lucasmeijer\/atelier(?=[:@])/.test(arg) || arg === "ghcr.io/lucasmeijer/agents-in-the-cloud:stable")).toBe(false);
+  expect(calls.flatMap(({ args }) => args).some(arg => /^ghcr\.io\/lucasmeijer\/atelier(?=[:@])/.test(arg) || arg === "ghcr.io/rcarmo/kintsugi:stable")).toBe(false);
   const build = calls.find(({ args }) => args[0] === "bun")!;
   expect(build.cwd).toEndWith("/source");
   expect(build.args).toContain("--no-latest");
   expect(build.args).toContain(`sha-${commit}`);
   expect(build.args).toContain("--builder");
   expect(calls.some(({ args }) => args.includes("--stable"))).toBe(false);
-  expect(calls.findIndex(({ args }) => args.includes("{{json .Image}}"))).toBeLessThan(calls.findIndex(({ args }) => args.includes("--tag") && args.includes("ghcr.io/lucasmeijer/agents-in-the-cloud:latest")));
+  expect(calls.findIndex(({ args }) => args.includes("{{json .Image}}"))).toBeLessThan(calls.findIndex(({ args }) => args.includes("--tag") && args.includes("ghcr.io/rcarmo/kintsugi:latest")));
 });
 
 test("retry reuses uploaded commit instead of rebuilding", async () => {
@@ -180,7 +180,7 @@ test("failed build removes checkout and does not promote", async () => {
 
 for (const split of [false, true]) {
 test(`image build CLI pairs images from its working checkout, not its tooling checkout (split=${split})`, async () => {
-  const directory = mkdtempSync(join(tmpdir(), "agents-in-the-cloud-release-cli-test-"));
+  const directory = mkdtempSync(join(tmpdir(), "kintsugi-release-cli-test-"));
   const log = join(directory, "docker.jsonl");
   const docker = join(directory, "docker");
   writeFileSync(docker, `#!/usr/bin/env bun\nimport { appendFileSync } from 'node:fs';\nconst args = process.argv.slice(2);\nappendFileSync(${JSON.stringify(log)}, JSON.stringify(args) + '\\n');\nif (args.includes('{{json .Manifest}}')) { console.log(JSON.stringify({digest: '${digest}'})); process.exit(0); }\nif (args.includes('inspect')) process.exit(1);\n`);
@@ -195,7 +195,7 @@ test(`image build CLI pairs images from its working checkout, not its tooling ch
     const generated = Bun.spawnSync(["bun", join(checkout, "packages/workspace-image/scripts/build-context.mjs"), expectedContext], { cwd: checkout });
     expect(generated.exitCode).toBe(0);
     const expectedSignature = JSON.parse(readFileSync(join(expectedContext, "metadata.json"), "utf8")).tag.split(":")[1];
-    const process = Bun.spawn(["bun", join(import.meta.dir, "build-agents-in-the-cloud-image.ts"), "--push", "--no-latest", "--tag", "sha-test", "--builder", "test-builder", "--platform", "linux/amd64,linux/arm64", ...(split ? ["--helper-context", "test-helper", "--native-platform", "linux/amd64"] : [])], {
+    const process = Bun.spawn(["bun", join(import.meta.dir, "build-kintsugi-image.ts"), "--push", "--no-latest", "--tag", "sha-test", "--builder", "test-builder", "--platform", "linux/amd64,linux/arm64", ...(split ? ["--helper-context", "test-helper", "--native-platform", "linux/amd64"] : [])], {
       cwd: checkout, stdin: "ignore", stdout: "pipe", stderr: "pipe",
       env: { ...Bun.env, PATH: `${directory}:${Bun.env.PATH}`, GH_PACKAGE_TOKEN: "test-not-a-real-credential" },
     });
@@ -218,15 +218,15 @@ test(`image build CLI pairs images from its working checkout, not its tooling ch
       expect(args.some((arg) => arg.endsWith(":latest") || arg.endsWith(":stable"))).toBe(false);
     }
     const appBuild = builds[split ? 2 : 1]!;
-    expect(appBuild).toContain(`ghcr.io/lucasmeijer/agents-in-the-cloud:sha-test${split ? "-amd64" : ""}`);
+    expect(appBuild).toContain(`ghcr.io/rcarmo/kintsugi:sha-test${split ? "-amd64" : ""}`);
     const workspaceArg = appBuild.find(arg => arg.startsWith("ATELIER_DEFAULT_WORKSPACE_IMAGE="))!;
-    expect(workspaceArg).toBe(`ATELIER_DEFAULT_WORKSPACE_IMAGE=ghcr.io/lucasmeijer/agents-in-the-cloud-workspace:${expectedSignature}@${digest}`);
-    expect(builds[0]).toContain(`ghcr.io/lucasmeijer/agents-in-the-cloud-workspace:${expectedSignature}${split ? "-amd64" : ""}`);
+    expect(workspaceArg).toBe(`ATELIER_DEFAULT_WORKSPACE_IMAGE=ghcr.io/rcarmo/kintsugi-workspace:${expectedSignature}@${digest}`);
+    expect(builds[0]).toContain(`ghcr.io/rcarmo/kintsugi-workspace:${expectedSignature}${split ? "-amd64" : ""}`);
     expect(appBuild).toContain(`ATELIER_EAGERLY_PRELOAD=${JSON.stringify([workspaceArg.split("=")[1]])}`);
     if (split) {
       const merges = commands.filter(args => args.includes("imagetools") && args.includes("create"));
       expect(merges).toHaveLength(2);
-      expect(merges[1]).toContain("ghcr.io/lucasmeijer/agents-in-the-cloud:sha-test");
+      expect(merges[1]).toContain("ghcr.io/rcarmo/kintsugi:sha-test");
       for (const merge of merges) {
         expect(merge.slice(-2).every(ref => ref.endsWith(`@${digest}`))).toBe(true);
       }

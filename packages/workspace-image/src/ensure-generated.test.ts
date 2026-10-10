@@ -6,10 +6,10 @@ test("default image embeds its deterministic tag signature as a label", async ()
   try {
     const second = await prepareDefaultWorkspaceImage();
     try {
-      const signature = first.metadata.tag.slice("agents-in-the-cloud-workspace:".length);
+      const signature = first.metadata.tag.slice("kintsugi-workspace:".length);
       expect(signature).toMatch(/^[a-f0-9]{16}$/);
       const dockerfile = await Bun.file(first.dockerfile).text();
-      expect(dockerfile).toContain(`LABEL com.agents-in-the-cloud.workspace-image.signature="${signature}"\n`);
+      expect(dockerfile).toContain(`LABEL com.kintsugi.workspace-image.signature="${signature}"\n`);
       expect(second.metadata.tag).toBe(first.metadata.tag);
       expect(await Bun.file(second.dockerfile).text()).toBe(dockerfile);
     } finally { await second.dispose(); }
@@ -33,21 +33,21 @@ test("one context supports local reuse, missing-image rebuild and publication id
     images.delete(first);
     await ensureGeneratedDefaultWorkspaceImage(options);
     expect(builds).toBe(2);
-    const published = await ensureGeneratedDefaultWorkspaceImage({ ...options, imageName: tag => tag.replace("agents-in-the-cloud-workspace:", "ghcr.io/example/workspace:") });
+    const published = await ensureGeneratedDefaultWorkspaceImage({ ...options, imageName: tag => tag.replace("kintsugi-workspace:", "ghcr.io/example/workspace:") });
     expect(published.split(":").at(-1)).toBe(first.split(":").at(-1));
     expect(builds).toBe(3);
   } finally { await context.dispose(); }
 });
 
-// Claude Code is already a background workspace tab in AgentsInTheCloud. Keep its work in the
+// Claude Code is already a background workspace tab in Kintsugi. Keep its work in the
 // foreground so a completed turn leaves a result the user can actually inspect.
 test("new shared homes default Claude background tasks off through editable user settings", async () => {
   const context = await prepareDefaultWorkspaceImage();
   try {
     const dockerfile = await Bun.file(context.dockerfile).text();
-    expect(dockerfile).toContain('COPY "files/base/rootfs/opt/agents-in-the-cloud/home-defaults/.claude/settings.json" "/opt/agents-in-the-cloud/home-defaults/.claude/settings.json"');
-    expect(dockerfile).toContain('RUN chmod "0600" "/opt/agents-in-the-cloud/home-defaults/.claude/settings.json"');
-    expect(JSON.parse(await Bun.file(context.dockerfile.replace(/Dockerfile$/, "files/base/rootfs/opt/agents-in-the-cloud/home-defaults/.claude/settings.json")).text())).toEqual({
+    expect(dockerfile).toContain('COPY "files/base/rootfs/opt/kintsugi/home-defaults/.claude/settings.json" "/opt/kintsugi/home-defaults/.claude/settings.json"');
+    expect(dockerfile).toContain('RUN chmod "0600" "/opt/kintsugi/home-defaults/.claude/settings.json"');
+    expect(JSON.parse(await Bun.file(context.dockerfile.replace(/Dockerfile$/, "files/base/rootfs/opt/kintsugi/home-defaults/.claude/settings.json")).text())).toEqual({
       env: { CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1" },
     });
   } finally { await context.dispose(); }
@@ -57,8 +57,8 @@ test("every default image build checks home against the original base skeleton",
   const context = await prepareDefaultWorkspaceImage();
   try {
     const dockerfile = await Bun.file(context.dockerfile).text();
-    const snapshot = dockerfile.indexOf("cp -a /etc/skel/. /opt/agents-in-the-cloud/home-defaults/");
-    const check = dockerfile.indexOf("RUN diff -r --no-dereference /opt/agents-in-the-cloud/home-defaults /home/agents-in-the-cloud");
+    const snapshot = dockerfile.indexOf("cp -a /etc/skel/. /opt/kintsugi/home-defaults/");
+    const check = dockerfile.indexOf("RUN diff -r --no-dereference /opt/kintsugi/home-defaults /home/agent");
     expect(snapshot).toBeGreaterThan(0);
     expect(snapshot).toBeLessThan(dockerfile.indexOf("# Module: base"));
     expect(check).toBeGreaterThan(dockerfile.lastIndexOf("# Module:"));

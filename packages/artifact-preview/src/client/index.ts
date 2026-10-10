@@ -1,8 +1,8 @@
-import type { WorkspaceClientModule } from "@agents-in-the-cloud/shared";
+import type { WorkspaceClientModule } from "@kintsugi/shared";
 import { createArtifactPreviewHtmlController } from "./html-preview-controller.ts";
 import { createArtifactPreviewProxyController } from "./proxy-controller.ts";
 
-export const agentsInTheCloudClientModule: WorkspaceClientModule = {
+export const kintsugiClientModule: WorkspaceClientModule = {
   id: "artifact-preview",
   install({ application, Controller }) {
     application.register("artifact-preview-html", createArtifactPreviewHtmlController(Controller));

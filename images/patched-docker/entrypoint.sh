@@ -1,7 +1,7 @@
 #!/bin/bash
 set -euo pipefail
 
-# Derived images can invoke agents-in-the-cloud-dockerd from their own supervisor, or replace
+# Derived images can invoke kintsugi-dockerd from their own supervisor, or replace
 # /etc/{docker/daemon.json,containerd/config.toml}. No runtime configuration env vars.
 if [[ "$1" != dockerd ]]; then
     exec "$@"

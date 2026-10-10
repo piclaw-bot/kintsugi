@@ -17,7 +17,7 @@ for (const scenario of ["new", "warm", "stopped", "upgrade", "unavailable", "bui
         const scenario = ${JSON.stringify(scenario)};
         let exists = ['warm','stopped','upgrade'].includes(scenario);
         mock.module(corePath, () => ({...core,
-          getAgentsInTheCloudRuntimeContext: () => ({agentsInTheCloudDataDir:${JSON.stringify(directory)},dockerHostAgentsInTheCloudDataDir:'/host/app'}),
+          getKintsugiRuntimeContext: () => ({kintsugiDataDir:${JSON.stringify(directory)},dockerHostKintsugiDataDir:'/host/app'}),
           workloadCgroupArgs: async () => ['--cgroup-parent','system-workloads'],
           requireDocker: async args => {
             calls.push(args);
@@ -96,7 +96,7 @@ for (const scenario of ["new", "warm", "stopped", "upgrade", "unavailable", "bui
       } else {
         expect(build!.slice(0, 3)).toEqual(["BUILD", "sh", "-ec"]);
         expect(build![3]).toContain("build-client-processes/cgroup.procs");
-        expect(build!.slice(4, 7)).toEqual(["agents-in-the-cloud-build", "docker", "--host"]);
+        expect(build!.slice(4, 7)).toEqual(["kintsugi-build", "docker", "--host"]);
         expect(build![7]).toStartWith(`unix://${directory}/repository-builder/`);
         expect(build![7]).toEndWith("/docker.sock");
         expect(pipes.some(args => args.at(-1)!.includes("sha256:base"))).toBe(scenario !== "warm");

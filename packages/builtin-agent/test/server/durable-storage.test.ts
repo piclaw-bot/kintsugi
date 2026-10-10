@@ -19,7 +19,7 @@ afterEach(async () => {
 });
 
 async function dataDirectory() {
-  const path = await mkdtemp(join(tmpdir(), "agents-in-the-cloud-durable-storage-"));
+  const path = await mkdtemp(join(tmpdir(), "kintsugi-durable-storage-"));
   paths.push(path);
   process.env.ATELIER_DATA_DIR = path;
   return path;
@@ -38,7 +38,7 @@ test("journals use the existing project share outside disposable workspace files
   expect(await workspaceDurableJournalDirectory("one")).toBe(join(root, "session-shares", "product-suite", "builtin-durable", "one"));
   expect(await workspaceDurableJournalDirectory("two")).toBe(join(root, "session-shares", "other-product", "builtin-durable", "two"));
   expect(await workspaceDurableJournalDirectory("scratch")).toBe(join(root, "session-shares", "projectless", "builtin-durable", "scratch"));
-  expect(durableJournalMountPath("one")).toBe("/agents-in-the-cloud/session-share/builtin-durable/one");
+  expect(durableJournalMountPath("one")).toBe("/kintsugi/session-share/builtin-durable/one");
   for (const id of ["../escape", "/absolute", ".", "..", "nested/path", ""]) {
     expect(() => durableJournalDirectory("share", id, root)).toThrow("invalid workspace id");
     await expect(workspaceDurableJournalDirectory(id, root)).rejects.toThrow("invalid workspace id");

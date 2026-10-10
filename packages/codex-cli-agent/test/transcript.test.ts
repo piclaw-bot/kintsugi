@@ -56,7 +56,7 @@ test("loads only the tab-local Codex rollout and serves embedded user images", a
   const previous = process.env.ATELIER_DATA_DIR;
   process.env.ATELIER_DATA_DIR = root;
   try {
-    const dir = join(root, "workspaces/workspace/home-local/.local/share/agents-in-the-cloud-agents/tab/codex/sessions/2026/01/01");
+    const dir = join(root, "workspaces/workspace/home-local/.local/share/kintsugi-agents/tab/codex/sessions/2026/01/01");
     await mkdir(dir, { recursive: true });
     await writeFile(join(dir, "rollout.jsonl"), row("response_item", { type: "message", id: "image-id", role: "user", content: [{ type: "input_text", text: "Look" }, { type: "input_image", image_url: "data:image/png;base64,aGVsbG8=" }] }));
     expect(await loadCodexTranscript("workspace", "tab")).toMatchObject([{ kind: "user", images: [{ entryId: "image-id", contentIndex: 1, mimeType: "image/png" }] }]);
@@ -81,7 +81,7 @@ test("shared native rollouts are selected by the private SessionStart record, no
   const previous = process.env.ATELIER_DATA_DIR;
   process.env.ATELIER_DATA_DIR = root;
   try {
-    const privateDirectory = join(root, "workspaces/workspace/home-local/.local/share/agents-in-the-cloud-agents/tab/codex");
+    const privateDirectory = join(root, "workspaces/workspace/home-local/.local/share/kintsugi-agents/tab/codex");
     const sharedDirectory = join(root, "home/.codex/sessions/2026/01/01");
     await mkdir(privateDirectory, { recursive: true });
     await mkdir(sharedDirectory, { recursive: true });

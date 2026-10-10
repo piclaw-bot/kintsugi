@@ -1,5 +1,5 @@
-import type { WorkspaceClientControllerConstructor as StimulusControllerConstructor } from "@agents-in-the-cloud/shared";
-import { errorMessage } from "@agents-in-the-cloud/shared";
+import type { WorkspaceClientControllerConstructor as StimulusControllerConstructor } from "@kintsugi/shared";
+import { errorMessage } from "@kintsugi/shared";
 
 let rendererPromise: Promise<typeof import("beautiful-mermaid")["renderMermaidSVG"]> | undefined;
 
@@ -59,13 +59,13 @@ export function createAgentMermaidController(Controller: StimulusControllerConst
       try {
         const renderMermaidSVG = await (rendererPromise ??= import("beautiful-mermaid").then(module => module.renderMermaidSVG));
         const svgHtml = withoutRemoteFontImports(renderMermaidSVG(source, {
-          bg: "var(--agents-in-the-cloud-mermaid-bg)",
-          fg: "var(--agents-in-the-cloud-mermaid-fg)",
-          line: "var(--agents-in-the-cloud-mermaid-line)",
-          accent: "var(--agents-in-the-cloud-mermaid-accent)",
-          muted: "var(--agents-in-the-cloud-mermaid-muted)",
-          surface: "var(--agents-in-the-cloud-mermaid-surface)",
-          border: "var(--agents-in-the-cloud-mermaid-border)",
+          bg: "var(--kintsugi-mermaid-bg)",
+          fg: "var(--kintsugi-mermaid-fg)",
+          line: "var(--kintsugi-mermaid-line)",
+          accent: "var(--kintsugi-mermaid-accent)",
+          muted: "var(--kintsugi-mermaid-muted)",
+          surface: "var(--kintsugi-mermaid-surface)",
+          border: "var(--kintsugi-mermaid-border)",
           padding: 16,
           transparent: true,
         }));

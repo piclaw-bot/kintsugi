@@ -1,10 +1,10 @@
-import { runDocker } from "@agents-in-the-cloud/core";
-import { errorMessage } from "@agents-in-the-cloud/shared";
+import { runDocker } from "@kintsugi/core";
+import { errorMessage } from "@kintsugi/shared";
 import { dockerImageStoreQueue } from "./image-store-queue.ts";
 
 export type WorkspaceImageKind = "default" | "repository";
 
-export const workspaceImageKindLabel = "com.agents-in-the-cloud.workspace-image.kind";
+export const workspaceImageKindLabel = "com.kintsugi.workspace-image.kind";
 
 export function workspaceImagePruneArgs(kind: WorkspaceImageKind, buildStartedAt: Date): string[] {
   return [

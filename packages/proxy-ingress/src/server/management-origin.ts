@@ -14,7 +14,7 @@ export function managementOriginRejection(request: Request, peerAddress?: string
     target.protocol = `${forwardedProtocol}:`;
   }
   const origin = request.headers.get("origin");
-  const parentDenied = request.headers.get("x-agents-in-the-cloud-origin-context") === "null";
+  const parentDenied = request.headers.get("x-kintsugi-origin-context") === "null";
   if (origin === target.origin && !parentDenied) return;
   return forbiddenOrigin();
 }

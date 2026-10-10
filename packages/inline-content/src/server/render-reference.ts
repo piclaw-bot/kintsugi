@@ -1,5 +1,5 @@
-import type { MarkdownEmbedContext } from "@agents-in-the-cloud/markdown";
-import { escapeHtml } from "@agents-in-the-cloud/shared";
+import type { MarkdownEmbedContext } from "@kintsugi/markdown";
+import { escapeHtml } from "@kintsugi/shared";
 
 export function renderInlineContentReference({ workspaceId, target, title, provisional }: MarkdownEmbedContext): string {
   let path: string;

@@ -1,8 +1,8 @@
 import { builtinSlashCommands } from "./builtin-slash-commands.ts";
 import { readdir } from "node:fs/promises";
 import { basename, join } from "node:path";
-import { isNotFoundError } from "@agents-in-the-cloud/core";
-import { workspaceWorkHostPath } from "@agents-in-the-cloud/workspace";
+import { isNotFoundError } from "@kintsugi/core";
+import { workspaceWorkHostPath } from "@kintsugi/workspace";
 
 export interface PromptTemplate {
   name: string;
@@ -26,7 +26,7 @@ interface ParsedPromptFrontmatter {
   body: string;
 }
 
-const promptDirs = [".agents-in-the-cloud/prompts", ".pi/prompts"] as const;
+const promptDirs = [".kintsugi/prompts", ".pi/prompts"] as const;
 
 const builtinLandPrompt = "Commit and push your work, rebasing when necessary. When successful, delete this workspace.";
 

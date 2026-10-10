@@ -9,14 +9,14 @@ async function scenario(script: string): Promise<void> {
   try {
     const child = Bun.spawn([process.execPath, "-e", `
       import { expect, mock } from "bun:test";
-      const workspace = await import("@agents-in-the-cloud/workspace");
+      const workspace = await import("@kintsugi/workspace");
       const calls = [];
       const launches = [];
       const preparations = [];
       const commands = [];
-      const observableTerminal = await import("@agents-in-the-cloud/observable-terminal/server");
+      const observableTerminal = await import("@kintsugi/observable-terminal/server");
       const buildSessionCommand = observableTerminal.buildObservableSessionCommand;
-      mock.module("@agents-in-the-cloud/observable-terminal/server", () => ({ ...observableTerminal, buildObservableSessionCommand: (options) => { commands.push(options.command); return buildSessionCommand(options); } }));
+      mock.module("@kintsugi/observable-terminal/server", () => ({ ...observableTerminal, buildObservableSessionCommand: (options) => { commands.push(options.command); return buildSessionCommand(options); } }));
       let launchScript = "printf 'CLI started'";
       let setupError;
       let turnSettled = async () => true;
@@ -25,12 +25,12 @@ async function scenario(script: string): Promise<void> {
       let inspectionResult;
       let result = { stdout: "", stderr: "", exitCode: 0, durationMs: 0 };
       const workspaceTitles = new Map();
-      mock.module("@agents-in-the-cloud/workspace", () => ({ ...workspace, getWorkspaceTitle: async (id) => workspaceTitles.get(id) ?? null, setWorkspaceTitle: async (id, title) => { workspaceTitles.set(id, title); return null; }, execWorkspaceShell: async (...args) => { calls.push(args); return args[1].includes("tmux list-panes") && inspectionResult ? inspectionResult : result; } }));
-      const slugSuggestion = await import("@agents-in-the-cloud/agent/server/slug-suggestion");
+      mock.module("@kintsugi/workspace", () => ({ ...workspace, getWorkspaceTitle: async (id) => workspaceTitles.get(id) ?? null, setWorkspaceTitle: async (id, title) => { workspaceTitles.set(id, title); return null; }, execWorkspaceShell: async (...args) => { calls.push(args); return args[1].includes("tmux list-panes") && inspectionResult ? inspectionResult : result; } }));
+      const slugSuggestion = await import("@kintsugi/agent/server/slug-suggestion");
       const slugRequests = [];
       let suggestedSlug;
       let slugDelay;
-      mock.module("@agents-in-the-cloud/agent/server/slug-suggestion", () => ({ ...slugSuggestion, suggestAgentSlug: async (...args) => { slugRequests.push(args); await slugDelay?.promise; return suggestedSlug; } }));
+      mock.module("@kintsugi/agent/server/slug-suggestion", () => ({ ...slugSuggestion, suggestAgentSlug: async (...args) => { slugRequests.push(args); await slugDelay?.promise; return suggestedSlug; } }));
       const { createCliAgentModule } = await import(${JSON.stringify(join(import.meta.dir, "../src/server/index.ts"))});
       const adapter = {
         id: "example", label: "Example CLI", iconHtml: "",
@@ -52,7 +52,7 @@ async function scenario(script: string): Promise<void> {
       const list = (workspaceId) => agentType.tabs.list({ workspaceId });
       // Creates a session in a fresh workspace and reports its turn boundaries the way its CLI does.
       async function turnSignals(workspaceId) {
-        const { configureAgentMcp, handleAgentMcpRequest } = await import("@agents-in-the-cloud/agent/server");
+        const { configureAgentMcp, handleAgentMcpRequest } = await import("@kintsugi/agent/server");
         configureAgentMcp({ on() {}, emit: async () => {} });
         const id = await agentType.create({ workspaceId });
         const token = calls.findLast((call) => call[2]?.stdin?.includes("Authorization: Bearer"))[2].stdin.match(/Authorization: Bearer ([\\w.-]+)/)[1];
@@ -71,7 +71,7 @@ test("creation materializes images and passes input and settings to the adapter 
   await agentType.launch.prepareWorkspace("initial", { agent: settings });
   const [tab] = await list("initial");
   expect(calls).toHaveLength(4);
-  const image = "/tmp/agents-in-the-cloud-attachments/example-" + tab.id + "/0.png";
+  const image = "/tmp/kintsugi-attachments/example-" + tab.id + "/0.png";
   expect(calls[0][1]).toContain(image);
   expect(calls[0][2]).toEqual({ stdin: "aW1hZ2U=" });
   expect(calls[3][1]).toContain("tmux -N new-session");
@@ -103,7 +103,7 @@ test("CLI composer /name renames the tab without sending text to the terminal", 
   const id = await agentType.create({ workspaceId: "rename" });
   const route = module.routes[0].handle;
   const url = new URL("http://localhost/workspaces/rename/example-agents/" + id + "/composer");
-  const { agentAttachmentDraftId } = await import("@agents-in-the-cloud/prompt/server");
+  const { agentAttachmentDraftId } = await import("@kintsugi/prompt/server");
   const form = (text) => new Request(url, { method: "POST", body: new URLSearchParams({ text, attachmentDraft: agentAttachmentDraftId("rename", "example:" + id) }) });
   const explicit = await route(form("/name manual-title"), url);
   expect(explicit.status).toBe(204);
@@ -122,7 +122,7 @@ test("CLI /name leaves a Workspace with its own name alone", () => scenario(`
   workspaceTitles.set("own-name", "chosen-by-hand");
   const id = await agentType.create({ workspaceId: "own-name" });
   const url = new URL("http://localhost/workspaces/own-name/example-agents/" + id + "/composer");
-  const { agentAttachmentDraftId } = await import("@agents-in-the-cloud/prompt/server");
+  const { agentAttachmentDraftId } = await import("@kintsugi/prompt/server");
   const response = await module.routes[0].handle(new Request(url, { method: "POST", body: new URLSearchParams({ text: "/name tab-title", attachmentDraft: agentAttachmentDraftId("own-name", "example:" + id) }) }), url);
   expect(response.status).toBe(204);
   expect(workspaceTitles.get("own-name")).toBe("chosen-by-hand");
@@ -136,7 +136,7 @@ test("a late automatic title cannot replace a manual CLI /name", () => scenario(
   const [{ id }] = await list("race");
   while (!slugRequests.length) await Bun.sleep(1);
   const url = new URL("http://localhost/workspaces/race/example-agents/" + id + "/composer");
-  const { agentAttachmentDraftId } = await import("@agents-in-the-cloud/prompt/server");
+  const { agentAttachmentDraftId } = await import("@kintsugi/prompt/server");
   const response = await module.routes[0].handle(new Request(url, { method: "POST", body: new URLSearchParams({ text: "/name manual-title", attachmentDraft: agentAttachmentDraftId("race", "example:" + id) }) }), url);
   expect(response.status).toBe(204);
   slugDelay.resolve();
@@ -149,7 +149,7 @@ test("a late automatic title cannot replace a manual CLI /name", () => scenario(
 test("CLI composer /name uses the saved prompt when no title is supplied", () => scenario(`
   const id = await agentType.create({ workspaceId: "context" });
   const url = new URL("http://localhost/workspaces/context/example-agents/" + id + "/composer");
-  const { agentAttachmentDraftId } = await import("@agents-in-the-cloud/prompt/server");
+  const { agentAttachmentDraftId } = await import("@kintsugi/prompt/server");
   const form = (text) => new Request(url, { method: "POST", body: new URLSearchParams({ text, attachmentDraft: agentAttachmentDraftId("context", "example:" + id) }) });
   expect((await module.routes[0].handle(form("Investigate the timeout"), url)).status).toBe(200);
   suggestedSlug = "investigate-timeout";
@@ -311,9 +311,9 @@ test("failed startup releases readiness waiters but rejects socket admission", (
 `));
 
 test("authenticated turn boundaries identify the exact CLI session and close revokes it", () => scenario(`
-  const { createAgentsInTheCloudEventBus } = await import("@agents-in-the-cloud/core");
-  const { configureAgentMcp, handleAgentMcpRequest, subscribeWorkspaceAgentBusy } = await import("@agents-in-the-cloud/agent/server");
-  const events = createAgentsInTheCloudEventBus();
+  const { createKintsugiEventBus } = await import("@kintsugi/core");
+  const { configureAgentMcp, handleAgentMcpRequest, subscribeWorkspaceAgentBusy } = await import("@kintsugi/agent/server");
+  const events = createKintsugiEventBus();
   const finished = [];
   const busy = [];
   const attention = [];
@@ -352,7 +352,7 @@ test("authenticated turn boundaries identify the exact CLI session and close rev
 `));
 
 test("startup failure revokes credentials issued before adapter preparation", () => scenario(`
-  const { handleAgentMcpRequest } = await import("@agents-in-the-cloud/agent/server");
+  const { handleAgentMcpRequest } = await import("@kintsugi/agent/server");
   let token;
   adapter.prepareSession = async (_workspaceId, _sessionId, mcp) => {
     token = mcp.token;
@@ -408,7 +408,7 @@ test("one restoration failure preserves its tab and does not block other agents"
 `));
 
 test("a CLI turn ends only once the adapter finds its native history settled", () => scenario(`
-  const { subscribeWorkspaceAgentBusy } = await import("@agents-in-the-cloud/agent/server");
+  const { subscribeWorkspaceAgentBusy } = await import("@kintsugi/agent/server");
   const busy = [];
   subscribeWorkspaceAgentBusy((event) => busy.push(event.busy));
   let settled = false;
@@ -427,7 +427,7 @@ test("a CLI turn ends only once the adapter finds its native history settled", (
 `));
 
 test("a CLI turn whose native history never settles ends after ten seconds", () => scenario(`
-  const { subscribeWorkspaceAgentBusy } = await import("@agents-in-the-cloud/agent/server");
+  const { subscribeWorkspaceAgentBusy } = await import("@kintsugi/agent/server");
   const busy = [];
   const errors = [];
   console.error = (...args) => errors.push(args.join(" "));
@@ -449,7 +449,7 @@ test("a CLI turn whose native history never settles ends after ten seconds", () 
 `));
 
 test("a CLI turn ending with StopFailure times out after ten seconds without logging", () => scenario(`
-  const { subscribeWorkspaceAgentBusy } = await import("@agents-in-the-cloud/agent/server");
+  const { subscribeWorkspaceAgentBusy } = await import("@kintsugi/agent/server");
   const busy = [];
   const errors = [];
   console.error = (...args) => errors.push(args.join(" "));
@@ -472,7 +472,7 @@ test("a CLI turn ending with StopFailure times out after ten seconds without log
 
 test("a launch prompt stays busy through preparation and installation until its first turn finishes", () => scenario(`
   const busy = [];
-  const { subscribeWorkspaceAgentBusy, configureAgentMcp, handleAgentMcpRequest } = await import("@agents-in-the-cloud/agent/server");
+  const { subscribeWorkspaceAgentBusy, configureAgentMcp, handleAgentMcpRequest } = await import("@kintsugi/agent/server");
   subscribeWorkspaceAgentBusy(event => busy.push(event));
   configureAgentMcp({ on() {}, emit: async () => {} });
   preparationDelay = Promise.withResolvers();
@@ -495,7 +495,7 @@ test("a launch prompt stays busy through preparation and installation until its 
 
 test("a prompted startup failure clears busy; empty interactive launches do not claim work", () => scenario(`
   const busy = [];
-  const { subscribeWorkspaceAgentBusy } = await import("@agents-in-the-cloud/agent/server");
+  const { subscribeWorkspaceAgentBusy } = await import("@kintsugi/agent/server");
   subscribeWorkspaceAgentBusy(event => busy.push(event.busy));
   preparationError = new Error("Preparation failed");
   await agentType.launch.prepareWorkspace("failed-prompt", { agent: { input: { text: "Hello", images: [], attachmentNotes: [] } } });
@@ -512,10 +512,10 @@ test("the terminal reports installation failure even when the CLI script owns it
   const directory = process.env.ATELIER_DATA_DIR;
   const signalScript = directory + "/signal.sh";
   const signalFile = directory + "/boundary";
-  const { shellQuote } = await import("@agents-in-the-cloud/core");
+  const { shellQuote } = await import("@kintsugi/core");
   await Bun.write(signalScript, 'printf "%s" "$1" > ' + shellQuote(signalFile));
   // Run the actual terminal command, replacing only its authenticated relay script.
-  const command = commands[0].replaceAll("/home/agents-in-the-cloud/.local/share/agents-in-the-cloud-agents/" + id + "/turn-signal.sh", signalScript);
+  const command = commands[0].replaceAll("/home/agent/.local/share/kintsugi-agents/" + id + "/turn-signal.sh", signalScript);
   const child = Bun.spawn(["/bin/bash", "-c", command], { stdout: "pipe", stderr: "pipe" });
   const [code, stderr] = await Promise.all([child.exited, new Response(child.stderr).text()]);
   expect(code).toBe(7);
@@ -524,9 +524,9 @@ test("the terminal reports installation failure even when the CLI script owns it
 `));
 
 test("native prompt preparation includes shared and plugin guidance once per launch and refreshes it on resume", () => scenario(`
-  const { configureAgentMcp } = await import("@agents-in-the-cloud/agent/server");
-  const { createAgentsInTheCloudEventBus } = await import("@agents-in-the-cloud/core");
-  const events = createAgentsInTheCloudEventBus();
+  const { configureAgentMcp } = await import("@kintsugi/agent/server");
+  const { createKintsugiEventBus } = await import("@kintsugi/core");
+  const events = createKintsugiEventBus();
   let prepared = 0;
   events.on("agent_system_prompt_prepare", ({ lines, agentId }) => {
     lines.push("Plugin guidance " + agentId + " revision " + ++prepared + " " + "x".repeat(12000));
@@ -540,7 +540,7 @@ test("native prompt preparation includes shared and plugin guidance once per lau
   };
   const id = await agentType.create({ workspaceId: "native-prompt" });
   expect(prepared).toBe(1);
-  expect(prompts[0]).toContain("You are running inside of an online coding tool called AgentsInTheCloud.");
+  expect(prompts[0]).toContain("You are running inside of an online coding tool called Kintsugi.");
   expect(prompts[0]).toContain("Plugin guidance " + id + " revision 1");
   adapter.resumeScript = async () => "true";
   inspectionResult = { ...result, exitCode: 1 };

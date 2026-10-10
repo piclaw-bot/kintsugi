@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Linux host: bootstrap-race.py SYSTEM_IMAGE RESOURCES_TS; races docker exec against initialization."""
 import subprocess,concurrent.futures,sys
-image,source=sys.argv[1:];name='agents-in-the-cloud-resource-race'
+image,source=sys.argv[1:];name='kintsugi-resource-race'
 def docker(*args):return subprocess.run(['docker',*args],stdout=subprocess.PIPE,stderr=subprocess.PIPE)
 assert docker('run','-d','--name',name,'--privileged','--cgroupns=host','--memory=3g','--tmpfs','/run','--entrypoint','sleep',image,'60').returncode==0
 try:

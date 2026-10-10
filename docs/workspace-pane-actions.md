@@ -18,7 +18,7 @@ links can target it. A matching route returns that frame containing a
 server-rendered design-system dialog for a Turbo Frame request. For a direct
 browser request, call `WorkspaceModuleRouteContext.renderModalPage(dialogHtml)`
 with the dialog itself, without the frame wrapper. The app renders the normal
-AgentsInTheCloud shell, supplies the frame, and places the dialog inside it. There is one
+Kintsugi shell, supplies the frame, and places the dialog inside it. There is one
 active module dialog at a time; modules do not add permanent private modal hosts.
 JSON and other response formats remain the module route's responsibility.
 

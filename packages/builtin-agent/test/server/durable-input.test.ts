@@ -19,7 +19,7 @@ afterEach(async () => {
   await Promise.all(paths.splice(0).map((path) => rm(path, { recursive: true, force: true })));
 });
 async function setup() {
-  const path = await mkdtemp(join(tmpdir(), "agents-in-the-cloud-durable-images-"));
+  const path = await mkdtemp(join(tmpdir(), "kintsugi-durable-images-"));
   paths.push(path);
   const models = createModels();
   const faux = fauxProvider({ tokensPerSecond: 100_000, models: [

@@ -1,4 +1,4 @@
-import { escapeHtml } from "@agents-in-the-cloud/shared";
+import { escapeHtml } from "@kintsugi/shared";
 import { attributesHtml } from "../html.ts";
 import { buttonPresentation, type ButtonContent, type ButtonVariant } from "../button/button-content.ts";
 import { comparisonRingSvgHtml, type Comparison } from "../comparison-ring/comparison-ring-html.ts";

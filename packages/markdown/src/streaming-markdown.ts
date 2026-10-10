@@ -136,7 +136,7 @@ export function repairStreamingMarkdownTail(tail: string): string {
   if (dangling?.[1]) {
     const start = dangling.index!;
     repaired = `${repaired.slice(0, start)}\\!${repaired.slice(start + 1)}`;
-  } else if (dangling && /^(?:https?:\/\/|agents-in-the-cloud:\/\/)/.test(dangling[3]!)) {
+  } else if (dangling && /^(?:https?:\/\/|kintsugi:\/\/)/.test(dangling[3]!)) {
     repaired += ")";
   } else if (/!\[[^\]\n]*$/.test(repaired)) {
     const start = repaired.lastIndexOf("![");

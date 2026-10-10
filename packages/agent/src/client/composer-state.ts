@@ -1,7 +1,7 @@
-import { setTextInputValue } from "@agents-in-the-cloud/shared";
+import { setTextInputValue } from "@kintsugi/shared";
 
 export function agentComposerTextStorageKey(workspaceId: string, agentId: string): string {
-  return `agents-in-the-cloud.agentComposerText:${JSON.stringify([workspaceId, agentId])}`;
+  return `kintsugi.agentComposerText:${JSON.stringify([workspaceId, agentId])}`;
 }
 
 export function agentComposerPrimaryAction(busy: boolean, text: string, attachmentCount: number, hasStoppableWork = busy): "abort" | "send" | "steer" {

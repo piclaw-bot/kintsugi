@@ -1,9 +1,9 @@
-import type { JsonValue } from "@agents-in-the-cloud/core";
-import { Icons } from "@agents-in-the-cloud/design-system/icons";
-import { renderMarkdown } from "@agents-in-the-cloud/markdown";
-import { parseWorkspaceFileTarget, type WorkspaceFileTarget, type WorkspaceModule, type WorkspaceModuleRouteContext } from "@agents-in-the-cloud/shared";
-import { jsonResponse, matchRoute, response, textResponse } from "@agents-in-the-cloud/shared/http";
-import { workspaceRoot } from "@agents-in-the-cloud/workspace";
+import type { JsonValue } from "@kintsugi/core";
+import { Icons } from "@kintsugi/design-system/icons";
+import { renderMarkdown } from "@kintsugi/markdown";
+import { parseWorkspaceFileTarget, type WorkspaceFileTarget, type WorkspaceModule, type WorkspaceModuleRouteContext } from "@kintsugi/shared";
+import { jsonResponse, matchRoute, response, textResponse } from "@kintsugi/shared/http";
+import { workspaceRoot } from "@kintsugi/workspace";
 import { Type, type Static } from "typebox";
 import { Value } from "typebox/value";
 import { fileSaveRequestSchema, type FileSaveRequest } from "../protocol.ts";
@@ -156,4 +156,4 @@ const filesWorkspaceModule: WorkspaceModule = {
   },
 };
 
-export { filesWorkspaceModule as agentsInTheCloudServerModule };
+export { filesWorkspaceModule as kintsugiServerModule };

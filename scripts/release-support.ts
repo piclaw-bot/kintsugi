@@ -49,7 +49,7 @@ export async function inspectPlatform(run: Run, ref: string, platform: string, r
 export async function authenticateRegistry(run: Run) {
   const token = process.env.GH_PACKAGE_TOKEN?.trim();
   if (!token) throw new Error("GH_PACKAGE_TOKEN is required to publish images to ghcr.io");
-  await run(["docker", "login", "ghcr.io", "--username", "lucasmeijer", "--password-stdin"], { input: token });
+  await run(["docker", "login", "ghcr.io", "--username", "rcarmo", "--password-stdin"], { input: token });
 }
 
 export async function ensureBuilders(run: Run, directory: string) {
@@ -59,7 +59,7 @@ export async function ensureBuilders(run: Run, directory: string) {
   }
   await run(["ssh", "-o", "BatchMode=yes", "-o", "StrictHostKeyChecking=yes", "-o", "ConnectTimeout=10", helper, "docker info --format '{{.Architecture}}'"]);
   const local = (await run(["docker", "context", "show"])).stdout.trim();
-  const remote = `agents-in-the-cloud-release-${createHash("sha256").update(helper).digest("hex").slice(0, 12)}`;
+  const remote = `kintsugi-release-${createHash("sha256").update(helper).digest("hex").slice(0, 12)}`;
   const contexts = (await run(["docker", "context", "ls", "--format", "{{.Name}}"])).stdout.split(/\s+/);
   if (!contexts.includes(remote)) await run(["docker", "context", "create", remote, "--docker", `host=ssh://${helper}`]);
   const architecture = async (context: string) => {
@@ -77,12 +77,12 @@ export async function ensureBuilders(run: Run, directory: string) {
   if (nativePlatform === remotePlatform) throw new Error(`Helper must have the other architecture; both daemons are ${nativePlatform}`);
   const probe = join(directory, "probe");
   mkdirSync(probe);
-  writeFileSync(join(probe, "marker"), "AgentsInTheCloud release builder check\n");
+  writeFileSync(join(probe, "marker"), "Kintsugi release builder check\n");
   // Exercise COPY, RUN and image export on each daemon, without emulation or registry writes.
   for (const [builder, platform] of [[local, nativePlatform], [remote, remotePlatform]]) {
     const machine = platform === "linux/amd64" ? "x86_64" : "aarch64";
     writeFileSync(join(probe, "Dockerfile"), `FROM ubuntu:26.04\nCOPY marker /marker\nRUN cat /marker && test "$(uname -m)" = "${machine}"\n`);
-    await run(["docker", "--context", builder!, "buildx", "build", "--platform", platform!, "--provenance=false", "--progress", "plain", "--no-cache", "--load", "--tag", "agents-in-the-cloud-release-probe:check", probe], { stream: true });
+    await run(["docker", "--context", builder!, "buildx", "build", "--platform", platform!, "--provenance=false", "--progress", "plain", "--no-cache", "--load", "--tag", "kintsugi-release-probe:check", probe], { stream: true });
   }
   return { local, remote, nativePlatform };
 }

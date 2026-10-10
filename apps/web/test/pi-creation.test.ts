@@ -1,8 +1,8 @@
 import { afterEach, beforeEach, expect, test } from "bun:test";
-import { createTestApp, postJson, temporaryAgentsInTheCloudDataDir } from "./support/test-web-app.ts";
+import { createTestApp, postJson, temporaryKintsugiDataDir } from "./support/test-web-app.ts";
 import { defaultAgentType } from "../src/server/agent-types.ts";
 
-const data = temporaryAgentsInTheCloudDataDir();
+const data = temporaryKintsugiDataDir();
 beforeEach(data.setUp);
 afterEach(data.tearDown);
 

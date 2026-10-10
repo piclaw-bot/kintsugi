@@ -1,9 +1,9 @@
 #!/bin/sh
 set -eu
 
-server_data_dir="/.agents-in-the-cloud/vscode/server-data"
-defaults_dir="/opt/agents-in-the-cloud/vscode-defaults"
-extensions_dir="/opt/agents-in-the-cloud/vscode-extensions"
+server_data_dir="/.kintsugi/vscode/server-data"
+defaults_dir="/opt/kintsugi/vscode-defaults"
+extensions_dir="/opt/kintsugi/vscode-extensions"
 
 seed_file() {
   src="$1"
@@ -32,4 +32,4 @@ else
   set -- "$@" --default-folder "/work"
 fi
 
-exec /opt/agents-in-the-cloud/vscode-server/bin/code-server "$@" --extensions-dir "$extensions_dir"
+exec /opt/kintsugi/vscode-server/bin/code-server "$@" --extensions-dir "$extensions_dir"

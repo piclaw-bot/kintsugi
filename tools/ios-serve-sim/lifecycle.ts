@@ -1,4 +1,4 @@
-import { shellQuote } from "@agents-in-the-cloud/core";
+import { shellQuote } from "@kintsugi/core";
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 
 export function workspaceId() {
@@ -9,7 +9,7 @@ export function workspaceId() {
   return id;
 }
 
-export const workspaceRoot = (id: string) => `$HOME/.local/share/agents-in-the-cloud/ios-serve-sim/workspaces/${id}`;
+export const workspaceRoot = (id: string) => `$HOME/.local/share/kintsugi/ios-serve-sim/workspaces/${id}`;
 export const deviceName = (id: string) => `ios-serve-sim-${id}`;
 
 // Runs on the Mac, independently of the SSH connection. EOF handles normal

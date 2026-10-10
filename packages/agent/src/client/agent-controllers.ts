@@ -1,7 +1,7 @@
 import { createAgentToolAbortController } from "./tool-abort-controller.ts";
 import { createAgentFooterController } from "./footer-controller.ts";
 import { createUsageControllers } from "./usage-controllers.ts";
-import type { WorkspaceClientModule } from "@agents-in-the-cloud/shared";
+import type { WorkspaceClientModule } from "@kintsugi/shared";
 import { createAgentCompletionsController, registerPromptTemplateCommands } from "./completions-controller.ts";
 import { createAgentEditDiffController } from "./edit-diff-controller.ts";
 import { createAgentElapsedController } from "./elapsed-controller.ts";

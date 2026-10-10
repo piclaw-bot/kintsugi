@@ -1,12 +1,12 @@
 import { hasAvailableBuiltinAgentModel } from "./model-state.ts";
-import { reconcileAgentModelPreferences } from "@agents-in-the-cloud/agent/server/model-preferences";
+import { reconcileAgentModelPreferences } from "@kintsugi/agent/server/model-preferences";
 import { Type } from "typebox";
 import { Value } from "typebox/value";
-import { invalidArguments, type JsonObject } from "@agents-in-the-cloud/core";
-import { renderReadOnlyLaunchModelSettings, renderModelsDialog, parseModelRef, modelRefValue, setAgentModelPreference } from "@agents-in-the-cloud/llm/server";
-import { turboStream, turboStreamResponse, type AgentWorkspaceParameters, type WorkspaceAgentLaunch } from "@agents-in-the-cloud/shared";
-import { listStagedAttachments } from "@agents-in-the-cloud/prompt/server";
-import { resolveNewWorkspaceAgentModel } from "@agents-in-the-cloud/agent/server/model-state";
+import { invalidArguments, type JsonObject } from "@kintsugi/core";
+import { renderReadOnlyLaunchModelSettings, renderModelsDialog, parseModelRef, modelRefValue, setAgentModelPreference } from "@kintsugi/llm/server";
+import { turboStream, turboStreamResponse, type AgentWorkspaceParameters, type WorkspaceAgentLaunch } from "@kintsugi/shared";
+import { listStagedAttachments } from "@kintsugi/prompt/server";
+import { resolveNewWorkspaceAgentModel } from "@kintsugi/agent/server/model-state";
 import { renderLaunchComposerSettings } from "./render-composer.ts";
 import { ensureDefaultWorkspaceAgent } from "./agent-store.ts";
 import { refreshConfiguredAgentRuntimes } from "./runtime.ts";

@@ -1,6 +1,6 @@
 import { afterAll, afterEach, expect, spyOn, test } from "bun:test";
-import * as files from "@agents-in-the-cloud/files/server";
-import * as vscode from "@agents-in-the-cloud/vscode/server";
+import * as files from "@kintsugi/files/server";
+import * as vscode from "@kintsugi/vscode/server";
 import { createTestApp } from "./support/test-web-app.ts";
 
 const listVSCode = spyOn(vscode, "listWorkspaceVSCodeViews");

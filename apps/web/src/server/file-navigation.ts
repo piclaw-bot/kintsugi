@@ -1,9 +1,9 @@
 import { posix } from "node:path";
-import { invalidArguments } from "@agents-in-the-cloud/core";
-import { openFileInFiles } from "@agents-in-the-cloud/files/server";
-import type { WorkspaceFileTarget, WorkspaceModuleRouteContext } from "@agents-in-the-cloud/shared";
-import { listWorkspaceVSCodeViews, openFileInVSCode } from "@agents-in-the-cloud/vscode/server";
-import { execWorkspaceCommand, workspaceRoot } from "@agents-in-the-cloud/workspace";
+import { invalidArguments } from "@kintsugi/core";
+import { openFileInFiles } from "@kintsugi/files/server";
+import type { WorkspaceFileTarget, WorkspaceModuleRouteContext } from "@kintsugi/shared";
+import { listWorkspaceVSCodeViews, openFileInVSCode } from "@kintsugi/vscode/server";
+import { execWorkspaceCommand, workspaceRoot } from "@kintsugi/workspace";
 
 export async function openWorkspaceFile(workspaceId: string, target: WorkspaceFileTarget, openWorkView: WorkspaceModuleRouteContext["openWorkView"], requireExisting = false): Promise<Response> {
   const path = posix.resolve(workspaceRoot, target.path);

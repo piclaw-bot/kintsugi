@@ -2,7 +2,7 @@
 import { visit } from "@hotwired/turbo";
 import type { CodeView, CodeViewOptions, DiffLineAnnotation, FileDiffMetadata } from "@pierre/diffs";
 import type { Editor, EditorChangeEvent } from "@pierre/diffs/edit";
-import { copyTextToClipboard, type WorkspaceClientControllerConstructor } from "@agents-in-the-cloud/shared";
+import { copyTextToClipboard, type WorkspaceClientControllerConstructor } from "@kintsugi/shared";
 import { changeBlocks, revertAnchor, revertBlockEdit, type ChangesAnnotation } from "../reverting.ts";
 import { diskContents, editorContents, type EditModel, type EditedCommentRange } from "../editing.ts";
 import { moveCommentRanges } from "../editing-ranges.ts";
@@ -101,7 +101,7 @@ export function createChangesEditController(Controller: WorkspaceClientControlle
       try {
         const data = new FormData(); data.set("snapshot", this.snapshotIdValue); data.set("path", path);
         // Load first so a failed editor import cannot abandon an acquired lease.
-        const [{ Editor }, { editorThemeCSS }, { parseDiffFromFile }] = await Promise.all([import("@pierre/diffs/edit"), import("@agents-in-the-cloud/syntax/pierre"), import("@pierre/diffs")]);
+        const [{ Editor }, { editorThemeCSS }, { parseDiffFromFile }] = await Promise.all([import("@pierre/diffs/edit"), import("@kintsugi/syntax/pierre"), import("@pierre/diffs")]);
         const tokenCSS = await editorThemeCSS();
         const html = await this.request("begin", data);
         const document = new DOMParser().parseFromString(html, "text/html");
@@ -268,7 +268,7 @@ export function createChangesEditController(Controller: WorkspaceClientControlle
     }
     private refreshAfterDiscard(): void {
       this.element.dispatchEvent(new CustomEvent("changes-edit:refresh", { bubbles: true }));
-      window.AgentsInTheCloudCable?.reconnect();
+      window.KintsugiCable?.reconnect();
     }
     private guard(resume: () => void): void {
       if (this.starting || this.busy) return;

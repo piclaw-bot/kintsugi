@@ -1,7 +1,7 @@
 import { contentText } from "@earendil-works/pi-ai";
-import { escapeHtml } from "@agents-in-the-cloud/shared";
-import { contentRowHtml } from "@agents-in-the-cloud/design-system/content-row";
-import { buttonHtml } from "@agents-in-the-cloud/design-system/button";
+import { escapeHtml } from "@kintsugi/shared";
+import { contentRowHtml } from "@kintsugi/design-system/content-row";
+import { buttonHtml } from "@kintsugi/design-system/button";
 import type { DurableAgentRuntime } from "./durable-runtime.ts";
 import { treeFilterOptions, type TreeFilterMode } from "./session-tree.ts";
 

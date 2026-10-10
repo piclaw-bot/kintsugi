@@ -85,7 +85,7 @@ export async function sampleHost(root: string, effectiveMemory: number): Promise
     probe("Containers · status and health", () => command(["docker", "ps", "-a", "--format", "table {{.Names}}\t{{.Status}}\t{{.Image}}"])),
     probe("Containers · resource usage", () => command(["docker", "stats", "--no-stream", "--format", "table {{.Name}}\t{{.CPUPerc}}\t{{.MemUsage}}\t{{.BlockIO}}\t{{.PIDs}}"], 8000)),
     probe("Docker storage · potentially shared layers", () => command(["docker", "system", "df"], 8000)),
-    probe("AgentsInTheCloud service state", () => command(["docker", "inspect", "--format", "{{.Name}} {{json .State}}", "agents-in-the-cloud"])),
+    probe("Kintsugi service state", () => command(["docker", "inspect", "--format", "{{.Name}} {{json .State}}", "kintsugi"])),
   ]);
   sections.sort((a, b) => a.title.localeCompare(b.title));
   return { sampledAt: new Date().toISOString(), durationMs: Math.round(performance.now() - started), metrics, sections };

@@ -1,6 +1,6 @@
 # Agent delegation and the Subagents module
 
-`@agents-in-the-cloud/subagents` owns delegation, not a general Agent plugin framework.
+`@kintsugi/subagents` owns delegation, not a general Agent plugin framework.
 The web composition root (`apps/web/src/server/main.ts`) explicitly installs
 `subagentsDelegation` with `configureAgentDelegation` before starting runtimes.
 It installs nothing when the existing workspace-module configuration disables
@@ -68,7 +68,7 @@ in `packages/subagents`. The coordinator retains its `save`/`peer` interface.
 
 Root session paths and existing JSONL/delivery formats are unchanged. Child histories
 and their ledger now live under `session-shares/<share-key>/subagents/<workspace-id>/`,
-inside the existing read-only `/agents-in-the-cloud/session-share` mount. Startup atomically
+inside the existing read-only `/kintsugi/session-share` mount. Startup atomically
 relocates older workspace-private Subagents directories before workspace deletion
 can remove them. Conflicting old/new stores fail rather than being merged.
 Older delivery entries without `recipient` still resolve it from the durable routing

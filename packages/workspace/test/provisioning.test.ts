@@ -1,12 +1,12 @@
 import { describe, expect, test } from "bun:test";
-import { createAgentsInTheCloudEventBus } from "@agents-in-the-cloud/core";
-import { createWorkspaceProvisioning, workspaceSetupProvisioningHook } from "@agents-in-the-cloud/workspace";
+import { createKintsugiEventBus } from "@kintsugi/core";
+import { createWorkspaceProvisioning, workspaceSetupProvisioningHook } from "@kintsugi/workspace";
 
 const tick = () => new Promise((resolve) => setTimeout(resolve, 0));
 
 describe("workspace provisioning execution", () => {
   test("records only executed steps, in execution order, with operation results and output", async () => {
-    const events = createAgentsInTheCloudEventBus();
+    const events = createKintsugiEventBus();
     const provisioning = createWorkspaceProvisioning({ events });
     const pending = Promise.withResolvers<void>();
     const finished = provisioning.run("one", async (run) => {
@@ -116,7 +116,7 @@ describe("workspace provisioning execution", () => {
   });
 
   test("workspaces progress independently and snapshots cannot mutate execution state", async () => {
-    const events = createAgentsInTheCloudEventBus();
+    const events = createKintsugiEventBus();
     const provisioning = createWorkspaceProvisioning({ events });
     const pending = Promise.withResolvers<void>();
     const first = provisioning.run("one", (run) => run.step("slow", "Slow", () => pending.promise));
@@ -144,7 +144,7 @@ describe("workspace provisioning execution", () => {
   });
 
   test("a deleted run cannot continue after its in-flight operation finishes", async () => {
-    const events = createAgentsInTheCloudEventBus();
+    const events = createKintsugiEventBus();
     const provisioning = createWorkspaceProvisioning({ events });
     const gate = Promise.withResolvers<void>();
     let next = false;
@@ -167,7 +167,7 @@ describe("workspace provisioning execution", () => {
 });
 
 test("a hung preparation command times out with its substep and can be retried", async () => {
-  const { runCommand } = await import("@agents-in-the-cloud/core");
+  const { runCommand } = await import("@kintsugi/core");
   const waiting = Promise.withResolvers<void>();
   const provisioning = createWorkspaceProvisioning({ stepTimeoutMs: 100, onChange(id) {
     if (provisioning.snapshot(id)?.status === "waiting") waiting.resolve();
@@ -186,7 +186,7 @@ test("a hung preparation command times out with its substep and can be retried",
 });
 
 test("cancel waits for operation cleanup and prevents the next step", async () => {
-  const { runCommand } = await import("@agents-in-the-cloud/core");
+  const { runCommand } = await import("@kintsugi/core");
   const provisioning = createWorkspaceProvisioning();
   const cleanup = Promise.withResolvers<void>();
   const stopped = Promise.withResolvers<void>();

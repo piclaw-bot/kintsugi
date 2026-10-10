@@ -1,11 +1,11 @@
-import { enabledModelOptionViews } from "@agents-in-the-cloud/agent/server/model-state";
-import { getAgentModelThinkingLevel } from "@agents-in-the-cloud/llm/server";
-import { publishWorkspaceAgentBusy } from "@agents-in-the-cloud/agent/server";
+import { enabledModelOptionViews } from "@kintsugi/agent/server/model-state";
+import { getAgentModelThinkingLevel } from "@kintsugi/llm/server";
+import { publishWorkspaceAgentBusy } from "@kintsugi/agent/server";
 import { startNotificationTurn, finishNotificationTurn } from "./turn-notifications.ts";
 import { sendTurnNotification } from "./web-push.ts";
 import { durableTimingEntry } from "./durable-timing.ts";
-import { AgentsInTheCloudCoreError, isJsonObject } from "@agents-in-the-cloud/core";
-import { checkWorkspaceReadiness } from "@agents-in-the-cloud/workspace";
+import { KintsugiCoreError, isJsonObject } from "@kintsugi/core";
+import { checkWorkspaceReadiness } from "@kintsugi/workspace";
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
 import { contentText, getSupportedThinkingLevels } from "@earendil-works/pi-ai";
 import { UserEntry, LiveDoc, InboxDoc, AgentDoc, UsageDoc, defineDoc, type Cursor, type EntryId, type EntryRecord, type EntryDraft, type AgentChange, type Conversation, type ConversationId, type ConversationView, type HarnessOptions, type LiveState } from "@earendil-works/pi-durable";
@@ -14,12 +14,12 @@ import { durableStopScope, commitDurableStop, markGatedDurableWork, settleStoppe
 import { durableImageEndpoint } from "./durable-images.ts";
 import { submitDurableInput, type DurableInput } from "./durable-input.ts";
 import { openDurableWorkspace, WorkspaceAgents, type DurableAgentRecord } from "./durable-workspace.ts";
-import { expandWorkspaceSkillCommand } from "@agents-in-the-cloud/agent/server/skills";
-import type { WorkspaceAgentToolOptions } from "@agents-in-the-cloud/agent/server/tools";
+import { expandWorkspaceSkillCommand } from "@kintsugi/agent/server/skills";
+import type { WorkspaceAgentToolOptions } from "@kintsugi/agent/server/tools";
 
 const context = BACKGROUND_CONTEXT;
 const DurableHistoryLabels = defineDoc<{ labels: Record<string, string[]> }>({
-  kind: "agents-in-the-cloud.history-labels", version: 1, scope: "session", initial: () => ({ labels: {} }),
+  kind: "kintsugi.history-labels", version: 1, scope: "session", initial: () => ({ labels: {} }),
 });
 type AgentIdentity = Omit<DurableAgentRecord, "durableId">;
 type SettingsChange = Pick<AgentChange, "model"> & { thinkingLevel?: string };
@@ -32,7 +32,7 @@ const dependencies = {
   async validateModel(ref: AgentChange["model"]) {
     const selected = ref && { provider: ref.provider, id: ref.modelId };
     const model = selected && (await enabledModelOptionViews(selected)).find(item => item.provider === selected.provider && item.id === selected.id);
-    if (!model?.available) throw new AgentsInTheCloudCoreError("invalid_arguments", model?.unavailableReason ?? "Choose a connected model in Models");
+    if (!model?.available) throw new KintsugiCoreError("invalid_arguments", model?.unavailableReason ?? "Choose a connected model in Models");
   },
 };
 
@@ -206,7 +206,7 @@ export async function openDurableAgentRuntime(
       const records = (await harness.snapshot(WorkspaceAgents, context))!.agents;
       const scope = new Set(durableStopScope(records, conversation.id, !identity.parentId));
       const tasks = (await harness.inspect(context)).tasks;
-      if (live?.run || live?.compactions?.length || inbox?.items.length || tasks.some(item => scope.has(item.record.conversationId) && item.record.kind !== "agents-in-the-cloud.delegation-anchor")) {
+      if (live?.run || live?.compactions?.length || inbox?.items.length || tasks.some(item => scope.has(item.record.conversationId) && item.record.kind !== "kintsugi.delegation-anchor")) {
         throw new Error("Stop the agent and wait for its work to finish before navigating history.");
       }
     }
@@ -238,7 +238,7 @@ export async function openDurableAgentRuntime(
     function command<T>(run: () => Promise<T>, metadataOnly = false): Promise<T> {
       const result = tail.then(() => {
         assertAdmission();
-        if (identity.readOnly && !metadataOnly) throw new AgentsInTheCloudCoreError("invalid_arguments", "This conversation is read-only. Start a new Agent to continue.");
+        if (identity.readOnly && !metadataOnly) throw new KintsugiCoreError("invalid_arguments", "This conversation is read-only. Start a new Agent to continue.");
         return run();
       });
       // The caller receives the rejection; a rejected command must not poison
@@ -258,12 +258,12 @@ export async function openDurableAgentRuntime(
       const current = await conversation.agent(context);
       const ref = change.model === undefined ? current.model : change.model;
       const model = ref ? harnessOptions.models.getModel(ref.provider, ref.modelId) : undefined;
-      if (ref && !model) throw new AgentsInTheCloudCoreError("invalid_arguments", `Model not found: ${ref.provider}/${ref.modelId}`);
+      if (ref && !model) throw new KintsugiCoreError("invalid_arguments", `Model not found: ${ref.provider}/${ref.modelId}`);
       if (change.model !== undefined) await load.validateModel(ref);
       const levels = model ? getSupportedThinkingLevels(model) : [];
       const requested = change.thinkingLevel ?? (change.model ? await getAgentModelThinkingLevel("builtin", { provider: change.model.provider, id: change.model.modelId }) : undefined);
       const thinkingLevel = levels.find(level => level === requested);
-      if (change.thinkingLevel !== undefined && !thinkingLevel) throw new AgentsInTheCloudCoreError("invalid_arguments", `Unsupported thinking level: ${change.thinkingLevel}`);
+      if (change.thinkingLevel !== undefined && !thinkingLevel) throw new KintsugiCoreError("invalid_arguments", `Unsupported thinking level: ${change.thinkingLevel}`);
       await conversation.configure({ ...change, thinkingLevel }, context);
     }
     commandDrains.add(() => tail);
@@ -274,7 +274,7 @@ export async function openDurableAgentRuntime(
       settings: () => conversation.agent(context),
       get hasStoppableWork() {
         const scope = new Set(durableStopScope(catalogWatch!.value!.agents, conversation.id, !identity.parentId));
-        return Object.values(taskWatch.value.tasks).some(task => scope.has(task.conversationId) && task.kind !== "agents-in-the-cloud.delegation-anchor");
+        return Object.values(taskWatch.value.tasks).some(task => scope.has(task.conversationId) && task.kind !== "kintsugi.delegation-anchor");
       },
       subscribeWork(listener: () => void) { workListeners.add(listener); return () => { workListeners.delete(listener); }; },
       isSubagent: Boolean(identity.parentId),
@@ -514,7 +514,7 @@ export async function openDurableAgentRuntime(
       assertOpen();
       return (await harness.snapshot(WorkspaceAgents, context))!.agents;
     },
-    /** Reuse one host command line per AgentsInTheCloud UUID; reopening never rebuilds its prompt. */
+    /** Reuse one host command line per Kintsugi UUID; reopening never rebuilds its prompt. */
     agent(record: AgentIdentity, initial: Pick<AgentChange, "model" | "thinkingLevel"> = {}) {
       assertOpen();
       let pending = agents.get(record.agentId);

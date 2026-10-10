@@ -4,12 +4,12 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
 import { fauxAssistantMessage, fauxToolCall, type Message } from "@earendil-works/pi-ai";
-import { convertLegacyAgents } from "@agents-in-the-cloud/legacy-converter";
+import { convertLegacyAgents } from "@kintsugi/legacy-converter";
 import { removeClosedWorkspaceAgent, ensureDefaultWorkspaceAgent, listWorkspaceAgents, setWorkspaceAgentTitle } from "../../src/server/agent-store.ts";
 import { durableWorkspaceOwner, suspendAllDurableWorkspaceOwners } from "../../src/server/runtime.ts";
 import { getWorkspaceAgentPresentation, unloadWorkspaceAgentPresentation, closeWorkspaceAgent } from "../../src/server/runtime.ts";
 import { AgentPresentation } from "../../src/server/agent-presentation.ts";
-import { historyNote } from "@agents-in-the-cloud/legacy-converter/entries";
+import { historyNote } from "@kintsugi/legacy-converter/entries";
 
 let root: string;
 let workspace: string;

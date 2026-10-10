@@ -1,13 +1,13 @@
-import { contentRowHtml } from "@agents-in-the-cloud/design-system/content-row";
-import { actionLinkHtml } from "@agents-in-the-cloud/design-system/action-link";
-import { buttonHtml } from "@agents-in-the-cloud/design-system/button";
-import { buttonGroupHtml } from "@agents-in-the-cloud/design-system/button-group";
-import { copyButtonHtml } from "@agents-in-the-cloud/design-system/copy-button";
-import { dialogHtml } from "@agents-in-the-cloud/design-system/dialog";
-import { Icons } from "@agents-in-the-cloud/design-system/icons";
-import { toggleHtml } from "@agents-in-the-cloud/design-system/toggle";
-import { domId, escapeHtml, formatBytes, workspaceFileOpenUrl, workspaceProxyUrl, type WorkspaceWorkViewPresentation } from "@agents-in-the-cloud/shared";
-import { workspaceRoot } from "@agents-in-the-cloud/workspace";
+import { contentRowHtml } from "@kintsugi/design-system/content-row";
+import { actionLinkHtml } from "@kintsugi/design-system/action-link";
+import { buttonHtml } from "@kintsugi/design-system/button";
+import { buttonGroupHtml } from "@kintsugi/design-system/button-group";
+import { copyButtonHtml } from "@kintsugi/design-system/copy-button";
+import { dialogHtml } from "@kintsugi/design-system/dialog";
+import { Icons } from "@kintsugi/design-system/icons";
+import { toggleHtml } from "@kintsugi/design-system/toggle";
+import { domId, escapeHtml, formatBytes, workspaceFileOpenUrl, workspaceProxyUrl, type WorkspaceWorkViewPresentation } from "@kintsugi/shared";
+import { workspaceRoot } from "@kintsugi/workspace";
 import { posix } from "node:path";
 import type { FileEntry } from "./files.ts";
 import { isImageFile } from "../image-file.ts";
@@ -154,7 +154,7 @@ export function renderFilesTreeFrame(workspaceId: string, viewId: string, entrie
     attributesHtml: 'data-action="files#cancel"',
   });
   return `<turbo-frame id="${filesTreeFrameId(workspaceId, viewId)}" data-turbo-permanent class="files-frame">
-    <div class="files-navigator-content" data-controller="files" data-files-workspace-id-value="${escapeHtml(workspaceId)}" data-files-path-value="${escapeHtml(workspaceRoot)}" data-files-upload-url-value="/workspaces/${encodeURIComponent(workspaceId)}/files-view/upload" data-action="agents-in-the-cloud:files-refresh@window->files#diskChanged formdata->files#preserveExpandedDirectories dragenter->files#dragEnter dragover->files#dragOver dragleave->files#dragLeave drop->files#drop keydown->files#keydown">
+    <div class="files-navigator-content" data-controller="files" data-files-workspace-id-value="${escapeHtml(workspaceId)}" data-files-path-value="${escapeHtml(workspaceRoot)}" data-files-upload-url-value="/workspaces/${encodeURIComponent(workspaceId)}/files-view/upload" data-action="kintsugi:files-refresh@window->files#diskChanged formdata->files#preserveExpandedDirectories dragenter->files#dragEnter dragover->files#dragOver dragleave->files#dragLeave drop->files#drop keydown->files#keydown">
       <form class="managed-list__filter files-filter" method="get" action="/workspaces/${encodeURIComponent(workspaceId)}/files" data-controller="server-filter" data-action="input->server-filter#submit" data-turbo-frame="${resultsFrameId}">
         <input type="hidden" name="filesView" value="${escapeHtml(viewId)}">
         <input class="text-field" type="search" name="q" placeholder="Filter files…" aria-label="Filter files by name" autocomplete="off">
@@ -235,8 +235,8 @@ export function renderFilesEditorFrame(workspaceId: string, view: FilesView, pre
         : previewKind === "audio"
           ? `<audio src="${mediaUrl}" controls preload="metadata">Your browser can’t play this audio. Download it to open it elsewhere.</audio>`
           : `<p class="empty-state">${previewKind === "large-text" ? "This text file is too large to edit here." : "No preview available for this file."} Download it to open it elsewhere.</p>`;
-    const fullscreenButton = buttonHtml({ type: "button", variant: "secondary", content: { kind: "caption", caption: "Fullscreen" }, attributesHtml: 'data-action="agents-in-the-cloud-fullscreen#open"' });
-    return `<turbo-frame id="${frameId}" class="files-editor-frame"><section class="file-editor-pane" data-controller="agents-in-the-cloud-fullscreen" data-agents-in-the-cloud-fullscreen-mode-value="media" data-agents-in-the-cloud-fullscreen-title-value="${escapeHtml(name)}">
+    const fullscreenButton = buttonHtml({ type: "button", variant: "secondary", content: { kind: "caption", caption: "Fullscreen" }, attributesHtml: 'data-action="kintsugi-fullscreen#open"' });
+    return `<turbo-frame id="${frameId}" class="files-editor-frame"><section class="file-editor-pane" data-controller="kintsugi-fullscreen" data-kintsugi-fullscreen-mode-value="media" data-kintsugi-fullscreen-title-value="${escapeHtml(name)}">
       <header class="file-editor-toolbar work-view-toolbar"><span class="file-editor-path" title="${escapeHtml(view.path)}">${escapeHtml(view.path)}</span><span class="file-editor-toolbar-actions">${fullscreen ? fullscreenButton : ""}${selectedFileActions(workspaceId, view, true)}${filesNavigatorToggle("expand")}</span></header>
       <div class="file-media-preview">${preview}</div>
     </section></turbo-frame>`;

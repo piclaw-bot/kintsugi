@@ -1,8 +1,8 @@
-import { dockerHostAgentsInTheCloudDataPath, getAgentsInTheCloudRuntimeContext, type AgentsInTheCloudEventBus } from "@agents-in-the-cloud/core";
-import { markdownMathStaticFiles } from "@agents-in-the-cloud/markdown/assets";
-import type { WorkspaceModule } from "@agents-in-the-cloud/shared";
-import { observableTerminalStaticFiles } from "@agents-in-the-cloud/observable-terminal/server";
-import { workspacePortBackend, type WorkspaceDockerMount, type WorkspaceInitInstruction } from "@agents-in-the-cloud/workspace";
+import { dockerHostKintsugiDataPath, getKintsugiRuntimeContext, type KintsugiEventBus } from "@kintsugi/core";
+import { markdownMathStaticFiles } from "@kintsugi/markdown/assets";
+import type { WorkspaceModule } from "@kintsugi/shared";
+import { observableTerminalStaticFiles } from "@kintsugi/observable-terminal/server";
+import { workspacePortBackend, type WorkspaceDockerMount, type WorkspaceInitInstruction } from "@kintsugi/workspace";
 import { mkdir } from "node:fs/promises";
 import { createAgentTermSocketSession } from "./bash-tmux.ts";
 import { sessionShareDir, sessionShareKeyForInit, sessionShareMountPath } from "./session-share.ts";
@@ -17,10 +17,10 @@ type WorkspacePlanEvents = {
 };
 
 function dockerHostSessionShareDir(shareKey: string): string {
-  return dockerHostAgentsInTheCloudDataPath(getAgentsInTheCloudRuntimeContext(), "session-shares", shareKey);
+  return dockerHostKintsugiDataPath(getKintsugiRuntimeContext(), "session-shares", shareKey);
 }
 
-function registerSessionShareMountEvents(events: AgentsInTheCloudEventBus): void {
+function registerSessionShareMountEvents(events: KintsugiEventBus): void {
   // SAFETY: The module boundary validates or constructs this value with the asserted domain shape.
   (events as WorkspacePlanEvents).on("workspace_plan_prepare", async ({ init, plan }) => {
     const shareKey = sessionShareKeyForInit(init);

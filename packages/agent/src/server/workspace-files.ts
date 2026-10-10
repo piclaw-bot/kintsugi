@@ -1,7 +1,7 @@
 import { posix } from "node:path";
-import { shellQuote } from "@agents-in-the-cloud/core";
-import { workspaceContainerName } from "@agents-in-the-cloud/workspace";
-import { extensionOf, imageMimeByExtension } from "@agents-in-the-cloud/shared/file-metadata";
+import { shellQuote } from "@kintsugi/core";
+import { workspaceContainerName } from "@kintsugi/workspace";
+import { extensionOf, imageMimeByExtension } from "@kintsugi/shared/file-metadata";
 
 interface WorkspaceFileMimeRegistry {
   [extension: string]: string;

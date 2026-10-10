@@ -1,7 +1,7 @@
 // Renders a triage report.json into a self-contained report.html (and report.md).
 // Usage: bun .agents/skills/feedback-triage/render.ts <path/to/report.json>
 //
-// The page uses AgentsInTheCloud's own design system (inlined CSS, Disclosure rows)
+// The page uses Kintsugi's own design system (inlined CSS, Disclosure rows)
 // and Pierre diffs rendered server-side. Images and videos are inlined as data: URIs.
 import MarkdownIt from "../../../packages/markdown/node_modules/markdown-it/index.mjs";
 import { disclosureHtml } from "../../../packages/design-system/src/disclosure/disclosure-html.ts";
@@ -114,7 +114,7 @@ const r = report;
 type Experiment = Report["experiments"][number];
 const playPrompt = (e: Experiment) => `Fetch and check out the branch \`${e.branch}\` from origin. It's a triage prototype ("${e.title}") for ${r.source.url}. The user's goal: "${r.goal}"
 
-Read the branch's commits (\`git log main..${e.branch}\`, \`git diff main...${e.branch}\`) to understand the change. If it's behind origin/main, rebase it locally. Then run AgentsInTheCloud with \`bun run web\`, stage it (see docs/automation.md) so the change can be tried right away, and present it to me in the preview browser. Don't push anything; I want to play around with it myself first.`;
+Read the branch's commits (\`git log main..${e.branch}\`, \`git diff main...${e.branch}\`) to understand the change. If it's behind origin/main, rebase it locally. Then run Kintsugi with \`bun run web\`, stage it (see docs/automation.md) so the change can be tried right away, and present it to me in the preview browser. Don't push anything; I want to play around with it myself first.`;
 const mergePrompt = (e: Experiment) => `Land the branch \`${e.branch}\` on main. It's a triage change ("${e.title}") for ${r.source.url}.
 
 1. \`git fetch origin\`, check out \`${e.branch}\`, and rebase it onto origin/main. Resolve conflicts if needed.

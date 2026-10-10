@@ -48,7 +48,7 @@ await mkdir(join(outDir, "files"), { recursive: true });
 
 const hash = createHash("sha256");
 // v14 embeds the resulting signature as an image label.
-hash.update("agents-in-the-cloud-workspace-image-v14\n");
+hash.update("kintsugi-workspace-image-v14\n");
 const env = {};
 const moduleNames = [];
 const modules = [];
@@ -92,7 +92,7 @@ for (const name of (await readdir(gatewaySource)).sort()) {
   hash.update(await readFile(join(gatewaySource, name)));
 }
 
-let dockerfile = `FROM golang:1.26.0 AS gateway-build\nWORKDIR /src\nCOPY gateway/ ./\nRUN go test ./... && CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /agents-in-the-cloud-workspace-gateway .\n\nFROM oven/bun:1.4.0 AS bun-dist\n\nFROM ${runtimeImage}\n\nARG DEBIAN_FRONTEND=noninteractive\nLABEL com.agents-in-the-cloud.workspace-image.modules=${quote(moduleNames.join(","))}\n\nRUN mkdir -p /opt/agents-in-the-cloud/home-defaults && cp -a /etc/skel/. /opt/agents-in-the-cloud/home-defaults/\n\n`;
+let dockerfile = `FROM golang:1.26.0 AS gateway-build\nWORKDIR /src\nCOPY gateway/ ./\nRUN go test ./... && CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /kintsugi-workspace-gateway .\n\nFROM oven/bun:1.4.0 AS bun-dist\n\nFROM ${runtimeImage}\n\nRUN test -x /usr/local/bin/kintsugi-dockerd || ln -s /usr/local/bin/agents-in-the-cloud-dockerd /usr/local/bin/kintsugi-dockerd\nRUN test -x /usr/local/bin/kintsugi-image-transfer || ln -s /usr/local/bin/agents-in-the-cloud-image-transfer /usr/local/bin/kintsugi-image-transfer\n\nARG DEBIAN_FRONTEND=noninteractive\nLABEL com.kintsugi.workspace-image.modules=${quote(moduleNames.join(","))}\n\nRUN mkdir -p /opt/kintsugi/home-defaults && cp -a /etc/skel/. /opt/kintsugi/home-defaults/\n\n`;
 dockerfile += `COPY --from=bun-dist /usr/local/bin/bun /usr/local/bin/bun\nCOPY --from=bun-dist /usr/local/bin/bunx /usr/local/bin/bunx\nRUN bun --version\n\n`;
 function appendCopies(copies) {
   for (const copy of copies) {
@@ -113,22 +113,22 @@ for (const module of modules) {
   for (const script of module.runInstructions) dockerfile += `RUN ${dockerEscapeRun(script)}\n\n`;
 }
 // Module installation must not change the original home. Template-only defaults are copied later.
-dockerfile += `RUN diff -r --no-dereference /opt/agents-in-the-cloud/home-defaults /home/agents-in-the-cloud\n`;
+dockerfile += `RUN diff -r --no-dereference /opt/kintsugi/home-defaults /home/agent\n`;
 if (finalCopies.length) dockerfile += "# Files independent of module setup\n";
 appendCopies(finalCopies);
 if (Object.keys(env).length) dockerfile += `ENV ${Object.entries(env).map(([key, value]) => `${key}=${quote(value)}`).join(" \\\n    ")}\n\n`;
-dockerfile += `COPY --from=gateway-build /agents-in-the-cloud-workspace-gateway /usr/local/bin/agents-in-the-cloud-workspace-gateway\n\n`;
+dockerfile += `COPY --from=gateway-build /kintsugi-workspace-gateway /usr/local/bin/kintsugi-workspace-gateway\n\n`;
 await mkdir(join(outDir, "runtime-units"));
 for (const [name, content] of Object.entries(workspaceRuntimeUnits())) {
   await writeFile(join(outDir, "runtime-units", name), content);
 }
 dockerfile += `COPY runtime-units/ /usr/lib/systemd/system/\n`;
 dockerfile += `RUN python3 -c 'import json; p="/etc/docker/daemon.json"; c=json.load(open(p)); c["hosts"]=["fd://"]; json.dump(c,open(p,"w"))'\n`;
-dockerfile += `RUN mkdir -p /etc/agents-in-the-cloud && printf "disabled\\n\\n" > /etc/agents-in-the-cloud/docker-support\n`;
-dockerfile += `RUN mkdir -p /.agents-in-the-cloud && printf "systemctl start agents-in-the-cloud-tmux.service\\n" > /.agents-in-the-cloud/init.sh\n`;
+dockerfile += `RUN mkdir -p /etc/kintsugi && printf "disabled\\n\\n" > /etc/kintsugi/docker-support\n`;
+dockerfile += `RUN mkdir -p /.kintsugi && printf "systemctl start kintsugi-tmux.service\\n" > /.kintsugi/init.sh\n`;
 // binfmt registrations belong to the host kernel; workspace shutdown must not unregister them.
 dockerfile += `RUN systemctl mask systemd-binfmt.service\n`;
-dockerfile += `ENTRYPOINT ["/usr/local/bin/agents-in-the-cloud-workspace-init"]\nCMD []\nWORKDIR /work\n`;
+dockerfile += `ENTRYPOINT ["/usr/local/bin/kintsugi-workspace-init"]\nCMD []\nWORKDIR /work\n`;
 await writeFile(join(outDir, "Dockerfile"), dockerfile);
 // Identity covers the Docker build context, including generated instructions,
 // file modes and symlinks, excluding the self-referential signature label added below.
@@ -146,6 +146,6 @@ async function hashContext(directory, prefix = "") {
 }
 await hashContext(outDir);
 const signature = hash.digest("hex").slice(0, 16);
-dockerfile += `LABEL com.agents-in-the-cloud.workspace-image.signature=${quote(signature)}\n`;
+dockerfile += `LABEL com.kintsugi.workspace-image.signature=${quote(signature)}\n`;
 await writeFile(join(outDir, "Dockerfile"), dockerfile);
-await writeFile(join(outDir, "metadata.json"), `${JSON.stringify({ tag: `agents-in-the-cloud-workspace:${signature}`, modules: moduleNames }, null, 2)}\n`);
+await writeFile(join(outDir, "metadata.json"), `${JSON.stringify({ tag: `kintsugi-workspace:${signature}`, modules: moduleNames }, null, 2)}\n`);

@@ -9,20 +9,20 @@ async function scenario(script: string) {
   try {
     const child = Bun.spawn([process.execPath, "-e", `
       import { expect, mock } from "bun:test";
-      const llm = await import("@agents-in-the-cloud/llm/server");
+      const llm = await import("@kintsugi/llm/server");
       const enabledModels = [
         { provider: "openai-codex", id: "codex", label: "Codex" },
         { provider: "anthropic", id: "first", label: "First" },
         { provider: "anthropic", id: "second", label: "Second" },
         { provider: "anthropic", id: "unavailable", label: "Unavailable" },
       ];
-      mock.module("@agents-in-the-cloud/llm/server", () => ({ ...llm,
+      mock.module("@kintsugi/llm/server", () => ({ ...llm,
         getEnabledModels: async () => enabledModels,
         requireProviderSubscription: async () => {},
         createPiModelRuntime: async () => ({ getAvailable: async () => enabledModels.slice(0, 3), checkAuth: async () => true, getProviderAuthStatus: () => ({ configured: true }), getModel: () => ({ thinkingLevelMap: { minimal: "low", off: null, xhigh: "max" } }) }),
         modelThinkingLevels: async () => ["off", "minimal", "low", "medium", "high", "xhigh"],
       }));
-      const { agentsInTheCloudServerModule: { agentType: { launch } } } = await import(${JSON.stringify(join(import.meta.dir, "../src/server/index.ts"))});
+      const { kintsugiServerModule: { agentType: { launch } } } = await import(${JSON.stringify(join(import.meta.dir, "../src/server/index.ts"))});
       const prepare = async (parameters) => (await launch.prepare(parameters)).agent;
       ${script}
     `], { cwd: join(import.meta.dir, ".."), env: { ...process.env, ATELIER_DATA_DIR: directory }, stdout: "pipe", stderr: "pipe" });

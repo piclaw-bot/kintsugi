@@ -1,7 +1,7 @@
-import { escapeHtml, liveCollection, type LiveRegion } from "@agents-in-the-cloud/shared";
-import { commentaryContext, ids, type AgentRenderContext } from "@agents-in-the-cloud/agent/server/render-context";
-import { renderModelContextEntries, renderTranscriptItem, renderWorkingSection, workingCommentaryItems, type AgentModelContextView } from "@agents-in-the-cloud/agent/server/render-transcript";
-import type { TranscriptItem, WorkingTranscriptItem } from "@agents-in-the-cloud/agent/server/transcript";
+import { escapeHtml, liveCollection, type LiveRegion } from "@kintsugi/shared";
+import { commentaryContext, ids, type AgentRenderContext } from "@kintsugi/agent/server/render-context";
+import { renderModelContextEntries, renderTranscriptItem, renderWorkingSection, workingCommentaryItems, type AgentModelContextView } from "@kintsugi/agent/server/render-transcript";
+import type { TranscriptItem, WorkingTranscriptItem } from "@kintsugi/agent/server/transcript";
 
 export class LiveTranscriptRenderer {
   private readonly cache = new Map<string, { fingerprint: string; html: string }>();

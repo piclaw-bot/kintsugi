@@ -1,9 +1,9 @@
 #!/bin/bash
 # Exercise a first supervisor boot against a disposable local registry, including
-# the eagerly-preload label. Requires built System and agents-in-the-cloud-test:v1 images.
+# the eagerly-preload label. Requires built System and kintsugi-test:v1 images.
 set -euo pipefail
-system_image="${1:-agents-in-the-cloud-system:big-rewrite}"
-name="agents-in-the-cloud-bootstrap-test-$$"
+system_image="${1:-kintsugi-system:big-rewrite}"
+name="kintsugi-bootstrap-test-$$"
 volume="$name"
 cleanup() {
     docker rm -f "$name" >/dev/null 2>&1 || true
@@ -12,18 +12,18 @@ cleanup() {
 trap cleanup EXIT
 docker pull registry:2 >/dev/null
 docker run -d --privileged --cgroupns=host --tmpfs /run --name "$name" --mount "source=$volume,target=/data" \
-    --entrypoint /usr/local/bin/agents-in-the-cloud-dockerd "$system_image" dockerd >/dev/null
+    --entrypoint /usr/local/bin/kintsugi-dockerd "$system_image" dockerd >/dev/null
 for ((i=0;i<120;i++)); do
     if docker exec "$name" docker info >/dev/null 2>&1; then break; fi
     sleep 0.25
 done
 docker exec "$name" docker info >/dev/null
-docker save registry:2 agents-in-the-cloud-test:v1 | docker exec -i "$name" docker load >/dev/null
+docker save registry:2 kintsugi-test:v1 | docker exec -i "$name" docker load >/dev/null
 docker exec "$name" docker run -d --name registry --restart always \
     -p 127.0.0.1:5000:5000 --mount source=registry,target=/var/lib/registry registry:2 >/dev/null
-docker exec "$name" docker tag agents-in-the-cloud-test:v1 localhost:5000/test-base:latest
+docker exec "$name" docker tag kintsugi-test:v1 localhost:5000/test-base:latest
 docker exec "$name" docker push localhost:5000/test-base:latest >/dev/null
-printf '%s\n' 'FROM agents-in-the-cloud-test:v1' 'LABEL eagerly-preload="[\"localhost:5000/test-base:latest\"]"' \
+printf '%s\n' 'FROM kintsugi-test:v1' 'LABEL eagerly-preload="[\"localhost:5000/test-base:latest\"]"' \
     | docker exec -i "$name" docker build -t localhost:5000/test-app:v1 - >/dev/null
 docker exec "$name" docker push localhost:5000/test-app:v1 >/dev/null
 docker exec "$name" docker image rm localhost:5000/test-app:v1 localhost:5000/test-base:latest >/dev/null

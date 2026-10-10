@@ -1,7 +1,7 @@
-import { createCliAgentModule, emptyAgentInput } from "@agents-in-the-cloud/cli-agent/server";
-import { createPiModelRuntime } from "@agents-in-the-cloud/llm/server";
-import { registerWorkspaceRequestTransform } from "@agents-in-the-cloud/proxy-egress/server";
-import { providerBrandIconHtml, type WorkspaceModule } from "@agents-in-the-cloud/shared";
+import { createCliAgentModule, emptyAgentInput } from "@kintsugi/cli-agent/server";
+import { createPiModelRuntime } from "@kintsugi/llm/server";
+import { registerWorkspaceRequestTransform } from "@kintsugi/proxy-egress/server";
+import { providerBrandIconHtml, type WorkspaceModule } from "@kintsugi/shared";
 import { installPiCliConfiguration } from "./pi-cli.ts";
 import { createPiCliCredentialTransform, piCliCredentialHosts } from "./pi-cli-bridge.ts";
 import { requirePiModels } from "./auth.ts";
@@ -23,7 +23,7 @@ const cliModule = createCliAgentModule({
   historyFiles: piHistoryFiles,
 });
 
-export const agentsInTheCloudServerModule: WorkspaceModule = {
+export const kintsugiServerModule: WorkspaceModule = {
   ...cliModule,
   initialize(context) {
     cliModule.initialize!(context);

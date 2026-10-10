@@ -4,10 +4,10 @@
  * desktop (1440×900) layout. Soft-keyboard behaviour is Tier 2
  * (acceptance/soft-keyboard.ts).
  *
- * Run by hand or by an agent against a running Atelier; never part of a test suite or CI:
+ * Run by hand or by an agent against a running Kintsugi; never part of a test suite or CI:
  *
- *   atelier-desktop start            # prints the CDP URL
- *   bun acceptance/composer-layout.ts [--atelier http://localhost:3000] [--cdp http://127.0.0.1:9222]
+ *   kintsugi-desktop start            # prints the CDP URL
+ *   bun acceptance/composer-layout.ts [--kintsugi http://localhost:3000] [--cdp http://127.0.0.1:9222]
  *     [--workspace <id>] [--model provider::model] [--out <dir>] [--only <regex>]
  *
  * Every transition is checked on a per-frame trace: each tracked element changes
@@ -25,7 +25,7 @@ import { analyseTransition, check, close, oneStepChecks, settled, type Box, type
 
 const { values: args } = parseArgs({
   options: {
-    atelier: { type: "string", default: "http://localhost:3000" },
+    kintsugi: { type: "string", default: "http://localhost:3000" },
     cdp: { type: "string", default: "http://127.0.0.1:9222" },
     workspace: { type: "string" },
     model: { type: "string" },
@@ -39,17 +39,17 @@ const out = args.out ?? `/persistent/acceptance-reports/composer-layout-${stamp}
 await mkdir(out, { recursive: true });
 const log = (message: string): void => console.log(`[composer-layout] ${message}`);
 
-const setup: Stage = await stage({ atelier: args.atelier, workspaceId: args.workspace, model: args.model, log });
+const setup: Stage = await stage({ kintsugi: args.kintsugi, workspaceId: args.workspace, model: args.model, log });
 log(`workspace ${setup.workspaceId}: built-in ${setup.builtinId}, Pi ${setup.piId}, terminal ${setup.terminalKey}`);
 const report = new Report(out, "Composer layout acceptance (Tier 1, Chrome)", {
-  atelier: args.atelier, workspace: setup.workspaceId, "built-in agent": setup.builtinId, "Pi agent": setup.piId, "Terminal view": setup.terminalKey, started: new Date().toISOString(),
+  kintsugi: args.kintsugi, workspace: setup.workspaceId, "built-in agent": setup.builtinId, "Pi agent": setup.piId, "Terminal view": setup.terminalKey, started: new Date().toISOString(),
 });
 
 const page = await ChromePage.open(args.cdp);
-const builtinUrl = `${setup.atelier}/workspaces/${setup.workspaceId}?agent=${setup.builtinId}`;
-const piUrl = `${setup.atelier}/workspaces/${setup.workspaceId}?agent=${setup.piId}`;
-const terminalUrl = `${setup.atelier}/workspaces/${setup.workspaceId}?workView=${encodeURIComponent(setup.terminalKey)}`;
-const draftKey = `agents-in-the-cloud.agentComposerText:${JSON.stringify([setup.workspaceId, setup.builtinId])}`;
+const builtinUrl = `${setup.kintsugi}/workspaces/${setup.workspaceId}?agent=${setup.builtinId}`;
+const piUrl = `${setup.kintsugi}/workspaces/${setup.workspaceId}?agent=${setup.piId}`;
+const terminalUrl = `${setup.kintsugi}/workspaces/${setup.workspaceId}?workView=${encodeURIComponent(setup.terminalKey)}`;
+const draftKey = `kintsugi.agentComposerText:${JSON.stringify([setup.workspaceId, setup.builtinId])}`;
 
 const sel = {
   pane: ".agent-composer-pane",
@@ -156,7 +156,7 @@ function floatingStackChecks(frame: Frame, composerOpen: boolean, surface: Box =
 }
 
 async function stageDraft(text: string | null): Promise<void> {
-  await page.evaluate<boolean>(`(() => { localStorage.removeItem("agents-in-the-cloud:software-keyboard"); ${text === null ? `localStorage.removeItem(${JSON.stringify(draftKey)})` : `localStorage.setItem(${JSON.stringify(draftKey)}, ${JSON.stringify(text)})`}; return true; })()`);
+  await page.evaluate<boolean>(`(() => { localStorage.removeItem("kintsugi:software-keyboard"); ${text === null ? `localStorage.removeItem(${JSON.stringify(draftKey)})` : `localStorage.setItem(${JSON.stringify(draftKey)}, ${JSON.stringify(text)})`}; return true; })()`);
 }
 
 const tinyPng = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAQAAAAECAIAAAAmkwkpAAAAEklEQVR4nGP4z8AARwzEcQAApjAJ+4n1yJ0AAAAASUVORK5CYII=", "base64");
@@ -464,7 +464,7 @@ await page.navigate(builtinUrl, sel.transcript);
 await Bun.sleep(3000);
 
 await scenario("desktop-D1-selection", "D1: on desktop the composer is open and its text field focused when the workspace is selected.", async (recorder) => {
-  await page.navigate(`${setup.atelier}/`, "body");
+  await page.navigate(`${setup.kintsugi}/`, "body");
   await page.navigate(builtinUrl, sel.input);
   const { after } = await transition(recorder, "after selection", async () => {}, { waitMs: 200, expectChange: false });
   const buttonColumn = await page.evaluate<NonNullable<Box>[]>(`[...document.querySelectorAll(".agent-composer-pane .composer-button")].filter((slot) => slot.checkVisibility() && [...slot.querySelectorAll("button")].some((button) => button.checkVisibility())).map((slot) => { const r = slot.getBoundingClientRect(); return [r.left, r.top, r.width, r.height]; })`);
@@ -527,7 +527,7 @@ await scenario("desktop-D21-D22-floating", "D21/D22 on desktop: the floating-but
 // Launch is a dialog host for the same editor, with its own height budget.
 for (const layout of ["mobile", "desktop"] as const) {
   await page.layout(layout);
-  await page.navigate(`${setup.atelier}/workspaces/new`, ".launch-composer .composer-input");
+  await page.navigate(`${setup.kintsugi}/workspaces/new`, ".launch-composer .composer-input");
   await Bun.sleep(1000); // Navigation/layout resizing is not a launch-editor transition.
   await scenario(`${layout}-launch-editor`, "Launch opens without a mobile keyboard, grows with text, and keeps launch controls in reach.", async (recorder) => {
     const focused = await page.evaluate<boolean>('document.activeElement.matches(".launch-composer .composer-input")');

@@ -10,9 +10,9 @@ const app = { appKey: "vscode", workspaceId: "navigation" };
 
 async function navigationResponse(path: string, gotoLine = false): Promise<Response> {
   const url = new URL("https://workspace.example:41000/");
-  url.searchParams.set("agentsInTheCloudOpenFile", path);
-  if (gotoLine) url.searchParams.set("agentsInTheCloudGotoLine", "1");
-  url.searchParams.set("agentsInTheCloudBg", "#112233");
+  url.searchParams.set("kintsugiOpenFile", path);
+  if (gotoLine) url.searchParams.set("kintsugiGotoLine", "1");
+  url.searchParams.set("kintsugiBg", "#112233");
   const response = new Response("", { headers: { "content-type": "text/html" } });
   return patchVSCodeWorkspaceAppResponse(app, response, new Request(url));
 }
@@ -27,9 +27,9 @@ test("file navigation redirects to VS Code's native payload on this browser's ap
     ["openFile", "vscode-remote://workspace.example:41000/work/example.ts:42:3"],
     ["gotoLineMode", "true"],
   ]);
-  expect(target.searchParams.has("agentsInTheCloudOpenFile")).toBe(false);
-  expect(target.searchParams.has("agentsInTheCloudGotoLine")).toBe(false);
-  expect(target.searchParams.get("agentsInTheCloudBg")).toBe("#112233");
+  expect(target.searchParams.has("kintsugiOpenFile")).toBe(false);
+  expect(target.searchParams.has("kintsugiGotoLine")).toBe(false);
+  expect(target.searchParams.get("kintsugiBg")).toBe("#112233");
 });
 
 test("literal path punctuation is URI encoded and is not treated as a cursor position", async () => {
@@ -53,7 +53,7 @@ async function runOpenFileScript(windows: Array<"accepts" | "refuses">): Promise
     await writeFile(cli, `#!/bin/sh\ncase "$VSCODE_IPC_HOOK_CLI" in ${windows.map((mode, index) => `*-${index}.sock) ${mode === "accepts" ? `echo "$VSCODE_IPC_HOOK_CLI $*" >> '${directory}/opened'` : "exit 1"} ;;`).join(" ")} esac\n`, { mode: 0o755 });
     const script = vscodeOpenFileScript("/work/it's here.ts:4:2", true)
       .replaceAll("/tmp/vscode-ipc-", join(directory, "vscode-ipc-"))
-      .replaceAll("/opt/agents-in-the-cloud/vscode-server/bin/remote-cli/code", cli);
+      .replaceAll("/opt/kintsugi/vscode-server/bin/remote-cli/code", cli);
     const process = Bun.spawn(["sh", "-c", script], { stdout: "pipe" });
     const [, stdout] = await Promise.all([process.exited, new Response(process.stdout).text()]);
     const openedFile = Bun.file(join(directory, "opened"));

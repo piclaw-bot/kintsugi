@@ -8,7 +8,7 @@ let directory: string;
 let binDirectory: string;
 
 beforeEach(async () => {
-  directory = await mkdtemp(join(tmpdir(), "agents-in-the-cloud-seed-startup-"));
+  directory = await mkdtemp(join(tmpdir(), "kintsugi-seed-startup-"));
   binDirectory = join(directory, "bin");
   await mkdir(binDirectory);
   await writeFile(join(binDirectory, "su"), `#!/bin/sh\nexec /bin/sh -c "$5" "$6" "$7"\n`);

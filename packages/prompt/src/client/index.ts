@@ -1,10 +1,10 @@
-import { isWorkspacePaneVisible, type WorkspaceClientModule } from "@agents-in-the-cloud/shared";
+import { isWorkspacePaneVisible, type WorkspaceClientModule } from "@kintsugi/shared";
 import { createAgentAttachmentsController } from "./attachments-controller.ts";
 import { createComposerFocusController } from "./composer-focus-controller.ts";
 import { createComposerSendHintController } from "./composer-send-hint-controller.ts";
 import { createAgentComposerController } from "./agent-composer-controller.ts";
 import { createComposerSelectionAutosubmitController } from "./composer-selection-controller.ts";
-export const agentsInTheCloudClientModule: WorkspaceClientModule = {
+export const kintsugiClientModule: WorkspaceClientModule = {
   id: "prompt",
   install({ application, Controller, hooks }) {
     application.register("composer-focus", createComposerFocusController(Controller));

@@ -29,7 +29,7 @@ function daemon(options: { failVolumeRemoval?: boolean; leaveContainer?: boolean
   const docker = async (...args: string[]) => {
     commands.push(args);
     if (args[0] === "ps") {
-      if (args.includes("label=com.agents-in-the-cloud.type=workspace")) return workspaces;
+      if (args.includes("label=com.kintsugi.type=workspace")) return workspaces;
       return (args.includes("-q") ? running : containers).join("\n");
     }
     if (args[0] === "stop") { running = []; return ""; }

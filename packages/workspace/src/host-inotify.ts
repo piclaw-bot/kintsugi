@@ -1,4 +1,4 @@
-import { runDocker } from "@agents-in-the-cloud/core";
+import { runDocker } from "@kintsugi/core";
 
 // inotify instances are shared by host UID, including the root processes in
 // every workspace. Set the host minimum through Docker, also on Docker Desktop.
@@ -20,10 +20,10 @@ export async function ensureHostInotifyLimit(image: string, docker = runDocker):
   const result = await docker([
     "run", "--rm", "--pull=never", "--privileged", "--network=none",
     "--user", "root", "--entrypoint", "/bin/sh", image,
-    "-c", inotifyMinimumScript, "agents-in-the-cloud-inotify", "/proc/sys/fs/inotify/max_user_instances",
+    "-c", inotifyMinimumScript, "kintsugi-inotify", "/proc/sys/fs/inotify/max_user_instances",
   ]);
   if (result.exitCode !== 0) {
-    throw new Error(`Cannot prepare the Docker host for workspace file watchers. Allow privileged helper containers, or set fs.inotify.max_user_instances to at least 8192 on the Docker host, then restart AgentsInTheCloud.\n${result.stderr.trim() || result.stdout.trim()}`);
+    throw new Error(`Cannot prepare the Docker host for workspace file watchers. Allow privileged helper containers, or set fs.inotify.max_user_instances to at least 8192 on the Docker host, then restart Kintsugi.\n${result.stderr.trim() || result.stdout.trim()}`);
   }
   console.log(`[workspaces] ${result.stdout.trim()}`);
 }

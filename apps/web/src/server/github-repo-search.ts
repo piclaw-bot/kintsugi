@@ -1,8 +1,8 @@
 import { createHash } from "node:crypto";
-import { contentRowHtml } from "@agents-in-the-cloud/design-system/content-row";
-import { autocompleteHtml } from "@agents-in-the-cloud/design-system/autocomplete";
-import { discoverGitHubToken } from "@agents-in-the-cloud/proxy-egress";
-import { escapeHtml } from "@agents-in-the-cloud/shared";
+import { contentRowHtml } from "@kintsugi/design-system/content-row";
+import { autocompleteHtml } from "@kintsugi/design-system/autocomplete";
+import { discoverGitHubToken } from "@kintsugi/proxy-egress";
+import { escapeHtml } from "@kintsugi/shared";
 import { Type } from "typebox";
 import { Value } from "typebox/value";
 

@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import type { Repository, WorkingFileRevision } from "@agents-in-the-cloud/workspace/git";
+import type { Repository, WorkingFileRevision } from "@kintsugi/workspace/git";
 import { canEditFile, diskContents, editLineEnding, maxChangesTextBytes, maxChangesTextLines, type EditModel, type EditedCommentRange } from "../editing.ts";
 import { captureChanges, workingTree, type ChangesSnapshot } from "./snapshot.ts";
 

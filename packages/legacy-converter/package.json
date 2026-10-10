@@ -1,5 +1,5 @@
 {
-  "name": "@agents-in-the-cloud/legacy-converter",
+  "name": "@kintsugi/legacy-converter",
   "private": true,
   "type": "module",
   "exports": {
@@ -7,7 +7,7 @@
     "./entries": "./src/entries.ts"
   },
   "dependencies": {
-    "@agents-in-the-cloud/core": "workspace:*",
+    "@kintsugi/core": "workspace:*",
     "@earendil-works/pi-ai": "catalog:",
     "@earendil-works/pi-coding-agent": "catalog:",
     "@earendil-works/pi-durable": "catalog:",

@@ -1,11 +1,11 @@
 import type { Models } from "@earendil-works/pi-ai";
 import type { Extension, Harness, ConversationView, EntryRecord } from "@earendil-works/pi-durable";
-import type { AgentTranscriptSnapshot } from "@agents-in-the-cloud/agent/server/transcript-contributions";
-import { AgentsInTheCloudCoreError } from "@agents-in-the-cloud/core";
+import type { AgentTranscriptSnapshot } from "@kintsugi/agent/server/transcript-contributions";
+import { KintsugiCoreError } from "@kintsugi/core";
 import { listWorkspaceAgents, type WorkspaceAgentInfo } from "./agent-store.ts";
 
-import { configureAgentToolPresentations, type AgentToolPresentation } from "@agents-in-the-cloud/agent/server";
-export type { AgentToolPresentation } from "@agents-in-the-cloud/agent/server";
+import { configureAgentToolPresentations, type AgentToolPresentation } from "@kintsugi/agent/server";
+export type { AgentToolPresentation } from "@kintsugi/agent/server";
 
 export interface AgentDelegation {
   renderControl(workspaceId: string, agentId: string): Promise<string>;
@@ -29,5 +29,5 @@ export async function resolveAgent(workspaceId: string, agentId: string): Promis
   if (root) return root;
   const child = await agentDelegation?.resolveAgent(workspaceId, agentId);
   if (child) return child;
-  throw new AgentsInTheCloudCoreError("agent_not_found", `Agent not found: ${agentId}`);
+  throw new KintsugiCoreError("agent_not_found", `Agent not found: ${agentId}`);
 }

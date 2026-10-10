@@ -1,5 +1,5 @@
 import { createHash, randomBytes } from "node:crypto";
-import { createWorkspaceMetadataState } from "@agents-in-the-cloud/workspace";
+import { createWorkspaceMetadataState } from "@kintsugi/workspace";
 import { Type, type Static } from "typebox";
 import { Value } from "typebox/value";
 
@@ -40,7 +40,7 @@ export function authenticateAgentRequest(request: Request, authenticate: (token:
   const token = request.headers.get("authorization")?.match(/^Bearer (\S+)$/i)?.[1];
   const identity = token ? authenticate(token) : undefined;
   if (!identity || (workspaceId !== undefined && identity.workspaceId !== workspaceId)) {
-    return new Response("Unauthorized", { status: 401, headers: { "WWW-Authenticate": 'Bearer realm="agents-in-the-cloud-mcp"', "Cache-Control": "no-store" } });
+    return new Response("Unauthorized", { status: 401, headers: { "WWW-Authenticate": 'Bearer realm="kintsugi-mcp"', "Cache-Control": "no-store" } });
   }
   return identity;
 }

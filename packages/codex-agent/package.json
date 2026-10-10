@@ -1,20 +1,20 @@
 {
-  "name": "@agents-in-the-cloud/codex-agent",
+  "name": "@kintsugi/codex-agent",
   "private": true,
   "type": "module",
   "exports": {
     "./server": "./src/server/index.ts"
   },
   "dependencies": {
-    "@agents-in-the-cloud/agent": "workspace:*",
-    "@agents-in-the-cloud/builtin-agent": "workspace:*",
-    "@agents-in-the-cloud/cli-agent": "workspace:*",
-    "@agents-in-the-cloud/core": "workspace:*",
-    "@agents-in-the-cloud/llm": "workspace:*",
-    "@agents-in-the-cloud/prompt": "workspace:*",
-    "@agents-in-the-cloud/shared": "workspace:*",
-    "@agents-in-the-cloud/workspace": "workspace:*",
-    "@agents-in-the-cloud/design-system": "workspace:*",
+    "@kintsugi/agent": "workspace:*",
+    "@kintsugi/builtin-agent": "workspace:*",
+    "@kintsugi/cli-agent": "workspace:*",
+    "@kintsugi/core": "workspace:*",
+    "@kintsugi/llm": "workspace:*",
+    "@kintsugi/prompt": "workspace:*",
+    "@kintsugi/shared": "workspace:*",
+    "@kintsugi/workspace": "workspace:*",
+    "@kintsugi/design-system": "workspace:*",
     "typebox": "^1.0.57"
   }
 }

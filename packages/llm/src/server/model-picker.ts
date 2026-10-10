@@ -1,7 +1,7 @@
-import { contentRowHtml } from "@agents-in-the-cloud/design-system/content-row";
-import { buttonHtml } from "@agents-in-the-cloud/design-system/button";
-import { popupHtml } from "@agents-in-the-cloud/design-system/popup";
-import { escapeHtml, providerBrandIconHtml } from "@agents-in-the-cloud/shared";
+import { contentRowHtml } from "@kintsugi/design-system/content-row";
+import { buttonHtml } from "@kintsugi/design-system/button";
+import { popupHtml } from "@kintsugi/design-system/popup";
+import { escapeHtml, providerBrandIconHtml } from "@kintsugi/shared";
 import { getSupportedThinkingLevels } from "@earendil-works/pi-ai";
 import { createPiModelRuntime } from "./pi-config-models.ts";
 import { parseModelRef } from "./model-reference.ts";

@@ -1,16 +1,16 @@
-import { setActivityButtonState } from "@agents-in-the-cloud/design-system/activity-button/client";
-import { CableTopics, changeLayout, isWorkspacePaneVisible, type AgentComposerSendPromptDetail, composerSubmitKey, setTextInputValue, type CableSubscription, type WorkspaceClientApplication as StimulusApplication, type WorkspaceClientControllerConstructor as StimulusControllerConstructor, type WorkspaceClientHooks } from "@agents-in-the-cloud/shared";
+import { setActivityButtonState } from "@kintsugi/design-system/activity-button/client";
+import { CableTopics, changeLayout, isWorkspacePaneVisible, type AgentComposerSendPromptDetail, composerSubmitKey, setTextInputValue, type CableSubscription, type WorkspaceClientApplication as StimulusApplication, type WorkspaceClientControllerConstructor as StimulusControllerConstructor, type WorkspaceClientHooks } from "@kintsugi/shared";
 import { Type } from "typebox";
 import { Value } from "typebox/value";
-import { agentComposerPrimaryAction, agentComposerTextStorageKey, PromptHistoryNavigator } from "@agents-in-the-cloud/agent/client/composer-state";
-import { TranscriptNavigation } from "@agents-in-the-cloud/agent/client/transcript-navigation";
+import { agentComposerPrimaryAction, agentComposerTextStorageKey, PromptHistoryNavigator } from "@kintsugi/agent/client/composer-state";
+import { TranscriptNavigation } from "@kintsugi/agent/client/transcript-navigation";
 
 const admissionSchema = Type.Object({ payload: Type.String(), requestId: Type.String({ pattern: "^[a-zA-Z0-9_-]{1,128}$" }) });
 
 type TurboSubmitEndEvent = CustomEvent<{ success: boolean; fetchResponse?: { response: Response } }>;
 
 declare global {
-  interface Window { AgentsInTheCloudCable?: import("@agents-in-the-cloud/shared").AgentsInTheCloudCableClient; }
+  interface Window { KintsugiCable?: import("@kintsugi/shared").KintsugiCableClient; }
 }
 
 interface AgentPaneControllerInstance {
@@ -203,7 +203,7 @@ export function createAgentPaneController(Controller: StimulusControllerConstruc
     private subscribe(): void {
       this.element.dataset.agentPresentationReady = "false";
       if (this.hasBeenReady) this.setReconnecting(true);
-      this.cableSubscription = window.AgentsInTheCloudCable?.subscribe(
+      this.cableSubscription = window.KintsugiCable?.subscribe(
         this.moduleChannelValue
           ? CableTopics.module(this.moduleChannelValue, this.workspaceIdValue, { agentId: this.agentIdValue })
           : CableTopics.agent(this.workspaceIdValue, this.agentIdValue),
@@ -337,7 +337,7 @@ export function createAgentPaneController(Controller: StimulusControllerConstruc
       const key = `${this.composerTextStorageKey}:admission`;
       if (submission && this.pendingAdmission()?.requestId === submission.requestId) sessionStorage.removeItem(key);
       if (!this.inputTarget.value) localStorage.removeItem(this.composerTextStorageKey);
-      if (event.detail.fetchResponse?.response.headers.get("x-agents-in-the-cloud-attachment-draft-consumed") === "true") {
+      if (event.detail.fetchResponse?.response.headers.get("x-kintsugi-attachment-draft-consumed") === "true") {
         const consumed = new Set(submission?.attachmentIds ?? []);
         this.formTarget.querySelectorAll<HTMLInputElement>('input[name="attachment"]').forEach((input) => {
           if (consumed.has(input.value)) input.closest(".agent-chip")!.remove();

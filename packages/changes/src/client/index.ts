@@ -1,16 +1,16 @@
 import { createChangesEditController, syncFileEditButtons } from "./editing-controller.ts";
-import { showButtonConfirmation } from "@agents-in-the-cloud/design-system/button-confirmation/client";
+import { showButtonConfirmation } from "@kintsugi/design-system/button-confirmation/client";
 import { createReviewCopyController } from "./review-copy-controller.ts";
 import { exportReviewComments, type CommentAnnotation, type CommentPlacement } from "../comments.ts";
 import type { ChangesAnnotation, RevertAnnotation } from "../reverting.ts";
 import { createDeletionReviewController } from "./deletion-controller.ts";
 import type { CodeView, CodeViewItem, CodeViewOptions, CodeViewDiffItem, VirtualizedFileDiff, SelectedLineRange } from "@pierre/diffs";
-import { copyTextToClipboard, type WorkspaceClientModule, type WorkspaceClientControllerConstructor } from "@agents-in-the-cloud/shared";
+import { copyTextToClipboard, type WorkspaceClientModule, type WorkspaceClientControllerConstructor } from "@kintsugi/shared";
 import { createDiffEndpointsController } from "./diff-endpoints-controller.ts";
-import { changesDiffOptions, wordDiffCSS } from "@agents-in-the-cloud/syntax/diff-options";
+import { changesDiffOptions, wordDiffCSS } from "@kintsugi/syntax/diff-options";
 
-const layoutStorageKey = "agents-in-the-cloud:changes-layout";
-const wrapStorageKey = "agents-in-the-cloud:changes-wrap";
+const layoutStorageKey = "kintsugi:changes-layout";
+const wrapStorageKey = "kintsugi:changes-wrap";
 
 const viewerCSS = `${wordDiffCSS} [data-diffs-header] { background: var(--bg); }`;
 
@@ -100,7 +100,7 @@ function createChangesController(Controller: WorkspaceClientControllerConstructo
       for (const item of model.items) if (item.type === "file") this.loaded.add(item.id);
       if (!model.files.length) { this.syncCollapseControl(); return; }
       const abort = this.abort = new AbortController();
-      const [{ CodeView }] = await Promise.all([import("@pierre/diffs"), import("@agents-in-the-cloud/syntax/pierre")]);
+      const [{ CodeView }] = await Promise.all([import("@pierre/diffs"), import("@kintsugi/syntax/pierre")]);
       if (abort.signal.aborted) return;
       this.options = {
         ...changesDiffOptions,
@@ -506,7 +506,7 @@ function createChangesController(Controller: WorkspaceClientControllerConstructo
   };
 }
 
-export const agentsInTheCloudClientModule: WorkspaceClientModule = {
+export const kintsugiClientModule: WorkspaceClientModule = {
   id: "changes",
   install({ application, Controller, hooks }) {
     application.register("deletion-review", createDeletionReviewController(Controller));

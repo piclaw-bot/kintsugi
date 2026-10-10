@@ -2,9 +2,9 @@ import { afterEach, beforeEach, expect, test } from "bun:test";
 import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { CliAgentSession, CliModelSettings } from "@agents-in-the-cloud/cli-agent/server";
-import type { WorkspaceAgentInput } from "@agents-in-the-cloud/shared";
-import { shellQuote } from "@agents-in-the-cloud/core";
+import type { CliAgentSession, CliModelSettings } from "@kintsugi/cli-agent/server";
+import type { WorkspaceAgentInput } from "@kintsugi/shared";
+import { shellQuote } from "@kintsugi/core";
 import { claudeLaunchScript } from "../src/server/launch-command.ts";
 import { claudeInstructionsPath, claudeMcpConfigPath } from "../src/server/session.ts";
 
@@ -35,14 +35,14 @@ const empty = { text: "", images: [], attachmentNotes: [] };
 const sessionId = "1f2e3d4c-0000-4000-8000-000000000001";
 function expectedBaseArgs(session: CliAgentSession): string[] {
   const hook = (boundary: string) => [{ hooks: [{ type: "command", command: `sh ${shellQuote(session.turnSignalCommand)} ${boundary}` }] }];
-  return ["--dangerously-skip-permissions", "--settings", JSON.stringify({ skipDangerousModePermissionPrompt: true, theme: "custom:agents-in-the-cloud", hooks: { UserPromptSubmit: hook("started"), Stop: hook("finished"), StopFailure: hook("failed") } }), "--append-system-prompt-file", claudeInstructionsPath(session), "--mcp-config", claudeMcpConfigPath(session), "--session-id", session.id];
+  return ["--dangerously-skip-permissions", "--settings", JSON.stringify({ skipDangerousModePermissionPrompt: true, theme: "custom:kintsugi", hooks: { UserPromptSubmit: hook("started"), Stop: hook("finished"), StopFailure: hook("failed") } }), "--append-system-prompt-file", claudeInstructionsPath(session), "--mcp-config", claudeMcpConfigPath(session), "--session-id", session.id];
 }
 
 test("reuses home Claude and passes initial prompt, image paths and file notes as literal arguments", async () => {
   await executable(`${home}/.claude/local/node_modules/.bin/claude`, 'printf "%s\\0" "$@"');
   const text = `--help 'quoted' $(touch ${home}/injected)\nsecond line`;
-  const notes = "[Attached file copied into the workspace at /tmp/agents-in-the-cloud-attachments/my file.txt]";
-  const image = "/tmp/agents-in-the-cloud-attachments/image 1.png";
+  const notes = "[Attached file copied into the workspace at /tmp/kintsugi-attachments/my file.txt]";
+  const image = "/tmp/kintsugi-attachments/image 1.png";
   const [code, output] = await run(launch({ ...empty, text, attachmentNotes: [notes] }, [image]));
   expect(code).toBe(0);
   expect(output.split("\0").slice(0, -1)).toEqual([...baseArgs, "--", `${text}\n\n${notes}\n\nRead the attached image at ${JSON.stringify(image)}.`]);
@@ -117,11 +117,11 @@ test("invalid CLI preferences fail visibly rather than being overwritten", async
   expect(await readFile(`${home}/.claude.json`, "utf8")).toBe("invalid json");
 });
 
-test("installs the AgentsInTheCloud Claude theme so inline code follows the terminal palette", async () => {
+test("installs the Kintsugi Claude theme so inline code follows the terminal palette", async () => {
   await executable(`${home}/.claude/local/node_modules/.bin/claude`, 'printf "%s\\0" "$@"');
   const [code] = await run(launch(empty, []));
   expect(code).toBe(0);
-  expect(JSON.parse(await readFile(`${home}/.claude/themes/agents-in-the-cloud.json`, "utf8"))).toMatchObject({ base: "dark-ansi" });
+  expect(JSON.parse(await readFile(`${home}/.claude/themes/kintsugi.json`, "utf8"))).toMatchObject({ base: "dark-ansi" });
 });
 
 for (const preferences of [{}, { autoUpdates: false }, { installMethod: "native", autoUpdates: false, autoUpdatesProtectedForNative: true }]) {
@@ -147,7 +147,7 @@ test("registers session-local turn boundary hooks", async () => {
   } });
 });
 
-test("adds the session-local AgentsInTheCloud MCP configuration without disabling the user's own servers", async () => {
+test("adds the session-local Kintsugi MCP configuration without disabling the user's own servers", async () => {
   await executable(`${home}/.claude/local/node_modules/.bin/claude`, 'printf "%s\\0" "$@"');
   const session = { id: sessionId, directory: `${home}/session`, turnSignalCommand: `${home}/turn signal.sh` };
   const [code, output] = await run(launch(empty, [], {}, session));

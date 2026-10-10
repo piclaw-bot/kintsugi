@@ -1,9 +1,9 @@
 /// <reference lib="dom" />
 
 /** Dispatched on document before the first change of a layout transaction. */
-export const layoutBeforeEvent = "agents-in-the-cloud:layout-before";
+export const layoutBeforeEvent = "kintsugi:layout-before";
 /** Dispatched on document after the last change of a layout transaction. */
-export const layoutAfterEvent = "agents-in-the-cloud:layout-after";
+export const layoutAfterEvent = "kintsugi:layout-after";
 
 let depth = 0;
 

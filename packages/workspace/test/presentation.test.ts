@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { createWorkspacePresentationStore } from "@agents-in-the-cloud/workspace";
+import { createWorkspacePresentationStore } from "@kintsugi/workspace";
 import { type WorkspaceWorkViewContribution, type WorkspacePresentationStore } from "../src/presentation.ts";
 import { Type, type Static } from "typebox";
 import { Value } from "typebox/value";
@@ -43,7 +43,7 @@ describe("Workspace presentation", () => {
   let presentation: WorkspacePresentationStore;
 
   beforeEach(async () => {
-    dataDir = await mkdtemp(join(tmpdir(), "agents-in-the-cloud-presentation-"));
+    dataDir = await mkdtemp(join(tmpdir(), "kintsugi-presentation-"));
     presentation = createWorkspacePresentationStore({ dataDir, workViewContributions });
   });
 

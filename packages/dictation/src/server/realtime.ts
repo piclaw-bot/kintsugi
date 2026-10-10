@@ -1,8 +1,8 @@
-import { agentsInTheCloudDataPath, getAgentsInTheCloudRuntimeContext, isNotFoundError } from "@agents-in-the-cloud/core";
-import { errorMessage, type WorkspaceServerSocketHandler, type WorkspaceSocketConnection } from "@agents-in-the-cloud/shared";
+import { kintsugiDataPath, getKintsugiRuntimeContext, isNotFoundError } from "@kintsugi/core";
+import { errorMessage, type WorkspaceServerSocketHandler, type WorkspaceSocketConnection } from "@kintsugi/shared";
 import { stat } from "node:fs/promises";
-import { workspaceWorkHostPath } from "@agents-in-the-cloud/workspace";
-import { cachedWorkspaceTemplateSourcePath } from "@agents-in-the-cloud/workspace-templates";
+import { workspaceWorkHostPath } from "@kintsugi/workspace";
+import { cachedWorkspaceTemplateSourcePath } from "@kintsugi/workspace-templates";
 import { availableParallelism } from "node:os";
 import { join } from "node:path";
 import { readDictationModel, dictationModel, type DictationModelId } from "./models.ts";
@@ -27,7 +27,7 @@ async function isTranscriptionServerReady(): Promise<boolean> {
 }
 
 function transcriptionCacheDir(): string {
-  return agentsInTheCloudDataPath(getAgentsInTheCloudRuntimeContext(), "transcription-cache");
+  return kintsugiDataPath(getKintsugiRuntimeContext(), "transcription-cache");
 }
 
 async function artifactProgress(modelId: DictationModelId): Promise<number> {
@@ -88,7 +88,7 @@ function ensureTranscriptionServer(model: DictationModelId): Promise<void> {
 }
 
 function status(socket: WorkspaceSocketConnection, state: "loading" | "error", message: string, progress?: number): void {
-  socket.send(JSON.stringify({ type: "agents-in-the-cloud.dictation.status", status: state, message, progress }));
+  socket.send(JSON.stringify({ type: "kintsugi.dictation.status", status: state, message, progress }));
 }
 
 export const createDictationSocketSession: WorkspaceServerSocketHandler = (url) => {

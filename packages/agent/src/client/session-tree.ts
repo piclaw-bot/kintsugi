@@ -1,6 +1,6 @@
 /// <reference lib="dom" />
 
-import { setTextInputValue } from "@agents-in-the-cloud/shared";
+import { setTextInputValue } from "@kintsugi/shared";
 
 type TextInput = HTMLInputElement | HTMLTextAreaElement;
 

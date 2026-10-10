@@ -3,16 +3,24 @@ set -eu
 
 if [ "$#" -eq 0 ]; then set -- bun run apps/web/src/server/main.ts; fi
 
-agents_in_the_cloud_uid=1000
-agents_in_the_cloud_gid=1000
+agent_uid=1000
+agent_gid=1000
 
-if ! getent group "$agents_in_the_cloud_gid" >/dev/null; then
-  groupadd --gid "$agents_in_the_cloud_gid" agents-in-the-cloud
+# The base image may already own these IDs (for example, Ubuntu's default user).
+if getent group "$agent_gid" >/dev/null; then
+  existing_group="$(getent group "$agent_gid" | cut -d: -f1)"
+  [ "$existing_group" = agent ] || groupmod --new-name agent "$existing_group"
+else
+  groupadd --gid "$agent_gid" agent
 fi
-if ! getent passwd "$agents_in_the_cloud_uid" >/dev/null; then
-  useradd --uid "$agents_in_the_cloud_uid" --gid "$agents_in_the_cloud_gid" --create-home --shell /bin/bash agents-in-the-cloud
+if getent passwd "$agent_uid" >/dev/null; then
+  existing_user="$(getent passwd "$agent_uid" | cut -d: -f1)"
+  [ "$existing_user" = agent ] || usermod --login agent "$existing_user"
+  existing_home="$(getent passwd "$agent_uid" | cut -d: -f6)"
+  [ "$existing_home" = /home/agent ] || usermod --home /home/agent --move-home agent
+else
+  useradd --uid "$agent_uid" --gid "$agent_gid" --create-home --shell /bin/bash agent
 fi
-agents_in_the_cloud_user="$(getent passwd "$agents_in_the_cloud_uid" | cut -d: -f1)"
 
 for socket in /var/run/docker.sock /run/containerd/containerd.sock; do
   [ -S "$socket" ] || continue
@@ -21,17 +29,16 @@ for socket in /var/run/docker.sock /run/containerd/containerd.sock; do
     groupadd --gid "$docker_gid" docker-host
   fi
   docker_group="$(getent group "$docker_gid" | cut -d: -f1)"
-  usermod -aG "$docker_group" "$agents_in_the_cloud_user"
+  usermod -aG "$docker_group" agent
 done
 
-agents_in_the_cloud_data_dir=/data/app
-mkdir -p "$agents_in_the_cloud_data_dir/proxy"
-# Ensure app state and shared cache can be managed by the app user.
-chown "$agents_in_the_cloud_uid:$agents_in_the_cloud_gid" "$agents_in_the_cloud_data_dir" "$agents_in_the_cloud_data_dir/proxy" /data/erofs-cache
+kintsugi_data_dir=/data/app
+mkdir -p "$kintsugi_data_dir/proxy"
+chown "$agent_uid:$agent_gid" "$kintsugi_data_dir" "$kintsugi_data_dir/proxy" /data/erofs-cache
 
-printf '%s ALL=(root) NOPASSWD: /usr/local/bin/agents-in-the-cloud-tailscale-serve-helper\n' "$agents_in_the_cloud_user" >/etc/sudoers.d/agents-in-the-cloud-tailscale-serve
-chmod 440 /etc/sudoers.d/agents-in-the-cloud-tailscale-serve
+printf '%s ALL=(root) NOPASSWD: /usr/local/bin/kintsugi-tailscale-serve-helper\n' agent >/etc/sudoers.d/kintsugi-tailscale-serve
+chmod 440 /etc/sudoers.d/kintsugi-tailscale-serve
 
-HOME="$(getent passwd "$agents_in_the_cloud_uid" | cut -d: -f6)"
+HOME=/home/agent
 export HOME
-exec gosu "$agents_in_the_cloud_user" "$@"
+exec gosu agent "$@"

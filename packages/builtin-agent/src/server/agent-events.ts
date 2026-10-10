@@ -1,23 +1,23 @@
 import { configureDurableOwnerEvents } from "./runtime.ts";
-import type { AgentsInTheCloudEventBus } from "@agents-in-the-cloud/core";
-import type { AgentWorkspaceParameters } from "@agents-in-the-cloud/shared";
-import { agentAttachmentDraftId, moveAttachmentDraft, validDraftId } from "@agents-in-the-cloud/prompt/server";
+import type { KintsugiEventBus } from "@kintsugi/core";
+import type { AgentWorkspaceParameters } from "@kintsugi/shared";
+import { agentAttachmentDraftId, moveAttachmentDraft, validDraftId } from "@kintsugi/prompt/server";
 import { stageInitialPrompt } from "./initial-prompt-draft.ts";
-import { parseModelRef, getAgentModelThinkingLevel } from "@agents-in-the-cloud/llm/server";
-import { expandSlashCommand } from "@agents-in-the-cloud/agent/server/slash-command-input";
+import { parseModelRef, getAgentModelThinkingLevel } from "@kintsugi/llm/server";
+import { expandSlashCommand } from "@kintsugi/agent/server/slash-command-input";
 import { getWorkspaceAgentController, removeWorkspaceAgentRuntimes, suspendWorkspaceAgentRuntimes, stopWorkspaceAgentRuntimes } from "./runtime.ts";
 import { resumeInterruptedAgentSessions } from "./restart-recovery.ts";
 import { ensureDefaultWorkspaceAgent } from "./agent-store.ts";
 
-export function registerAgentEvents(events: AgentsInTheCloudEventBus): void {
+export function registerAgentEvents(events: KintsugiEventBus): void {
   configureDurableOwnerEvents(events);
-  events.on("agents_in_the_cloud_host_stopping", stopWorkspaceAgentRuntimes);
+  events.on("kintsugi_host_stopping", stopWorkspaceAgentRuntimes);
   events.on("workspace_suspending", ({ workspaceId }) => suspendWorkspaceAgentRuntimes(workspaceId));
   events.on("workspace_runtime_ready", ({ workspaceId }) => resumeInterruptedAgentSessions([{ id: workspaceId, parked: false }], events));
   events.on("workspace_deleting", ({ workspaceId }) => removeWorkspaceAgentRuntimes(workspaceId));
-  events.on("agents_in_the_cloud_host_started", ({ workspaces }) => {
+  events.on("kintsugi_host_started", ({ workspaces }) => {
     void resumeInterruptedAgentSessions(workspaces, events).catch((error) => {
-      console.error("Could not inspect interrupted Agent sessions after AgentsInTheCloud restarted", error);
+      console.error("Could not inspect interrupted Agent sessions after Kintsugi restarted", error);
     });
   });
   events.on("workspace_created", async ({ workspaceId, context }) => {
@@ -29,7 +29,7 @@ export function registerAgentEvents(events: AgentsInTheCloudEventBus): void {
   });
 }
 
-async function initializeWorkspaceAgent(workspaceId: string, context: AgentWorkspaceParameters, events: AgentsInTheCloudEventBus): Promise<void> {
+async function initializeWorkspaceAgent(workspaceId: string, context: AgentWorkspaceParameters, events: KintsugiEventBus): Promise<void> {
   const agent = await ensureDefaultWorkspaceAgent(workspaceId);
   const runtime = await getWorkspaceAgentController(agent, { events });
   const modelRef = context.model ? parseModelRef(context.model) : undefined;

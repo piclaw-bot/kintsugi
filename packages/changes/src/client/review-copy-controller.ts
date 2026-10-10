@@ -1,5 +1,5 @@
-import { copyTextToClipboard, type WorkspaceClientControllerConstructor } from "@agents-in-the-cloud/shared";
-import { showButtonConfirmation } from "@agents-in-the-cloud/design-system/button-confirmation/client";
+import { copyTextToClipboard, type WorkspaceClientControllerConstructor } from "@kintsugi/shared";
+import { showButtonConfirmation } from "@kintsugi/design-system/button-confirmation/client";
 import type { CommentVersion } from "../server/comments.ts";
 
 export function createReviewCopyController(Controller: WorkspaceClientControllerConstructor) {

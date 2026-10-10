@@ -1,4 +1,4 @@
-import { isJsonObject, type JsonValue } from "@agents-in-the-cloud/core";
+import { isJsonObject, type JsonValue } from "@kintsugi/core";
 import { Type } from "typebox";
 import { Value } from "typebox/value";
 import { codexNotification, type CodexNotification, type Requests } from "./protocol.ts";
@@ -28,7 +28,7 @@ export class CodexRpc {
       if (message.id !== undefined) {
         // Approval policy is never; unsupported interactive tools must fail visibly,
         // not leave Codex waiting indefinitely for a client response.
-        this.write(JSON.stringify({ id: message.id, error: { code: -32601, message: `AgentsInTheCloud does not support ${message.method} yet` } }) + "\n");
+        this.write(JSON.stringify({ id: message.id, error: { code: -32601, message: `Kintsugi does not support ${message.method} yet` } }) + "\n");
         this.notification({ method: "client/unsupportedRequest", params: { method: message.method } });
       } else {
         const notification = codexNotification(message.method, message.params ?? null);

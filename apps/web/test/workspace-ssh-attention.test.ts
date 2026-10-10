@@ -1,11 +1,11 @@
-import { agentsInTheCloudDataPath, getAgentsInTheCloudRuntimeContext } from "@agents-in-the-cloud/core";
-import { cancelWorkspaceSshTrust, decideWorkspaceSshTrust, onWorkspaceSshTrustChanged, requestWorkspaceSshTrust, workspaceSshTrustRequests } from "@agents-in-the-cloud/workspace-templates";
+import { kintsugiDataPath, getKintsugiRuntimeContext } from "@kintsugi/core";
+import { cancelWorkspaceSshTrust, decideWorkspaceSshTrust, onWorkspaceSshTrustChanged, requestWorkspaceSshTrust, workspaceSshTrustRequests } from "@kintsugi/workspace-templates";
 import { afterEach, beforeEach, expect, test } from "bun:test";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { createTestApp, temporaryAgentsInTheCloudDataDir } from "./support/test-web-app.ts";
+import { createTestApp, temporaryKintsugiDataDir } from "./support/test-web-app.ts";
 
-const dataDir = temporaryAgentsInTheCloudDataDir();
+const dataDir = temporaryKintsugiDataDir();
 beforeEach(dataDir.setUp);
 afterEach(dataDir.tearDown);
 
@@ -26,7 +26,7 @@ for (const initiallyVisible of [false, true]) {
     const { registry } = createTestApp();
     const id = crypto.randomUUID();
     await registry.seed([{ id, title: "SSH attention" }]);
-    const directory = agentsInTheCloudDataPath(getAgentsInTheCloudRuntimeContext(), "ssh-agents", id);
+    const directory = kintsugiDataPath(getKintsugiRuntimeContext(), "ssh-agents", id);
     await mkdir(directory, { recursive: true });
     await writeFile(join(directory, "known_hosts"), "");
     if (initiallyVisible) registry.setVisibility("browser", { workspaceId: id, surfaceKeys: [] });

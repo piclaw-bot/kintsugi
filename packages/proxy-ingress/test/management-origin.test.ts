@@ -18,7 +18,7 @@ test("every unsafe method requires an exact destination Origin", () => {
 });
 
 test("localhost and changing Tailscale names and ports work without registration", () => {
-  for (const origin of ["http://localhost:3000", "http://127.0.0.1:4321", "http://[::1]:3000", "http://agents-in-the-cloud.localhost:3080", "https://machine.one.ts.net", "https://renamed.two.ts.net:8443"]) {
+  for (const origin of ["http://localhost:3000", "http://127.0.0.1:4321", "http://[::1]:3000", "http://kintsugi.localhost:3080", "https://machine.one.ts.net", "https://renamed.two.ts.net:8443"]) {
     expect(managementOriginRejection(request("POST", { origin }, `${origin}/workspaces`))).toBeUndefined();
     expect(managementOriginRejection(request("GET", { origin, upgrade: "websocket" }, `${origin}/cable`))).toBeUndefined();
   }
@@ -35,7 +35,7 @@ test("forwarded/public host metadata cannot change the destination identity", ()
   const origin = "https://evil.example";
   const headers = {
     origin, "x-forwarded-host": "evil.example", "x-forwarded-proto": "https", forwarded: "host=evil.example;proto=https",
-    "x-agents-in-the-cloud-public-origin": origin, "x-agents-in-the-cloud-origin-context": origin,
+    "x-kintsugi-public-origin": origin, "x-kintsugi-origin-context": origin,
   };
   expect(managementOriginRejection(request("POST", headers), "172.17.0.2")?.status).toBe(403);
   expect(managementOriginRejection(request("POST", headers), "127.0.0.1")?.status).toBe(403);
@@ -58,11 +58,11 @@ test("TLS termination may supply protocol only through trusted loopback ingress"
 
 test("nested ingress translation accepts local Origin but preserves foreign-origin denial", () => {
   const headers = {
-    origin: "http://localhost:3000", "x-forwarded-proto": "http", "x-agents-in-the-cloud-public-origin": "https://preview.example:41001",
-    "x-agents-in-the-cloud-origin-context": "http://localhost:3000",
+    origin: "http://localhost:3000", "x-forwarded-proto": "http", "x-kintsugi-public-origin": "https://preview.example:41001",
+    "x-kintsugi-origin-context": "http://localhost:3000",
   };
   expect(managementOriginRejection(request("POST", headers), "127.0.0.1")).toBeUndefined();
-  expect(managementOriginRejection(request("POST", { ...headers, "x-agents-in-the-cloud-origin-context": "null" }), "127.0.0.1")?.status).toBe(403);
+  expect(managementOriginRejection(request("POST", { ...headers, "x-kintsugi-origin-context": "null" }), "127.0.0.1")?.status).toBe(403);
   expect(managementOriginRejection(request("POST", { ...headers, origin: "https://preview.example:41001" }), "127.0.0.1")?.status).toBe(403);
 });
 
@@ -118,7 +118,7 @@ test("production preview ingress translates same-origin requests and blocks loca
     const origin = await ingress.publishPort("one", backend.port!);
     for (const browserOrigin of [origin, "null", "https://attacker.example", `http://localhost:${backend.port}`]) {
       const response = await fetch(`http://127.0.0.1:${port}/workspaces`, {
-        method: "POST", headers: { host: new URL(origin).host, origin: browserOrigin, "x-agents-in-the-cloud-origin-context": browserOrigin },
+        method: "POST", headers: { host: new URL(origin).host, origin: browserOrigin, "x-kintsugi-origin-context": browserOrigin },
       });
       expect(response.status).toBe(browserOrigin === origin ? 200 : 403);
       await response.text();

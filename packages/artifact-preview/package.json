@@ -1,5 +1,5 @@
 {
-  "name": "@agents-in-the-cloud/artifact-preview",
+  "name": "@kintsugi/artifact-preview",
   "private": true,
   "type": "module",
   "exports": {
@@ -7,8 +7,8 @@
     "./client": "./src/client/index.ts"
   },
   "dependencies": {
-    "@agents-in-the-cloud/design-system": "workspace:*",
-    "@agents-in-the-cloud/markdown": "workspace:*",
-    "@agents-in-the-cloud/shared": "workspace:*"
+    "@kintsugi/design-system": "workspace:*",
+    "@kintsugi/markdown": "workspace:*",
+    "@kintsugi/shared": "workspace:*"
   }
 }

@@ -41,7 +41,7 @@ test("independent Git, file and index reads share one workspace exec; dependent 
   expect(calls).toHaveLength(1);
   expect(calls[0]!.id).toBe("fixture");
   expect(calls[0]!.options.workdir).toBe("/work/nested repo");
-  expect(calls[0]!.options.user).toBe("agents-in-the-cloud");
+  expect(calls[0]!.options.user).toBe("agent");
   expect(calls[0]!.command.slice(0, 4)).toEqual(["bun", "--no-env-file", "--config=/dev/null", "--eval"]);
   expect(status.stdout.toString()).toBe("A  file\0");
   expect(file!.contents.toString()).toBe("staged\n");
@@ -57,7 +57,7 @@ test("independent Git, file and index reads share one workspace exec; dependent 
   expect(calls).toHaveLength(3);
   expect(calls[2]!.command[0]).toBe("git");
   expect(calls[2]!.options.stdin).toBeUndefined();
-  expect(calls.every(call => call.options.user === "agents-in-the-cloud")).toBe(true);
+  expect(calls.every(call => call.options.user === "agent")).toBe(true);
 });
 
 test("Git failure remains an individual result; transport failure rejects every queued request", async () => {
@@ -127,7 +127,7 @@ test("workspace-owned conditional writes serialize conflicting saves and retain 
   expect(results).toEqual(["saved", "changed"]);
   expect(await readFile(join(root, "script"), "utf8")).toBe("first\n");
   expect((await repo.workingFile("script"))!.mode).toBe("100755");
-  expect(calls.every(call => call.options.user === "agents-in-the-cloud")).toBe(true);
+  expect(calls.every(call => call.options.user === "agent")).toBe(true);
   await expect(repo.writeWorkingFile(".git/config", expected, "unsafe")).rejects.toThrow("Invalid editable");
   await expect(repo.writeWorkingFile("../outside", expected, "unsafe")).rejects.toThrow("Invalid editable");
 });

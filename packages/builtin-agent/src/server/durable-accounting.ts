@@ -1,7 +1,7 @@
 import { calculateContextTokens, estimateMessageTokens } from "@earendil-works/pi-ai/utils/estimate";
 import { defineExtension, GenerationTask, hook, type ContextView } from "@earendil-works/pi-durable";
 import type { ModelRuntime } from "@earendil-works/pi-coding-agent";
-import { recordSubscriptionInference } from "@agents-in-the-cloud/llm/server";
+import { recordSubscriptionInference } from "@kintsugi/llm/server";
 
 /** Same head-cutoff rule as native automatic compaction, over derived context. */
 export function durableContextTokens(view: ContextView): number {
@@ -18,7 +18,7 @@ export function durableContextTokens(view: ContextView): number {
 
 /** Pacing activity, not billing: no secondary transcript or exactly-once claim. */
 export function durableSubscriptionActivity(models: Pick<ModelRuntime, "getAuth">, record = recordSubscriptionInference) {
-  return defineExtension({ name: "agents-in-the-cloud.subscription-activity", hooks: [hook(GenerationTask, {
+  return defineExtension({ name: "kintsugi.subscription-activity", hooks: [hook(GenerationTask, {
     async afterResponse(message) {
       // Only Codex has OpenAI subscription limits we can fetch for pacing.
       if (message.provider !== "openai-codex" || message.stopReason === "error" || message.stopReason === "aborted" || message.stopReason === "deferred") return;

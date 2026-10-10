@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { createWorkspaceIngress } from "@agents-in-the-cloud/proxy-ingress/server";
+import { createWorkspaceIngress } from "@kintsugi/proxy-ingress/server";
 
 for (const kind of ["fetch", "http"] as const) {
   test(`${kind} previews bypass read validators and prevent caching every response`, async () => {

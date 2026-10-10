@@ -1,7 +1,7 @@
 import { agentConnectionShouldRun } from "../../src/client/agent-pane.ts";
 import { forwardAgentTerminalWheel, terminalOutputHasPrintableText } from "../../src/client/terminal-controller.ts";
 import { describe, expect, mock, test } from "bun:test";
-import { type AgentCompletionInput, agentCompletionRequest, agentComposerPrimaryAction, agentComposerTextStorageKey, fileCompletionPrefix, insertSlashCommand, navigatePromptHistory, promptTemplateShortcutConflict } from "@agents-in-the-cloud/agent/client/agent-controllers";
+import { type AgentCompletionInput, agentCompletionRequest, agentComposerPrimaryAction, agentComposerTextStorageKey, fileCompletionPrefix, insertSlashCommand, navigatePromptHistory, promptTemplateShortcutConflict } from "@kintsugi/agent/client/agent-controllers";
 
 function input(value: string, cursor = value.length): AgentCompletionInput {
   return {
@@ -23,7 +23,7 @@ describe("Agent pane residency", () => {
   });
 
   test("keys durable composer text by immutable conversation identity", () => {
-    expect(agentComposerTextStorageKey("workspace-1", "conversation-1")).toBe('agents-in-the-cloud.agentComposerText:["workspace-1","conversation-1"]');
+    expect(agentComposerTextStorageKey("workspace-1", "conversation-1")).toBe('kintsugi.agentComposerText:["workspace-1","conversation-1"]');
     expect(agentComposerTextStorageKey("workspace-1", "conversation-2")).not.toBe(agentComposerTextStorageKey("workspace-1", "conversation-1"));
     expect(agentComposerTextStorageKey("workspace-2", "conversation-1")).not.toBe(agentComposerTextStorageKey("workspace-1", "conversation-1"));
   });
@@ -109,7 +109,7 @@ describe("agent prompt completion activation", () => {
     expect(agentCompletionRequest(input("/tmp/bla"), true)).toEqual({ kind: "file", query: "/tmp/bla", mode: "direct" });
   });
 
-  test("rejects prompt-template shortcuts already assigned to AgentsInTheCloud commands", () => {
+  test("rejects prompt-template shortcuts already assigned to Kintsugi commands", () => {
     const commands = [
       { label: "Open VS Code", binding: "Meta+Alt+KeyV" },
       { label: "New Terminal", binding: "Meta+Alt+KeyT" },

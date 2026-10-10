@@ -3,28 +3,28 @@ import { fileURLToPath } from "node:url";
 import { prepareWorkspaceToolsMount } from "./workspace-tools.ts";
 import { syncWorkspaceDocs } from "./workspace-docs.ts";
 import {
-  agentsInTheCloudDataPath,
-  dockerHostAgentsInTheCloudDataPath,
-  getAgentsInTheCloudRuntimeContext,
-} from "@agents-in-the-cloud/core";
-import type { WorkspaceModule } from "@agents-in-the-cloud/shared";
+  kintsugiDataPath,
+  dockerHostKintsugiDataPath,
+  getKintsugiRuntimeContext,
+} from "@kintsugi/core";
+import type { WorkspaceModule } from "@kintsugi/shared";
 
 const repositoryRoot = fileURLToPath(new URL("../../../../", import.meta.url));
-const docsMountPath = "/opt/agents-in-the-cloud/docs";
+const docsMountPath = "/opt/kintsugi/docs";
 
-export const agentsInTheCloudServerModule: WorkspaceModule = {
+export const kintsugiServerModule: WorkspaceModule = {
   id: "workspace",
   async initialize({ events }) {
     await ensureSharedHome();
-    const runtime = getAgentsInTheCloudRuntimeContext();
-    await syncWorkspaceDocs(repositoryRoot, agentsInTheCloudDataPath(runtime, "docs"));
+    const runtime = getKintsugiRuntimeContext();
+    await syncWorkspaceDocs(repositoryRoot, kintsugiDataPath(runtime, "docs"));
     const toolsMount = await prepareWorkspaceToolsMount(runtime);
     events.on("workspace_plan_prepare", ({ plan }) => {
       plan.mounts.push(toolsMount);
       if (plan.mounts.some((mount) => mount.target === docsMountPath)) return;
       plan.mounts.push({
         type: "bind",
-        source: dockerHostAgentsInTheCloudDataPath(runtime, "docs"),
+        source: dockerHostKintsugiDataPath(runtime, "docs"),
         target: docsMountPath,
         readonly: true,
       });

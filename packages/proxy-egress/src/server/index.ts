@@ -1,5 +1,5 @@
-import { listWorkspaces } from "@agents-in-the-cloud/workspace";
-import type { WorkspaceModule } from "@agents-in-the-cloud/shared";
+import { listWorkspaces } from "@kintsugi/workspace";
+import type { WorkspaceModule } from "@kintsugi/shared";
 import { ensureWorkspaceEgressProxy, registerWorkspaceProxyEvents } from "../egress/egress-proxy.ts";
 
 export const proxyEgressServerModule: WorkspaceModule = {
@@ -10,7 +10,7 @@ export const proxyEgressServerModule: WorkspaceModule = {
   },
 };
 
-export { proxyEgressServerModule as agentsInTheCloudServerModule };
+export { proxyEgressServerModule as kintsugiServerModule };
 export {
   registerWorkspaceSubscriptionSecrets,
   registerWorkspaceRequestTransform,

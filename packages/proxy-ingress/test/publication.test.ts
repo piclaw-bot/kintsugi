@@ -3,21 +3,21 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { createServer } from "node:http";
-import { createParentAgentsInTheCloudPublisher, createWorkspaceIngress, mutateTailscaleServeConfig, ensureTailscaleServePortConfig } from "../src/ingress/index.ts";
+import { createParentKintsugiPublisher, createWorkspaceIngress, mutateTailscaleServeConfig, ensureTailscaleServePortConfig } from "../src/ingress/index.ts";
 
 test("Serve CAS retries a concurrent supervisor write and keeps 443 and diagnostics", async () => {
   const directory = await mkdtemp(join(tmpdir(), "serve-"));
   const socketPath = join(directory, "tailscale.sock");
   let revision = 1;
   let writes = 0;
-  let config: any = { TCP: { "443": { HTTPS: true } }, Web: { "agents-in-the-cloud.example:443": { Handlers: { "/": { Proxy: "http://127.0.0.1:3000" } } } } };
+  let config: any = { TCP: { "443": { HTTPS: true } }, Web: { "kintsugi.example:443": { Handlers: { "/": { Proxy: "http://127.0.0.1:3000" } } } } };
   const server = createServer(async (req, res) => {
     if (req.method === "GET") { res.setHeader("etag", `"${revision}"`); res.end(JSON.stringify(config)); return; }
     let body = ""; for await (const chunk of req) body += chunk;
     writes++;
     if (writes === 1) {
       config.TCP["8443"] = { HTTPS: true };
-      config.Web["agents-in-the-cloud.example:8443"] = { Handlers: { "/": { Proxy: "http://127.0.0.1:3001" } } };
+      config.Web["kintsugi.example:8443"] = { Handlers: { "/": { Proxy: "http://127.0.0.1:3001" } } };
       revision++;
     }
     if (req.headers["if-match"] !== `"${revision}"`) { res.writeHead(412); res.end(); return; }
@@ -25,16 +25,16 @@ test("Serve CAS retries a concurrent supervisor write and keeps 443 and diagnost
   });
   await new Promise<void>((resolve) => server.listen(socketPath, resolve));
   try {
-    await mutateTailscaleServeConfig(socketPath, (state) => ensureTailscaleServePortConfig(state, { host: "agents-in-the-cloud.example", port: 42001 }));
+    await mutateTailscaleServeConfig(socketPath, (state) => ensureTailscaleServePortConfig(state, { host: "kintsugi.example", port: 42001 }));
     expect(writes).toBe(2);
-    expect(config.Web["agents-in-the-cloud.example:443"].Handlers["/"].Proxy).toBe("http://127.0.0.1:3000");
-    expect(config.Web["agents-in-the-cloud.example:8443"].Handlers["/"].Proxy).toBe("http://127.0.0.1:3001");
-    expect(config.Web["agents-in-the-cloud.example:42001"].Handlers["/"].Proxy).toBe("http://127.0.0.1:42001/");
+    expect(config.Web["kintsugi.example:443"].Handlers["/"].Proxy).toBe("http://127.0.0.1:3000");
+    expect(config.Web["kintsugi.example:8443"].Handlers["/"].Proxy).toBe("http://127.0.0.1:3001");
+    expect(config.Web["kintsugi.example:42001"].Handlers["/"].Proxy).toBe("http://127.0.0.1:42001/");
   } finally { server.closeAllConnections(); server.close(); await rm(directory, { recursive: true, force: true }); }
 });
 
 test("an unavailable configured parent fails publication, never returns a localhost fallback", async () => {
-  const ingress = createWorkspaceIngress({ hostname: "127.0.0.1", parentOriginPublisher: createParentAgentsInTheCloudPublisher(`/tmp/missing-ingress-${crypto.randomUUID()}.sock`), resolveWorkspace() {}, resolveApp() { return undefined; } });
+  const ingress = createWorkspaceIngress({ hostname: "127.0.0.1", parentOriginPublisher: createParentKintsugiPublisher(`/tmp/missing-ingress-${crypto.randomUUID()}.sock`), resolveWorkspace() {}, resolveApp() { return undefined; } });
   try { await expect(ingress.publishPort("workspace", 8080)).rejects.toThrow(); expect(ingress.inspect()).toHaveLength(0); }
   finally { await ingress.stopAll(); }
 });
@@ -53,14 +53,14 @@ test("a publication arriving while the parent is still working waits for the fin
   const starting = new Promise<void>((resolve) => { started = resolve; });
   const finishing = new Promise<void>((resolve) => { finish = resolve; });
   let calls = 0;
-  const ingress = createWorkspaceIngress({ hostname: "127.0.0.1", resolveWorkspace() {}, resolveApp() { return undefined; }, parentOriginPublisher: { kind: "tailscale", async publish(port) { calls++; started(); await finishing; return `https://agents-in-the-cloud.example:${port}`; } } });
+  const ingress = createWorkspaceIngress({ hostname: "127.0.0.1", resolveWorkspace() {}, resolveApp() { return undefined; }, parentOriginPublisher: { kind: "tailscale", async publish(port) { calls++; started(); await finishing; return `https://kintsugi.example:${port}`; } } });
   try {
     const first = ingress.publishPort("workspace", 8080);
     await starting;
     const later = ingress.publishPort("workspace", 8080);
     finish();
     const [a, b] = await Promise.all([first, later]);
-    expect(a).toBe(b); expect(a).toStartWith("https://agents-in-the-cloud.example:"); expect(calls).toBe(1);
+    expect(a).toBe(b); expect(a).toStartWith("https://kintsugi.example:"); expect(calls).toBe(1);
   } finally { await ingress.stopAll(); }
 });
 
@@ -70,7 +70,7 @@ test("changing System mode republishes existing listener without closing old rou
   const ingress = createWorkspaceIngress({
     hostname: "127.0.0.1", resolveWorkspace() {},
     resolveApp() { return { kind: "http", target: new URL(`http://localhost:${backend.port}`) }; },
-    parentOriginPublisher: { kind: "system", refresh: true, async publish(port) { return mode === "local" ? `http://p${port}.agents-in-the-cloud.localhost:55000` : `https://agents-in-the-cloud.example:${port}`; } },
+    parentOriginPublisher: { kind: "system", refresh: true, async publish(port) { return mode === "local" ? `http://p${port}.kintsugi.localhost:55000` : `https://kintsugi.example:${port}`; } },
   });
   try {
     const first = await ingress.publishPort("workspace", 8080);

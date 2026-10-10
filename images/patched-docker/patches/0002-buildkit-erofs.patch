@@ -1,4 +1,4 @@
-AgentsInTheCloud downstream patch against vendored BuildKit v0.31.0.
+Kintsugi downstream patch against vendored BuildKit v0.31.0.
 Direction: https://github.com/containerd/containerd/issues/14015
 Resolve mount-manager instructions and fetch only layers that need applying.
 The opt-in image exporter flag is store-allow-incomplete=true.

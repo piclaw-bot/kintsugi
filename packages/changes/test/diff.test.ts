@@ -27,7 +27,7 @@ async function changesFiles(root: string): Promise<ChangesFile[]> {
 
 describe("Changes collection", () => {
   test("reports a non-repository without throwing", async () => {
-    const root = await mkdtemp(join(tmpdir(), "agents-in-the-cloud-changes-not-git-"));
+    const root = await mkdtemp(join(tmpdir(), "kintsugi-changes-not-git-"));
     roots.push(root);
     expect((await collectChangesIndex(localRepository(root))).phase).toBe("not-git");
   });
@@ -80,7 +80,7 @@ describe("Changes collection", () => {
   });
 
   test("collects stats before the repository has its first commit", async () => {
-    const root = await mkdtemp(join(tmpdir(), "agents-in-the-cloud-changes-unborn-"));
+    const root = await mkdtemp(join(tmpdir(), "kintsugi-changes-unborn-"));
     roots.push(root);
     await command(root, "git", "init");
     await writeFile(join(root, "first.ts"), "export const first = true;\n");

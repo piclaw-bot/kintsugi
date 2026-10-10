@@ -1,11 +1,11 @@
-import { buttonHtml } from "@agents-in-the-cloud/design-system/button";
-import { Icons } from "@agents-in-the-cloud/design-system/icons";
-import { renderDictationComposerControl } from "@agents-in-the-cloud/dictation/server";
-import { escapeHtml } from "@agents-in-the-cloud/shared";
+import { buttonHtml } from "@kintsugi/design-system/button";
+import { Icons } from "@kintsugi/design-system/icons";
+import { renderDictationComposerControl } from "@kintsugi/dictation/server";
+import { escapeHtml } from "@kintsugi/shared";
 import { renderAttachmentChip, renderAttachmentPicker } from "./render-attachments.ts";
 import type { StagedAttachment } from "./attachment-drafts.ts";
 
-export const agentComposerActions = "mousedown->composer-focus#preserveInputFocus agents-in-the-cloud:workspace-pane-visible@document->agent-composer#selected agents-in-the-cloud:workspace-pane-hidden@document->agent-composer#hidden agent-attachments:files->agent-composer#reveal agent-composer:sending->agent-composer#sending agent-composer:sent->agent-composer#sent agent-composer:failed->agent-composer#failed input->agent-composer#draftChanged focusin->agent-composer#focused click->agent-composer#focusText agents-in-the-cloud:software-keyboard@document->agent-composer#layout resize@window->agent-composer#autosize agent-composer:resize->agent-composer#autosize";
+export const agentComposerActions = "mousedown->composer-focus#preserveInputFocus kintsugi:workspace-pane-visible@document->agent-composer#selected kintsugi:workspace-pane-hidden@document->agent-composer#hidden agent-attachments:files->agent-composer#reveal agent-composer:sending->agent-composer#sending agent-composer:sent->agent-composer#sent agent-composer:failed->agent-composer#failed input->agent-composer#draftChanged focusin->agent-composer#focused click->agent-composer#focusText kintsugi:software-keyboard@document->agent-composer#layout resize@window->agent-composer#autosize agent-composer:resize->agent-composer#autosize";
 
 const sendIcon = '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 15V5m-4 4 4-4 4 4"/></svg>';
 

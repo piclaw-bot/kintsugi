@@ -2,7 +2,7 @@ import { afterEach, beforeEach, expect, test } from "bun:test";
 import { chmod, copyFile, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { addWorkspaceTemplate, createWorkspaceTemplateSecret, createWorkspaceTemplateSshKey, listWorkspaceTemplates, revealWorkspaceTemplateSecrets, revealWorkspaceTemplateSshKeys, getConfiguration } from "@agents-in-the-cloud/workspace-templates";
+import { addWorkspaceTemplate, createWorkspaceTemplateSecret, createWorkspaceTemplateSshKey, listWorkspaceTemplates, revealWorkspaceTemplateSecrets, revealWorkspaceTemplateSshKeys, getConfiguration } from "@kintsugi/workspace-templates";
 import type { WorkspaceDockerPlan } from "../src/types.ts";
 import { applySeedConfigManifest } from "../src/seed-config.ts";
 
@@ -31,20 +31,20 @@ function emptyPlan(seedConfigEnabled?: boolean): WorkspaceDockerPlan {
 }
 
 function hostRuntime() {
-  return { agentsInTheCloudDataDir: host, dockerHostAgentsInTheCloudDataDir: host, dockerBridgeHost: "127.0.0.1" };
+  return { kintsugiDataDir: host, dockerHostKintsugiDataDir: host, dockerBridgeHost: "127.0.0.1" };
 }
 
 async function seedPlan(workspaceTemplatesJson = join(nested, "projects.json")): Promise<WorkspaceDockerPlan> {
   const plan = emptyPlan(true);
-  await applySeedConfigManifest({ version: 1, seedAgentsInTheCloudConfig: { projectsJson: workspaceTemplatesJson } }, plan, hostRuntime(), join(directory, "seed-config"));
+  await applySeedConfigManifest({ version: 1, seedKintsugiConfig: { projectsJson: workspaceTemplatesJson } }, plan, hostRuntime(), join(directory, "seed-config"));
   return plan;
 }
 
 async function installPlan(plan: WorkspaceDockerPlan): Promise<void> {
   const staging = join(directory, "staging");
   await mkdir(staging);
-  for (const file of plan.containerFiles) await copyFile(file.source, file.target.replace("/.agents-in-the-cloud", staging));
-  const script = plan.initScripts.join("\n").replaceAll("/.agents-in-the-cloud", staging);
+  for (const file of plan.containerFiles) await copyFile(file.source, file.target.replace("/.kintsugi", staging));
+  const script = plan.initScripts.join("\n").replaceAll("/.kintsugi", staging);
   for (let boot = 0; boot < 2; boot++) {
     const process = Bun.spawn(["sh", "-eu", "-c", script], { env: { ...Bun.env, PATH: `${bin}:${Bun.env.PATH}` }, stderr: "pipe" });
     const stderr = await new Response(process.stderr).text();
@@ -123,7 +123,7 @@ for (const enabled of [undefined, false]) {
   test(`seeding requires host authorization (${enabled}) before touching host files`, async () => {
     for (const requested of [
       { seedPiConfig: { authJson: "/nested/auth.json", modelsJson: "/nested/models.json", modelsStoreJson: "/nested/models-store.json" } },
-      { seedAgentsInTheCloudConfig: { projectsJson: "/nested/projects.json" } },
+      { seedKintsugiConfig: { projectsJson: "/nested/projects.json" } },
     ]) {
       const plan = emptyPlan(enabled);
       await expect(applySeedConfigManifest({ version: 1, ...requested }, plan, hostRuntime(), join(directory, "seed-config"))).rejects.toMatchObject({ code: "workspace_seed_config_disabled" });

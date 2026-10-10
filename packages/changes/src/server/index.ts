@@ -2,14 +2,14 @@ import { maxChangesTextBytes, maxChangesTextLines } from "../editing.ts";
 import { changesEdits, EditError } from "./editing.ts";
 import { CommentConflict, InvalidComment, placeReviewComments, reviewComments } from "./comments.ts";
 import { deletionCommentsId, renderDeletionComments, commentsActionsId, commentsModelId, orphanCommentsId, renderCommentActions, renderCommentsModel, renderOrphanComments } from "./comment-render.ts";
-import { domId, type LiveRegion } from "@agents-in-the-cloud/shared";
+import { domId, type LiveRegion } from "@kintsugi/shared";
 import { changesDeletionReview, deletionReviewCommitResponse, deletionReviewFileResponse, clearDeletionReview } from "./deletion.ts";
 import { refreshChanges } from "./refresh.ts";
-import type { JsonValue } from "@agents-in-the-cloud/core";
-import { Icons } from "@agents-in-the-cloud/design-system/icons";
-import { escapeHtml, turboStreamResponse, type WorkspaceModule } from "@agents-in-the-cloud/shared";
-import { matchRoute, response, textResponse } from "@agents-in-the-cloud/shared/http";
-import { workspaceRepository } from "@agents-in-the-cloud/workspace/git";
+import type { JsonValue } from "@kintsugi/core";
+import { Icons } from "@kintsugi/design-system/icons";
+import { escapeHtml, turboStreamResponse, type WorkspaceModule } from "@kintsugi/shared";
+import { matchRoute, response, textResponse } from "@kintsugi/shared/http";
+import { workspaceRepository } from "@kintsugi/workspace/git";
 import { Type } from "typebox";
 import { Value } from "typebox/value";
 import { renderEditModel, changesBodyId, comparisonId, errorId, historyContentId, renderChanges, renderChangesTitle, renderChangesFile, renderComparison, renderError, renderHistory, renderDiff } from "./render.ts";
@@ -56,7 +56,7 @@ function commentsResponse(workspaceId: string, snapshot: ChangesSnapshot, key: s
   return turboStreamResponse(commentRegions(workspaceId, snapshot, key).map(region => replace(region.target, region.html)).join(""));
 }
 
-export const agentsInTheCloudServerModule: WorkspaceModule = {
+export const kintsugiServerModule: WorkspaceModule = {
   id: "changes",
   deletionReview: changesDeletionReview,
   liveSurfaces: [{ name: "review-comments", async load({ workspaceId, key }) { return commentRegions(workspaceId, (await current(workspaceId)).snapshot, key); } }],

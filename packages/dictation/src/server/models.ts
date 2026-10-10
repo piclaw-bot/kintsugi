@@ -1,5 +1,5 @@
-import { agentsInTheCloudDataPath, getAgentsInTheCloudRuntimeContext } from "@agents-in-the-cloud/core";
-import { readJsonSettings, updateJsonSettings } from "@agents-in-the-cloud/core/json-settings";
+import { kintsugiDataPath, getKintsugiRuntimeContext } from "@kintsugi/core";
+import { readJsonSettings, updateJsonSettings } from "@kintsugi/core/json-settings";
 import { Type } from "typebox";
 import { Value } from "typebox/value";
 
@@ -28,7 +28,7 @@ const settingsSchema = Type.Object({
 
 // Keep the existing filename so saved Dictation model selections remain readable.
 function settingsPath(): string {
-  return agentsInTheCloudDataPath(getAgentsInTheCloudRuntimeContext(), "transcription.json");
+  return kintsugiDataPath(getKintsugiRuntimeContext(), "transcription.json");
 }
 
 export function isDictationModelId(value: string): value is DictationModelId {

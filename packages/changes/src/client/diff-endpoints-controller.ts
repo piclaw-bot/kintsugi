@@ -1,5 +1,5 @@
-import { setContentRowLabel } from "@agents-in-the-cloud/design-system/content-row/client";
-import type { WorkspaceClientControllerConstructor } from "@agents-in-the-cloud/shared";
+import { setContentRowLabel } from "@kintsugi/design-system/content-row/client";
+import type { WorkspaceClientControllerConstructor } from "@kintsugi/shared";
 import { resolveDiffEndpoints } from "../diff-endpoints.ts";
 import { workingTree, historyGraph, diffEndpointsDescription, comparisonGraph, rowHeight, type DiffEndpoints, type HistoryGraph, type HistoryModel } from "../history.ts";
 

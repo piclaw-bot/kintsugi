@@ -1,14 +1,14 @@
-import { agentKey, ids, type AgentRenderContext } from "@agents-in-the-cloud/agent/server/render-context";
-import { renderReadOnlyTranscript, renderReadOnlyTranscriptDetail } from "@agents-in-the-cloud/agent/server/read-only-transcript";
-import { subscribeWorkspaceAgentBusy } from "@agents-in-the-cloud/agent/server";
-import { renderWorkspaceCompletionCatalog } from "@agents-in-the-cloud/agent/server/completion-catalog";
-import { buttonHtml } from "@agents-in-the-cloud/design-system/button";
-import { Icons } from "@agents-in-the-cloud/design-system/icons";
-import { renderFollowLatestButton } from "@agents-in-the-cloud/prompt/server";
-import { domId, escapeHtml, turboStream, type CableChannelAdapter } from "@agents-in-the-cloud/shared";
+import { agentKey, ids, type AgentRenderContext } from "@kintsugi/agent/server/render-context";
+import { renderReadOnlyTranscript, renderReadOnlyTranscriptDetail } from "@kintsugi/agent/server/read-only-transcript";
+import { subscribeWorkspaceAgentBusy } from "@kintsugi/agent/server";
+import { renderWorkspaceCompletionCatalog } from "@kintsugi/agent/server/completion-catalog";
+import { buttonHtml } from "@kintsugi/design-system/button";
+import { Icons } from "@kintsugi/design-system/icons";
+import { renderFollowLatestButton } from "@kintsugi/prompt/server";
+import { domId, escapeHtml, turboStream, type CableChannelAdapter } from "@kintsugi/shared";
 import { Type } from "typebox";
 import { Value } from "typebox/value";
-import { response } from "@agents-in-the-cloud/shared/http";
+import { response } from "@kintsugi/shared/http";
 import type { CliAgentAdapter } from "./adapter.ts";
 import type { CliAgents } from "./agents.ts";
 

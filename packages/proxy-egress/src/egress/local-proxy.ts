@@ -1,12 +1,12 @@
 const listenHost = "127.0.0.1";
 const listenPort = 58124;
 export const workspaceLocalProxyUrl = `http://${listenHost}:${listenPort}`;
-const logPath = "/.agents-in-the-cloud/egress-proxy.log";
+const logPath = "/.kintsugi/egress-proxy.log";
 
 // Each accepted connection opens the current socket inode, so app replacement
 // needs no workspace relay restart. Only active connections need child processes.
 export function workspaceLocalProxyInitScript(): string {
-  return `nohup socat TCP4-LISTEN:${listenPort},bind=${listenHost},reuseaddr,fork UNIX-CONNECT:/run/agents-in-the-cloud-parent/egress.sock > ${logPath} 2>&1 < /dev/null &
+  return `nohup socat TCP4-LISTEN:${listenPort},bind=${listenHost},reuseaddr,fork UNIX-CONNECT:/run/kintsugi-parent/egress.sock > ${logPath} 2>&1 < /dev/null &
 proxy_pid=$!
 proxy_listening() { ss -H -ltnp 'sport = :${listenPort}' | grep -Fq "pid=$proxy_pid,"; }
 for _ in $(seq 1 100); do

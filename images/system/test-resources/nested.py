@@ -9,17 +9,17 @@ system,workspace,base,binary=sys.argv[1:]
 def outer(*args):return ['docker','exec','-i',system,'docker',*args]
 def inner(*args):return outer('exec',workspace,'docker',*args)
 def execute(args,**kwargs):return subprocess.run(args,check=True,stdout=subprocess.PIPE,stderr=subprocess.PIPE,**kwargs).stdout
-config=json.loads(execute(['docker','exec',system,'cat','/run/agents-in-the-cloud-system/resources.json']))
+config=json.loads(execute(['docker','exec',system,'cat','/run/kintsugi-system/resources.json']))
 root=pathlib.Path('/sys/fs/cgroup'+config['workloadsCgroupParent'])
 source=subprocess.Popen(outer('save',base),stdout=subprocess.PIPE)
 execute(outer('exec','-i',workspace,'docker','load'),stdin=source.stdout)
 assert source.wait()==0
-execute(outer('exec',workspace,'mkdir','-p','/tmp/agents-in-the-cloud-resource-probe'))
-execute(outer('exec','-i',workspace,'tee','/tmp/agents-in-the-cloud-resource-probe/stress'),input=pathlib.Path(binary).read_bytes())
-execute(outer('exec',workspace,'chmod','+x','/tmp/agents-in-the-cloud-resource-probe/stress'))
-execute(outer('exec','-i',workspace,'tee','/tmp/agents-in-the-cloud-resource-probe/Dockerfile'),input=f'FROM {base}\nCOPY stress /stress\nRUN /stress probe\n'.encode())
-with open('/tmp/agents-in-the-cloud-nested-resource-build.log','wb') as log:
-    build=subprocess.Popen(inner('build','--no-cache','-t','agents-in-the-cloud-resource-probe','/tmp/agents-in-the-cloud-resource-probe'),stdout=log,stderr=log)
+execute(outer('exec',workspace,'mkdir','-p','/tmp/kintsugi-resource-probe'))
+execute(outer('exec','-i',workspace,'tee','/tmp/kintsugi-resource-probe/stress'),input=pathlib.Path(binary).read_bytes())
+execute(outer('exec',workspace,'chmod','+x','/tmp/kintsugi-resource-probe/stress'))
+execute(outer('exec','-i',workspace,'tee','/tmp/kintsugi-resource-probe/Dockerfile'),input=f'FROM {base}\nCOPY stress /stress\nRUN /stress probe\n'.encode())
+with open('/tmp/kintsugi-nested-resource-build.log','wb') as log:
+    build=subprocess.Popen(inner('build','--no-cache','-t','kintsugi-resource-probe','/tmp/kintsugi-resource-probe'),stdout=log,stderr=log)
     found=None
     try:
         for attempt in range(150):
@@ -37,6 +37,6 @@ with open('/tmp/agents-in-the-cloud-nested-resource-build.log','wb') as log:
         assert build.wait(timeout=60)==0
     finally:
         if build.poll() is None:build.terminate();build.wait()
-execute(inner('image','rm','agents-in-the-cloud-resource-probe'))
-execute(outer('exec',workspace,'rm','-rf','/tmp/agents-in-the-cloud-resource-probe'))
+execute(inner('image','rm','kintsugi-resource-probe'))
+execute(outer('exec',workspace,'rm','-rf','/tmp/kintsugi-resource-probe'))
 print('PASS nested Docker build containment')

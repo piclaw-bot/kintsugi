@@ -1,7 +1,7 @@
 /// <reference lib="dom" />
 
-import { observableWebSocketUrl } from "@agents-in-the-cloud/observable-terminal/client";
-import { composerSubmitKey, errorMessage, focusLikelyOpensSoftwareKeyboard, notifyInputListeners, setTextInputValue, type WorkspaceClientControllerConstructor } from "@agents-in-the-cloud/shared";
+import { observableWebSocketUrl } from "@kintsugi/observable-terminal/client";
+import { composerSubmitKey, errorMessage, focusLikelyOpensSoftwareKeyboard, notifyInputListeners, setTextInputValue, type WorkspaceClientControllerConstructor } from "@kintsugi/shared";
 import { Type, type Static } from "typebox";
 import { Value } from "typebox/value";
 import { type MicrophoneLease, SharedMicrophone } from "./microphone.ts";
@@ -139,7 +139,7 @@ export function createDictationComposerController(Controller: WorkspaceClientCon
     }
 
     private received(event: DictationEvent): void {
-      if (event.type === "agents-in-the-cloud.dictation.status") {
+      if (event.type === "kintsugi.dictation.status") {
         if (event.status === "loading") {
           this.setState("loading", event.message ?? "Preparing dictation model…");
           this.setProgress(event.progress ?? 0);

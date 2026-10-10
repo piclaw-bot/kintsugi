@@ -14,7 +14,7 @@ describe("shared agent package", () => {
   });
 
   test("does not depend on the builtin package or its durable execution libraries", async () => {
-    const forbidden = ["@agents-in-the-cloud/builtin-agent", "@earendil-works/pi-durable", "@earendil-works/chord"];
+    const forbidden = ["@kintsugi/builtin-agent", "@earendil-works/pi-durable", "@earendil-works/chord"];
     for (const dependency of forbidden) expect(dependency in manifest.dependencies).toBe(false);
     const sourceDirectory = join(import.meta.dir, "../../src");
     for (const file of new Bun.Glob("**/*.ts").scanSync(sourceDirectory)) {

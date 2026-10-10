@@ -1,4 +1,4 @@
-import { execWorkspaceCommand } from "@agents-in-the-cloud/workspace";
+import { execWorkspaceCommand } from "@kintsugi/workspace";
 
 export const inlineContentMaxBytes = 1024 * 1024;
 export type InlineContentFragment = { html: string } | { error: string };

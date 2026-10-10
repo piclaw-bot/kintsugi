@@ -1,6 +1,6 @@
-import { shellQuote } from "@agents-in-the-cloud/core";
+import { shellQuote } from "@kintsugi/core";
 
-/** Turn boundary reported to AgentsInTheCloud: a started turn marks the Agent busy, a finished or failed one requests attention for it. */
+/** Turn boundary reported to Kintsugi: a started turn marks the Agent busy, a finished or failed one requests attention for it. */
 export type TurnBoundary = "started" | "finished" | "failed";
 
 /** Every session gets one signal script, invoked as `sh <script> <boundary>`. */

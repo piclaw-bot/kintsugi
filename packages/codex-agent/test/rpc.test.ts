@@ -31,7 +31,7 @@ test("unsupported interactive requests receive an error instead of hanging Codex
   const notifications: CodexNotification[] = [];
   const rpc = new CodexRpc(line => writes.push(line), notification => notifications.push(notification));
   rpc.receive(JSON.stringify({ id: "question-1", method: "item/tool/requestUserInput", params: {} }));
-  expect(JSON.parse(writes[0]!)).toEqual({ id: "question-1", error: { code: -32601, message: "AgentsInTheCloud does not support item/tool/requestUserInput yet" } });
+  expect(JSON.parse(writes[0]!)).toEqual({ id: "question-1", error: { code: -32601, message: "Kintsugi does not support item/tool/requestUserInput yet" } });
   expect(notifications).toEqual([{ method: "client/unsupportedRequest", params: { method: "item/tool/requestUserInput" } }]);
 });
 

@@ -44,7 +44,7 @@ function githubHeaders(token: string): HeadersInit {
   return {
     accept: "application/vnd.github+json",
     authorization: `Bearer ${token}`,
-    "user-agent": "agents-in-the-cloud",
+    "user-agent": "kintsugi",
     "x-github-api-version": "2022-11-28",
   };
 }

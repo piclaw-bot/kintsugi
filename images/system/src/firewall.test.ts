@@ -24,7 +24,7 @@ test("preserves host-initiated replies and IPv6 neighbor discovery before the in
     expect(rules.indexOf(exception)).toBeLessThan(deny);
   }
   // Only our table is replaced: Docker's NAT/filtering and ingress stay intact.
-  expect(rules).toStartWith("add table inet agents-in-the-cloud_workspaces\nflush table inet agents-in-the-cloud_workspaces\n");
+  expect(rules).toStartWith("add table inet kintsugi_workspaces\nflush table inet kintsugi_workspaces\n");
   expect(rules).not.toContain("flush ruleset");
 });
 
@@ -57,14 +57,14 @@ test("family-specific FIB rules avoid the optional inet FIB implementation", () 
   const inet = rules.slice(0, rules.indexOf("add table ip "));
   expect(inet).not.toContain("fib daddr");
   for (const family of ["ip", "ip6"]) {
-    expect(rules).toContain(`add table ${family} agents-in-the-cloud_workspaces`);
-    expect(rules).toContain(`flush table ${family} agents-in-the-cloud_workspaces`);
+    expect(rules).toContain(`add table ${family} kintsugi_workspaces`);
+    expect(rules).toContain(`flush table ${family} kintsugi_workspaces`);
   }
   expect(rules.match(/fib daddr type local counter drop/g)).toHaveLength(4);
   // An accept in the inet table doesn't bypass a later family table. Each
   // family's output chain must independently exempt configured DNS before FIB.
   for (const [family, resolver] of [["ip", "127.0.0.53"], ["ip6", "fd00::53"]]) {
-    const table = rules.slice(rules.indexOf(`table ${family} agents-in-the-cloud_workspaces {`));
+    const table = rules.slice(rules.indexOf(`table ${family} kintsugi_workspaces {`));
     const local = table.slice(table.indexOf("chain local_destinations"));
     expect(local.indexOf(`${family} daddr ${resolver}`)).toBeLessThan(local.indexOf("fib daddr"));
   }

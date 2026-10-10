@@ -14,9 +14,9 @@ afterEach(async () => {
   if (directory) await rm(directory, { recursive: true, force: true });
 });
 
-// Exercises AgentsInTheCloud's patch of @earendil-works/pi-ai (patches/).
+// Exercises Kintsugi's patch of @earendil-works/pi-ai (patches/).
 test("Anthropic offers a headless login that uses Anthropic's copy-code page instead of a localhost callback", async () => {
-  directory = await mkdtemp(join(tmpdir(), "agents-in-the-cloud-anthropic-copy-code-"));
+  directory = await mkdtemp(join(tmpdir(), "kintsugi-anthropic-copy-code-"));
   const credentials = new InMemoryCredentialStore();
   const runtime = await ModelRuntime.create({ credentials, modelsPath: join(directory, "models.json"), allowModelNetwork: false });
   const tokenRequests: unknown[] = [];

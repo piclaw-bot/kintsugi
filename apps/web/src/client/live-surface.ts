@@ -1,4 +1,4 @@
-import { CableTopics, type CableSubscription } from "@agents-in-the-cloud/shared";
+import { CableTopics, type CableSubscription } from "@kintsugi/shared";
 import { Controller } from "@hotwired/stimulus";
 import { registerWorkspaceControllers } from "./workspace-controller-registry.ts";
 
@@ -56,7 +56,7 @@ class LiveSurfaceController extends Controller<HTMLElement> {
     const identifier = this.kindValue === "workspace"
       ? CableTopics.module("surface", this.workspaceValue, { kind: this.kindValue, key: this.keyValue, agent: this.agentValue, work: this.workValue })
       : CableTopics.module("surface", this.workspaceValue, { kind: this.kindValue, key: this.keyValue });
-    this.subscription = window.AgentsInTheCloudCable!.subscribe(identifier, {
+    this.subscription = window.KintsugiCable!.subscribe(identifier, {
       onReady: () => {
         this.ready = true;
         this.pending?.resolve();

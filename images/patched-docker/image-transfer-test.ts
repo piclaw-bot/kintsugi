@@ -5,17 +5,17 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-const image = process.argv[2] ?? "agents-in-the-cloud-patched-docker:dev";
+const image = process.argv[2] ?? "kintsugi-patched-docker:dev";
 const platform = process.argv[3] ?? "linux/arm64";
 assert(["linux/arm64", "linux/amd64"].includes(platform));
-const id = `agents-in-the-cloud-transfer-${platform.split("/")[1]}-${process.pid}`;
+const id = `kintsugi-transfer-${platform.split("/")[1]}-${process.pid}`;
 const producer = `${id}-producer`;
 const consumer = `${id}-consumer`;
 const cache = `${id}-cache`;
 const containers: string[] = [];
 const volumes: string[] = [];
-const context = await mkdtemp(join(tmpdir(), "agents-in-the-cloud-image-transfer-"));
-const source = "docker.io/library/agents-in-the-cloud-transfer:local";
+const context = await mkdtemp(join(tmpdir(), "kintsugi-image-transfer-"));
+const source = "docker.io/library/kintsugi-transfer:local";
 const registry = "docker.io/library/alpine:3.22";
 const registryPinned = `${registry}@sha256:14358309a308569c32bdc37e2e0e9694be33a9d99e68afb0f5ff33cc1f695dce`;
 
@@ -55,14 +55,14 @@ async function start(container: string, offline: boolean) {
   await ready(container);
 }
 async function exportArchive(name: string) {
-  return (await command(["docker", "exec", producer, "agents-in-the-cloud-image-transfer", "export", "--platform", platform, name])).stdout;
+  return (await command(["docker", "exec", producer, "kintsugi-image-transfer", "export", "--platform", platform, name])).stdout;
 }
 async function importArchive(archive: Uint8Array, check = true) {
-  return command(["docker", "exec", "-i", consumer, "agents-in-the-cloud-image-transfer", "import"], check, archive);
+  return command(["docker", "exec", "-i", consumer, "kintsugi-image-transfer", "import"], check, archive);
 }
 async function transfer(name: string) {
-  const sender = Bun.spawn(["docker", "exec", producer, "agents-in-the-cloud-image-transfer", "export", "--platform", platform, name], { stdout: "pipe", stderr: "pipe" });
-  const receiver = Bun.spawn(["docker", "exec", "-i", consumer, "agents-in-the-cloud-image-transfer", "import"], { stdin: sender.stdout, stdout: "pipe", stderr: "pipe" });
+  const sender = Bun.spawn(["docker", "exec", producer, "kintsugi-image-transfer", "export", "--platform", platform, name], { stdout: "pipe", stderr: "pipe" });
+  const receiver = Bun.spawn(["docker", "exec", "-i", consumer, "kintsugi-image-transfer", "import"], { stdin: sender.stdout, stdout: "pipe", stderr: "pipe" });
   const [out, senderError, receiverError, senderCode, receiverCode] = await Promise.all([
     new Response(receiver.stdout).text(), new Response(sender.stderr).text(), new Response(receiver.stderr).text(), sender.exited, receiver.exited,
   ]);
@@ -97,7 +97,7 @@ async function snapshotCount() {
 try {
   await start(producer, false);
   console.log(`${platform}: build local fixture and prepare shared cache`);
-  await writeFile(join(context, "Dockerfile"), `FROM ${registryPinned}\nRUN dd if=/dev/urandom of=/payload bs=1M count=32 && echo agents-in-the-cloud-transfer-marker > /marker\nCMD ["cat", "/marker"]\n`);
+  await writeFile(join(context, "Dockerfile"), `FROM ${registryPinned}\nRUN dd if=/dev/urandom of=/payload bs=1M count=32 && echo kintsugi-transfer-marker > /marker\nCMD ["cat", "/marker"]\n`);
   await command(["docker", "cp", context, `${producer}:/context`]);
   await exec(producer, "docker", "build", "--network=none", "--provenance=false", "-t", source, "/context");
   await ctr(producer, "images", "build-erofs-cache", source, "/data/erofs-cache");
@@ -109,7 +109,7 @@ try {
 
   console.log(`${platform}: reject corrupted metadata before registering image`);
   const corrupt = Buffer.from(archive);
-  const markerOffset = corrupt.indexOf("agents-in-the-cloud-transfer-marker");
+  const markerOffset = corrupt.indexOf("kintsugi-transfer-marker");
   assert(markerOffset >= 0, "config history contains the build command");
   corrupt[markerOffset] ^= 1;
   assert.notEqual((await importArchive(corrupt, false)).code, 0);
@@ -137,9 +137,9 @@ try {
   const links = (await exec(consumer, "sh", "-c", "find /data/containerd/io.containerd.snapshotter.v1.erofs/snapshots -name layer.erofs -type l -exec readlink {} +")).trim().split("\n");
   assert.equal(links.length, manifest.layers.length);
   assert(links.every((link) => link.startsWith("/data/erofs-cache/")));
-  assert.match(await exec(consumer, "docker", "run", "--rm", "--network=none", ref), /agents-in-the-cloud-transfer-marker/);
+  assert.match(await exec(consumer, "docker", "run", "--rm", "--network=none", ref), /kintsugi-transfer-marker/);
 
-  await writeFile(join(context, "Dockerfile"), `FROM ${ref}\nRUN test "$(cat /marker)" = agents-in-the-cloud-transfer-marker && test "$(wc -c < /payload)" = 33554432 && echo derived-ok > /derived\nCMD ["cat", "/derived"]\n`);
+  await writeFile(join(context, "Dockerfile"), `FROM ${ref}\nRUN test "$(cat /marker)" = kintsugi-transfer-marker && test "$(wc -c < /payload)" = 33554432 && echo derived-ok > /derived\nCMD ["cat", "/derived"]\n`);
   await command(["docker", "cp", context, `${consumer}:/context`]);
   const buildStarted = performance.now();
   await exec(consumer, "docker", "build", "--network=none", "--no-cache", "--progress=plain", "--output", "type=image,store-allow-incomplete=true", "-t", "transfer:derived", "/context");

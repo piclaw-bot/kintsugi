@@ -8,7 +8,7 @@ export function greet(person: Person): string { return `Hello ${person.name}`; }
 const answer = 42;
 ```
 ```bash
-name="AgentsInTheCloud"; rg -n 'TODO|FIXME' packages && printf '%s\n' "$name"
+name="Kintsugi"; rg -n 'TODO|FIXME' packages && printf '%s\n' "$name"
 ```
 ```python
 def greet(name: str) -> str:

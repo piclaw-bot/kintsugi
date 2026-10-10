@@ -1,10 +1,10 @@
 import { afterEach, beforeEach, describe, expect, spyOn, test } from "bun:test";
-import * as agent from "@agents-in-the-cloud/builtin-agent/server";
-import { agentsInTheCloudServerModule as codexCliModule } from "@agents-in-the-cloud/codex-cli-agent/server";
-import { agentsInTheCloudServerModule as codexModule } from "@agents-in-the-cloud/codex-agent/server";
-import { createTestApp, deferred, postJson, temporaryAgentsInTheCloudDataDir } from "./support/test-web-app.ts";
+import * as agent from "@kintsugi/builtin-agent/server";
+import { kintsugiServerModule as codexCliModule } from "@kintsugi/codex-cli-agent/server";
+import { kintsugiServerModule as codexModule } from "@kintsugi/codex-agent/server";
+import { createTestApp, deferred, postJson, temporaryKintsugiDataDir } from "./support/test-web-app.ts";
 
-const data = temporaryAgentsInTheCloudDataDir();
+const data = temporaryKintsugiDataDir();
 beforeEach(data.setUp);
 afterEach(data.tearDown);
 
@@ -45,7 +45,7 @@ describe("launch title generation", () => {
       const { app, registry } = createTestApp();
       const { workspace } = await (await app.fetch(postJson("/workspaces", { agent: { initialPrompt: "Build a calendar", model: "provider::model" } }))).json();
       await Bun.sleep(0);
-      expect(registry.get(workspace.id)?.issues).toEqual([{ kind: "naming", message: "Couldn't name this workspace (model authentication is not configured). You can name it with /name in the AgentsInTheCloud composer." }]);
+      expect(registry.get(workspace.id)?.issues).toEqual([{ kind: "naming", message: "Couldn't name this workspace (model authentication is not configured). You can name it with /name in the Kintsugi composer." }]);
       registry.setTitle(workspace.id, "calendar");
       expect(registry.get(workspace.id)?.issues).toBeUndefined();
     } finally {

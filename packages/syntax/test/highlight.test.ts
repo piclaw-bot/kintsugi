@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import palettes from "./fixtures/palettes.json";
 import { highlightCodeHtml, languageFromPath } from "../src/index.ts";
 
-describe("AgentsInTheCloud syntax highlighting", () => {
+describe("Kintsugi syntax highlighting", () => {
   test("resolves paths and emits theme roles", () => {
     expect(languageFromPath("src/view.tsx")).toBe("tsx");
     const result = highlightCodeHtml({ code: "const answer: number = 42; // meaning", path: "view.ts" });

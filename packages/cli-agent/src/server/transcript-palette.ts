@@ -1,5 +1,5 @@
 /**
- * AgentsInTheCloud's opinion on how agent transcripts are drawn, as ANSI palette slots.
+ * Kintsugi's opinion on how agent transcripts are drawn, as ANSI palette slots.
  * The terminal maps each slot to the viewer's theme (observable-terminal), so
  * CLI agents recolor live on theme changes. The built-in agent's markdown CSS
  * uses the same design tokens directly.

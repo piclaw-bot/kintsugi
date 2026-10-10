@@ -1,5 +1,5 @@
 {
-  "name": "@agents-in-the-cloud/llm",
+  "name": "@kintsugi/llm",
   "private": true,
   "type": "module",
   "exports": {
@@ -7,11 +7,11 @@
     "./client": "./src/client/index.ts"
   },
   "dependencies": {
-    "@agents-in-the-cloud/core": "workspace:*",
-    "@agents-in-the-cloud/shared": "workspace:*",
-    "@agents-in-the-cloud/design-system": "workspace:*",
-    "@agents-in-the-cloud/workspace": "workspace:*",
-    "@agents-in-the-cloud/proxy-egress": "workspace:*",
+    "@kintsugi/core": "workspace:*",
+    "@kintsugi/shared": "workspace:*",
+    "@kintsugi/design-system": "workspace:*",
+    "@kintsugi/workspace": "workspace:*",
+    "@kintsugi/proxy-egress": "workspace:*",
     "@earendil-works/pi-ai": "catalog:",
     "@earendil-works/pi-coding-agent": "catalog:",
     "typebox": "^1.0.57"

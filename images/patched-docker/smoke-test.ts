@@ -6,18 +6,18 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-const image = process.argv[2] ?? "agents-in-the-cloud-patched-docker:dev";
+const image = process.argv[2] ?? "kintsugi-patched-docker:dev";
 const platform = process.argv[3] ?? "linux/arm64";
 assert(["linux/arm64", "linux/amd64"].includes(platform));
 const architecture = platform.split("/")[1];
-const id = `agents-in-the-cloud-runtime-smoke-${architecture}-${process.pid}`;
+const id = `kintsugi-runtime-smoke-${architecture}-${process.pid}`;
 const producer = `${id}-producer`;
 const consumer = `${id}-consumer`;
 const cache = `${id}-cache`;
 const volumes = [cache, `${producer}-data`, `${consumer}-data`];
 const containers: string[] = [];
 const createdVolumes: string[] = [];
-const context = await mkdtemp(join(tmpdir(), "agents-in-the-cloud-runtime-smoke-"));
+const context = await mkdtemp(join(tmpdir(), "kintsugi-runtime-smoke-"));
 const base = "docker.io/library/golang:1.24.5@sha256:ef5b4be1f94b36c90385abd9b6b4f201723ae28e71acacb76d00687333c17282";
 
 async function command(args: string[], check = true) {

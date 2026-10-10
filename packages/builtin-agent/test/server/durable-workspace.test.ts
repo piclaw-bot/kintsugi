@@ -10,17 +10,17 @@ import { Type } from "typebox";
 import { openNodeJsonlStorage } from "@earendil-works/pi-durable/storage/jsonl/node";
 import { submitDurableInput } from "../../src/server/durable-input.ts";
 import { durableWorkspaceTool } from "../../src/server/durable-tools.ts";
-import { defineWorkspaceTool } from "@agents-in-the-cloud/agent/server/workspace-tool";
+import { defineWorkspaceTool } from "@kintsugi/agent/server/workspace-tool";
 import { openDurableWorkspace, WorkspaceAgents, type DurableWorkspace } from "../../src/server/durable-workspace.ts";
 
 const context = BACKGROUND_CONTEXT;
 const directories: string[] = [];
 const workspaces: DurableWorkspace[] = [];
-const record = { agentId: "agents-in-the-cloud-tab-1", label: "Agent 1", title: "Find the durability regression" };
+const record = { agentId: "kintsugi-tab-1", label: "Agent 1", title: "Find the durability regression" };
 const agent = { model: { provider: "faux", modelId: "faux-1" } };
 
 async function directory() {
-  const path = await mkdtemp(join(tmpdir(), "agents-in-the-cloud-durable-"));
+  const path = await mkdtemp(join(tmpdir(), "kintsugi-durable-"));
   directories.push(path);
   return path;
 }
@@ -80,7 +80,7 @@ describe("Durable workspace journal", () => {
       first.agent(record, agent),
     ]);
     expect(same.id).toBe(one.id);
-    const two = await first.agent({ ...record, agentId: "agents-in-the-cloud-tab-2", label: "Agent 2" }, agent);
+    const two = await first.agent({ ...record, agentId: "kintsugi-tab-2", label: "Agent 2" }, agent);
     expect(two.id).not.toBe(one.id);
     expect((await first.harness.inspect(context)).scheduling).toBe("paused");
     const catalog = await first.harness.snapshot(WorkspaceAgents, context);
@@ -95,7 +95,7 @@ describe("Durable workspace journal", () => {
     const main = await readFile(join(path, "main.jsonl"), "utf8");
     const files = await Array.fromAsync(new Bun.Glob("*.jsonl").scan(path));
     const journal = (await Promise.all(files.map((file) => readFile(join(path, file), "utf8")))).join("\n");
-    expect(main).toContain("agents-in-the-cloud.workspace");
+    expect(main).toContain("kintsugi.workspace");
     expect(journal).toContain(record.title);
     expect(journal).toContain(record.agentId);
   });
@@ -260,7 +260,7 @@ describe("Durable workspace journal", () => {
       const options = provider();
       options.faux.setResponses([request => {
         expect(request.messages.filter(message => message.role === "user")).toHaveLength(1);
-        expect(JSON.stringify(request)).not.toContain("AgentsInTheCloud restarted");
+        expect(JSON.stringify(request)).not.toContain("Kintsugi restarted");
         return fauxAssistantMessage("Recovered generation");
       }]);
       const reopened = await open(path, options, "crash-workspace");
@@ -282,7 +282,7 @@ describe("Durable workspace journal", () => {
     } finally { child.kill(); await child.exited; }
   }, 25_000);
 
-  test("uses AgentsInTheCloud's existing model runtime directly, without a second provider/auth adapter", async () => {
+  test("uses Kintsugi's existing model runtime directly, without a second provider/auth adapter", async () => {
     const runtime = await ModelRuntime.create({ credentials: new InMemoryCredentialStore(), modelsPath: null, allowModelNetwork: false, refreshOnCreate: false });
     const faux = fauxProvider({ tokensPerSecond: 100_000 });
     faux.setResponses([fauxAssistantMessage("Existing model runtime works.")]);
@@ -302,7 +302,7 @@ test("previous workspace journal catalog retains native history while renaming A
   const previousCatalog = defineDoc<{
     workspaceId: string;
     conversations: { conversationId: string; durableId: number; label: string; title: string; branches: number[] }[];
-  }>({ kind: "agents-in-the-cloud.workspace", version: 1, scope: "session", initial: () => ({ workspaceId: "workspace-1", conversations: [] }) });
+  }>({ kind: "kintsugi.workspace", version: 1, scope: "session", initial: () => ({ workspaceId: "workspace-1", conversations: [] }) });
   const harness = await Harness.open(await openNodeJsonlStorage(path, context), options, context);
   const id = await harness.commit(async tx => {
     const created = await tx.createConversation({ ownership: { kind: "ownerless" } });

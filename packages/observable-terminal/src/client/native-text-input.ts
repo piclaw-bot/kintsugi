@@ -1,4 +1,4 @@
-import { type WorkspaceClientControllerConstructor } from "@agents-in-the-cloud/shared";
+import { type WorkspaceClientControllerConstructor } from "@kintsugi/shared";
 
 /** Retain native editing context for CLI prose, without changing hardware terminal input. */
 export function createNativeTerminalTextInputController(Controller: WorkspaceClientControllerConstructor) {

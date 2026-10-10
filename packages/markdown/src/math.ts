@@ -1,7 +1,7 @@
 import type MarkdownIt from "markdown-it";
 import { tex } from "@mdit/plugin-tex";
 import { ParseError, renderToString } from "katex";
-import { escapeHtml } from "@agents-in-the-cloud/shared";
+import { escapeHtml } from "@kintsugi/shared";
 
 function renderMath(source: string, displayMode: boolean, raw: string): string {
   try {

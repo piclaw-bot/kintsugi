@@ -1,25 +1,25 @@
 import { templateSettingsHostId, templateSettingsFrameId } from "./template-settings.ts";
-import { maybeNameWorkspaceFromPrompt } from "@agents-in-the-cloud/builtin-agent/server";
+import { maybeNameWorkspaceFromPrompt } from "@kintsugi/builtin-agent/server";
 import {
-  AgentsInTheCloudCoreError,
+  KintsugiCoreError,
   createKeyedOperationQueue,
   invalidArguments,
   isJsonObject,
   readJsonObject,
   requestAcceptsJson,
-  type AgentsInTheCloudEventBus,
+  type KintsugiEventBus,
   type JsonObject,
   type JsonValue,
-} from "@agents-in-the-cloud/core";
-import { actionLinkHtml } from "@agents-in-the-cloud/design-system/action-link";
-import { buttonHtml } from "@agents-in-the-cloud/design-system/button";
-import { dialogHtml } from "@agents-in-the-cloud/design-system/dialog";
-import { panelHtml } from "@agents-in-the-cloud/design-system/panel";
-import { Icons } from "@agents-in-the-cloud/design-system/icons";
-import { warningBannerHtml } from "@agents-in-the-cloud/design-system/warning-banner";
-import { parseModelRef, renderModelsDialog } from "@agents-in-the-cloud/llm/server";
-import { getWorkspaceTemplateConfiguration, isGitWorkspaceTemplateInit, workspaceTemplateIdFromInit, workspaceTemplateIdOfInit, isSshAuthenticationFailure, listWorkspaceTemplates, sshHostTrustFailure, scanSshHost, trustScannedSshHost, workspaceSshTrustRequests, onWorkspaceSshTrustChanged, decideWorkspaceSshTrust, cancelWorkspaceSshTrust, workspaceInitFromTemplate, type WorkspaceTemplateConfiguration, type WorkspaceTemplateSummary } from "@agents-in-the-cloud/workspace-templates";
-import { validDraftId } from "@agents-in-the-cloud/prompt/server";
+} from "@kintsugi/core";
+import { actionLinkHtml } from "@kintsugi/design-system/action-link";
+import { buttonHtml } from "@kintsugi/design-system/button";
+import { dialogHtml } from "@kintsugi/design-system/dialog";
+import { panelHtml } from "@kintsugi/design-system/panel";
+import { Icons } from "@kintsugi/design-system/icons";
+import { warningBannerHtml } from "@kintsugi/design-system/warning-banner";
+import { parseModelRef, renderModelsDialog } from "@kintsugi/llm/server";
+import { getWorkspaceTemplateConfiguration, isGitWorkspaceTemplateInit, workspaceTemplateIdFromInit, workspaceTemplateIdOfInit, isSshAuthenticationFailure, listWorkspaceTemplates, sshHostTrustFailure, scanSshHost, trustScannedSshHost, workspaceSshTrustRequests, onWorkspaceSshTrustChanged, decideWorkspaceSshTrust, cancelWorkspaceSshTrust, workspaceInitFromTemplate, type WorkspaceTemplateConfiguration, type WorkspaceTemplateSummary } from "@kintsugi/workspace-templates";
+import { validDraftId } from "@kintsugi/prompt/server";
 import {
   domId,
   emptyWorkspaceCommandInputSchema,
@@ -42,9 +42,9 @@ import {
   type WorkspaceModuleRouteHandler,
   type WorkspaceModuleWorkViewAdapter,
   type WorkspaceWorkViewPresentation
-} from "@agents-in-the-cloud/shared";
-import { createWorkspacePresentationStore, createWorkspaceProvisioning, generateWorkspaceId, listWorkspaces, setWorkspaceParked, setWorkspaceTitle, type WorkspaceCreationContext, type WorkspaceInitInstruction, type WorkspaceProvisioning, type WorkspaceProvisionRun, type WorkspaceWorkViewReference, type WorkspaceWorkViewState } from "@agents-in-the-cloud/workspace";
-import { renderWorkspaceLaunchPrompt, renderWorkspaceProvisioning } from "@agents-in-the-cloud/workspace/server/provisioning";
+} from "@kintsugi/shared";
+import { createWorkspacePresentationStore, createWorkspaceProvisioning, generateWorkspaceId, listWorkspaces, setWorkspaceParked, setWorkspaceTitle, type WorkspaceCreationContext, type WorkspaceInitInstruction, type WorkspaceProvisioning, type WorkspaceProvisionRun, type WorkspaceWorkViewReference, type WorkspaceWorkViewState } from "@kintsugi/workspace";
+import { renderWorkspaceLaunchPrompt, renderWorkspaceProvisioning } from "@kintsugi/workspace/server/provisioning";
 import { Type } from "typebox";
 import { Value } from "typebox/value";
 import { createAgentPaneHost } from "./agent-pane-host.ts";
@@ -53,11 +53,11 @@ import { agentContentId, selectAgentTurboStream } from "./agent-pane.ts";
 import { getAgentType, defaultAgentType, orderedAgentTypes, registeredAgentTypes, rememberAgentType } from "./agent-types.ts";
 import { openWorkspaceFile } from "./file-navigation.ts";
 import { httpErrorStatus, problemJsonResponse } from "./http-responses.ts";
-import { jsonResponse, matchRoute, replace, response, textResponse, update, wantsStream } from "@agents-in-the-cloud/shared/http";
+import { jsonResponse, matchRoute, replace, response, textResponse, update, wantsStream } from "@kintsugi/shared/http";
 import { launchComposerContent, renderLaunchComposer, renderLaunchAgentType, renderLaunchWorkspaceTemplate, launchWorkspaceAction } from "./launch-composer.ts";
 import { createLiveResource } from "./live-resource.ts";
 import { handleOnboardingRequest, renderOnboardingDialog } from "./onboarding/routes.ts";
-import { agentsInTheCloudOpenApi } from "./openapi.ts";
+import { kintsugiOpenApi } from "./openapi.ts";
 import { createPageLayout } from "./page-layout.ts";
 import { createWorkspaceTemplateRoutes, type WorkspaceTemplateEditorOptions } from "./workspace-template-routes.ts";
 import { appSettingsFrameId, renderDeveloperToolsSettings, renderAppSettings } from "./settings/page.ts";
@@ -66,7 +66,7 @@ import { themeRegionHtml, themeRegionId } from "./settings/theme.ts";
 import { parseCloseWorkViewRequest, parseReorderWorkViewRequest } from "./work-view-api.ts";
 import { createWorkspaceDeletion } from "./workspace-deletion.ts";
 import { workspaceModules as defaultWorkspaceModules } from "./workspace-modules.generated.ts";
-import { dismissWorkspaceParkConfirmationTurboStream, presentWorkViewTurboStream, renderAgentsInTheCloudBar, renderMobileWorkspaceBar, renderWorkspaceDeletionPresentation, renderWorkspacePane, renderWorkspaceParkConfirmation, renderWorkspacePresentation, workspacePaneCollectionsRegions, workContentId, type WorkspacePresentation as FixedWorkspacePresentation, type WorkPaneContribution, type WorkspacePanePresentation, type WorkspacePaneWorkspaceTemplate } from "./workspace-presentation.ts";
+import { dismissWorkspaceParkConfirmationTurboStream, presentWorkViewTurboStream, renderKintsugiBar, renderMobileWorkspaceBar, renderWorkspaceDeletionPresentation, renderWorkspacePane, renderWorkspaceParkConfirmation, renderWorkspacePresentation, workspacePaneCollectionsRegions, workContentId, type WorkspacePresentation as FixedWorkspacePresentation, type WorkPaneContribution, type WorkspacePanePresentation, type WorkspacePaneWorkspaceTemplate } from "./workspace-presentation.ts";
 import type { WorkspaceDeletionState, WorkspaceEntry, WorkspaceRegistry } from "./workspace-registry.ts";
 import { workspaceWarnings, type WorkspaceWarning } from "./workspace-warnings.ts";
 
@@ -75,7 +75,7 @@ export interface WebAppDeps {
   registry: WorkspaceRegistry;
   workspaceModules?: WorkspaceModule[];
   /** Event bus passed through to the agent module routes. */
-  events?: AgentsInTheCloudEventBus;
+  events?: KintsugiEventBus;
   devReload?: boolean;
   /** Create the container + default agent etc. for an already-registered workspace id. */
   provisionWorkspace(id: string, options: { init?: WorkspaceInitInstruction; context?: WorkspaceCreationContext; run: WorkspaceProvisionRun }): Promise<void>;
@@ -93,8 +93,8 @@ export interface WebAppDeps {
 export interface WebApp {
   fetch(request: Request): Promise<Response>;
   invalidateWorkspace(workspaceId: string): void;
-  subscribeShell(listener: (html: string) => void): Promise<import("@agents-in-the-cloud/shared").CableChannelSubscription>;
-  subscribeSurface(identifier: CableIdentifier, listener: (html: string) => void): Promise<import("@agents-in-the-cloud/shared").CableChannelSubscription>;
+  subscribeShell(listener: (html: string) => void): Promise<import("@kintsugi/shared").CableChannelSubscription>;
+  subscribeSurface(identifier: CableIdentifier, listener: (html: string) => void): Promise<import("@kintsugi/shared").CableChannelSubscription>;
   deleteCurrentWorkspaceFromAgent(workspaceId: string, force: boolean): Promise<DeleteCurrentWorkspaceResult>;
   resumeWorkspaceDeletions(): void;
   provisioning: WorkspaceProvisioning;
@@ -295,13 +295,13 @@ export function createWebApp(deps: WebAppDeps): WebApp {
     const draftId = crypto.randomUUID();
     const agentTypes = await orderedAgentTypes();
     const initialPrompt = registry.list().length === 0
-      ? "Hi, I think I'm about to make my first workspace in AgentsInTheCloud. Yay!\n\nIs it true that you have access to your own documentation and I can just ask you if I have a question about it?"
+      ? "Hi, I think I'm about to make my first workspace in Kintsugi. Yay!\n\nIs it true that you have access to your own documentation and I can just ask you if I have a question about it?"
       : "";
     const content = await launchComposerContent({ context: launchComposerFooterContext(), draftId, agentType: agentTypes[0]!, agentTypes, workspaceTemplateId: workspaceTemplate?.id, initialPrompt });
     return `<turbo-frame id="${launchComposerFrameId}">${dialogHtml({
       element: {
         controllers: "launch-composer-dialog submit-shortcut composer-focus",
-        actions: "mousedown->composer-focus#preserveInputFocus agents-in-the-cloud:software-keyboard@document->launch-composer-dialog#layout resize@window->launch-composer-dialog#layout",
+        actions: "mousedown->composer-focus#preserveInputFocus kintsugi:software-keyboard@document->launch-composer-dialog#layout resize@window->launch-composer-dialog#layout",
         attributesHtml: `data-launch-composer-dialog-discard-url-value="${escapeHtml(content.discardUrl)}"`,
       },
       iconHtml: Icons.Workspace,
@@ -336,7 +336,7 @@ export function createWebApp(deps: WebAppDeps): WebApp {
 
   function workViewKey(reference: WorkspaceWorkViewReference): string {
     const adapter = workViewAdapterByType.get(reference.type);
-    if (!adapter) throw new AgentsInTheCloudCoreError("work_view_reference_invalid", `unknown Work view type: ${reference.type}`);
+    if (!adapter) throw new KintsugiCoreError("work_view_reference_invalid", `unknown Work view type: ${reference.type}`);
     return `${reference.type}:${adapter.identity(reference)}`;
   }
 
@@ -523,7 +523,7 @@ export function createWebApp(deps: WebAppDeps): WebApp {
       : "";
     const recovery = sourceFailure ? {
       stepId: sourceFailure.id,
-      description: missingHost ? `AgentsInTheCloud does not yet trust ${missingHost.host}. Verify its fingerprint before trusting it and retrying.` : changedHost ? "The server's identity changed. Do not retry until your administrator verifies the new key. Update Trusted SSH servers in template settings only after verification." : needsSshKey ? "SSH authentication failed. An SSH key with access to this repository may resolve this. Add it to this template, then retry." : undefined,
+      description: missingHost ? `Kintsugi does not yet trust ${missingHost.host}. Verify its fingerprint before trusting it and retrying.` : changedHost ? "The server's identity changed. Do not retry until your administrator verifies the new key. Update Trusted SSH servers in template settings only after verification." : needsSshKey ? "SSH authentication failed. An SSH key with access to this repository may resolve this. Add it to this template, then retry." : undefined,
       actionsHtml: recoveryActions,
     } : undefined;
     const inner = `${renderWorkspaceProvisioning(entry.id, snapshot, { failed, error: entry.phase.error, recovery })}${sourceFailure ? "" : recoveryActions}${deleteAction}`;
@@ -580,10 +580,10 @@ export function createWebApp(deps: WebAppDeps): WebApp {
     const launchComposer = surface?.kind === "new-workspace"
       ? await renderLaunchComposerFrame(surface.workspaceTemplate)
       : `<turbo-frame id="${launchComposerFrameId}"></turbo-frame>`;
-    return `<div class="app fixed-shell-app" data-controller="agents-in-the-cloud-shortcuts workspace-navigation">
+    return `<div class="app fixed-shell-app" data-controller="kintsugi-shortcuts workspace-navigation">
     ${renderWorkspacePane(pane, renderGlobalSidebarContributions(), workspaceModules.map((module) => module.renderWorkspacePaneActions?.() ?? "").join(""), launchComposerCommand.binding)}
     <main class="fixed-shell-app-main">${await workspaceDetailHostHtml(pane, selectedId, initialSelection)}${surface?.kind === "template-settings" ? surface.html : `<div id="${templateSettingsHostId}"></div>`}<div id="app_settings_host">${surface?.kind === "settings" ? settings : ""}</div></main>
-    ${renderAgentsInTheCloudBar()}
+    ${renderKintsugiBar()}
   </div>
   ${workspaceTemplateEditor}
   <div id="update_modal_host"></div>
@@ -619,7 +619,7 @@ export function createWebApp(deps: WebAppDeps): WebApp {
 
   function requireWorkspace(id: string): WorkspaceEntry {
     const entry = registry.get(id);
-    if (!entry) throw new AgentsInTheCloudCoreError("workspace_not_found", `workspace not found: ${id}`);
+    if (!entry) throw new KintsugiCoreError("workspace_not_found", `workspace not found: ${id}`);
     return entry;
   }
 
@@ -700,7 +700,7 @@ export function createWebApp(deps: WebAppDeps): WebApp {
           maybeNameWorkspaceFromPrompt(id, launchPrompt, {
             events: deps.events,
             agentModel: options.context?.agent?.model ? parseModelRef(options.context.agent.model) : undefined,
-            onFailure: (message) => { if (registry.get(id)) registry.setIssue(id, "naming", `Couldn't name this workspace (${message}). You can name it with /name in the AgentsInTheCloud composer.`); },
+            onFailure: (message) => { if (registry.get(id)) registry.setIssue(id, "naming", `Couldn't name this workspace (${message}). You can name it with /name in the Kintsugi composer.`); },
           });
         }
         if (options.context?.agent?.initialPrompt !== undefined && !options.context.agent.initialPrompt.trim()) registry.requestAttention(id);
@@ -849,7 +849,7 @@ export function createWebApp(deps: WebAppDeps): WebApp {
     const keys = records.map(({ line, fingerprint }) => `<p><label><input type="checkbox" name="key" value="${escapeHtml(line)}" checked> <strong>${escapeHtml(line.split(" ")[1] ?? "SSH key")}</strong> <code>${escapeHtml(fingerprint)}</code></label></p>`).join("");
     const warning = changed
       ? `<p>Your workspace is trying to SSH into <strong>${escapeHtml(server)}</strong>.</p><p>We have ssh'd into this address in the past, but the fingerprint the remote machine reports now is different from what it reported previously.</p><p>If you updated the machine, this is expected.</p><p>If you didn't update the machine, it might mean someone may be trying to impersonate it.</p>`
-      : `<p>AgentsInTheCloud received these public keys from <strong>${escapeHtml(server)}</strong>. A network scan does not prove this is the real server. Compare the fingerprints with a trusted source or your administrator before continuing.</p>`;
+      : `<p>Kintsugi received these public keys from <strong>${escapeHtml(server)}</strong>. A network scan does not prove this is the real server. Compare the fingerprints with a trusted source or your administrator before continuing.</p>`;
     const formId = domId("ssh_trust_form", workspaceId);
     const body = `${warning}<form id="${formId}" method="post" action="${escapeHtml(action)}" data-turbo="true">${keys}${changed ? `<p><label>Type <strong>${escapeHtml(server)}</strong> to confirm: <input class="text-field" name="confirmation" autocomplete="off" required></label></p>` : ""}</form>`;
     const footer = `<form method="post" action="${escapeHtml(action)}/reject" data-turbo="true">${buttonHtml({ type: "submit", variant: "secondary", content: { kind: "caption", caption: "Don't trust" } })}</form>${buttonHtml({ type: "submit", variant: changed ? "secondary" : "primary", content: { kind: "caption", caption: changed ? "Trust changed identity" : "Trust verified keys" }, attributesHtml: `form="${formId}"` })}`;
@@ -862,7 +862,7 @@ export function createWebApp(deps: WebAppDeps): WebApp {
     const source = snapshot?.steps.find((step) => step.id === "workspace.source" && step.status === "failed");
     const address = source && sshHostTrustFailure(`${source.output ?? ""}\n${source.error ?? ""}`);
     if (!isGitWorkspaceTemplateInit(entry.init) || !address || snapshot?.waiting?.stepId !== "workspace.source" || !snapshot.waiting.retryable) {
-      throw new AgentsInTheCloudCoreError("workspace_not_ready", "This workspace is not waiting for SSH server trust");
+      throw new KintsugiCoreError("workspace_not_ready", "This workspace is not waiting for SSH server trust");
     }
     if (request.method === "POST") {
       if (!reject) {
@@ -881,7 +881,7 @@ export function createWebApp(deps: WebAppDeps): WebApp {
   async function workspaceRuntimeSshTrustEndpoint(id: string, trustId: string, request: Request, reject = false): Promise<Response> {
     requireWorkspace(id);
     const pending = workspaceSshTrustRequests(id).find(item => item.id === trustId);
-    if (!pending) throw new AgentsInTheCloudCoreError("workspace_not_ready", "The SSH trust request has expired");
+    if (!pending) throw new KintsugiCoreError("workspace_not_ready", "The SSH trust request has expired");
     const form = reject ? undefined : await request.formData();
     if (pending.changed && !reject && form?.get("confirmation") !== (pending.port === 22 ? pending.host : `${pending.host}:${pending.port}`)) throw invalidArguments("Confirm the changed server identity before trusting it");
     await decideWorkspaceSshTrust(id, trustId, reject ? [] : form!.getAll("key").map(String));
@@ -890,7 +890,7 @@ export function createWebApp(deps: WebAppDeps): WebApp {
 
   function continueWorkspaceProvisioningEndpoint(id: string, request: Request): Response {
     const entry = requireWorkspace(id);
-    if (entry.phase.kind !== "provisioningPhase") throw new AgentsInTheCloudCoreError("workspace_not_ready", `workspace ${id} is not waiting for provisioning confirmation`);
+    if (entry.phase.kind !== "provisioningPhase") throw new KintsugiCoreError("workspace_not_ready", `workspace ${id} is not waiting for provisioning confirmation`);
     const action = new URL(request.url).searchParams.get("action");
     if (action !== null && action !== "retry") throw invalidArguments("Unknown provisioning action");
     const stepId = provisioning.resume(id, action === "retry" ? "retry" : "continue");
@@ -937,7 +937,7 @@ export function createWebApp(deps: WebAppDeps): WebApp {
   > {
     return await serializePresentationMutation(id, async () => {
       const entry = requireWorkspace(id);
-      if (entry.phase.kind !== "runningPhase") throw new AgentsInTheCloudCoreError("workspace_not_ready", `workspace ${id} is not ready`);
+      if (entry.phase.kind !== "runningPhase") throw new KintsugiCoreError("workspace_not_ready", `workspace ${id} is not ready`);
       const affected = parked ? (await workspacePresentationBundle(id)).storedWorkViews.filter(({ reference }) => reference.type === "terminal" || reference.type === "vscode") : [];
       if (affected.length && !force) return { kind: "confirmation", workViews: affected };
       for (const { reference } of affected) await closeWorkView(id, reference);
@@ -1028,7 +1028,7 @@ export function createWebApp(deps: WebAppDeps): WebApp {
   async function executeWorkspaceCommand(workspaceId: string, commandId: string, request: Request): Promise<WorkspaceModuleCommandResult> {
     const commands = workspaceModuleCommands();
     const command = commands.find((candidate) => candidate.id === commandId);
-    if (!command) throw new AgentsInTheCloudCoreError("command_not_found", `workspace command not found: ${commandId}`, { availableCommands: commands.map((candidate) => candidate.id) });
+    if (!command) throw new KintsugiCoreError("command_not_found", `workspace command not found: ${commandId}`, { availableCommands: commands.map((candidate) => candidate.id) });
     return await command.execute({ workspaceId, events: deps.events, input: await commandInput(request, command) });
   }
 
@@ -1036,7 +1036,7 @@ export function createWebApp(deps: WebAppDeps): WebApp {
     const key = workViewKey(reference);
     const attachments = await attachWorkspaceModules(workspaceId);
     const contribution = attachments.flatMap((attachment) => attachment.workViews ?? []).find((view) => workViewKey(view.reference) === key);
-    if (!contribution) throw new AgentsInTheCloudCoreError("work_view_not_found", `Work view is not available: ${key}`);
+    if (!contribution) throw new KintsugiCoreError("work_view_not_found", `Work view is not available: ${key}`);
     await presentationStore.openWorkView(workspaceId, contribution.reference);
     return { reference: contribution.reference, key };
   }
@@ -1077,10 +1077,10 @@ export function createWebApp(deps: WebAppDeps): WebApp {
     // SAFETY: This value is validated or constructed by the server boundary immediately surrounding this use.
     const reference = JSON.parse(encodedReference) as WorkspaceWorkViewReference;
     const adapter = workViewAdapterByType.get(reference.type);
-    if (!adapter) throw new AgentsInTheCloudCoreError("work_view_reference_invalid", `unknown Work view type: ${reference.type}`);
+    if (!adapter) throw new KintsugiCoreError("work_view_reference_invalid", `unknown Work view type: ${reference.type}`);
     const parsed = adapter.parseReference(reference);
     const before = await presentationStore.listWorkViews(workspaceId);
-    if (!before.some(view => workViewKey(view.reference) === workViewKey(parsed))) throw new AgentsInTheCloudCoreError("work_view_not_found", `Work view is not open: ${workViewKey(parsed)}`);
+    if (!before.some(view => workViewKey(view.reference) === workViewKey(parsed))) throw new KintsugiCoreError("work_view_not_found", `Work view is not open: ${workViewKey(parsed)}`);
     await closeWorkView(workspaceId, parsed);
     if (requestAcceptsJson(request) && !wantsStream(request)) return jsonResponse({ closed: parsed, workViews: workViewSummaries(workspaceId, await presentationStore.listWorkViews(workspaceId)) });
     return turboStreamResponse("");
@@ -1089,7 +1089,7 @@ export function createWebApp(deps: WebAppDeps): WebApp {
   async function reorderWorkViewEndpoint(workspaceId: string, request: Request): Promise<Response> {
     const body = parseReorderWorkViewRequest(await readJsonObject(request));
     const stored = (await presentationStore.listWorkViews(workspaceId)).find((view) => workViewKey(view.reference) === body.key);
-    if (!stored) throw new AgentsInTheCloudCoreError("work_view_not_found", `Work view is not open: ${body.key}`);
+    if (!stored) throw new KintsugiCoreError("work_view_not_found", `Work view is not open: ${body.key}`);
     await presentationStore.reorderWorkView(workspaceId, stored.reference, body.index);
     if (requestAcceptsJson(request) && !wantsStream(request)) return jsonResponse({ workViews: workViewSummaries(workspaceId, await presentationStore.listWorkViews(workspaceId)) });
     return turboStreamResponse("");
@@ -1119,7 +1119,7 @@ export function createWebApp(deps: WebAppDeps): WebApp {
 
   async function requestWorkViewAttentionEndpoint(workspaceId: string, key: string, request: Request): Promise<Response> {
     const stored = (await presentationStore.listWorkViews(workspaceId)).find((view) => workViewKey(view.reference) === key);
-    if (!stored) throw new AgentsInTheCloudCoreError("work_view_not_found", `Work view is not open: ${key}`);
+    if (!stored) throw new KintsugiCoreError("work_view_not_found", `Work view is not open: ${key}`);
     registry.setParked(workspaceId, false);
     registry.requestSurfaceAttention(workspaceId, key);
     return requestAcceptsJson(request) && !wantsStream(request) ? jsonResponse({ attention: stored.reference }) : turboStreamResponse("");
@@ -1128,7 +1128,7 @@ export function createWebApp(deps: WebAppDeps): WebApp {
   async function closeAgentEndpoint(workspaceId: string, agentId: string, request: Request): Promise<Response> {
     requireWorkspace(workspaceId);
     const before = await agentTabs.list({ workspaceId });
-    if (!before.some(agent => agent.id === agentId)) throw new AgentsInTheCloudCoreError("agent_not_found", `Agent not found: ${agentId}`);
+    if (!before.some(agent => agent.id === agentId)) throw new KintsugiCoreError("agent_not_found", `Agent not found: ${agentId}`);
     await agentTabs.close({ workspaceId, agentId });
     registry.clearSurfaceAttention(workspaceId, `agent:${agentId}`);
     if (requestAcceptsJson(request) && !wantsStream(request)) {
@@ -1174,7 +1174,7 @@ export function createWebApp(deps: WebAppDeps): WebApp {
       const agentTypes = await orderedAgentTypes();
       return jsonResponse({ defaultAgentTypeId: agentTypes[0]!.id, agentTypes: agentTypes.map(({ id, label }) => ({ id, label })) });
     }
-    if (url.pathname === "/openapi.json" && request.method === "GET") return jsonResponse(agentsInTheCloudOpenApi(workspaceModuleCommands(), Object.assign({}, ...workspaceModules.map((module) => module.openApiPaths ?? {}))));
+    if (url.pathname === "/openapi.json" && request.method === "GET") return jsonResponse(kintsugiOpenApi(workspaceModuleCommands(), Object.assign({}, ...workspaceModules.map((module) => module.openApiPaths ?? {}))));
     if (url.pathname === "/launch-composer" && request.method === "GET") {
       const workspaceTemplateReference = url.searchParams.get("workspaceTemplate");
       const autoSelect = url.searchParams.get("autoSelect") === "true";
@@ -1307,7 +1307,7 @@ export function createWebApp(deps: WebAppDeps): WebApp {
         return result;
       } catch (thrown) {
         const error = thrown instanceof Error ? thrown : new Error(String(thrown));
-        if (error instanceof AgentsInTheCloudCoreError && error.code === "agent_setup_required" && !requestAcceptsJson(request)) {
+        if (error instanceof KintsugiCoreError && error.code === "agent_setup_required" && !requestAcceptsJson(request)) {
           const setup = await route(new Request(new URL(String(error.details!.setupUrl), request.url), { headers: { accept: "text/vnd.turbo-stream.html" } }));
           // A rejected launch must keep its prompt and attachment draft intact.
           return new Response(setup.body, { status: 422, headers: setup.headers });

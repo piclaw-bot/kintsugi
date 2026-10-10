@@ -28,7 +28,7 @@ describe("observable terminal normalization", () => {
   });
 
   test("interactive attachments configure tmux-owned scrollback before attaching", () => {
-    const args = buildAttachArgs({ containerName: "agents-in-the-cloud-ws", session: "s", cols: 80, rows: 24, socketName: "isolated" });
+    const args = buildAttachArgs({ containerName: "kintsugi-ws", session: "s", cols: 80, rows: 24, socketName: "isolated" });
     const bridge = JSON.parse(args.at(-1)!);
     expect(bridge.args).toEqual([
       "-L", "isolated",
@@ -44,7 +44,7 @@ describe("observable terminal normalization", () => {
   });
 
   test("read-only attachments do not configure scrollback", () => {
-    const args = buildAttachArgs({ containerName: "agents-in-the-cloud-ws", session: "s", cols: 80, rows: 24, readonly: true });
+    const args = buildAttachArgs({ containerName: "kintsugi-ws", session: "s", cols: 80, rows: 24, readonly: true });
     expect(JSON.parse(args.at(-1)!).args).toEqual(["attach-session", "-r", "-t", "s"]);
   });
 
@@ -64,7 +64,7 @@ describe("observable terminal normalization", () => {
   });
 
   test("builds readonly fixed-size attach arguments", () => {
-    const args = buildAttachArgs({ containerName: "agents-in-the-cloud-ws", session: "s", cols: 120, rows: 30, readonly: true, fixedSize: true });
+    const args = buildAttachArgs({ containerName: "kintsugi-ws", session: "s", cols: 120, rows: 30, readonly: true, fixedSize: true });
     expect(args).toContain("-i");
     expect(args).not.toContain("-it");
     const bridge = JSON.parse(args.at(-1)!);
@@ -77,8 +77,8 @@ describe("observable terminal normalization", () => {
 });
 
 test("receipt UUID sessions attach read-only to an existing server using a window target", async () => {
-  const socketName = `agents-in-the-cloud-attach-${crypto.randomUUID()}`;
-  const session = `agents-in-the-cloud-agent-${crypto.randomUUID()}`;
+  const socketName = `kintsugi-attach-${crypto.randomUUID()}`;
+  const session = `kintsugi-agent-${crypto.randomUUID()}`;
   const run = async (args: string[]) => {
     const process = Bun.spawn(["tmux", "-L", socketName, ...args], { stdout: "pipe", stderr: "pipe" });
     return { code: await process.exited, output: await new Response(process.stdout).text(), error: await new Response(process.stderr).text() };

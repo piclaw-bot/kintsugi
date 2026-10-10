@@ -1,4 +1,4 @@
-import { execWorkspaceCommandBuffer } from "@agents-in-the-cloud/workspace";
+import { execWorkspaceCommandBuffer } from "@kintsugi/workspace";
 import { isImageFile } from "../image-file.ts";
 import { EditableFileError, maxEditableFileBytes, requestedEditableFilePath } from "./editable-file.ts";
 

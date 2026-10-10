@@ -2,24 +2,24 @@ import { expect, test } from "bun:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { createAgentsInTheCloudEventBus } from "@agents-in-the-cloud/core";
-import type { WorkspaceDockerPlan } from "@agents-in-the-cloud/workspace";
+import { createKintsugiEventBus } from "@kintsugi/core";
+import type { WorkspaceDockerPlan } from "@kintsugi/workspace";
 import { registerWorkspaceProxyEvents } from "../src/egress/egress-proxy.ts";
 
 test("workspace certificate defaults support modern Yarn without disabling TLS verification", async () => {
   const previousDataDir = process.env.ATELIER_DATA_DIR;
-  const directory = await mkdtemp(join(tmpdir(), "agents-in-the-cloud-proxy-env-"));
+  const directory = await mkdtemp(join(tmpdir(), "kintsugi-proxy-env-"));
   process.env.ATELIER_DATA_DIR = directory;
   const plan: WorkspaceDockerPlan = { labels: {}, env: {}, mounts: [], preloadImages: [], extraArgs: [], initScripts: [], containerFiles: [], cleanup: [] };
   try {
-    const events = createAgentsInTheCloudEventBus();
+    const events = createKintsugiEventBus();
     registerWorkspaceProxyEvents(events);
     await events.emit("workspace_plan_prepare", { workspaceId: "certificate-defaults", workHostPath: "/tmp/work", workContainerPath: "/work", plan });
 
     expect(plan.env).not.toHaveProperty("YARN_CA_FILE");
-    expect(plan.env.NODE_EXTRA_CA_CERTS).toBe("/run/agents-in-the-cloud-mitm-ca.crt");
-    expect(plan.mounts).toContainEqual({ type: "bind", source: join(process.env.ATELIER_DOCKER_HOST_DATA_DIR ?? directory, "proxy-ca", "agents-in-the-cloud-mitm-ca.pem"), target: plan.env.NODE_EXTRA_CA_CERTS, readonly: true });
-    expect(plan.initScripts).toContain("cat /run/agents-in-the-cloud-mitm-ca.crt >> /etc/ssl/certs/ca-certificates.crt");
+    expect(plan.env.NODE_EXTRA_CA_CERTS).toBe("/run/kintsugi-mitm-ca.crt");
+    expect(plan.mounts).toContainEqual({ type: "bind", source: join(process.env.ATELIER_DOCKER_HOST_DATA_DIR ?? directory, "proxy-ca", "kintsugi-mitm-ca.pem"), target: plan.env.NODE_EXTRA_CA_CERTS, readonly: true });
+    expect(plan.initScripts).toContain("cat /run/kintsugi-mitm-ca.crt >> /etc/ssl/certs/ca-certificates.crt");
     expect(plan.env.NPM_CONFIG_CAFILE).toBe("/etc/ssl/certs/ca-certificates.crt");
     expect(plan.env).not.toHaveProperty("NODE_TLS_REJECT_UNAUTHORIZED");
     expect(plan.env).not.toHaveProperty("YARN_ENABLE_STRICT_SSL");

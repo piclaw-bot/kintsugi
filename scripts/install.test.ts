@@ -2,10 +2,11 @@ import { expect, test } from "bun:test";
 
 const installer = await Bun.file(new URL("./install.sh", import.meta.url)).text();
 
-function run(options: { systemState?: "restarting" | "exited"; nonRoot?: boolean; denySudo?: boolean; mac?: boolean; wsl?: boolean; installed?: boolean; old?: boolean; legacyAtelier?: boolean; legacyVolumeOnly?: boolean; legacyPreSystem?: boolean; legacyDownloadFails?: boolean; legacyDelegateFails?: boolean; pullFails?: boolean; pullDenied?: boolean; appFails?: boolean; retryUpdateRequest?: boolean; rejectUpdateRequest?: boolean; pendingHealth?: boolean; missingFilesystem?: boolean; loadable?: boolean; uninstallAnswer?: string; uninstallFails?: boolean; uninstallRequestFails?: boolean; inventoryFails?: boolean; volumeOnly?: boolean; volumeRemovalFails?: boolean; initiallyStopped?: boolean } = {}, args: string[] = []) {
-  const logPath = `/tmp/agents-in-the-cloud-install-test-${crypto.randomUUID()}.log`;
+function run(options: { savedRepository?: string; savedHostname?: string; appPrepareFails?: boolean; savedRegistry?: boolean; rollbackAvailable?: boolean; installerCompatible?: boolean; promptRepository?: string; promptHostname?: string; systemState?: "restarting" | "exited"; portMappings?: string; nonRoot?: boolean; denySudo?: boolean; mac?: boolean; wsl?: boolean; installed?: boolean; old?: boolean; legacyAtelier?: boolean; legacyVolumeOnly?: boolean; legacyPreSystem?: boolean; legacyDownloadFails?: boolean; legacyDelegateFails?: boolean; pullFails?: boolean; pullDenied?: boolean; appFails?: boolean; retryUpdateRequest?: boolean; rejectUpdateRequest?: boolean; pendingHealth?: boolean; missingFilesystem?: boolean; loadable?: boolean; uninstallAnswer?: string; uninstallFails?: boolean; uninstallRequestFails?: boolean; inventoryFails?: boolean; volumeOnly?: boolean; volumeRemovalFails?: boolean; initiallyStopped?: boolean } = {}, args: string[] = []) {
+  const pinned = `sha256:${"c".repeat(64)}`;
+  const logPath = `/tmp/kintsugi-install-test-${crypto.randomUUID()}.log`;
   const mock = `
-mktemp() { if [[ "$*" == *atelier-legacy-uninstall* ]]; then echo "${logPath}.legacy"; else echo "${logPath}"; fi; }
+mktemp() { if [ "\${1:-}" = -d ]; then command mktemp "$@"; return; fi; if [[ "$*" == *atelier-legacy-uninstall* ]]; then echo "${logPath}.legacy"; else echo "${logPath}"; fi; }
 curl() { printf 'CURL %s\\n' "$*" >&2; return ${options.legacyDownloadFails ? 22 : 0}; }
 bash() { printf 'LEGACY BASH %s\\n' "$*" >&2; return ${options.legacyDelegateFails ? 1 : 0}; }
 sleep() { command sleep 0.01; }
@@ -28,23 +29,41 @@ modprobe() {
 mkdir() { :; }
 docker() {
   printf 'DOCKER %s\\n' "$*" >&2
+  if [ "$1" = --config ]; then shift 2; fi
   case "$1 \${2:-}" in
     'container inspect')
       case "$3" in
-        agents-in-the-cloud-system) return ${options.installed ? 0 : 1} ;;
-        agents-in-the-cloud) return ${options.old ? 0 : 1} ;;
+        kintsugi-system) return ${options.installed ? 0 : 1} ;;
+        kintsugi) return ${options.old ? 0 : 1} ;;
         atelier-system) return ${options.legacyAtelier ? 0 : 1} ;;
         atelier) return ${options.legacyPreSystem ? 0 : 1} ;;
       esac ;;
+    'cp '*) printf '%s' '{"auths":{"ghcr.io":{"auth":"Zml4dHVyZTp0b2tlbg=="}}}' > "$3"; return 0 ;;
+    'run --rm')
+      if [[ "$*" == *' rollback-plan '* ]]; then if [ "${options.rollbackAvailable === false ? 0 : 1}" -eq 0 ]; then return 1; fi; printf '%s\n%s\n%s\n' ${pinned} ${pinned} kintsugi-system; return 0; fi
+      if [[ "$*" == *' auth-check '* ]]; then echo ${options.savedRegistry ? 1 : 0}; return 0; fi
+      if [[ "$*" == *" plan "* ]]; then
+        local -a arguments=("$@")
+        local i source app system hostname
+        for ((i=0;i<\${#arguments[@]};i++)); do
+          if [ "\${arguments[i]}" = plan ]; then
+            source="\${arguments[i+1]}"; app="\${arguments[i+2]}"; system="\${arguments[i+3]}"; hostname="\${arguments[i+4]}"; break
+          fi
+        done
+        source="\${source:-${options.savedRepository ?? 'ghcr.io/rcarmo/kintsugi'}}"
+        printf '%s\n%s\n%s\n' "\${system:-$source-system:latest}" "\${app:-$source:latest}" "\${hostname:-${options.savedHostname ?? 'kintsugi-system'}}"
+      fi
+      return 0 ;;
+    'image inspect') if [[ "$*" == *'installer-config'* ]]; then echo ${options.installerCompatible === false ? 0 : 1}; elif [[ "$*" == *'{{.Id}}'* ]]; then echo ${pinned}; fi; return 0 ;;
     'pull '*)
-      if [ "${options.pullDenied ? 1 : 0}" -eq 1 ]; then echo 'Error response from daemon: Head "https://ghcr.io/v2/lucasmeijer/agents-in-the-cloud-system/manifests/latest": denied: denied' >&2; return 1; fi
+      if [ "${options.pullDenied ? 1 : 0}" -eq 1 ]; then echo 'Error response from daemon: Head "https://ghcr.io/v2/rcarmo/kintsugi-system/manifests/latest": denied: denied' >&2; return 1; fi
       return ${options.pullFails ? 1 : 0} ;;
-    'volume ls') if [[ "$*" == *'name=^atelier-system$'* ]]; then if [ "${options.legacyVolumeOnly ? 1 : 0}" -eq 1 ]; then echo atelier-system; fi; return 0; fi; if [ "$volume_present" -eq 1 ] && [ ! -e "${logPath}.volume-removed" ]; then echo agents-in-the-cloud-system; fi; return 0 ;;
+    'volume ls') if [[ "$*" == *'name=^atelier-system$'* ]]; then if [ "${options.legacyVolumeOnly ? 1 : 0}" -eq 1 ]; then echo atelier-system; fi; return 0; fi; if [ "$volume_present" -eq 1 ] && [ ! -e "${logPath}.volume-removed" ]; then echo kintsugi-system; fi; return 0 ;;
     'volume rm')
       if [ "${options.volumeRemovalFails ? 1 : 0}" -eq 1 ]; then return 1; fi
       touch "${logPath}.volume-removed"; return 0 ;;
-    'ps -a') if [ "$container_present" -eq 1 ] && [ ! -e "${logPath}.container-removed" ]; then echo agents-in-the-cloud-system; fi; return 0 ;;
-    'rm agents-in-the-cloud-system') touch "${logPath}.container-removed"; return 0 ;;
+    'ps -a') if [ "$container_present" -eq 1 ] && [ ! -e "${logPath}.container-removed" ]; then echo kintsugi-system; fi; return 0 ;;
+    'rm kintsugi-system') touch "${logPath}.container-removed"; return 0 ;;
     'exec --user')
       if [[ "$*" == *http://supervisor/uninstall* ]]; then
         if [[ "$*" == *'method:"POST"'* ]]; then return ${options.uninstallRequestFails ? 1 : 0}; fi
@@ -54,7 +73,11 @@ docker() {
       if [[ "$*" == *3001/status* ]]; then
         printf '${options.uninstallFails ? "failed\\nvolume is in use" : "complete\\nManaged resources deleted"}\\n'; return 0
       fi ;;
-    'exec agents-in-the-cloud-system')
+    'exec kintsugi-system')
+      if [[ "$*" == *"Cannot prepare the selected app"* ]]; then
+        if [ "${options.appPrepareFails ? 1 : 0}" -eq 1 ]; then return 1; fi
+        echo ${pinned}; return 0
+      fi
       if [[ "$*" == *3001/update-channel* ]]; then
         if [ "${options.rejectUpdateRequest ? 1 : 0}" -eq 1 ]; then return 2; fi
         if [ "${options.retryUpdateRequest ? 1 : 0}" -eq 1 ] && [ ! -e "${logPath}.update-attempted" ]; then
@@ -74,21 +97,21 @@ docker() {
           printf 'starting\\nAn activity the installer has never heard of\\n42\\n'
           return
         fi
-        printf '${options.appFails ? 'failed\\nApp health failed\\n\\n\\n\\n\\nApp exited' : 'ready\\nAgentsInTheCloud is ready\\n\\nhttps://app.example/custom-path\\n\\n\\n'}\\n'
+        printf '${options.appFails ? 'failed\\nApp health failed\\n\\n\\n\\n\\nApp exited' : 'ready\\nKintsugi is ready\\n\\nhttps://app.example/custom-path\\n\\n\\n'}\\n'
         return
       fi ;;
     'logs --tail') echo 'supervisor startup failed: io.weight unavailable';;
-    'inspect --format') if [[ "$*" == *State.Status* ]]; then echo ${options.systemState ?? 'running'}; elif [[ "$*" == *3080/tcp* ]]; then echo 55123; else echo ${options.initiallyStopped ? "false" : "true"}; fi ;;
+    'inspect --format') if [[ "$*" == *'{{.Image}}'* ]]; then echo ${pinned}; elif [[ "$*" == *'range $port'* ]]; then printf '%b\\n' ${JSON.stringify(options.portMappings ?? '')}; elif [[ "$*" == *State.Status* ]]; then echo ${options.systemState ?? 'running'}; elif [[ "$*" == *3080/tcp* ]]; then echo 55123; else echo ${options.initiallyStopped ? "false" : "true"}; fi ;;
   esac
 }
 `;
   const script = installer
-    .replace("tee /etc/modules-load.d/agents-in-the-cloud-system.conf", "tee /dev/null")
+    .replace("tee /etc/modules-load.d/kintsugi-system.conf", "tee /dev/null")
     // Mock terminal availability and answers; these tests exercise Docker orchestration.
     .replace('{ [ -t 0 ]; } 2>/dev/null <"$prompt_input"', "true")
     .replace(
       'IFS= read -r -t 120 "$1" <"$prompt_input"',
-      `if [ "$1" = action ]; then action=update; else answer=${JSON.stringify(options.uninstallAnswer ?? (options.installed ? "yes" : "1"))}; fi`,
+      `if [ "$1" = action ]; then action=update; elif [ "$1" = source_repository ]; then source_repository=${JSON.stringify(options.promptRepository ?? "")}; elif [ "$1" = tailscale_hostname ]; then tailscale_hostname=${JSON.stringify(options.promptHostname ?? "")}; else answer=${JSON.stringify(options.uninstallAnswer ?? (options.installed ? "yes" : "1"))}; fi`,
     );
   const result = Bun.spawnSync([process.platform === "darwin" ? "/bin/bash" : "bash", "-c", mock + script, "installer", ...args], { stdin: "ignore" });
   const log = Bun.spawnSync(["cat", logPath]).stdout.toString();
@@ -101,13 +124,15 @@ test("piped sudo installs read prompts from the caller's terminal", () => {
   expect(installer).toContain('IFS= read -r -t 120 "$1" <"$prompt_input"');
 });
 
+const pinnedSystem = `sha256:${"c".repeat(64)}`;
+
 test("fresh install launches privileged System with persistent named volume and bootstrap app", () => {
   const result = run({}, ["--system-image", "test/system:v1", "--app-image", "test/app:v1"]);
   expect(result.status).toBe(0);
-  expect(result.output).toContain("DOCKER pull test/system:v1");
-  expect(result.output).toContain("--name agents-in-the-cloud-system --hostname agents-in-the-cloud-system --privileged --cgroupns=host --restart unless-stopped --stop-timeout 120 --tmpfs /run --mount source=agents-in-the-cloud-system,target=/data --publish 127.0.0.1:3080:3080 test/system:v1 --app-image test/app:v1 --access-mode tailscale");
+  expect(result.output).toContain("DOCKER image inspect test/system:v1");
+  expect(result.output).toContain(`--name kintsugi-system --hostname kintsugi-system --privileged --cgroupns=host --restart unless-stopped --stop-timeout 120 --tmpfs /run --mount source=kintsugi-system,target=/data --publish 127.0.0.1:3080:3080 ${pinnedSystem} --app-image test/app:v1 --access-mode tailscale`);
   expect(result.output).not.toContain("DOCKER stop");
-  expect(result.output).toContain("DOCKER exec agents-in-the-cloud-system bun -e");
+  expect(result.output).toContain("DOCKER exec kintsugi-system bun -e");
 });
 
 test("localhost install publishes a stable loopback port", () => {
@@ -122,9 +147,9 @@ test("replacement downloads before stopping and retains volume", () => {
   const result = run({ installed: true });
   expect(result.status).toBe(0);
   const commands = result.output;
-  expect(commands.indexOf("DOCKER pull")).toBeLessThan(commands.indexOf("DOCKER stop --time 120 agents-in-the-cloud-system"));
-  expect(commands.indexOf("DOCKER stop")).toBeLessThan(commands.indexOf("DOCKER rm agents-in-the-cloud-system"));
-  expect(commands).toContain("--mount source=agents-in-the-cloud-system,target=/data");
+  expect(commands.indexOf("DOCKER pull")).toBeLessThan(commands.indexOf("DOCKER stop --time 120 kintsugi-system"));
+  expect(commands.indexOf("DOCKER stop")).toBeLessThan(commands.indexOf("DOCKER rm kintsugi-system"));
+  expect(commands).toContain("--mount source=kintsugi-system,target=/data");
   expect(commands).not.toContain("volume rm");
 });
 
@@ -133,27 +158,27 @@ test("failed pull leaves existing System untouched", () => {
   expect(result.status).not.toBe(0);
   expect(result.output).not.toContain("DOCKER stop");
   expect(result.output).not.toContain("DOCKER rm");
-  expect(result.output).not.toContain("DOCKER run");
+  expect(result.output).not.toContain("DOCKER run -d");
 });
 
-test("pull rejected by a stale ghcr.io login explains how to clear it", () => {
+test("private registry denial stops without suggesting credential removal", () => {
   const result = run({ pullDenied: true });
   expect(result.status).not.toBe(0);
-  expect(result.output).toContain("GitHub turned down Docker's saved login for ghcr.io");
-  expect(result.output).toContain("Run: docker logout ghcr.io, then run this installer again.");
+  expect(result.output).toContain("Cannot pull the selected System image");
+  expect(result.output).not.toContain("Run: docker logout");
   expect(result.output).not.toContain("DOCKER run");
 });
 
 test("other pull failures keep the generic message", () => {
   const result = run({ pullFails: true });
-  expect(result.output).toContain("Downloading AgentsInTheCloud services failed. See the bootstrap log for details.");
+  expect(result.output).toContain("no upstream fallback was attempted");
   expect(result.output).not.toContain("docker logout");
 });
 
 test("connect enables Tailscale on a running localhost installation without replacing or restarting System", () => {
   const result = run({ installed: true }, ["--action", "connect"]);
   expect(result.status).toBe(0);
-  expect(result.output).toContain("DOCKER exec agents-in-the-cloud-system bun -e");
+  expect(result.output).toContain("DOCKER exec kintsugi-system bun -e");
   expect(result.output).toContain("http://127.0.0.1:3001/access");
   expect(result.output).toContain(" 55123 tailscale");
   expect(result.output).toContain("http://127.0.0.1:3001/connect");
@@ -166,7 +191,7 @@ test("connect enables Tailscale on a running localhost installation without repl
 test("connect starts a stopped System before configuring Tailscale access", () => {
   const result = run({ installed: true, initiallyStopped: true }, ["--action", "connect"]);
   expect(result.status).toBe(0);
-  expect(result.output).toContain("DOCKER start agents-in-the-cloud-system");
+  expect(result.output).toContain("DOCKER start kintsugi-system");
   expect(result.output).toContain(" 55123 tailscale");
   expect(result.output.indexOf("DOCKER start")).toBeLessThan(result.output.indexOf("3001/access"));
   for (const command of ["pull", "stop", "rm", "run"]) {
@@ -186,7 +211,7 @@ test("connect honors an explicit localhost access mode", () => {
 test("open honors an explicit Tailscale access mode without replacing System", () => {
   const result = run({ installed: true }, ["--action", "open", "--access-mode", "tailscale"]);
   expect(result.status).toBe(0);
-  expect(result.output).toContain("DOCKER exec agents-in-the-cloud-system bun -e");
+  expect(result.output).toContain("DOCKER exec kintsugi-system bun -e");
   expect(result.output).toContain("http://127.0.0.1:3001/access");
   expect(result.output).toContain(" 55123 tailscale");
   expect(result.output).not.toContain("3001/connect");
@@ -212,7 +237,7 @@ test("invalid action is rejected before Docker changes", () => {
 test("missing filesystem driver fails before image pull or System replacement", () => {
   const result = run({ installed: true, missingFilesystem: true });
   expect(result.status).not.toBe(0);
-  expect(result.output).toContain("does not have erofs, which AgentsInTheCloud requires");
+  expect(result.output).toContain("does not have erofs, which Kintsugi requires");
   expect(result.output).not.toContain("DOCKER pull");
   expect(result.output).not.toContain("DOCKER stop");
 });
@@ -229,7 +254,7 @@ test("supervisor failure stops System without removing its container or data", (
   const result = run({ appFails: true });
   expect(result.status).not.toBe(0);
   expect(result.output).toContain("3001/status");
-  expect(result.output).toContain("DOCKER stop --time 120 agents-in-the-cloud-system");
+  expect(result.output).toContain("DOCKER stop --time 120 kintsugi-system");
   expect(result.output).not.toContain("DOCKER rm");
   expect(result.output).not.toContain("volume rm");
 });
@@ -241,10 +266,10 @@ test("waits for supervisor readiness without interpreting the activity descripti
 });
 
 
-test("macOS starts System directly without a temporary check container or host module changes", () => {
+test("macOS uses a network-isolated configuration helper without host module changes", () => {
   const result = run({ mac: true, missingFilesystem: true });
   expect(result.status).toBe(0);
-  expect(result.output).not.toContain("DOCKER run --rm");
+  expect(result.output).toContain("DOCKER run --rm --network none --entrypoint bun");
   expect(result.output).not.toContain("MODPROBE");
   expect(result.output).toContain("Open https://app.example/custom-path");
 });
@@ -296,7 +321,7 @@ for (const state of ["restarting", "exited"] as const) {
     test(`${action} stops waiting and shows container logs when System is ${state}`, () => {
       const result = run({ installed: true, systemState: state }, ["--action", action]);
       expect(result.status).toBe(1);
-      expect(result.output).toContain(`AgentsInTheCloud services are ${state}`);
+      expect(result.output).toContain(`Kintsugi services are ${state}`);
       expect(result.output).toContain("supervisor startup failed: io.weight unavailable");
       expect(result.output).not.toContain("Waiting for the supervisor");
       expect(result.output).not.toContain("http://127.0.0.1:3001/status");
@@ -308,31 +333,25 @@ for (const action of ["open", "connect"]) {
   test(`${action} stops an existing System when its status reports failure`, () => {
     const result = run({ installed: true, appFails: true }, ["--action", action]);
     expect(result.status).toBe(1);
-    expect(result.output).toContain("DOCKER stop --time 120 agents-in-the-cloud-system");
+    expect(result.output).toContain("DOCKER stop --time 120 kintsugi-system");
     expect(result.output).not.toContain("DOCKER rm");
   });
 }
 
 
-test("update requests a channel update before accepting a healthy saved app", () => {
+test("update prepares and pins the app before replacing System", () => {
   const result = run({ installed: true }, ["--action", "update"]);
   expect(result.status).toBe(0);
-  expect(result.output.indexOf("3001/access")).toBeLessThan(result.output.indexOf("3001/update-channel"));
-  expect(result.output.indexOf("3001/update-channel")).toBeLessThan(result.output.indexOf("3001/status"));
+  expect(result.output.indexOf("Cannot prepare the selected app")).toBeLessThan(result.output.indexOf("DOCKER stop --time 120"));
+  expect(result.output).not.toContain("3001/update-channel");
 });
 
-test("update retries an unavailable supervisor even when the saved app failed", () => {
-  const result = run({ installed: true, retryUpdateRequest: true }, ["--action", "update"]);
-  expect(result.status).toBe(0);
-  expect(result.output.match(/http:\/\/127\.0\.0\.1:3001\/update-channel/g)?.length).toBe(2);
-  expect(result.output).toContain("Open https://app.example/custom-path");
-});
-
-test("update fails explicitly when the supervisor rejects the update request", () => {
-  const result = run({ installed: true, rejectUpdateRequest: true }, ["--action", "update"]);
+test("failed app preparation retains existing System", () => {
+  const result = run({ installed: true, appPrepareFails: true }, ["--action", "update"]);
   expect(result.status).not.toBe(0);
-  expect(result.output).toContain("Could not request the AgentsInTheCloud app update");
-  expect(result.output).not.toContain("Open https://");
+  expect(result.output).toContain("existing System was not replaced");
+  expect(result.output).not.toContain("DOCKER stop");
+  expect(result.output).not.toContain("DOCKER rm");
 });
 
 for (const action of ["install", "open", "connect"]) {
@@ -364,14 +383,14 @@ test("uninstall cancellation warns with the exact inventory and deletes nothing"
 });
 
 test("confirmed uninstall delegates cleanup, polls status, then removes only System and its volume", () => {
-  const result = run({ installed: true, uninstallAnswer: "DELETE AGENTSINTHECLOUD" }, ["--uninstall"]);
+  const result = run({ installed: true, uninstallAnswer: "DELETE KINTSUGI" }, ["--uninstall"]);
   expect(result.status).toBe(0);
   expect(result.output).toContain("Uninstalled. System and all installation data have been removed");
-  expect(result.output).toContain("DOCKER exec --user root agents-in-the-cloud-system");
-  expect(result.output).toContain("/run/agents-in-the-cloud-system/uninstall.sock");
-  expect(result.output).toContain("DOCKER stop --time 120 agents-in-the-cloud-system");
-  expect(result.output).toContain("DOCKER rm agents-in-the-cloud-system");
-  expect(result.output).toContain("DOCKER volume rm agents-in-the-cloud-system");
+  expect(result.output).toContain("DOCKER exec --user root kintsugi-system");
+  expect(result.output).toContain("/run/kintsugi-system/uninstall.sock");
+  expect(result.output).toContain("DOCKER stop --time 120 kintsugi-system");
+  expect(result.output).toContain("DOCKER rm kintsugi-system");
+  expect(result.output).toContain("DOCKER volume rm kintsugi-system");
   // Background run_quiet commands are captured in the log after foreground output.
   expect(result.output.indexOf("http://supervisor/uninstall")).toBeLessThan(result.output.indexOf("DOCKER stop --time 120"));
   expect(result.output).not.toContain("DOCKER system prune");
@@ -380,7 +399,7 @@ test("confirmed uninstall delegates cleanup, polls status, then removes only Sys
 
 for (const option of ["uninstallFails", "uninstallRequestFails", "inventoryFails"] as const) {
   test(`${option} retains the outer System container and volume`, () => {
-    const result = run({ installed: true, uninstallAnswer: "DELETE AGENTSINTHECLOUD", [option]: true }, ["--uninstall"]);
+    const result = run({ installed: true, uninstallAnswer: "DELETE KINTSUGI", [option]: true }, ["--uninstall"]);
     expect(result.status).toBe(1);
     expect(result.output).not.toContain("DOCKER stop");
     expect(result.output).not.toContain("DOCKER rm");
@@ -391,22 +410,22 @@ for (const option of ["uninstallFails", "uninstallRequestFails", "inventoryFails
 test("uninstall restarts a stopped supervisor to obtain its inventory, without downloading anything", () => {
   const result = run({ installed: true, initiallyStopped: true, uninstallAnswer: "no" }, ["--uninstall"]);
   expect(result.status).toBe(0);
-  expect(result.output).toContain("DOCKER start agents-in-the-cloud-system");
+  expect(result.output).toContain("DOCKER start kintsugi-system");
   expect(result.output).toContain("8 workspaces");
   expect(result.output).not.toContain("DOCKER pull");
 });
 
 test("uninstall can finish volume removal after System was already removed, with explicit unknown-count warning", () => {
-  const result = run({ volumeOnly: true, uninstallAnswer: "DELETE AGENTSINTHECLOUD" }, ["--uninstall"]);
+  const result = run({ volumeOnly: true, uninstallAnswer: "DELETE KINTSUGI" }, ["--uninstall"]);
   expect(result.status).toBe(0);
   expect(result.output).toContain("Workspace count unavailable");
   expect(result.output).not.toContain("0 workspaces");
-  expect(result.output).toContain("DOCKER volume rm agents-in-the-cloud-system");
+  expect(result.output).toContain("DOCKER volume rm kintsugi-system");
   expect(result.output).not.toContain("DOCKER exec");
 });
 
 test("uninstall does not claim success if installation volume removal fails", () => {
-  const result = run({ volumeOnly: true, volumeRemovalFails: true, uninstallAnswer: "DELETE AGENTSINTHECLOUD" }, ["--uninstall"]);
+  const result = run({ volumeOnly: true, volumeRemovalFails: true, uninstallAnswer: "DELETE KINTSUGI" }, ["--uninstall"]);
   expect(result.status).toBe(1);
   expect(result.output).toContain("Deleting installation storage failed");
   expect(result.output).not.toContain("Uninstalled. System");
@@ -418,57 +437,41 @@ test("uninstall is a no-op when no System container or volume remains", () => {
   expect(result.output).toContain("Nothing to uninstall");
   expect(result.output).not.toContain("DOCKER run");
   expect(result.output).not.toContain("DOCKER pull");
-  expect(result.output).not.toContain("Type DELETE AGENTSINTHECLOUD");
+  expect(result.output).not.toContain("Type DELETE KINTSUGI");
 });
 
 
 test("installer refuses Atelier without adopting or deleting its resources", () => {
   const result = run({ legacyAtelier: true }, ["--action", "install"]);
   expect(result.status).not.toBe(0);
-  expect(result.output).toContain("Run this installer with --uninstall first");
+  expect(result.output).toContain("Use its own installer to remove it");
   expect(result.output).not.toContain("DOCKER run");
   expect(result.output).not.toContain("DOCKER rm");
   expect(result.output).not.toContain("DOCKER volume rm");
 });
 
-test("uninstall delegates Atelier System cleanup to the frozen legacy installer", () => {
+test("uninstall refuses upstream legacy data without downloading or deleting anything", () => {
   const result = run({ legacyAtelier: true }, ["--uninstall"]);
-  expect(result.status).toBe(0);
-  expect(result.output).toContain("DELETE ATELIER");
-  expect(result.output).toContain("CURL -fsSL https://raw.githubusercontent.com/lucasmeijer/atelier/34cea8ec/scripts/install.sh -o");
-  expect(result.output).toMatch(/LEGACY BASH .*\.legacy --uninstall/);
+  expect(result.status).not.toBe(0);
+  expect(result.output).toContain("Use its own uninstaller");
+  expect(result.output).not.toContain("CURL");
   expect(result.output).not.toContain("DOCKER rm");
-  expect(result.output).not.toContain("DOCKER pull");
-});
-
-test("legacy uninstaller download failure is explicit and never invokes cleanup", () => {
-  const result = run({ legacyAtelier: true, legacyDownloadFails: true }, ["--uninstall"]);
-  expect(result.status).toBe(1);
-  expect(result.output).toContain("Could not download the legacy Atelier uninstaller. Nothing has been deleted");
-  expect(result.output).not.toContain("LEGACY BASH");
-  expect(result.output).not.toContain("DOCKER rm");
-});
-
-test("legacy uninstaller failure propagates without removing resources itself", () => {
-  const result = run({ legacyAtelier: true, legacyDelegateFails: true }, ["--uninstall"]);
-  expect(result.status).toBe(1);
-  expect(result.output).toContain("LEGACY BASH");
-  expect(result.output).not.toContain("DOCKER rm");
+  expect(result.output).not.toContain("DOCKER volume rm");
 });
 
 test("when both products exist, uninstall removes only the new product and explains the next step", () => {
-  const result = run({ installed: true, legacyAtelier: true, uninstallAnswer: "DELETE AGENTSINTHECLOUD" }, ["--uninstall"]);
+  const result = run({ installed: true, legacyAtelier: true, uninstallAnswer: "DELETE KINTSUGI" }, ["--uninstall"]);
   expect(result.status).toBe(0);
-  expect(result.output).toContain("Atelier will remain; run --uninstall again to inspect it");
-  expect(result.output).toContain("DOCKER rm agents-in-the-cloud-system");
+  expect(result.output).toContain("Atelier will remain; use its own installer to remove it");
+  expect(result.output).toContain("DOCKER rm kintsugi-system");
   expect(result.output).not.toContain("LEGACY BASH");
   expect(result.output).not.toContain("DOCKER rm atelier");
 });
 
 test("a remaining new-product volume takes precedence over legacy delegation", () => {
-  const result = run({ volumeOnly: true, legacyAtelier: true, uninstallAnswer: "DELETE AGENTSINTHECLOUD" }, ["--uninstall"]);
+  const result = run({ volumeOnly: true, legacyAtelier: true, uninstallAnswer: "DELETE KINTSUGI" }, ["--uninstall"]);
   expect(result.status).toBe(0);
-  expect(result.output).toContain("DOCKER volume rm agents-in-the-cloud-system");
+  expect(result.output).toContain("DOCKER volume rm kintsugi-system");
   expect(result.output).not.toContain("LEGACY BASH");
 });
 
@@ -484,15 +487,79 @@ test("pre-System Atelier uninstall fails explicitly rather than claiming nothing
 test("fresh installer uses latest in the separate renamed repositories", () => {
   const result = run({});
   expect(result.status).toBe(0);
-  expect(result.output).toContain("DOCKER pull ghcr.io/lucasmeijer/agents-in-the-cloud-system:latest");
-  expect(result.output).toContain("--app-image ghcr.io/lucasmeijer/agents-in-the-cloud:latest");
+  expect(result.output).toContain("DOCKER pull ghcr.io/rcarmo/kintsugi-system:latest");
+  expect(result.output).toContain("--app-image ghcr.io/rcarmo/kintsugi:latest");
   expect(result.output).not.toContain(":beta");
 });
 
-test("legacy installation storage remaining after container removal still delegates to Atelier cleanup", () => {
+test("upstream legacy storage is retained even when its container is absent", () => {
   const result = run({ legacyVolumeOnly: true }, ["--uninstall"]);
+  expect(result.status).not.toBe(0);
+  expect(result.output).toContain("retained all of its data");
+  expect(result.output).not.toContain("DOCKER volume rm");
+});
+
+test("updates preserve existing host publications, including a stopped System", () => {
+  const result = run({ installed: true, initiallyStopped: true, portMappings: "192.168.1.10:3443:3443/tcp\n::1:5353:5353/udp" }, ["--action", "update"]);
   expect(result.status).toBe(0);
-  expect(result.output).toContain("LEGACY BASH");
-  expect(result.output).toContain("DELETE ATELIER");
-  expect(result.output).not.toContain("Nothing to uninstall");
+  expect(result.output).toContain("--publish 192.168.1.10:3443:3443/tcp");
+  expect(result.output).toContain("--publish [::1]:5353:5353/udp");
+  expect(installer).not.toContain(".NetworkSettings.Ports");
+});
+
+test("setup prompts for a source repository and hostname and uses the answers", () => {
+  const result = run({ promptRepository: "ghcr.io/example/cloud", promptHostname: "cloud-home" });
+  expect(result.status).toBe(0);
+  expect(result.output).toContain("Release image repository");
+  expect(result.output).toContain("Tailscale hostname");
+  expect(result.output).toContain("DOCKER pull ghcr.io/example/cloud-system:latest");
+  expect(result.output).toContain("--hostname cloud-home");
+  expect(result.output).toContain("--app-image ghcr.io/example/cloud:latest");
+});
+
+test("updates use the saved fork source and hostname without prompting or pulling upstream", () => {
+  const result = run({ installed: true, savedRepository: "ghcr.io/example/fork", savedHostname: "saved-cloud" }, ["--action", "update"]);
+  expect(result.status).toBe(0);
+  expect(result.output).toContain("DOCKER pull ghcr.io/example/fork-system:latest");
+  expect(result.output).not.toContain("DOCKER pull ghcr.io/lucasmeijer");
+  expect(result.output).toContain("--hostname saved-cloud");
+  expect(result.output).not.toContain("Release image repository [");
+});
+
+test("invalid setup hostname is rejected before pulling or replacing System", () => {
+  const result = run({}, ["--tailscale-hostname", "invalid host"]);
+  expect(result.status).not.toBe(0);
+  expect(result.output).toContain("Invalid Tailscale hostname");
+  expect(result.output).not.toContain("DOCKER pull");
+  expect(result.output).not.toContain("DOCKER run -d");
+});
+
+test("saved private registry authentication is reused through a restrictive temporary host config", () => {
+  const result = run({ installed: true, savedRegistry: true, savedRepository: "ghcr.io/example/private" }, ["--action", "update"]);
+  expect(result.status).toBe(0);
+  expect(result.output).toContain("DOCKER --config /tmp/kintsugi-registry.");
+  expect(result.output).not.toContain("Zml4dHVyZTp0b2tlbg==");
+  expect(result.output).toContain("pull ghcr.io/example/private-system:latest");
+});
+
+test("rollback uses retained images without registry pulls", () => {
+  const result = run({ installed: true }, ["--action", "rollback"]);
+  expect(result.status).toBe(0);
+  expect(result.output).not.toContain("DOCKER pull");
+  expect(result.output).toContain(" rollback-apply ");
+});
+
+test("rollback without a retained pair leaves the existing installation untouched", () => {
+  const result = run({ installed: true, rollbackAvailable: false }, ["--action", "rollback"]);
+  expect(result.status).not.toBe(0);
+  expect(result.output).not.toContain("DOCKER stop");
+  expect(result.output).not.toContain("DOCKER rm");
+});
+
+test("an incompatible System image is rejected before stopping the current installation", () => {
+  const result = run({ installed: true, installerCompatible: false }, ["--action", "update"]);
+  expect(result.status).not.toBe(0);
+  expect(result.output).toContain("does not support this installer");
+  expect(result.output).not.toContain("DOCKER stop");
+  expect(result.output).not.toContain("DOCKER rm");
 });

@@ -6,5 +6,5 @@ bun images/system/build.ts
 for fixture in v1:healthy v2:slow broken:broken retry:retry; do
     docker build -f images/system/test-app/Dockerfile \
         --build-arg VERSION="${fixture%:*}" --build-arg MODE="${fixture#*:}" \
-        -t "agents-in-the-cloud-test:${fixture%:*}" images/system
+        -t "kintsugi-test:${fixture%:*}" images/system
 done

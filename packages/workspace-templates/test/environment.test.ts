@@ -1,10 +1,10 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { createAgentsInTheCloudEventBus } from "@agents-in-the-cloud/core";
-import { addWorkspaceTemplate, createWorkspaceTemplateEnvironmentVariable, globalWorkspaceConfiguration, workspaceInitFromTemplate, setWorkspaceTemplatePreloadImages } from "@agents-in-the-cloud/workspace-templates";
+import { createKintsugiEventBus } from "@kintsugi/core";
+import { addWorkspaceTemplate, createWorkspaceTemplateEnvironmentVariable, globalWorkspaceConfiguration, workspaceInitFromTemplate, setWorkspaceTemplatePreloadImages } from "@kintsugi/workspace-templates";
 import { registerWorkspaceTemplateWorkspaceInitEvents } from "../src/workspace-source.ts";
-import type { WorkspaceDockerPlan } from "@agents-in-the-cloud/workspace";
+import type { WorkspaceDockerPlan } from "@kintsugi/workspace";
 
 describe("Workspace template environment", () => {
   let previousDataDir: string | undefined;
@@ -12,7 +12,7 @@ describe("Workspace template environment", () => {
 
   beforeEach(async () => {
     previousDataDir = process.env.ATELIER_DATA_DIR;
-    dataDir = await mkdtemp(`${tmpdir()}/agents-in-the-cloud-workspace-template-environment-`);
+    dataDir = await mkdtemp(`${tmpdir()}/kintsugi-workspace-template-environment-`);
     process.env.ATELIER_DATA_DIR = dataDir;
   });
 
@@ -27,7 +27,7 @@ describe("Workspace template environment", () => {
     await createWorkspaceTemplateEnvironmentVariable(workspaceTemplate.id, { name: "API_URL", value: "https://api.example.com" });
     await createWorkspaceTemplateEnvironmentVariable(workspaceTemplate.id, { name: "EMPTY", value: "" });
     await setWorkspaceTemplatePreloadImages(workspaceTemplate.id, ["docker.io/library/postgres:17"]);
-    const events = createAgentsInTheCloudEventBus();
+    const events = createKintsugiEventBus();
     registerWorkspaceTemplateWorkspaceInitEvents(events);
     const plan: WorkspaceDockerPlan = { labels: {}, env: {}, mounts: [], preloadImages: [], extraArgs: [], initScripts: [], containerFiles: [], cleanup: [] };
 
@@ -44,7 +44,7 @@ describe("Workspace template environment", () => {
     await createWorkspaceTemplateEnvironmentVariable(globalWorkspaceConfiguration, { name: "TZ", value: "UTC" });
     await createWorkspaceTemplateEnvironmentVariable(globalWorkspaceConfiguration, { name: "API_URL", value: "https://global.example.com" });
     await createWorkspaceTemplateEnvironmentVariable(workspaceTemplate.id, { name: "API_URL", value: "https://template.example.com" });
-    const events = createAgentsInTheCloudEventBus();
+    const events = createKintsugiEventBus();
     registerWorkspaceTemplateWorkspaceInitEvents(events);
     const plan = (): WorkspaceDockerPlan => ({ labels: {}, env: {}, mounts: [], preloadImages: [], extraArgs: [], initScripts: [], containerFiles: [], cleanup: [] });
 

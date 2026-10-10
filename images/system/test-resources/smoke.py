@@ -3,7 +3,7 @@
 The System fixture is isolated from the installation. No UI tests or host tuning.
 """
 import concurrent.futures, json, os, pathlib, subprocess, sys, tempfile, threading, time, urllib.request
-name = 'agents-in-the-cloud-resource-test'
+name = 'kintsugi-resource-test'
 image, archive, stress = sys.argv[1:]
 containers = []
 monitor_stop=threading.Event(); monitor_errors=[]; monitor_times=[]
@@ -42,7 +42,7 @@ def sample(seconds=5):
     return worst
 def workload(label, mode, *args, parent=None):
     cname=f'{name}-{label}';containers.append(cname)
-    inner('run','-d','--name',cname,*(['--cgroup-parent',parent] if parent else []),'--mount',f'type=volume,src={cname},dst=/data','agents-in-the-cloud-resource-stress',mode,*args)
+    inner('run','-d','--name',cname,*(['--cgroup-parent',parent] if parent else []),'--mount',f'type=volume,src={cname},dst=/data','kintsugi-resource-stress',mode,*args)
     return cname
 def remove(cname):inner('rm','-f',cname);containers.remove(cname);inner('volume','rm',cname)
 def scan_probe():
@@ -53,15 +53,15 @@ def scan_probe():
             except FileNotFoundError:pass
     return False
 try:
-    docker('run','-d','--name',name,'--privileged','--cgroupns=host','--memory=3g','--pids-limit=4096','--cpuset-cpus',str(min(os.sched_getaffinity(0))),'--tmpfs','/run','--mount',f'source={name},target=/data','-p','127.0.0.1::3000','-p','127.0.0.1::3001',image,'--app-image','agents-in-the-cloud-test:v2')
+    docker('run','-d','--name',name,'--privileged','--cgroupns=host','--memory=3g','--pids-limit=4096','--cpuset-cpus',str(min(os.sched_getaffinity(0))),'--tmpfs','/run','--mount',f'source={name},target=/data','-p','127.0.0.1::3000','-p','127.0.0.1::3001',image,'--app-image','kintsugi-test:v2')
     info=json.loads(docker('inspect',name))[0]
     os.setns(os.open(f"/proc/{info['State']['Pid']}/ns/net", os.O_RDONLY), os.CLONE_NEWNET)
     ports={3000:'3000',3001:'3001'}
     until(lambda:inner('info','--format','{{.CgroupDriver}}')=='cgroupfs')
     with open(archive,'rb') as file: subprocess.run(['docker','exec','-i',name,'docker','load'],stdin=file,check=True,stdout=subprocess.DEVNULL)
     until(lambda:not fetch()['busy'])
-    fetch('/update',{'image':'agents-in-the-cloud-test:v2'});until(lambda:fetch()['healthy'])
-    config=json.loads(docker('exec',name,'cat','/run/agents-in-the-cloud-system/resources.json'))
+    fetch('/update',{'image':'kintsugi-test:v2'});until(lambda:fetch()['healthy'])
+    config=json.loads(docker('exec',name,'cat','/run/kintsugi-system/resources.json'))
     workloads='/sys/fs/cgroup'+config['workloadsCgroupParent'];management=str(pathlib.Path(workloads).parent/'management')
     print('resource policy',config,flush=True)
     assert config['effectiveMemory']==3*1024**3
@@ -69,21 +69,21 @@ try:
     assert read(workloads,'pids.max')=='3072'
     assert read(workloads,'cpu.max').startswith('max ')
     assert read(workloads,'cpu.weight')=='100' and read(management,'cpu.weight')=='1000'
-    app_id=inner('inspect','--format','{{.Id}}','agents-in-the-cloud')
-    assert inner('inspect','--format','{{.HostConfig.CgroupParent}}','agents-in-the-cloud')==config['managementCgroupParent']
-    moved=inner('exec','--user','1000','agents-in-the-cloud','sh','-ec','echo $$ > /run/agents-in-the-cloud-system/workload-processes/cgroup.procs; cat /proc/self/cgroup')
+    app_id=inner('inspect','--format','{{.Id}}','kintsugi')
+    assert inner('inspect','--format','{{.HostConfig.CgroupParent}}','kintsugi')==config['managementCgroupParent']
+    moved=inner('exec','--user','1000','kintsugi','sh','-ec','echo $$ > /run/kintsugi-system/workload-processes/cgroup.procs; cat /proc/self/cgroup')
     assert config['workloadsCgroupParent']+'/commands' in moved
-    assert '/management/apps/' in inner('exec','agents-in-the-cloud','cat','/proc/self/cgroup')
+    assert '/management/apps/' in inner('exec','kintsugi','cat','/proc/self/cgroup')
     with tempfile.TemporaryDirectory() as directory:
-        pathlib.Path(directory,'Dockerfile').write_text('FROM agents-in-the-cloud-test:v2\nCOPY stress /stress\nENTRYPOINT ["/stress"]\n')
+        pathlib.Path(directory,'Dockerfile').write_text('FROM kintsugi-test:v2\nCOPY stress /stress\nENTRYPOINT ["/stress"]\n')
         import shutil;shutil.copy(stress,pathlib.Path(directory,'stress'))
         docker('exec',name,'mkdir','-p','/tmp/resource-build')
         docker('cp',directory+'/.',name+':/tmp/resource-build')
-        inner('build','--cgroup-parent',config['workloadsCgroupParent'],'-t','agents-in-the-cloud-resource-stress','/tmp/resource-build')
+        inner('build','--cgroup-parent',config['workloadsCgroupParent'],'-t','kintsugi-resource-stress','/tmp/resource-build')
     sample(2)
     monitor_thread=threading.Thread(target=monitor);monitor_thread.start()
     with concurrent.futures.ThreadPoolExecutor() as executor:
-        build=executor.submit(lambda: subprocess.run(['docker','exec','-i',name,'docker','build','--no-cache','--cgroup-parent',config['workloadsCgroupParent'],'-t','agents-in-the-cloud-resource-probe','-'],input=b'FROM agents-in-the-cloud-resource-stress\nRUN /stress probe\n',check=True,stdout=subprocess.PIPE,stderr=subprocess.PIPE))
+        build=executor.submit(lambda: subprocess.run(['docker','exec','-i',name,'docker','build','--no-cache','--cgroup-parent',config['workloadsCgroupParent'],'-t','kintsugi-resource-probe','-'],input=b'FROM kintsugi-resource-stress\nRUN /stress probe\n',check=True,stdout=subprocess.PIPE,stderr=subprocess.PIPE))
         print('build RUN membership',until(scan_probe,20),flush=True);build.result()
     print('CPU saturation',flush=True)
     workers=[workload(f'cpu{i}','cpu') for i in range(4)]
@@ -111,7 +111,7 @@ try:
     workers=[workload(f'io{i}','io') for i in range(2)];sample(8)
     print('workload io.stat',read(workloads,'io.stat'),flush=True)
     for c in workers:remove(c)
-    assert inner('inspect','--format','{{.Id}}','agents-in-the-cloud')==app_id
+    assert inner('inspect','--format','{{.Id}}','kintsugi')==app_id
     assert fetch()['healthy']
     monitor_stop.set();monitor_thread.join();monitor_thread=None
     assert not monitor_errors,monitor_errors

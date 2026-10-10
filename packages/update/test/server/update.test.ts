@@ -1,4 +1,4 @@
-import { createAgentsInTheCloudEventBus } from "@agents-in-the-cloud/core";
+import { createKintsugiEventBus } from "@kintsugi/core";
 import { expect, test } from "bun:test";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -14,9 +14,9 @@ function context() {
     sidebar,
     broadcasts,
     ctx: {
-      events: createAgentsInTheCloudEventBus(),
+      events: createKintsugiEventBus(),
       registry: { setAgentBusy: () => {}, requestSurfaceAttention: () => undefined, requestAttention: () => undefined },
-      globalSidebarContributions: { set: (_id: string, html?: string, regions?: readonly import("@agents-in-the-cloud/shared").LiveRegion[]) => {
+      globalSidebarContributions: { set: (_id: string, html?: string, regions?: readonly import("@kintsugi/shared").LiveRegion[]) => {
         sidebar.push(html ?? "");
         broadcasts.push(regions?.map(region => region.html).join("") ?? "");
       } },
@@ -45,7 +45,7 @@ function deferred<T = void>() {
 const oldDigest = `sha256:${"a".repeat(64)}`;
 const newDigest = `sha256:${"b".repeat(64)}`;
 const newerDigest = `sha256:${"c".repeat(64)}`;
-const exact = `ghcr.io/lucasmeijer/agents-in-the-cloud@${newDigest}`;
+const exact = `ghcr.io/rcarmo/kintsugi@${newDigest}`;
 function manager(extra: UpdateManagerDeps = {}) {
   return new UpdateManager({
     detectRuntime: async () => ({ currentDigest: oldDigest }),
@@ -114,13 +114,13 @@ test("restart route acknowledges same-origin reload only after supervisor accept
   const instance = manager({ requestUpdate: async () => accepted.promise });
   await instance.initialize(context().ctx); await instance.startPull();
   const route = createUpdateRouteHandler(instance);
-  const url = new URL("https://agents-in-the-cloud.example/update/restart?surface=settings");
+  const url = new URL("https://kintsugi.example/update/restart?surface=settings");
   const pending = route(new Request(url, { method: "POST" }), url);
   expect(instance.snapshot().state).toBe("restarting");
   accepted.resolve();
   const response = (await pending)!;
   expect(response.status).toBe(204);
-  expect(response.headers.get("x-agents-in-the-cloud-reload")).toBe("true");
+  expect(response.headers.get("x-kintsugi-reload")).toBe("true");
   expect(response.headers.has("location")).toBe(false);
 });
 test("background checks cannot replace a pinned download or prepared target", async () => {
@@ -139,7 +139,7 @@ test("background checks cannot replace a pinned download or prepared target", as
 });
 test("channel changes persist, discard prior prepared images, and survive manager restart", async () => {
   const previous = process.env.ATELIER_DATA_DIR;
-  const directory = await mkdtemp(join(tmpdir(), "agents-in-the-cloud-update-settings-"));
+  const directory = await mkdtemp(join(tmpdir(), "kintsugi-update-settings-"));
   process.env.ATELIER_DATA_DIR = directory;
   try {
     await writeStoredUpdateChannel("stable");
@@ -212,7 +212,7 @@ test.each(["stable", "latest"] as const)("stored %s channel overrides the latest
 
 test("switching from stable to latest persists the channel and refreshes the target", async () => {
   const previous = process.env.ATELIER_DATA_DIR;
-  const directory = await mkdtemp(join(tmpdir(), "agents-in-the-cloud-latest-settings-"));
+  const directory = await mkdtemp(join(tmpdir(), "kintsugi-latest-settings-"));
   process.env.ATELIER_DATA_DIR = directory;
   try {
     await writeStoredUpdateChannel("stable");
@@ -220,7 +220,7 @@ test("switching from stable to latest persists the channel and refreshes the tar
     const dependencies = {
       readChannel: readStoredUpdateChannel,
       writeChannel: writeStoredUpdateChannel,
-      fetchMetadata: async (channel: "stable" | "latest") => {
+      fetchMetadata: async (channel: "stable" | "latest" | "custom") => {
         channels.push(channel);
         return { digest: channel === "latest" ? newerDigest : newDigest };
       },
@@ -240,4 +240,105 @@ test("switching from stable to latest persists the channel and refreshes the tar
     if (previous === undefined) delete process.env.ATELIER_DATA_DIR; else process.env.ATELIER_DATA_DIR = previous;
     await rm(directory, { recursive: true, force: true });
   }
+});
+
+test("fork updates pin the configured app repository rather than upstream", async () => {
+  const releaseSource = { appRepository: "ghcr.io/example/fork-app", systemRepository: "ghcr.io/example/fork-system" };
+  const references: string[] = [];
+  const instance = manager({ readSource: async () => releaseSource, prepareUpdate: async reference => { references.push(reference); return { reference, imageId: "prepared" }; } });
+  await instance.initialize(context().ctx);
+  await instance.startPull();
+  expect(references).toEqual([`ghcr.io/example/fork-app@${newDigest}`]);
+  instance.snapshot().releaseSource.appRepository = "ghcr.io/other/app";
+  expect(instance.snapshot().releaseSource.appRepository).toBe(releaseSource.appRepository);
+});
+
+test("changing source persists and discards the old prepared target", async () => {
+  const saved: string[] = [];
+  const instance = manager({ writeSource: async source => { saved.push(source.appRepository); } });
+  await instance.initialize(context().ctx);
+  await instance.startPull();
+  await instance.setReleaseSource({ appRepository: "ghcr.io/example/app", systemRepository: "ghcr.io/example/system", appVersion: "v1" });
+  expect(saved).toEqual(["ghcr.io/example/app"]);
+  expect(instance.snapshot().state).toBe("available");
+  await expect(instance.restart()).rejects.toThrow("No prepared update");
+});
+
+test("JSON source and update controls return JSON without Turbo markup", async () => {
+  const instance = manager();
+  await instance.initialize(context().ctx);
+  const handler = createUpdateRouteHandler(instance);
+  for (const [path, method, body] of [
+    ["/settings/release-source", "GET", undefined],
+    ["/update/status", "GET", undefined],
+    ["/settings/release-source", "POST", JSON.stringify({ appRepository: "ghcr.io/example/app", systemRepository: "ghcr.io/example/system" })],
+    ["/settings/update-channel", "POST", JSON.stringify({ channel: "stable" })],
+    ["/update/check-now", "POST", "{}"],
+  ] as const) {
+    const url = new URL(path, "http://localhost");
+    const response = (await handler(new Request(url, { method, body, headers: { accept: "application/json", "content-type": "application/json" } }), url))!;
+    expect(response.status).toBe(200);
+    expect(response.headers.get("content-type")).toContain("application/json");
+  }
+});
+
+test("Custom selection survives upstream selection and restores the saved source", async () => {
+  const previous = process.env.ATELIER_DATA_DIR;
+  const directory = await mkdtemp(join(tmpdir(), "custom-channel-"));
+  process.env.ATELIER_DATA_DIR = directory;
+  try {
+    const { readStoredReleaseSource, writeStoredReleaseSource } = await import("../../src/server/settings-store.ts");
+    await writeStoredReleaseSource({ appRepository: "docker.io/example/app", systemRepository: "ghcr.io/example/system", appVersion: "v2" });
+    expect(await readStoredUpdateChannel()).toBe("custom");
+    await writeStoredUpdateChannel("stable");
+    expect(await readStoredUpdateChannel()).toBe("stable");
+    expect((await readStoredReleaseSource())!.appRepository).toBe("docker.io/example/app");
+    await writeStoredUpdateChannel("custom");
+    expect(await readStoredUpdateChannel()).toBe("custom");
+    const instance = manager({ readChannel: readStoredUpdateChannel, readSource: readStoredReleaseSource, writeChannel: writeStoredUpdateChannel });
+    await instance.initialize(context().ctx);
+    expect(instance.snapshot().updateChannel).toBe("custom");
+    await instance.setUpdateChannel("latest");
+    const references: string[] = [];
+    const upstream = manager({ readChannel: readStoredUpdateChannel, readSource: readStoredReleaseSource, prepareUpdate: async reference => { references.push(reference); return { reference, imageId: "test" }; } });
+    await upstream.initialize(context().ctx); await upstream.startPull();
+    expect(references).toEqual([exact]);
+  } finally {
+    if (previous === undefined) delete process.env.ATELIER_DATA_DIR; else process.env.ATELIER_DATA_DIR = previous;
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test("invalid release configuration disables updates without aborting app initialization", async () => {
+  const instance = manager({ readSource: async () => { throw new Error("Invalid release settings"); } });
+  await instance.initialize(context().ctx);
+  expect(instance.snapshot().state).toBe("failed");
+  expect(instance.snapshot().error).toBe("Invalid release settings");
+  expect(() => instance.startPull()).toThrow("No update is available");
+  await instance.setReleaseSource({ appRepository: "ghcr.io/example/app", systemRepository: "ghcr.io/example/system" });
+  expect(instance.snapshot().updateChannel).toBe("custom");
+  expect(instance.snapshot().state).toBe("available");
+});
+
+test("unchanged revision does not report a platform/index digest difference as an update", async () => {
+  const instance = manager({ detectRuntime: async () => ({ currentDigest: oldDigest, currentRevision: "same" }), fetchMetadata: async () => ({ digest: newDigest, revision: "same" }) });
+  await instance.initialize(context().ctx);
+  expect(instance.snapshot().state).toBe("idle");
+});
+
+test("saving a source returns success even if its subsequent registry check fails", async () => {
+  let fail = false;
+  const instance = manager({ fetchMetadata: async () => { if (fail) throw new Error("Registry unavailable"); return { digest: newDigest }; } });
+  await instance.initialize(context().ctx); fail = true;
+  const url = new URL("http://localhost/settings/release-source");
+  const response = (await createUpdateRouteHandler(instance)(new Request(url, { method: "POST", headers: { accept: "application/json", "content-type": "application/json" }, body: JSON.stringify({ appRepository: "ghcr.io/example/app", systemRepository: "ghcr.io/example/system" }) }), url))!;
+  expect(response.status).toBe(200);
+  expect(instance.snapshot().state).toBe("failed");
+  expect(instance.snapshot().updateChannel).toBe("custom");
+});
+
+test("unlabelled images compare the running index digest with the remote index", async () => {
+  const instance = manager({ detectRuntime: async () => ({ currentDigest: oldDigest }), fetchMetadata: async () => ({ digest: newDigest, indexDigest: oldDigest }) });
+  await instance.initialize(context().ctx);
+  expect(instance.snapshot().state).toBe("idle");
 });

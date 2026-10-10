@@ -1,4 +1,4 @@
-import { shellQuote } from "@agents-in-the-cloud/core";
+import { shellQuote } from "@kintsugi/core";
 import { observableTerminalCols, observableTerminalEnvironment, observableTerminalHistoryLimit, observableTerminalRows } from "./constants.ts";
 
 export interface ObservableTerminalSessionOptions {

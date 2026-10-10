@@ -40,21 +40,21 @@ if nft list table inet aitc_socket_preflight >/dev/null 2>&1; then exit 1; fi
 # Always exercise the exact rule set used on kernels without NFT_SOCKET.
 nft -f /rules/bridge-only.nft
 nft -f /rules/bridge-only.nft
-for family in inet ip ip6; do nft list table "$family" agents-in-the-cloud_workspaces; done
+for family in inet ip ip6; do nft list table "$family" kintsugi_workspaces; done
 # Atomic failure: an unresolved set reference is accepted by the parser but
 # rejected by the kernel. None of the preceding flushes may have committed.
 nft add table inet unrelated_docker_fixture
 nft -s list ruleset >/tmp/before.nft
 cp /rules/bridge-only.nft /tmp/broken.nft
-printf '\nadd rule ip agents-in-the-cloud_workspaces forward ip daddr @missing_set drop\n' >>/tmp/broken.nft
+printf '\nadd rule ip kintsugi_workspaces forward ip daddr @missing_set drop\n' >>/tmp/broken.nft
 if nft -f /tmp/broken.nft 2>/tmp/broken.err; then exit 1; fi
 nft -s list ruleset >/tmp/after.nft
 cmp /tmp/before.nft /tmp/after.nft
 # Exercise actual packet lookup in both family FIB implementations. A synthetic
 # output hook selects this fixture, not management traffic in production.
 for family in ip ip6; do
-  nft "add chain $family agents-in-the-cloud_workspaces fib_fixture { type filter hook output priority -12; policy accept; }"
-  nft "add rule $family agents-in-the-cloud_workspaces fib_fixture fib daddr type local counter drop"
+  nft "add chain $family kintsugi_workspaces fib_fixture { type filter hook output priority -12; policy accept; }"
+  nft "add rule $family kintsugi_workspaces fib_fixture fib daddr type local counter drop"
 done
 python3 - <<'PY'
 import errno, socket
@@ -66,9 +66,9 @@ for family, destination in [(socket.AF_INET, '127.0.0.1'), (socket.AF_INET6, '::
             assert error.errno == errno.EPERM, error
 PY
 for family in ip ip6; do
-  nft list chain "$family" agents-in-the-cloud_workspaces fib_fixture | grep -E 'counter packets [1-9][0-9]*'
-  nft flush chain "$family" agents-in-the-cloud_workspaces fib_fixture
-  nft delete chain "$family" agents-in-the-cloud_workspaces fib_fixture
+  nft list chain "$family" kintsugi_workspaces fib_fixture | grep -E 'counter packets [1-9][0-9]*'
+  nft flush chain "$family" kintsugi_workspaces fib_fixture
+  nft delete chain "$family" kintsugi_workspaces fib_fixture
 done
 if [ "$protected" = true ]; then
   nft -f /tmp/protected.nft
@@ -86,8 +86,8 @@ for family, destination in [(socket.AF_INET, '127.0.0.53'), (socket.AF_INET6, ':
                 assert port == 53, 'local non-DNS traffic must be dropped'
 PYTEST
   for family in ip ip6; do
-    nft list chain "$family" agents-in-the-cloud_workspaces local_destinations | grep -E 'counter packets [1-9][0-9]*.*accept'
-    nft list chain "$family" agents-in-the-cloud_workspaces local_destinations | grep -E 'counter packets [1-9][0-9]*.*drop'
+    nft list chain "$family" kintsugi_workspaces local_destinations | grep -E 'counter packets [1-9][0-9]*.*accept'
+    nft list chain "$family" kintsugi_workspaces local_destinations | grep -E 'counter packets [1-9][0-9]*.*drop'
   done
 fi
 printf 'PASS: bridge-only rules, IPv4/IPv6 kernel FIB packet lookup, atomic replacement/rollback; NFT_SOCKET=%s\n' "$protected"

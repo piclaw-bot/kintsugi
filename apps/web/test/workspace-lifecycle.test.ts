@@ -1,16 +1,16 @@
-import { createPiModelRuntime, setEnabledModels } from "@agents-in-the-cloud/llm/server";
-import { addWorkspaceTemplate, isGitWorkspaceTemplateInit } from "@agents-in-the-cloud/workspace-templates";
+import { createPiModelRuntime, setEnabledModels } from "@kintsugi/llm/server";
+import { addWorkspaceTemplate, isGitWorkspaceTemplateInit } from "@kintsugi/workspace-templates";
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import {
   createTestApp,
   deferred,
   post,
   postForm,
-  temporaryAgentsInTheCloudDataDir,
+  temporaryKintsugiDataDir,
   type ProvisionWorkspaceOptions,
 } from "./support/test-web-app.ts";
 
-const dataDir = temporaryAgentsInTheCloudDataDir();
+const dataDir = temporaryKintsugiDataDir();
 beforeEach(dataDir.setUp);
 let configuredRuntime = false;
 afterEach(async () => {
@@ -299,7 +299,7 @@ describe("workspace lifecycle", () => {
 });
 
 test("deleting a preparing workspace through JSON cancels its command before destruction", async () => {
-  const { runCommand } = await import("@agents-in-the-cloud/core");
+  const { runCommand } = await import("@kintsugi/core");
   const stopped = deferred();
   const destroyed = deferred();
   let laterStep = false;

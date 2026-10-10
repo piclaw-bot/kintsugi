@@ -1,8 +1,8 @@
-import { agentsInTheCloudName, escapeHtml, type WorkspaceModule } from "@agents-in-the-cloud/shared";
+import { kintsugiName, escapeHtml, type WorkspaceModule } from "@kintsugi/shared";
 import { randomUUID } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
-import { readThemeSetting } from "@agents-in-the-cloud/shared/theme";
-import { pageBodyStimulusHtml } from "@agents-in-the-cloud/design-system/page-body";
+import { readThemeSetting } from "@kintsugi/shared/theme";
+import { pageBodyStimulusHtml } from "@kintsugi/design-system/page-body";
 import { parseAssetManifest, type AssetManifest } from "./asset-manifest.ts";
 import { themeRegionHtml, themeRegionId } from "./settings/theme.ts";
 
@@ -43,7 +43,7 @@ export function createPageLayout(options: { devReload?: boolean; workspaceModule
     const pageId = randomUUID();
     const theme = readThemeSetting();
     return `<!DOCTYPE html>
-<html lang="en" data-theme="${theme}" data-agents-in-the-cloud-page-id="${escapeHtml(pageId)}">
+<html lang="en" data-theme="${theme}" data-kintsugi-page-id="${escapeHtml(pageId)}">
 <head>
 <meta charset="utf-8">
 <style>
@@ -59,11 +59,8 @@ ${options.devReload ? `
 ` : ""}</style>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="turbo-cache-control" content="no-cache">
-<title>${escapeHtml(agentsInTheCloudName)}</title>
-<link rel="icon" href="/favicon.ico" sizes="any">
-<link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
-<link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
-<link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+<title>${escapeHtml(kintsugiName)}</title>
+<link rel="icon" type="image/svg+xml" href="/icon.svg" sizes="any">
 <link rel="manifest" href="/manifest.webmanifest">
 <meta name="theme-color" content="#eadcc6">
 <link rel="stylesheet" href="${assetPath("/design-system.css")}">
@@ -72,7 +69,7 @@ ${options.devReload ? `
 ${moduleStylesHtml()}
 <script type="module" src="${assetPath("/workspace.js")}"></script>
 </head>
-<body id="body"${pageBodyStimulusHtml(["navigation-origin", "cable-shell", options.devReload ? "dev-reload" : undefined])}${options.devReload ? ` data-dev-reload-url-value="/__agents-in-the-cloud_dev_reload"` : ""}><div id="live-connection-status" role="status" class="live-connection-status"><span class="status-spinner" aria-hidden="true"></span> Reconnecting… Updates are paused.</div><div id="${themeRegionId}" hidden>${themeRegionHtml(theme)}</div>${body}
+<body id="body"${pageBodyStimulusHtml(["navigation-origin", "cable-shell", options.devReload ? "dev-reload" : undefined])}${options.devReload ? ` data-dev-reload-url-value="/__kintsugi_dev_reload"` : ""}><div id="live-connection-status" role="status" class="live-connection-status"><span class="status-spinner" aria-hidden="true"></span> Reconnecting… Updates are paused.</div><div id="${themeRegionId}" hidden>${themeRegionHtml(theme)}</div>${body}
 </body>
 </html>`;
   };

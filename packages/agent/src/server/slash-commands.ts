@@ -1,9 +1,9 @@
-import { contentRowHtml } from "@agents-in-the-cloud/design-system/content-row";
-import { autocompleteHtml } from "@agents-in-the-cloud/design-system/autocomplete";
-import { builtinAgentIconHtml } from "@agents-in-the-cloud/design-system/icons";
-import { buttonHtml } from "@agents-in-the-cloud/design-system/button";
+import { contentRowHtml } from "@kintsugi/design-system/content-row";
+import { autocompleteHtml } from "@kintsugi/design-system/autocomplete";
+import { builtinAgentIconHtml } from "@kintsugi/design-system/icons";
+import { buttonHtml } from "@kintsugi/design-system/button";
 import type { Skill } from "@earendil-works/pi-coding-agent";
-import { escapeHtml, providerBrandIconHtml } from "@agents-in-the-cloud/shared";
+import { escapeHtml, providerBrandIconHtml } from "@kintsugi/shared";
 import { builtinSlashCommands, type BuiltinSlashCommand, type SlashCommandSource } from "./builtin-slash-commands.ts";
 import type { PromptTemplate } from "./prompt-templates.ts";
 
@@ -29,7 +29,7 @@ export function slashCommands(templates: readonly PromptTemplate[], skills: read
     ...additionalCommands,
     ...templates.filter((template) => template.trigger !== "/tree" && !additionalCommands.some(command => command.trigger === template.trigger)).map((template) => ({
       kind: "prompt-template" as const,
-      source: "agents-in-the-cloud" as const,
+      source: "kintsugi" as const,
       trigger: template.trigger,
       description: template.description,
       argumentHint: template.argumentHint,
@@ -38,9 +38,9 @@ export function slashCommands(templates: readonly PromptTemplate[], skills: read
     })),
   ];
   return [
-    ...(mode === "builtin" ? [{ kind: "builtin" as const, source: "agents-in-the-cloud" as const, name: "tree", trigger: "/tree", description: "Coming soon." }] : []),
+    ...(mode === "builtin" ? [{ kind: "builtin" as const, source: "kintsugi" as const, name: "tree", trigger: "/tree", description: "Coming soon." }] : []),
     ...commands.sort((left, right) => left.trigger.localeCompare(right.trigger)),
-    ...skills.map((skill) => ({ kind: "skill" as const, source: "agents-in-the-cloud" as const, trigger: `/skill:${skill.name}`, description: skill.description })),
+    ...skills.map((skill) => ({ kind: "skill" as const, source: "kintsugi" as const, trigger: `/skill:${skill.name}`, description: skill.description })),
   ];
 }
 
@@ -61,18 +61,18 @@ export function renderSlashCommandCatalog(templates: readonly PromptTemplate[], 
     // Keep existing previews for built-in actions without modelling them as Prompt templates.
     const preview = command.kind === "prompt-template" ? command.prompt : command.kind === "builtin" && command.trigger !== "/tree" ? command.trigger : undefined;
     const hasPreview = preview !== undefined;
-    const sourceLabel = command.source === "codex" ? "Codex" : "AgentsInTheCloud";
+    const sourceLabel = command.source === "codex" ? "Codex" : "Kintsugi";
     const sourceIcon = command.source === "codex" ? providerBrandIconHtml("openai", "Codex") : builtinAgentIconHtml;
     return contentRowHtml({
       width: "fill",
       kind: "compact",
       leadingHtml: `<span role="img" aria-label="${sourceLabel}" title="${sourceLabel}"><span class="agent-slash-command-source-icon" aria-hidden="true">${sourceIcon}</span></span>`,
       label: { kind: "text", text: `${command.trigger}${command.argumentHint ? ` ${command.argumentHint}` : ""} — ${command.description}` },
-      trailingHtml: preview === undefined ? "" : `<template data-agents-in-the-cloud-fullscreen-target="content"><pre class="agent-slash-command-preview">${escapeHtml(preview)}</pre></template>`,
+      trailingHtml: preview === undefined ? "" : `<template data-kintsugi-fullscreen-target="content"><pre class="agent-slash-command-preview">${escapeHtml(preview)}</pre></template>`,
       element: {
         tag: "button",
 
-        attributesHtml: `type="button" role="option" aria-selected="${index === 0 ? "true" : "false"}" data-completion-kind="${command.kind}" data-command-trigger="${escapeHtml(command.trigger)}"${command.kind === "prompt-template" && command.shortcut ? ` data-prompt-template-shortcut="${escapeHtml(command.shortcut)}"` : ""}${command.trigger === "/tree" ? ` data-command-action="notice" data-command-message="/tree feature is coming soon!"` : ""}${hasPreview ? ` data-controller="agents-in-the-cloud-fullscreen" data-agents-in-the-cloud-fullscreen-mode-value="template" data-agents-in-the-cloud-fullscreen-title-value="${escapeHtml(command.trigger)}"` : ""}`,
+        attributesHtml: `type="button" role="option" aria-selected="${index === 0 ? "true" : "false"}" data-completion-kind="${command.kind}" data-command-trigger="${escapeHtml(command.trigger)}"${command.kind === "prompt-template" && command.shortcut ? ` data-prompt-template-shortcut="${escapeHtml(command.shortcut)}"` : ""}${command.trigger === "/tree" ? ` data-command-action="notice" data-command-message="/tree feature is coming soon!"` : ""}${hasPreview ? ` data-controller="kintsugi-fullscreen" data-kintsugi-fullscreen-mode-value="template" data-kintsugi-fullscreen-title-value="${escapeHtml(command.trigger)}"` : ""}`,
       },
     });
   }).join("") });

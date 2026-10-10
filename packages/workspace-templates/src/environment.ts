@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { AgentsInTheCloudCoreError } from "@agents-in-the-cloud/core";
+import { KintsugiCoreError } from "@kintsugi/core";
 import { configurationScopeKey, findConfigurationRecord, workspaceScopes, workspaceTemplatesFile, readWorkspaceTemplateStore, updateWorkspaceTemplateStore, type WorkspaceTemplateEnvironmentVariable, type StoredWorkspaceTemplateEnvironmentVariable, workspaceTemplateEnvironmentVariableSummary, type ConfigurationRecord, type ConfigurationScope } from "./workspace-template.ts";
 
 function normalizeName(value: string): string {
@@ -9,17 +9,17 @@ function normalizeName(value: string): string {
 }
 
 export function validateWorkspaceTemplateEnvironmentName(name: string): void {
-  if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(name)) throw new AgentsInTheCloudCoreError("invalid_arguments", "NAME must be an environment variable name");
+  if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(name)) throw new KintsugiCoreError("invalid_arguments", "NAME must be an environment variable name");
 }
 
 function findVariable(configuration: ConfigurationRecord, variableId: string): StoredWorkspaceTemplateEnvironmentVariable {
   const variable = configuration.environment?.find((candidate) => candidate.id === variableId);
-  if (!variable) throw new AgentsInTheCloudCoreError("workspace_template_environment_variable_not_found", `template environment variable not found: ${variableId}`);
+  if (!variable) throw new KintsugiCoreError("workspace_template_environment_variable_not_found", `template environment variable not found: ${variableId}`);
   return variable;
 }
 
 function assertNameAvailable(configuration: ConfigurationRecord, name: string, exceptVariableId?: string): void {
-  if (configuration.environment?.some((variable) => variable.id !== exceptVariableId && variable.name === name)) throw new AgentsInTheCloudCoreError("workspace_template_environment_variable_exists", `A variable named ${name} already exists here`);
+  if (configuration.environment?.some((variable) => variable.id !== exceptVariableId && variable.name === name)) throw new KintsugiCoreError("workspace_template_environment_variable_exists", `A variable named ${name} already exists here`);
 }
 
 /** Global variables and the template's own, which replace global ones with the same name. */

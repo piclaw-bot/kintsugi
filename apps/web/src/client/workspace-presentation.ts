@@ -1,6 +1,6 @@
 /// <reference lib="dom" />
 
-import { focusLikelyOpensSoftwareKeyboard, phoneLayoutMediaQuery, workspaceAgentSelectionEvent, type WorkspaceClientApplication, type WorkspaceClientControllerConstructor, type WorkspaceClientSurfaceVisibilityContext } from "@agents-in-the-cloud/shared";
+import { focusLikelyOpensSoftwareKeyboard, phoneLayoutMediaQuery, workspaceAgentSelectionEvent, type WorkspaceClientApplication, type WorkspaceClientControllerConstructor, type WorkspaceClientSurfaceVisibilityContext } from "@kintsugi/shared";
 import { Type, type Static } from "typebox";
 import { Value } from "typebox/value";
 import { prepareLiveSurface, selectLiveSurface } from "./live-surface.ts";
@@ -49,7 +49,7 @@ interface TurboLike {
 const navigationIntents = new Map<string, { agent?: string; work?: string }>();
 
 const visiblePresentationPanes = new WeakSet<HTMLElement>();
-const agentPaneWidthStorageKey = "agents-in-the-cloud:agent-pane-width";
+const agentPaneWidthStorageKey = "kintsugi:agent-pane-width";
 
 function storedNavigation(storage: Storage, key: string): StoredPersonalNavigation | undefined {
   const value = storage.getItem(key);
@@ -60,7 +60,7 @@ function storedNavigation(storage: Storage, key: string): StoredPersonalNavigati
 }
 
 function workspaceNavigationStorageKey(workspaceId: string): string {
-  return `agents-in-the-cloud:workspace-navigation:${workspaceId}`;
+  return `kintsugi:workspace-navigation:${workspaceId}`;
 }
 
 function persistIntendedAgent(workspaceId: string, agentId: string): void {
@@ -101,9 +101,9 @@ export function createWorkspacePresentationController(
       this.state = this.restoreState();
       this.media = window.matchMedia(phoneLayoutMediaQuery);
       this.media.addEventListener("change", this.viewportChanged);
-      this.element.addEventListener("agents-in-the-cloud:workspace-residency-visible", this.residencyVisible);
+      this.element.addEventListener("kintsugi:workspace-residency-visible", this.residencyVisible);
       this.element.addEventListener("live:structure", this.structureChanged);
-      this.element.addEventListener("agents-in-the-cloud:workspace-residency-hidden", this.residencyHidden);
+      this.element.addEventListener("kintsugi:workspace-residency-hidden", this.residencyHidden);
       this.element.addEventListener("turbo:before-morph-attribute", this.preserveAgentWidth);
       document.addEventListener("visibilitychange", this.documentVisibilityChanged);
       this.restorePreferences();
@@ -120,9 +120,9 @@ export function createWorkspacePresentationController(
 
     disconnect(): void {
       this.media?.removeEventListener("change", this.viewportChanged);
-      this.element.removeEventListener("agents-in-the-cloud:workspace-residency-visible", this.residencyVisible);
+      this.element.removeEventListener("kintsugi:workspace-residency-visible", this.residencyVisible);
       this.element.removeEventListener("live:structure", this.structureChanged);
-      this.element.removeEventListener("agents-in-the-cloud:workspace-residency-hidden", this.residencyHidden);
+      this.element.removeEventListener("kintsugi:workspace-residency-hidden", this.residencyHidden);
       this.element.removeEventListener("turbo:before-morph-attribute", this.preserveAgentWidth);
       document.removeEventListener("visibilitychange", this.documentVisibilityChanged);
       this.sizeObserver?.disconnect();
@@ -161,7 +161,7 @@ export function createWorkspacePresentationController(
 
     private acceptWorkIntent(): void {
       const { key, revision } = this.workIntentValue;
-      const storageKey = `agents-in-the-cloud:work-presentation:${this.workspaceIdValue}`;
+      const storageKey = `kintsugi:work-presentation:${this.workspaceIdValue}`;
       if (!key || !revision || sessionStorage.getItem(storageKey) === revision) return;
       sessionStorage.setItem(storageKey, revision);
       navigationIntents.set(this.workspaceIdValue, { ...navigationIntents.get(this.workspaceIdValue), work: key });
@@ -197,7 +197,7 @@ export function createWorkspacePresentationController(
       if (!pane) return;
       const composer = pane.querySelector<HTMLTextAreaElement>(".agent-composer-open .composer-input");
       if (composer) composer.focus({ preventScroll: true });
-      else pane.querySelector<HTMLElement>("[data-controller~='cli-terminal']")?.dispatchEvent(new Event("agents-in-the-cloud:workspace-agent-focus"));
+      else pane.querySelector<HTMLElement>("[data-controller~='cli-terminal']")?.dispatchEvent(new Event("kintsugi:workspace-agent-focus"));
     }
 
     selectWorkView(event: Event): void {
@@ -313,7 +313,7 @@ export function createWorkspacePresentationController(
     }
 
     private selectResidentMobileDestination(): void {
-      this.element.dispatchEvent(new CustomEvent("agents-in-the-cloud:mobile-resident-destination-selected", { bubbles: true }));
+      this.element.dispatchEvent(new CustomEvent("kintsugi:mobile-resident-destination-selected", { bubbles: true }));
     }
 
     private selectWorkViewState(key: string, contextual: boolean): void {
@@ -521,7 +521,7 @@ export function createWorkspacePresentationController(
         controller?.becomeVisible?.();
       });
       lifecycle.becomeVisible(this.lifecycleContext(pane));
-      pane.dispatchEvent(new CustomEvent("agents-in-the-cloud:workspace-pane-visible", { bubbles: true, detail: { role: pane.dataset.workspacePaneRole, id: pane.dataset.workspacePaneId } }));
+      pane.dispatchEvent(new CustomEvent("kintsugi:workspace-pane-visible", { bubbles: true, detail: { role: pane.dataset.workspacePaneRole, id: pane.dataset.workspacePaneId } }));
     }
 
     private emitHidden(pane: PresentationPane): void {
@@ -530,7 +530,7 @@ export function createWorkspacePresentationController(
       if (!visiblePresentationPanes.has(pane)) return;
       visiblePresentationPanes.delete(pane);
       lifecycle.noLongerVisible(this.lifecycleContext(pane));
-      pane.dispatchEvent(new CustomEvent("agents-in-the-cloud:workspace-pane-hidden", { bubbles: true, detail: { role: pane.dataset.workspacePaneRole, id: pane.dataset.workspacePaneId } }));
+      pane.dispatchEvent(new CustomEvent("kintsugi:workspace-pane-hidden", { bubbles: true, detail: { role: pane.dataset.workspacePaneRole, id: pane.dataset.workspacePaneId } }));
     }
 
     private focusActiveSurface(): void {
@@ -644,7 +644,7 @@ export function installWorkspacePresentationTurboStream(Turbo: TurboLike, applic
     for (const target of this.targetElements) {
       const resident = target.closest<HTMLElement>(".workspace-detail-resident[data-workspace-id]");
       const workspaceId = resident?.dataset.workspaceId;
-      if (workspaceId) document.dispatchEvent(new CustomEvent("agents-in-the-cloud:workspace-removed", { detail: { workspaceId } }));
+      if (workspaceId) document.dispatchEvent(new CustomEvent("kintsugi:workspace-removed", { detail: { workspaceId } }));
     }
   };
 
@@ -655,7 +655,7 @@ export function installWorkspacePresentationTurboStream(Turbo: TurboLike, applic
       const workspaceId = visibleWorkspaceId ?? (pathWorkspaceId ? decodeURIComponent(pathWorkspaceId) : undefined);
       if (workspaceId) markActiveWorkspaceRow(target, workspaceId);
     }
-    document.dispatchEvent(new CustomEvent("agents-in-the-cloud:workspace-pane-changed"));
+    document.dispatchEvent(new CustomEvent("kintsugi:workspace-pane-changed"));
   };
   Turbo.StreamActions["present-work-view"] = function presentWorkView(this: StreamElement): void {
     const key = this.dataset.workViewKey;

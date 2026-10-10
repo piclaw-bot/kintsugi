@@ -8,11 +8,11 @@ async function fixture() {
   const root = await mkdtemp(join(tmpdir(), "workspace-lifecycle-"));
   const directory = join(root, "configuration");
   const calls: string[][] = [];
-  const sources = [join(root, "init.sh"), join(root, "agents-in-the-cloud")] as const;
+  const sources = [join(root, "init.sh"), join(root, "kintsugi")] as const;
   await writeFile(sources[0], "original init");
   await mkdir(sources[1]);
   await writeFile(join(sources[1], "docker-support"), "disabled");
-  const files = [{ source: sources[0], target: "/.agents-in-the-cloud/init.sh" }, { source: sources[1], target: "/etc" }];
+  const files = [{ source: sources[0], target: "/.kintsugi/init.sh" }, { source: sources[1], target: "/etc" }];
   const lifecycle = (overrides: Partial<Parameters<typeof createWorkspaceContainerLifecycle>[0]> = {}) => createWorkspaceContainerLifecycle({
     directory, container: "workspace", checkpointRequired: true,
     async docker(args) { calls.push(args); return { stdout: "", stderr: "", exitCode: 0 }; },
@@ -38,9 +38,9 @@ test("recovery uses frozen sources and copies everything before starting", async
     expect(checkpoint.phase).toBe("configured");
     expect(await readFile(checkpoint.files[0].source, "utf8")).toBe("original init");
     expect(await readFile(join(checkpoint.files[1].source, "docker-support"), "utf8")).toBe("disabled");
-    expect(checkpoint.files[1].source.endsWith("/agents-in-the-cloud")).toBe(true);
+    expect(checkpoint.files[1].source.endsWith("/kintsugi")).toBe(true);
     expect(f.calls).toEqual([
-      ["cp", checkpoint.files[0].source, "workspace:/.agents-in-the-cloud/init.sh"],
+      ["cp", checkpoint.files[0].source, "workspace:/.kintsugi/init.sh"],
       ["cp", checkpoint.files[1].source, "workspace:/etc"], ["start", "workspace"], ["ready"],
     ]);
   } finally { await f.clean(); }

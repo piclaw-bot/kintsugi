@@ -1,6 +1,6 @@
-import { resetButtonConfirmation } from "@agents-in-the-cloud/design-system/button-confirmation/client";
+import { resetButtonConfirmation } from "@kintsugi/design-system/button-confirmation/client";
 import { Controller } from "@hotwired/stimulus";
-import { setToggleValue, type ToggleChangeEvent } from "@agents-in-the-cloud/design-system/toggle/client";
+import { setToggleValue, type ToggleChangeEvent } from "@kintsugi/design-system/toggle/client";
 
 export type SettingsEditorLoadedEvent = CustomEvent<{ location: string; submitted: boolean }>;
 

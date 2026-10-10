@@ -1,6 +1,6 @@
 import { handleConnectionModeSettings } from "./connection-mode.ts";
 import { handleGitHubSettingsRequest } from "./github.ts";
-import { handleModelsRequest } from "@agents-in-the-cloud/llm/server";
+import { handleModelsRequest } from "@kintsugi/llm/server";
 import { finishOnboarding } from "../onboarding/state.ts";
 import { handleSettingsPageRequest, type WorkspaceCleanupResult } from "./page.ts";
 import { listSettingsContributions } from "./registry.ts";

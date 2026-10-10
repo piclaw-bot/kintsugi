@@ -1,10 +1,10 @@
 #!/usr/bin/env bun
 
 import { resolve } from "node:path";
-import type { JsonObject } from "@agents-in-the-cloud/core";
+import type { JsonObject } from "@kintsugi/core";
 
-const previewNamespace = "agents-in-the-cloud-redesign-preview";
-const previewTitle = "AgentsInTheCloud redesign preview";
+const previewNamespace = "kintsugi-redesign-preview";
+const previewTitle = "Kintsugi redesign preview";
 const previewTerminalTitle = "Terminal";
 const defaultBaseUrl = "http://127.0.0.1:3000";
 const repoRoot = resolve(new URL("..", import.meta.url).pathname);
@@ -37,11 +37,11 @@ async function post<T>(baseUrl: string, path: string, body: JsonObject = {}): Pr
 async function waitForServer(server?: ReturnType<typeof Bun.spawn>): Promise<void> {
   const deadline = Date.now() + 120_000;
   while (Date.now() < deadline) {
-    if (server && server.exitCode !== null) throw new Error(`AgentsInTheCloud dev server exited with code ${server.exitCode}`);
+    if (server && server.exitCode !== null) throw new Error(`Kintsugi dev server exited with code ${server.exitCode}`);
     if ((await fetch(`${defaultBaseUrl}/up`).catch(() => undefined))?.ok) return;
     await Bun.sleep(250);
   }
-  throw new Error(`AgentsInTheCloud did not become ready at ${defaultBaseUrl} within 120 seconds`);
+  throw new Error(`Kintsugi did not become ready at ${defaultBaseUrl} within 120 seconds`);
 }
 
 async function workspace(baseUrl: string): Promise<WorkspaceState> {
@@ -67,7 +67,7 @@ export async function preparePreview(baseUrl = defaultBaseUrl): Promise<string> 
   let current = await state(baseUrl, previewWorkspace.id);
   const has = (type: string) => current.workViews?.some((view) => view.reference.type === type) ?? false;
 
-  if (!has("browser")) await post(baseUrl, `/workspaces/${current.id}/commands/browser.create`, { url: "https://github.com/lucasmeijer/atelier" });
+  if (!has("browser")) await post(baseUrl, `/workspaces/${current.id}/commands/browser.create`, { url: "https://github.com/rcarmo/kintsugi" });
   if (!has("terminal")) await post(baseUrl, `/workspaces/${current.id}/commands/terminal.create`, { title: previewTerminalTitle });
   if (!has("files")) await post(baseUrl, `/workspaces/${current.id}/commands/files.create`);
   if (!has("vscode")) await post(baseUrl, `/workspaces/${current.id}/commands/vscode.open`);

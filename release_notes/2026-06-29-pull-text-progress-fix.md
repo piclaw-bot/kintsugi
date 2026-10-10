@@ -1,6 +1,6 @@
 # Pull progress compatibility
 
-This test release verifies that AgentsInTheCloud handles Docker pull output that includes plain text status lines before JSON progress events.
+This test release verifies that Kintsugi handles Docker pull output that includes plain text status lines before JSON progress events.
 
 - The first update attempt should not fail on `stable: Pulling from ...`.
 - Pull progress may be indeterminate when Docker does not report byte totals.

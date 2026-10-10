@@ -1,5 +1,5 @@
 {
-  "name": "@agents-in-the-cloud/builtin-agent",
+  "name": "@kintsugi/builtin-agent",
   "private": true,
   "type": "module",
   "exports": {
@@ -12,25 +12,25 @@
     "./server/workspace-agents-files": "./src/server/workspace-agents-files.ts"
   },
   "dependencies": {
-    "@agents-in-the-cloud/core": "workspace:*",
-    "@agents-in-the-cloud/design-system": "workspace:*",
-    "@agents-in-the-cloud/markdown": "workspace:*",
-    "@agents-in-the-cloud/observable-terminal": "workspace:*",
-    "@agents-in-the-cloud/workspace-templates": "workspace:*",
-    "@agents-in-the-cloud/shared": "workspace:*",
-    "@agents-in-the-cloud/dictation": "workspace:*",
+    "@kintsugi/core": "workspace:*",
+    "@kintsugi/design-system": "workspace:*",
+    "@kintsugi/markdown": "workspace:*",
+    "@kintsugi/observable-terminal": "workspace:*",
+    "@kintsugi/workspace-templates": "workspace:*",
+    "@kintsugi/shared": "workspace:*",
+    "@kintsugi/dictation": "workspace:*",
     "@earendil-works/pi-ai": "catalog:",
     "@earendil-works/pi-coding-agent": "catalog:",
     "typebox": "^1.0.57",
-    "@agents-in-the-cloud/workspace": "workspace:*",
+    "@kintsugi/workspace": "workspace:*",
     "web-push": "3.6.7",
-    "@agents-in-the-cloud/llm": "workspace:*",
-    "@agents-in-the-cloud/prompt": "workspace:*",
+    "@kintsugi/llm": "workspace:*",
+    "@kintsugi/prompt": "workspace:*",
     "@earendil-works/pi-durable": "catalog:",
     "@earendil-works/chord": "catalog:",
     "proper-lockfile": "4.1.2",
-    "@agents-in-the-cloud/legacy-converter": "workspace:*",
-    "@agents-in-the-cloud/agent": "workspace:*"
+    "@kintsugi/legacy-converter": "workspace:*",
+    "@kintsugi/agent": "workspace:*"
   },
   "devDependencies": {
     "@types/web-push": "3.6.4",

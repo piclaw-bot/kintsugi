@@ -1,7 +1,7 @@
 import { prepareCodexSession } from "./session.ts";
-import { createCliAgentModule, emptyAgentInput, createCliModelSettings } from "@agents-in-the-cloud/cli-agent/server";
-import { createPiModelRuntime, installSubscriptionCli, requireProviderSubscription } from "@agents-in-the-cloud/llm/server";
-import { providerBrandIconHtml } from "@agents-in-the-cloud/shared";
+import { createCliAgentModule, emptyAgentInput, createCliModelSettings } from "@kintsugi/cli-agent/server";
+import { createPiModelRuntime, installSubscriptionCli, requireProviderSubscription } from "@kintsugi/llm/server";
+import { providerBrandIconHtml } from "@kintsugi/shared";
 import { codexLaunchScript } from "./launch-command.ts";
 import { loadCodexTranscript, loadCodexTranscriptImage, codexResumeId, codexHistoryFiles } from "./transcript.ts";
 
@@ -10,7 +10,7 @@ export const codexCliModelSettings = createCliModelSettings({
   mapThinkingLevel: (level, mapped) => mapped === null ? undefined : mapped ?? (level === "off" ? "none" : level),
 });
 
-export const agentsInTheCloudServerModule = createCliAgentModule({
+export const kintsugiServerModule = createCliAgentModule({
   id: "codex-cli", label: "Codex CLI", iconHtml: providerBrandIconHtml("openai"),
   requireSetup: async () => requireProviderSubscription(await createPiModelRuntime(), "openai-codex", "Codex"),
   settings: codexCliModelSettings,

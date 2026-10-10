@@ -1,5 +1,5 @@
 import type { PushSubscription } from "web-push";
-import type { AgentRenderContext } from "@agents-in-the-cloud/agent/server/render-context";
+import type { AgentRenderContext } from "@kintsugi/agent/server/render-context";
 
 interface NotificationTurn {
   id: string;

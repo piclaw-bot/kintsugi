@@ -1,5 +1,5 @@
 {
-  "name": "@agents-in-the-cloud/cli-agent",
+  "name": "@kintsugi/cli-agent",
   "private": true,
   "type": "module",
   "exports": {
@@ -7,15 +7,15 @@
     "./client": "./src/client/index.ts"
   },
   "dependencies": {
-    "@agents-in-the-cloud/agent": "workspace:*",
-    "@agents-in-the-cloud/core": "workspace:*",
-    "@agents-in-the-cloud/design-system": "workspace:*",
-    "@agents-in-the-cloud/observable-terminal": "workspace:*",
-    "@agents-in-the-cloud/prompt": "workspace:*",
-    "@agents-in-the-cloud/dictation": "workspace:*",
-    "@agents-in-the-cloud/shared": "workspace:*",
-    "@agents-in-the-cloud/workspace": "workspace:*",
+    "@kintsugi/agent": "workspace:*",
+    "@kintsugi/core": "workspace:*",
+    "@kintsugi/design-system": "workspace:*",
+    "@kintsugi/observable-terminal": "workspace:*",
+    "@kintsugi/prompt": "workspace:*",
+    "@kintsugi/dictation": "workspace:*",
+    "@kintsugi/shared": "workspace:*",
+    "@kintsugi/workspace": "workspace:*",
     "typebox": "^1.0.57",
-    "@agents-in-the-cloud/llm": "workspace:*"
+    "@kintsugi/llm": "workspace:*"
   }
 }

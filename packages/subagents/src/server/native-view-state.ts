@@ -1,4 +1,4 @@
-import { durableWorkspaceOwner } from "@agents-in-the-cloud/builtin-agent/server";
+import { durableWorkspaceOwner } from "@kintsugi/builtin-agent/server";
 import { BACKGROUND_CONTEXT as context } from "@earendil-works/chord/context";
 import { nativeStatus } from "./native-runtime.ts";
 import { Delegation } from "./native-state.ts";

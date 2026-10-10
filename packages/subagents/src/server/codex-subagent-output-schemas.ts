@@ -1,4 +1,4 @@
-import type { JsonObject } from "@agents-in-the-cloud/core";
+import type { JsonObject } from "@kintsugi/core";
 // OpenAI Codex, Apache-2.0; multi_agents_spec.rs at 574a36ff99f0807a24f5b043f593122bf151908d.
 const status: JsonObject = { oneOf: [
   { type: "string", enum: ["pending_init", "running", "interrupted", "shutdown", "not_found"] },

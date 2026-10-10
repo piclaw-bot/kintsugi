@@ -121,7 +121,7 @@ const windowName = (window: UsageWindow) => `${window.durationSeconds} ${window.
 /** Usage for this host's connected subscription. Usage only rises with use, and
  * Claude Code traffic through the workspace proxy keeps the snapshot current. Anthropic
  * is asked only on the first read after start or a credential change, when a window
- * has reset, and on an explicit refresh, so an idle AgentsInTheCloud stays quiet. */
+ * has reset, and on an explicit refresh, so an idle Kintsugi stays quiet. */
 export function createAnthropicUsageSource(fetcher: Fetcher = fetch, now: () => number = Date.now) {
   let observed: SubscriptionUsage | undefined;
   let accountWindows: UsageWindow[] = [];

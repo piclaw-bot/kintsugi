@@ -1,15 +1,15 @@
-# AgentsInTheCloud
+# Kintsugi
 
-AgentsInTheCloud is a workspace interface for collaborating with coding agents while inspecting and operating on the work they produce.
+Kintsugi is a workspace interface for collaborating with coding agents while inspecting and operating on the work they produce.
 
 ## Language
 
 **Onboarding**:
-The guided flow for getting started with AgentsInTheCloud by connecting GitHub and Model providers. Onboarding is app-level, distinct from preparing an individual Workspace.
+The guided flow for getting started with Kintsugi by connecting GitHub and Model providers. Onboarding is app-level, distinct from preparing an individual Workspace.
 _Avoid_: Initial setup (as the feature name), Workspace setup
 
 **Settings**:
-The app-level surface for AgentsInTheCloud preferences and shared configuration, such as Connection mode, theme, Commit identity, GitHub connection, and Model providers. Settings is distinct from Workspace template configuration and an individual Agent’s choices.
+The app-level surface for Kintsugi preferences and shared configuration, such as Connection mode, theme, Commit identity, GitHub connection, and Model providers. Settings is distinct from Workspace template configuration and an individual Agent’s choices.
 _Avoid_: Preferences, app settings, global settings (as feature names), workspace settings (for this surface)
 
 **Developer tools**:
@@ -17,23 +17,23 @@ The app-level page for maintenance actions and design-system inspection, includi
 _Avoid_: Development settings, Developer settings (for this app-level page)
 
 **Theme**:
-The app-wide choice of AgentsInTheCloud’s visual appearance, shared across open pages. Theme is not selected independently for each Workspace or browser.
+The app-wide choice of Kintsugi’s visual appearance, shared across open pages. Theme is not selected independently for each Workspace or browser.
 _Avoid_: Workspace theme, browser theme (for this setting)
 
 **Connection mode**:
-The installation-wide choice of where AgentsInTheCloud and Workspace previews can be used: Installation computer only, or Devices on your Tailscale network. The selected mode determines generated preview addresses; Tailscale mode includes the installation computer.
+The installation-wide choice of where Kintsugi and Workspace previews can be used: Installation computer only, or Devices on your Tailscale network. The selected mode determines generated preview addresses; Tailscale mode includes the installation computer.
 _Avoid_: App access, Local / Remote (as mode labels)
 
-**AgentsInTheCloud URL**:
-The address shown in Settings for opening the current AgentsInTheCloud installation through the browser's connection. It can be copied or shown as a QR code. Its reachability from another device depends on the address and Connection mode; it is not necessarily a public Internet address or usable on a phone.
+**Kintsugi URL**:
+The address shown in Settings for opening the current Kintsugi installation through the browser's connection. It can be copied or shown as a QR code. Its reachability from another device depends on the address and Connection mode; it is not necessarily a public Internet address or usable on a phone.
 _Avoid_: External URL, Instance URL (as the feature label)
 
 **Installation computer**:
-The computer where AgentsInTheCloud is installed, which may differ from the device running the user's browser.
+The computer where Kintsugi is installed, which may differ from the device running the user's browser.
 _Avoid_: This computer (when the installation computer is meant), System container (as the computer's identity)
 
 **GitHub connection**:
-The app-wide connection that lets AgentsInTheCloud and Agents access GitHub repositories using a GitHub token. It is shared across Workspaces, not configured separately for each Workspace. It is distinct from Commit identity, which determines the author name and email on commits.
+The app-wide connection that lets Kintsugi and Agents access GitHub repositories using a GitHub token. It is shared across Workspaces, not configured separately for each Workspace. It is distinct from Commit identity, which determines the author name and email on commits.
 _Avoid_: GitHub setup (as the feature name), Workspace GitHub connection
 
 **Commit identity**:
@@ -41,15 +41,15 @@ The app-level author name and email used to configure commits in new Workspaces.
 _Avoid_: Git identity, GitHub identity (for commit authorship)
 
 **GitHub token**:
-The credential used by the GitHub connection. AgentsInTheCloud keeps the token outside Agent sandboxes and supplies repository access without exposing the token to Agents.
+The credential used by the GitHub connection. Kintsugi keeps the token outside Agent sandboxes and supplies repository access without exposing the token to Agents.
 _Avoid_: Workspace GitHub token
 
 **Host**:
-The feature for inspecting AgentsInTheCloud System diagnostics and using privileged terminals outside individual Workspaces. Host access targets the System environment, not necessarily the physical machine running Docker.
+The feature for inspecting Kintsugi System diagnostics and using privileged terminals outside individual Workspaces. Host access targets the System environment, not necessarily the physical machine running Docker.
 _Avoid_: System panel (as the feature name), Workspace terminal (for Host access), physical host (as an implicit access boundary)
 
 **Updates**:
-The feature for checking for AgentsInTheCloud releases and managing Update operations. Updates is separate from managing packages or agent CLIs inside a Workspace.
+The feature for checking for Kintsugi releases and managing Update operations. Updates is separate from managing packages or agent CLIs inside a Workspace.
 _Avoid_: Upgrades, software updater (as feature names)
 
 **Usage**:
@@ -67,7 +67,7 @@ The published image track followed by Updates. Stable follows the image promoted
 _Avoid_: Release channel (for the app setting)
 
 **Update**:
-An installation operation that prepares an AgentsInTheCloud release and applies it by restarting the System-managed installation.
+An installation operation that prepares an Kintsugi release and applies it by restarting the System-managed installation.
 _Avoid_: Upgrade (as the operation name), Workspace package update
 
 **Workspace template**:
@@ -78,7 +78,7 @@ _Avoid_: Project, workspace folder, repository
 Secrets, SSH keys, trusted SSH servers and Environment variables that apply to every new workspace, including Empty workspaces. They are edited in Settings and in each Workspace template's settings. A template's own Secret or Environment variable with the same name overrides the global one; SSH keys and trusted SSH servers from both apply.
 _Avoid_: Shared secrets, default template settings
 
-**Atelier-in-Atelier seeding**:
+**Kintsugi-in-Kintsugi seeding**:
 A fringe Workspace template permission for copying Model provider credentials and saved Workspace template configuration into new Workspaces, primarily to prepare a nested installation. Unlike Secrets, this can put real credentials inside the Workspace, so it is only appropriate for trusted repositories and Agents.
 
 **Secrets**:
@@ -157,7 +157,7 @@ The composer used before a Workspace exists to provide its Agent’s initial pro
 _Avoid_: Launch form, launch prompt, new-workspace composer
 
 **Inline content**:
-HTML-based explanatory content shown as part of an Agent’s answer using AgentsInTheCloud’s supplied styling and controls. Inline content is distinct from independently styled, standalone outputs.
+HTML-based explanatory content shown as part of an Agent’s answer using Kintsugi’s supplied styling and controls. Inline content is distinct from independently styled, standalone outputs.
 
 **Dictation**:
 The feature for turning microphone speech into editable text in an AgentPaneComposer or LaunchComposer. Dictation inserts text into the draft without sending it; it is not a voice conversation with an Agent.
@@ -178,7 +178,7 @@ An optional button in the AgentPaneComposer that inserts a Prompt template into 
 _Avoid_: Quick launch, quick insert
 
 **Keyboard shortcut**:
-A key combination that invokes an AgentsInTheCloud command, shortened to “Shortcut” when the context is clear. A Prompt template’s shortcut sends it directly to the active Agent rather than inserting it into a draft.
+A key combination that invokes an Kintsugi command, shortened to “Shortcut” when the context is clear. A Prompt template’s shortcut sends it directly to the active Agent rather than inserting it into a draft.
 _Avoid_: Hotkey
 
 **Agent session**:
@@ -240,20 +240,20 @@ _Avoid_: Split diff, split layout
 A top-level phone navigation target for the Workspace pane, an Agent, or a Work view configured for direct mobile access. Every Agent is directly reachable. Open Browser and Terminal views are directly reachable; Files and VS Code views are found through More.
 _Avoid_: Mobile tab, mobile Work pane
 
-**AgentsInTheCloud bar**:
-The phone-only bottom navigation bar for controls whose scope is AgentsInTheCloud rather than the selected Workspace. It is visible while the Workspace pane is visible, occupies the full bottom edge, and replaces the Workspace bar. When hidden, only the Workspace pane button remains visible at the bottom-left.
+**Kintsugi bar**:
+The phone-only bottom navigation bar for controls whose scope is Kintsugi rather than the selected Workspace. It is visible while the Workspace pane is visible, occupies the full bottom edge, and replaces the Workspace bar. When hidden, only the Workspace pane button remains visible at the bottom-left.
 _Avoid_: Application bar, global bar, Workspace pane bar
 
 **Workspace pane button**:
-The phone control that remains at the bottom-left while the AgentsInTheCloud bar is hidden. Activating it opens the Workspace pane and reveals the AgentsInTheCloud bar.
-_Avoid_: AgentsInTheCloud button, open button
+The phone control that remains at the bottom-left while the Kintsugi bar is hidden. Activating it opens the Workspace pane and reveals the Kintsugi bar.
+_Avoid_: Kintsugi button, open button
 
 **Workspace bar**:
-The phone-only bottom navigation bar containing Mobile destinations within the selected Workspace, such as Agents, Browser, Changes, and More. It is visible while the Workspace pane is hidden and is replaced by the AgentsInTheCloud bar when the Workspace pane opens.
+The phone-only bottom navigation bar containing Mobile destinations within the selected Workspace, such as Agents, Browser, Changes, and More. It is visible while the Workspace pane is hidden and is replaced by the Kintsugi bar when the Workspace pane opens.
 _Avoid_: Current Workspace toolbar, resident bar
 
 **Next attention**:
-An AgentsInTheCloud navigation action that opens the Workspace that has been requesting attention longest, regardless of whether it is busy or preloaded.
+An Kintsugi navigation action that opens the Workspace that has been requesting attention longest, regardless of whether it is busy or preloaded.
 _Avoid_: Next unread, next Agent
 
 **More**:
@@ -269,7 +269,7 @@ A persistent Work view whose referenced resource cannot currently be loaded. It 
 _Avoid_: Broken tab, missing tab
 
 **Terminal**:
-The feature for command-line access inside a Workspace. Terminal is distinct from Host’s privileged terminals in AgentsInTheCloud System.
+The feature for command-line access inside a Workspace. Terminal is distinct from Host’s privileged terminals in Kintsugi System.
 _Avoid_: Shell (as the feature name), Host terminal (for Workspace command-line access)
 
 **Terminal view**:

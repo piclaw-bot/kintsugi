@@ -1,7 +1,7 @@
 # Update progress stability
 
-This test release verifies that closing or reconnecting the update progress stream no longer interrupts AgentsInTheCloud while an update is being pulled.
+This test release verifies that closing or reconnecting the update progress stream no longer interrupts Kintsugi while an update is being pulled.
 
-- Clicking Update AgentsInTheCloud should not disconnect active terminal tabs.
+- Clicking Update Kintsugi should not disconnect active terminal tabs.
 - The sidebar should move from pull progress to Restart to update.
 - Retrying should attach to the same update flow instead of leaving the sidebar stuck.

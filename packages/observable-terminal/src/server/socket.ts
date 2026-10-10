@@ -1,4 +1,4 @@
-import { errorMessage } from "@agents-in-the-cloud/shared";
+import { errorMessage } from "@kintsugi/shared";
 import { parseObservableTerminalMessage, terminalSessionMissingCloseCode, type ObservableTerminalProgressMessage } from "../shared/index.ts";
 import { attachObservableTerminal, type ObservableTerminalAttachOptions, type ObservableTerminalConnection } from "./attach.ts";
 

@@ -1,17 +1,17 @@
 {
-  "name": "@agents-in-the-cloud/claude-agent",
+  "name": "@kintsugi/claude-agent",
   "private": true,
   "type": "module",
   "exports": {
     "./server": "./src/server/index.ts"
   },
   "dependencies": {
-    "@agents-in-the-cloud/core": "workspace:*",
-    "@agents-in-the-cloud/llm": "workspace:*",
-    "@agents-in-the-cloud/shared": "workspace:*",
-    "@agents-in-the-cloud/workspace": "workspace:*",
-    "@agents-in-the-cloud/cli-agent": "workspace:*",
-    "@agents-in-the-cloud/agent": "workspace:*",
+    "@kintsugi/core": "workspace:*",
+    "@kintsugi/llm": "workspace:*",
+    "@kintsugi/shared": "workspace:*",
+    "@kintsugi/workspace": "workspace:*",
+    "@kintsugi/cli-agent": "workspace:*",
+    "@kintsugi/agent": "workspace:*",
     "typebox": "^1.0.57"
   }
 }

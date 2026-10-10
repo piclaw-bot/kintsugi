@@ -1,8 +1,8 @@
 import { Type } from "typebox";
 import { Value } from "typebox/value";
-import { invalidArguments, type JsonObject } from "@agents-in-the-cloud/core";
-import { getAgentModelPreference, setAgentModelPreference, getAgentModelThinkingLevel, createPiModelRuntime, modelUnavailableReason, providerAvailability, getEnabledModels, hasConnectedModelProvider, modelRefValue, modelThinkingLevels, renderLaunchModelSettings, renderReadOnlyLaunchModelSettings, type ComposerModelOption, type ModelRef } from "@agents-in-the-cloud/llm/server";
-import type { AgentLaunchFooterContext } from "@agents-in-the-cloud/shared";
+import { invalidArguments, type JsonObject } from "@kintsugi/core";
+import { getAgentModelPreference, setAgentModelPreference, getAgentModelThinkingLevel, createPiModelRuntime, modelUnavailableReason, providerAvailability, getEnabledModels, hasConnectedModelProvider, modelRefValue, modelThinkingLevels, renderLaunchModelSettings, renderReadOnlyLaunchModelSettings, type ComposerModelOption, type ModelRef } from "@kintsugi/llm/server";
+import type { AgentLaunchFooterContext } from "@kintsugi/shared";
 
 const settingsSchema = Type.Object({ model: Type.Optional(Type.String()), thinkingLevel: Type.Optional(Type.String()) });
 

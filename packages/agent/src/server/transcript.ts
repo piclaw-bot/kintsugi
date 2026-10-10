@@ -5,7 +5,7 @@ import type { TurnTimingSummary } from "./turn-timing.ts";
 import { Type, type Static } from "typebox";
 import type { StopReason } from "@earendil-works/pi-ai";
 import { Value } from "typebox/value";
-import { isJsonObject, type JsonValue } from "@agents-in-the-cloud/core";
+import { isJsonObject, type JsonValue } from "@kintsugi/core";
 
 export interface SessionImageRef {
   entryId: string;

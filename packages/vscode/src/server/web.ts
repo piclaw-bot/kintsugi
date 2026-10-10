@@ -1,6 +1,6 @@
-import { Icons } from "@agents-in-the-cloud/design-system/icons";
-import type { JsonValue } from "@agents-in-the-cloud/core";
-import { turboStreamResponse, type WorkspaceFileTarget, type WorkspaceModuleRouteContext, type WorkspaceCommandContribution, type WorkspaceModule, type WorkspaceWorkViewPresentation, type WorkspaceWorkViewReference } from "@agents-in-the-cloud/shared";
+import { Icons } from "@kintsugi/design-system/icons";
+import type { JsonValue } from "@kintsugi/core";
+import { turboStreamResponse, type WorkspaceFileTarget, type WorkspaceModuleRouteContext, type WorkspaceCommandContribution, type WorkspaceModule, type WorkspaceWorkViewPresentation, type WorkspaceWorkViewReference } from "@kintsugi/shared";
 import { renderVSCodeView, vscodeViewKey, renderVSCodeNavigationSignal, vscodeFileNavigationStream } from "./render.ts";
 import { createWorkspaceVSCodeView, deleteWorkspaceVSCodeState, deleteWorkspaceVSCodeView, listWorkspaceVSCodeViews, openFileInConnectedVSCodeWindows, type WorkspaceVSCodeView } from "./workspace-vscode.ts";
 import { patchVSCodeWorkspaceAppResponse, resolveVSCodeWorkspaceAppBackend, vscodeAppKey } from "./proxy.ts";

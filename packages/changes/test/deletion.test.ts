@@ -13,7 +13,7 @@ const { clearDeletionReview, deletionReviewCommitResponse, deletionReviewFileRes
 
 beforeEach(async () => {
   previousDataDir = process.env.ATELIER_DATA_DIR;
-  dataDir = await mkdtemp(join(tmpdir(), "agents-in-the-cloud-deletion-review-"));
+  dataDir = await mkdtemp(join(tmpdir(), "kintsugi-deletion-review-"));
   process.env.ATELIER_DATA_DIR = dataDir;
 });
 

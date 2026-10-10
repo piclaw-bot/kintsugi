@@ -14,7 +14,7 @@ function contender(path: string, hold = false) {
 }
 
 test("release lock excludes other processes and can be reacquired after closing", async () => {
-  const directory = mkdtempSync(join(tmpdir(), "agents-in-the-cloud-release-lock-"));
+  const directory = mkdtempSync(join(tmpdir(), "kintsugi-release-lock-"));
   const path = join(directory, "release.lock");
   try {
     const unlock = acquireReleaseLock(path)!;
@@ -33,7 +33,7 @@ test("release lock excludes other processes and can be reacquired after closing"
 });
 
 test("kernel releases the lock when its owner is killed", async () => {
-  const directory = mkdtempSync(join(tmpdir(), "agents-in-the-cloud-release-lock-"));
+  const directory = mkdtempSync(join(tmpdir(), "kintsugi-release-lock-"));
   const path = join(directory, "release.lock");
   const owner = contender(path, true);
   try {
@@ -53,7 +53,7 @@ test("kernel releases the lock when its owner is killed", async () => {
 });
 
 test("lock filesystem failures are errors, not contention", () => {
-  const directory = mkdtempSync(join(tmpdir(), "agents-in-the-cloud-release-lock-"));
+  const directory = mkdtempSync(join(tmpdir(), "kintsugi-release-lock-"));
   try {
     expect(() => acquireReleaseLock(directory)).toThrow();
   } finally {

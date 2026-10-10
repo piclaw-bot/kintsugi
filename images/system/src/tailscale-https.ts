@@ -31,7 +31,7 @@ export class TailscaleHttps {
     }
     if (host === this.verifiedHost) return;
     this.reset();
-    const directory = await mkdtemp(join(tmpdir(), "agents-in-the-cloud-tailscale-cert-"));
+    const directory = await mkdtemp(join(tmpdir(), "kintsugi-tailscale-cert-"));
     try {
       await this.run([
         "tailscale", "cert", "--cert-file", join(directory, "cert.pem"),

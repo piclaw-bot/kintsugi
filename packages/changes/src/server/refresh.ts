@@ -1,4 +1,4 @@
-import type { Repository } from "@agents-in-the-cloud/workspace/git";
+import type { Repository } from "@kintsugi/workspace/git";
 import type { DiffEndpoints } from "../history.ts";
 import { captureChanges, captureHistory, commitHistory, stagedChanges, workingTree, type ChangesSnapshot } from "./snapshot.ts";
 

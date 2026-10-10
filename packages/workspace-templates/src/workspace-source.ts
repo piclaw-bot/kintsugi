@@ -4,20 +4,20 @@ import { appendFile, mkdir, readFile, readdir, realpath, rename, rm, stat, write
 import { platform } from "node:os";
 import { join, resolve } from "node:path";
 import {
-  agentsInTheCloudDataPath,
+  kintsugiDataPath,
   runCommand,
   createKeyedOperationQueue,
-  AgentsInTheCloudCoreError,
+  KintsugiCoreError,
   discoverGitHubToken,
-  dockerHostAgentsInTheCloudDataPath,
-  getAgentsInTheCloudRuntimeContext,
+  dockerHostKintsugiDataPath,
+  getKintsugiRuntimeContext,
   gitHubCredentialHelperCommand,
   invalidArguments,
   shellQuote,
-  type AgentsInTheCloudEventBus,
+  type KintsugiEventBus,
   type CommandResult,
-} from "@agents-in-the-cloud/core";
-import { runHostObservableCommand, tailTerminalText } from "@agents-in-the-cloud/observable-terminal/server";
+} from "@kintsugi/core";
+import { runHostObservableCommand, tailTerminalText } from "@kintsugi/observable-terminal/server";
 import { Type, type Static } from "typebox";
 import { Value } from "typebox/value";
 import { workspaceTemplateIdFromInit, workspaceTemplateIdOfInit, getWorkspaceTemplateConfiguration, listWorkspaceTemplates, isGitWorkspaceTemplateInit } from "./workspace-template.ts";
@@ -51,7 +51,7 @@ const reflinkSupportByDir = new Map<string, Promise<boolean>>();
 const regularCopyWarnings = new Set<string>();
 
 function sourceRoot(): string {
-  return getAgentsInTheCloudRuntimeContext().agentsInTheCloudDataDir;
+  return getKintsugiRuntimeContext().kintsugiDataDir;
 }
 
 function templateKey(gitUrl: string, branch: string | null): string {
@@ -81,10 +81,10 @@ export function workspaceTemplateDataDirKey(workspaceTemplateId: string): string
 }
 
 export async function workspaceTemplatePersistentMount(workspaceTemplateId: string): Promise<{ source: string; target: "/persistent" }> {
-  const runtime = getAgentsInTheCloudRuntimeContext();
+  const runtime = getKintsugiRuntimeContext();
   const key = workspaceTemplateDataDirKey(workspaceTemplateId);
-  await mkdir(agentsInTheCloudDataPath(runtime, "projects", key, "persistent"), { recursive: true });
-  return { source: dockerHostAgentsInTheCloudDataPath(runtime, "projects", key, "persistent"), target: "/persistent" };
+  await mkdir(kintsugiDataPath(runtime, "projects", key, "persistent"), { recursive: true });
+  return { source: dockerHostKintsugiDataPath(runtime, "projects", key, "persistent"), target: "/persistent" };
 }
 
 function workspaceWorktreePath(workspaceId: string): string {
@@ -99,7 +99,7 @@ async function command(name: string, args: string[], options: { env?: Record<str
 async function requireCommand(name: string, args: string[], options: { env?: Record<string, string | undefined>; errorCode?: string } = {}): Promise<CommandResult> {
   const result = await command(name, args, options);
   if (result.exitCode !== 0) {
-    throw new AgentsInTheCloudCoreError(options.errorCode ?? "workspace_source_failed", (result.stderr || result.stdout).trim() || `${name} ${args.join(" ")} failed`);
+    throw new KintsugiCoreError(options.errorCode ?? "workspace_source_failed", (result.stderr || result.stdout).trim() || `${name} ${args.join(" ")} failed`);
   }
   return result;
 }
@@ -116,7 +116,7 @@ async function pathExists(path: string): Promise<boolean> {
   return await stat(path).then(() => true, () => false);
 }
 
-async function ensureTemplate(gitUrl: string, branch: string | null, key: string, options: { workspaceId: string; events?: AgentsInTheCloudEventBus; logPath: string; sshEnv: Record<string, string> }): Promise<{ repoPath: string; resolvedCommit: string | null; effectiveBranch: string | null }> {
+async function ensureTemplate(gitUrl: string, branch: string | null, key: string, options: { workspaceId: string; events?: KintsugiEventBus; logPath: string; sshEnv: Record<string, string> }): Promise<{ repoPath: string; resolvedCommit: string | null; effectiveBranch: string | null }> {
   const dir = templateDir(key);
   const repoPath = templateRepoPath(key);
   const tmpPath = join(dir, `repo.tmp-${process.pid}-${Date.now()}`);
@@ -209,7 +209,7 @@ printf '%s\n' "$effective_branch" > "$effective_branch_file"
   const env = { ...options.sshEnv };
   if (token) env.GH_TOKEN = token;
   const result = await runHostObservableCommand({
-    session: `agents-in-the-cloud-provision-git-${crypto.randomUUID().slice(0, 8)}`,
+    session: `kintsugi-provision-git-${crypto.randomUUID().slice(0, 8)}`,
     cwd: dir,
     command: script,
     env,
@@ -219,12 +219,12 @@ printf '%s\n' "$effective_branch" > "$effective_branch_file"
   });
   await appendFile(options.logPath, result.output).catch(() => undefined);
   if (result.exitCode === branchNotFoundExitCode) {
-    throw new AgentsInTheCloudCoreError("branch_not_found", `Branch "${branch}" was not found. Open template settings and correct the branch after # in Repository, or remove it to use the default branch. Then create a new workspace.`);
+    throw new KintsugiCoreError("branch_not_found", `Branch "${branch}" was not found. Open template settings and correct the branch after # in Repository, or remove it to use the default branch. Then create a new workspace.`);
   }
   if (result.exitCode !== 0) {
     const detail = tailTerminalText(result.output) || `git provisioning failed with exit code ${result.exitCode}`;
     const trustHelp = result.output.includes("Host key verification failed") ? "\nConfigure verified server keys in template settings → Trusted SSH servers, then retry workspace creation." : "";
-    throw new AgentsInTheCloudCoreError("git_error", `${detail}${trustHelp}`);
+    throw new KintsugiCoreError("git_error", `${detail}${trustHelp}`);
   }
 
   const effectiveBranch = (await readFile(effectiveBranchPath, "utf8")).trim() || null;
@@ -273,7 +273,7 @@ async function detectReflinkSupport(dir: string): Promise<boolean> {
     const dest = join(probeDir, "dest");
     try {
       await mkdir(probeDir, { recursive: true });
-      await writeFile(src, "agents-in-the-cloud reflink probe\n");
+      await writeFile(src, "kintsugi reflink probe\n");
       const result = await command("cp", reflinkCopyArgs(src, dest)!);
       return result.exitCode === 0;
     } finally {
@@ -288,20 +288,20 @@ async function detectReflinkSupport(dir: string): Promise<boolean> {
 function warnRegularCopy(dir: string): void {
   if (regularCopyWarnings.has(dir)) return;
   regularCopyWarnings.add(dir);
-  console.warn(`AgentsInTheCloud warning: ${dir} does not appear to support copy-on-write/reflink copies; workspace creation will use regular copies and may be slower than ideal.`);
+  console.warn(`Kintsugi warning: ${dir} does not appear to support copy-on-write/reflink copies; workspace creation will use regular copies and may be slower than ideal.`);
 }
 
 async function copyWorkspaceTemplate(src: string, dest: string, supportProbeDir: string): Promise<void> {
   if (await detectReflinkSupport(supportProbeDir)) {
     const args = reflinkCopyArgs(src, dest);
-    if (!args) throw new AgentsInTheCloudCoreError("cow_unavailable", `copy-on-write workspace copies are not supported on ${platform()}`);
+    if (!args) throw new KintsugiCoreError("cow_unavailable", `copy-on-write workspace copies are not supported on ${platform()}`);
     await requireCommand("cp", args, { errorCode: "cow_unavailable" });
     return;
   }
 
   warnRegularCopy(supportProbeDir);
   const args = regularCopyArgs(src, dest);
-  if (!args) throw new AgentsInTheCloudCoreError("copy_unavailable", `workspace template copies are not supported on ${platform()}`);
+  if (!args) throw new KintsugiCoreError("copy_unavailable", `workspace template copies are not supported on ${platform()}`);
   await requireCommand("cp", args, { errorCode: "copy_unavailable" });
 }
 
@@ -311,14 +311,14 @@ async function verifyStandaloneWorktree(worktreePath: string): Promise<void> {
   const commonDir = await realpath(resolve(common.stdout.trim()));
   const expected = await realpath(resolve(join(worktreePath, ".git")));
   if (commonDir !== expected) {
-    throw new AgentsInTheCloudCoreError("workspace_source_invalid", `workspace git common dir is ${commonDir}, expected ${expected}`);
+    throw new KintsugiCoreError("workspace_source_invalid", `workspace git common dir is ${commonDir}, expected ${expected}`);
   }
   if (await pathExists(join(worktreePath, ".git", "objects", "info", "alternates"))) {
-    throw new AgentsInTheCloudCoreError("workspace_source_invalid", "workspace git checkout unexpectedly uses alternates");
+    throw new KintsugiCoreError("workspace_source_invalid", "workspace git checkout unexpectedly uses alternates");
   }
 }
 
-export async function prepareWorkspaceSource(options: { workspaceId: string; gitUrl: string; branch: string | null; worktreePath?: string; workspaceTemplateId?: string; events?: AgentsInTheCloudEventBus }): Promise<PreparedWorkspaceSource> {
+export async function prepareWorkspaceSource(options: { workspaceId: string; gitUrl: string; branch: string | null; worktreePath?: string; workspaceTemplateId?: string; events?: KintsugiEventBus }): Promise<PreparedWorkspaceSource> {
   const gitUrl = options.gitUrl.trim();
   if (!gitUrl) throw invalidArguments("missing git URL");
   const branch = options.branch?.trim() || null;
@@ -330,7 +330,7 @@ export async function prepareWorkspaceSource(options: { workspaceId: string; git
     await mkdir(cleanupPath, { recursive: true });
     if (await pathExists(worktreePath)) {
       const entries = await readdir(worktreePath);
-      if (entries.length > 0) throw new AgentsInTheCloudCoreError("workspace_source_exists", `workspace source is not empty: ${worktreePath}`);
+      if (entries.length > 0) throw new KintsugiCoreError("workspace_source_exists", `workspace source is not empty: ${worktreePath}`);
     }
     const tmpWorkPath = join(cleanupPath, `work.tmp-${process.pid}-${Date.now()}`);
     await rm(tmpWorkPath, { recursive: true, force: true });
@@ -375,7 +375,7 @@ export async function prepareWorkspaceSource(options: { workspaceId: string; git
   });
 }
 
-export function registerWorkspaceTemplateWorkspaceInitEvents(events: AgentsInTheCloudEventBus): void {
+export function registerWorkspaceTemplateWorkspaceInitEvents(events: KintsugiEventBus): void {
   events.on("workspace_image_configure", async (configuration) => {
     if (!isGitWorkspaceTemplateInit(configuration.init)) return;
     const workspaceTemplateId = workspaceTemplateIdFromInit(configuration.init);
@@ -400,7 +400,7 @@ export function registerWorkspaceTemplateWorkspaceInitEvents(events: AgentsInThe
     const metadataPath = join(workspaceSourceDir(workspaceId), "metadata.json");
     if (!existsSync(metadataPath)) return;
     const metadata = Value.Parse(workspaceSourceMetadataSchema, JSON.parse(await readFile(metadataPath, "utf8")));
-    if (metadata.resolvedCommit !== null) plan.labels["com.agents-in-the-cloud.source-commit"] = metadata.resolvedCommit;
-    plan.labels["com.agents-in-the-cloud.source-template"] = metadata.templateKey;
+    if (metadata.resolvedCommit !== null) plan.labels["com.kintsugi.source-commit"] = metadata.resolvedCommit;
+    plan.labels["com.kintsugi.source-template"] = metadata.templateKey;
   });
 }

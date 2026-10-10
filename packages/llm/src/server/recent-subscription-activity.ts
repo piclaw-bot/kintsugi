@@ -4,7 +4,7 @@ import type { UsageProvider } from "./provider-usage.ts";
 const activityWindowMs = 30 * 60_000;
 const lastUsed = new Map<UsageProvider["id"], number>();
 
-/** Only successful inference with AgentsInTheCloud's connected subscription is recorded. */
+/** Only successful inference with Kintsugi's connected subscription is recorded. */
 export function recordSubscriptionInference(provider: UsageProvider["id"], at = Date.now()): void {
   lastUsed.set(provider, at);
 }

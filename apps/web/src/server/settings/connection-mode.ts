@@ -1,15 +1,15 @@
 import { existsSync } from "node:fs";
 import { Type } from "typebox";
 import { Value } from "typebox/value";
-import { toggleHtml } from "@agents-in-the-cloud/design-system/toggle";
-import { buttonHtml } from "@agents-in-the-cloud/design-system/button";
-import { actionLinkHtml } from "@agents-in-the-cloud/design-system/action-link";
-import { escapeHtml } from "@agents-in-the-cloud/shared";
-import { agentsInTheCloudUrlHtml } from "../agents-in-the-cloud-url.ts";
-import { response } from "@agents-in-the-cloud/shared/http";
+import { toggleHtml } from "@kintsugi/design-system/toggle";
+import { buttonHtml } from "@kintsugi/design-system/button";
+import { actionLinkHtml } from "@kintsugi/design-system/action-link";
+import { escapeHtml } from "@kintsugi/shared";
+import { kintsugiUrlHtml } from "../kintsugi-url.ts";
+import { response } from "@kintsugi/shared/http";
 
 // The System access API and marker retain their existing protocol spelling.
-export const connectionModeManaged = () => existsSync("/run/agents-in-the-cloud-system/access-v1");
+export const connectionModeManaged = () => existsSync("/run/kintsugi-system/access-v1");
 const schema = Type.Object({ mode: Type.Union([Type.Literal("localhost"), Type.Literal("tailscale")]), connectionState: Type.String(), authUrl: Type.Optional(Type.String()), origin: Type.Optional(Type.String()), error: Type.Optional(Type.String()) });
 export async function renderConnectionModeSettings(): Promise<string> {
   if (!connectionModeManaged()) return "";
@@ -19,7 +19,7 @@ export async function renderConnectionModeSettings(): Promise<string> {
   const remote = access.mode === "tailscale";
   const modeToggle = toggleHtml({
     variant: "button",
-    label: "Where can you use AgentsInTheCloud?",
+    label: "Where can you use Kintsugi?",
     name: "mode",
     value: access.mode,
     form: { action: "/settings/access" },
@@ -34,13 +34,13 @@ export async function renderConnectionModeSettings(): Promise<string> {
     : `<form action="/settings/access" method="post"><input type="hidden" name="mode" value="tailscale">${buttonHtml({ type: "submit", variant: "primary", content: { kind: "caption", caption: "Retry Tailscale connection" } })}</form>`;
   return `<turbo-frame id="settings_access" data-controller="connection-mode-settings">
     <section class="settings-sec" id="settings-sec-access">
-      <div class="settings-choice-row"><h2>Where can you use AgentsInTheCloud?</h2>${modeToggle}</div>
-      ${!remote ? "<p>Use AgentsInTheCloud and Workspace previews in a browser on the computer where AgentsInTheCloud is installed. Tailscale is off.</p>" : ""}
+      <div class="settings-choice-row"><h2>Where can you use Kintsugi?</h2>${modeToggle}</div>
+      ${!remote ? "<p>Use Kintsugi and Workspace previews in a browser on the computer where Kintsugi is installed. Tailscale is off.</p>" : ""}
       ${remote && !connected ? "<p>Tailscale isn’t connected yet.</p>" : ""}
       ${access.error ? `<p class="settings-error">${escapeHtml(access.error)}</p>` : ""}
       ${connectionAction}
     </section>
-    <section class="settings-sec settings-sec-url" id="settings-sec-url"><h2>AgentsInTheCloud URL</h2>${access.origin ? agentsInTheCloudUrlHtml(access.origin, "settings_agents_in_the_cloud_url_qr") : '<p>The URL will appear when the connection is ready.</p>'}</section>
+    <section class="settings-sec settings-sec-url" id="settings-sec-url"><h2>Kintsugi URL</h2>${access.origin ? kintsugiUrlHtml(access.origin, "settings_kintsugi_url_qr") : '<p>The URL will appear when the connection is ready.</p>'}</section>
   </turbo-frame>`;
 }
 export async function handleConnectionModeSettings(request: Request, url: URL): Promise<Response | undefined> {

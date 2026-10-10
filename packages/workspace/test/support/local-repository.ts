@@ -1,7 +1,7 @@
 import { copyFile, lstat, mkdtemp, readFile, readlink, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, relative, resolve, sep } from "node:path";
-import { isNotFoundError } from "@agents-in-the-cloud/core";
+import { isNotFoundError } from "@kintsugi/core";
 import { decodeWorkingFileWrite, decodeRepositoryBatch, repositoryBatchRunner } from "../../src/git-batch.ts";
 import { safeGitArguments, type Repository } from "../../src/git-repository.ts";
 

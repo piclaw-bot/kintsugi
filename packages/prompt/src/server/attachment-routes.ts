@@ -1,4 +1,4 @@
-import { extensionOf, imageMimeByExtension } from "@agents-in-the-cloud/shared/file-metadata";
+import { extensionOf, imageMimeByExtension } from "@kintsugi/shared/file-metadata";
 import {
   findStagedAttachment,
   removeAttachmentDraft,
@@ -6,8 +6,8 @@ import {
   stageAttachment,
   validDraftId,
 } from "./attachment-drafts.ts";
-import { domId, turboStream, turboStreamResponse } from "@agents-in-the-cloud/shared";
-import { matchRoute } from "@agents-in-the-cloud/shared/http";
+import { domId, turboStream, turboStreamResponse } from "@kintsugi/shared";
+import { matchRoute } from "@kintsugi/shared/http";
 import { renderAttachmentChip } from "./render-attachments.ts";
 
 export const handleAttachmentRequest = async (request: Request, url: URL): Promise<Response | undefined> => {

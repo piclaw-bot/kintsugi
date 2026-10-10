@@ -6,7 +6,9 @@ import { escapeHtml } from "../../../packages/shared/src/html.ts";
 import { startLocalIngress } from "./local-ingress.ts";
 import { installationStatus, type Activity } from "./installation-status.ts";
 import { PullProgress } from "./pull-progress.ts";
-import { prepareChannelUpdate } from "./channel-update.ts";
+import { readReleaseSettings, releaseReference } from "../../../packages/shared/src/release-source.ts";
+import { createReleaseRegistry, releaseDockerConfig } from "./release-registry.ts";
+import { createReleaseRequests, prepareRelease } from "./releases.ts";
 import { Type } from "typebox";
 import { Value } from "typebox/value";
 import { installWorkspaceFirewall, resolverAddresses } from "./firewall.ts";
@@ -28,7 +30,7 @@ const { values } = parseArgs({
     "access-mode": { type: "string", default: "tailscale" },
     "app-image": {
       type: "string",
-      default: "ghcr.io/lucasmeijer/agents-in-the-cloud:latest",
+      default: "ghcr.io/rcarmo/kintsugi:latest",
     },
   },
   strict: true,
@@ -45,14 +47,17 @@ await Promise.all(
     "/run/tailscale",
   ].map((path) => mkdir(path, { recursive: true })),
 );
-await mkdir("/run/agents-in-the-cloud-system", { recursive: true });
-await writeFile("/run/agents-in-the-cloud-system/access-v1", "");
+await mkdir("/run/kintsugi-system", { recursive: true });
+await writeFile("/run/kintsugi-system/access-v1", "");
 // Retain the serialized accessMode field and external access API spelling.
-type State = { accessMode?: "localhost" | "tailscale"; localPort?: number; currentImage?: string; runningContainers?: string[]; uninstall?: UninstallState };
+type State = { accessMode?: "localhost" | "tailscale"; localPort?: number; currentImage?: string; previousImage?: string; pendingImage?: string; tailscaleHostname?: string; runningContainers?: string[]; uninstall?: UninstallState };
 const persisted: State = (await Bun.file(`${stateDir}/state.json`).exists())
   ? JSON.parse(await readFile(`${stateDir}/state.json`, "utf8"))
   : {};
 persisted.accessMode ??= Value.Parse(Type.Union([Type.Literal("localhost"), Type.Literal("tailscale")]), values["access-mode"]);
+persisted.tailscaleHostname = Value.Parse(Type.String({ pattern: "^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$" }), persisted.tailscaleHostname ?? "kintsugi-system");
+const tailscaleHostname = persisted.tailscaleHostname;
+if (persisted.pendingImage) Value.Assert(Type.String({ pattern: "^sha256:[a-f0-9]{64}$" }), persisted.pendingImage);
 const tailscaleSelected = () => persisted.accessMode === "tailscale";
 async function persist() {
   await writeFile(`${stateDir}/state.next`, JSON.stringify(persisted));
@@ -63,7 +68,7 @@ if (persisted.uninstall?.state === "running") {
   await persist();
 }
 let uninstalling = persisted.uninstall !== undefined;
-let activity: Activity = { description: "Starting AgentsInTheCloud services" };
+let activity: Activity = { description: "Starting Kintsugi services" };
 let failure: string | undefined;
 let operation: "startup" | "update" = "startup";
 let phase = 0;
@@ -137,7 +142,7 @@ function log(text: string) {
 }
 function reportFailure(message: string) {
   failure = message;
-  stage("AgentsInTheCloud needs attention");
+  stage("Kintsugi needs attention");
   log(failure);
 }
 function stage(text: string, nextPhase = phase) {
@@ -187,13 +192,13 @@ async function appIsHealthy() {
   }
 }
 async function existsContainer() {
-  return (await docker("ps", "-aq", "--filter", "name=^agents-in-the-cloud$")).length > 0;
+  return (await docker("ps", "-aq", "--filter", "name=^kintsugi$")).length > 0;
 }
 async function pullImage(reference: string, description: string) {
   const progress = new PullProgress();
   stage(description);
   try {
-    await command(["docker", "pull", reference], (chunk) => {
+    await command(["docker", "--config", releaseDockerConfig, "pull", reference], (chunk) => {
       const layers = progress.push(chunk);
       activity = { description: layers ? `${description} · ${layers.completed}/${layers.total} layers ready` : description };
       log(chunk);
@@ -205,7 +210,7 @@ async function pullImage(reference: string, description: string) {
 async function prepareImage(reference: string, options: { pullApp: boolean; pullDependencies: boolean }): Promise<string> {
   // Resolve the exact local image ID once. No subsequent tag lookup can change the update.
   if (options.pullApp && !(await docker("image", "ls", "-q", reference)))
-    await pullImage(reference, "Downloading AgentsInTheCloud");
+    await pullImage(reference, "Downloading Kintsugi");
   const image = JSON.parse(await docker("image", "inspect", reference))[0];
   const preload: unknown = JSON.parse(
     image.Config.Labels?.["eagerly-preload"] ?? "[]",
@@ -220,10 +225,29 @@ async function prepareImage(reference: string, options: { pullApp: boolean; pull
   }
   return image.Id;
 }
+const releaseRegistry = createReleaseRegistry();
+async function prepareSelectedRelease(reference: string) {
+  return prepareRelease(reference, {
+    fetcher: await releaseRegistry.fetcher(),
+    pull: reference => pullImage(reference, "Downloading release image"),
+    tag: async (pinned, alias) => { await docker("tag", pinned, alias); },
+    inspect: reference => docker("image", "inspect", "--format", "{{.Id}}", reference),
+  });
+}
+const releaseRequests = createReleaseRequests({
+  settingsPath: "/data/app/update.json", registry: releaseRegistry,
+  busy: () => busy || stopping || uninstalling,
+  prepare: async reference => {
+    if (busy || stopping || uninstalling) throw new Error("An app operation is already running");
+    busy = true;
+    try { return await prepareSelectedRelease(reference); }
+    finally { busy = false; }
+  },
+});
 let routing: Promise<void> = Promise.resolve();
 let appliedRoute = "";
 function accessOrigin(): string | undefined {
-  if (!tailscaleSelected()) return persisted.localPort ? `http://agents-in-the-cloud.localhost:${persisted.localPort}` : undefined;
+  if (!tailscaleSelected()) return persisted.localPort ? `http://kintsugi.localhost:${persisted.localPort}` : undefined;
   if (tailnetHost && appliedRoute === `${tailnetHost}:${routeTarget}`) return `https://${tailnetHost}`;
   return undefined;
 }
@@ -248,7 +272,7 @@ function configureRoutes(target: number): Promise<void> {
   return routing;
 }
 type Replacement = { image: string; pull: boolean } | { channel: true };
-let replacement: Replacement = { image: candidate, pull: !persisted.currentImage };
+let replacement: Replacement = { image: persisted.pendingImage ?? candidate, pull: !persisted.currentImage && !persisted.pendingImage };
 async function replace(request: Replacement) {
   if (busy || stopping || uninstalling)
     throw new Error(
@@ -262,35 +286,37 @@ async function replace(request: Replacement) {
   phase = 0;
   try {
     await configureRoutes(3001);
-    stage("Preparing AgentsInTheCloud");
+    stage("Preparing Kintsugi");
+    const preparedRelease = "channel" in request || (request.pull && /^(ghcr\.io|docker\.io)\//.test(request.image));
     const reference = "channel" in request
-      ? await prepareChannelUpdate("/data/app/update.json", {
-          pull: (reference) => pullImage(reference, "Downloading AgentsInTheCloud from the selected channel"),
-          inspect: (reference) => docker("image", "inspect", "--format", "{{.Id}}", reference),
-        })
-      : request.image;
+      ? (await prepareSelectedRelease(releaseReference(await readReleaseSettings("/data/app/update.json"), "app"))).imageId
+      : preparedRelease ? (await prepareSelectedRelease(request.image)).imageId : request.image;
     candidate = reference;
     const exact = await prepareImage(reference, {
-      pullApp: !("channel" in request) && request.pull,
-      pullDependencies: "channel" in request || request.pull,
+      pullApp: !preparedRelease && !("channel" in request) && request.pull,
+      pullDependencies: !preparedRelease && !("channel" in request) && request.pull,
     });
     candidate = exact;
     if (stopping) return;
-    stage("Stopping AgentsInTheCloud", 1);
+    if (persisted.currentImage && persisted.currentImage !== exact) {
+      persisted.previousImage = persisted.currentImage;
+      await persist();
+    }
+    stage("Stopping Kintsugi", 1);
     logProcess?.kill();
     logProcess = undefined;
     if (await existsContainer()) {
-      await docker("stop", "--time", "30", "agents-in-the-cloud");
-      await docker("rm", "agents-in-the-cloud");
+      await docker("stop", "--time", "30", "kintsugi");
+      await docker("rm", "kintsugi");
     }
     if (stopping) return;
-    stage("Starting AgentsInTheCloud", 2);
+    stage("Starting Kintsugi", 2);
     await docker(
       "run",
       "-d",
       "--init",
       "--name",
-      "agents-in-the-cloud",
+      "kintsugi",
       "--network",
       "host",
       "--cgroup-parent",
@@ -298,17 +324,17 @@ async function replace(request: Replacement) {
       "--cgroupns",
       "host",
       "--mount",
-      `type=bind,src=${resources.commandsCgroup},dst=/run/agents-in-the-cloud-system/workload-processes`,
+      `type=bind,src=${resources.commandsCgroup},dst=/run/kintsugi-system/workload-processes`,
       "--mount",
-      `type=bind,src=${resources.buildClientsCgroup},dst=/run/agents-in-the-cloud-system/build-client-processes`,
+      `type=bind,src=${resources.buildClientsCgroup},dst=/run/kintsugi-system/build-client-processes`,
       "--mount",
-      "type=bind,src=/run/agents-in-the-cloud-system/resources.json,dst=/run/agents-in-the-cloud-system/resources.json,readonly",
+      "type=bind,src=/run/kintsugi-system/resources.json,dst=/run/kintsugi-system/resources.json,readonly",
       "--mount",
-      "type=bind,src=/run/agents-in-the-cloud-host,dst=/run/agents-in-the-cloud-host,readonly",
+      "type=bind,src=/run/kintsugi-host,dst=/run/kintsugi-host,readonly",
       "--mount",
-      "type=bind,src=/run/agents-in-the-cloud-system/access-v1,dst=/run/agents-in-the-cloud-system/access-v1,readonly",
+      "type=bind,src=/run/kintsugi-system/access-v1,dst=/run/kintsugi-system/access-v1,readonly",
       "--label",
-      "agents-in-the-cloud.role=app",
+      "kintsugi.role=app",
       "--mount",
       "type=bind,src=/data/app,dst=/data/app",
       "--mount",
@@ -323,16 +349,17 @@ async function replace(request: Replacement) {
     );
     logProcess = spawn(
       "docker",
-      ["logs", "--follow", "--since", "1m", "agents-in-the-cloud"],
+      ["logs", "--follow", "--since", "1m", "kintsugi"],
       { stdio: ["ignore", "pipe", "pipe"] },
     );
     for (const output of [logProcess.stdout!, logProcess.stderr!])
       output.on("data", (data) => log(data.toString().trimEnd()));
-    stage("Checking AgentsInTheCloud is healthy", 3);
-    await waitFor(appIsHealthy, timeout, "AgentsInTheCloud health");
+    stage("Checking Kintsugi is healthy", 3);
+    await waitFor(appIsHealthy, timeout, "Kintsugi health");
     persisted.currentImage = exact;
+    if (persisted.pendingImage === exact) delete persisted.pendingImage;
     await persist();
-    stage("Opening AgentsInTheCloud", 4);
+    stage("Opening Kintsugi", 4);
     await openApp();
   } catch (error) {
     reportFailure(error instanceof Error ? error.message : String(error));
@@ -347,7 +374,7 @@ async function openApp() {
   healthy = true;
   recoveringHealth = false;
   failure = undefined;
-  stage("AgentsInTheCloud is ready", 4);
+  stage("Kintsugi is ready", 4);
   emit("ready", "ready");
 }
 
@@ -362,8 +389,8 @@ async function recheckHealth() {
       if (healthy) {
         healthy = false;
         recoveringHealth = true;
-        failure = "AgentsInTheCloud stopped responding to health checks";
-        stage("AgentsInTheCloud needs attention", 3);
+        failure = "Kintsugi stopped responding to health checks";
+        stage("Kintsugi needs attention", 3);
       }
       await configureRoutes(3001);
     } else if (recoveringHealth) {
@@ -379,7 +406,7 @@ function allowedOrigin(request: Request) {
   const origin = request.headers.get("origin");
   return (
     !origin ||
-    (persisted.localPort && origin === `http://agents-in-the-cloud.localhost:${persisted.localPort}`) ||
+    (persisted.localPort && origin === `http://kintsugi.localhost:${persisted.localPort}`) ||
     origin === new URL(request.url).origin ||
     (tailnetHost &&
       (origin === `https://${tailnetHost}` ||
@@ -393,6 +420,11 @@ const server = Bun.serve({
   idleTimeout: 0,
   async fetch(request) {
     const url = new URL(request.url);
+    if (url.pathname.startsWith("/release/")) {
+      if (request.method !== "GET" && !allowedOrigin(request)) return new Response("Forbidden", { status: 403 });
+      const response = await releaseRequests(request);
+      if (response) return response;
+    }
     if (url.pathname === "/access") {
       if (request.method === "POST") {
         if (!allowedOrigin(request)) return new Response("Forbidden", { status: 403 });
@@ -409,11 +441,11 @@ const server = Bun.serve({
       const appResponding = healthy && await appIsHealthy();
       return Response.json({
         ...installationStatus({
-          activity: healthy && !appResponding ? { description: "Checking AgentsInTheCloud is healthy" } : activity,
+          activity: healthy && !appResponding ? { description: "Checking Kintsugi is healthy" } : activity,
           failure: failure ?? connectionProblem(),
           stopping, busy, appResponding, hostname: tailnetHost, appliedRoute,
           connectionState, authUrl, connectionAction: httpsAction, logs,
-          localOrigin: persisted.localPort ? `http://agents-in-the-cloud.localhost:${persisted.localPort}` : undefined,
+          localOrigin: persisted.localPort ? `http://kintsugi.localhost:${persisted.localPort}` : undefined,
           localMode: !tailscaleSelected(),
         }),
         failure,
@@ -421,8 +453,11 @@ const server = Bun.serve({
         busy,
         candidate,
         currentImage: persisted.currentImage,
+        previousImage: persisted.previousImage,
         uninstall: persisted.uninstall,
         tailnetHost,
+        connectionState,
+        localOrigin: persisted.localPort ? `http://kintsugi.localhost:${persisted.localPort}` : undefined,
         logs,
       });
     }
@@ -487,6 +522,15 @@ const server = Bun.serve({
           303,
         );
       }
+      if (url.pathname === "/rollback") {
+        if (!persisted.previousImage) return Response.json({ error: "No previous app image is recorded" }, { status: 409 });
+        busy = true;
+        try { await prepareImage(persisted.previousImage, { pullApp: false, pullDependencies: false }); }
+        finally { busy = false; }
+        operation = "update";
+        activeOperation = replace({ image: persisted.previousImage, pull: false });
+        return Response.json({ accepted: true }, { status: 202 });
+      }
       if (url.pathname === "/update-channel") {
         operation = "update";
         // replace reserves busy and clears stale health/failure synchronously,
@@ -529,7 +573,7 @@ const server = Bun.serve({
           return new Response(String(error), { status: 502 });
         }
         operation = "update";
-        stage("Preparing AgentsInTheCloud", 0);
+        stage("Preparing Kintsugi", 0);
         // Route first, acknowledge, then give the app time to relay that acknowledgement.
         // Replacement remains supervisor-owned if the requesting browser disconnects.
         activeOperation = (async () => {
@@ -551,14 +595,14 @@ const server = Bun.serve({
       return new Response("Not found", { status: 404 });
     if (url.pathname !== "/")
       return new Response(null, { status: 303, headers: { location: "/", "cache-control": "no-store" } });
-    const diagnostic = url.port === "8443" || url.hostname === "system.agents-in-the-cloud.localhost";
+    const diagnostic = url.port === "8443" || url.hostname === "system.kintsugi.localhost";
     const local = url.hostname.endsWith(".localhost");
-    const events = local ? `${url.protocol}//system.agents-in-the-cloud.localhost:${url.port}/events` : tailnetHost
+    const events = local ? `${url.protocol}//system.kintsugi.localhost:${url.port}/events` : tailnetHost
       ? `https://${tailnetHost}:8443/events`
       : "/events";
     return new Response(
       page(
-        "AgentsInTheCloud System",
+        "Kintsugi System",
         `<section data-controller="progress" data-progress-events-value="${escapeHtml(events)}" data-progress-return-value="${!diagnostic && (local || !!tailnetHost)}"><div data-progress-content>${fragment()}</div></section>`,
         local ? "" : tailnetHost ? `https://${tailnetHost}:8443` : "",
         await readAppTheme(),
@@ -597,7 +641,7 @@ const uninstallControl = Bun.serve({
         stage(description);
       };
       try {
-        await progress("Preparing to uninstall AgentsInTheCloud");
+        await progress("Preparing to uninstall Kintsugi");
         await configureRoutes(3001);
         logProcess?.kill();
         logProcess = undefined;
@@ -625,14 +669,14 @@ async function shutdown(code: number) {
   if (stopping) return;
   stopping = true;
   healthy = false;
-  stage("Stopping AgentsInTheCloud services");
+  stage("Stopping Kintsugi services");
   stopCommands();
   await startup;
   await activeOperation;
   await routing.catch((error) => log(String(error)));
   try {
     if (!uninstalling) {
-      const running = (await docker("ps", "-q", "--filter", "name=^agents-in-the-cloud$"))
+      const running = (await docker("ps", "-q", "--filter", "name=^kintsugi$"))
         .split("\n")
         .filter(Boolean);
       const all = (await docker("ps", "-q")).split("\n").filter(Boolean);
@@ -696,7 +740,7 @@ async function initialize() {
     30000,
     "containerd",
   );
-  daemon(["dockerd", "--config-file", "/run/agents-in-the-cloud-system/daemon.json"]);
+  daemon(["dockerd", "--config-file", "/run/kintsugi-system/daemon.json"]);
   await waitFor(
     async () => {
       try {
@@ -768,13 +812,14 @@ async function initialize() {
           // not connect an account. System owns this command and its deadline.
           const attempt = new AbortController();
           login = attempt;
-          void command(["tailscale", "up", "--timeout=10m"], log, 610_000, attempt.signal)
+          void command(["tailscale", "up", "--timeout=10m", "--hostname", tailscaleHostname], log, 610_000, attempt.signal)
             .catch((error) => {
               if (!tailscaleSelected() || attempt.signal.aborted) return;
-              connectionFailure = `Could not connect AgentsInTheCloud: ${String(error)}`;
+              connectionFailure = `Could not connect Kintsugi: ${String(error)}`;
               log(connectionFailure);
             }).finally(() => { if (tailscaleSelected() && !attempt.signal.aborted) connectionAttempt = "finished"; });
         }
+        if (connectionState === "Running" && status.Self?.HostName !== persisted.tailscaleHostname) await command(["tailscale", "set", "--hostname", persisted.tailscaleHostname!], undefined, 5000);
         const host =
           status.BackendState === "Running"
             ? status.Self.DNSName.replace(/\.$/, "")

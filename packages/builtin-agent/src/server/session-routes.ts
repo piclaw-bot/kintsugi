@@ -2,9 +2,9 @@ import { Type } from "typebox";
 import { Value } from "typebox/value";
 import { stopDurableWorkspaceAgent } from "./runtime.ts";
 import { existingDurableController } from "./runtime.ts";
-import { AgentsInTheCloudCoreError, readJsonObject, requestAcceptsJson } from "@agents-in-the-cloud/core";
-import { turboStreamResponse } from "@agents-in-the-cloud/shared";
-import { matchRoute, response } from "@agents-in-the-cloud/shared/http";
+import { KintsugiCoreError, readJsonObject, requestAcceptsJson } from "@kintsugi/core";
+import { turboStreamResponse } from "@kintsugi/shared";
+import { matchRoute, response } from "@kintsugi/shared/http";
 import { invalidateAgentView, requireAgentPresentation, requireAgentController, type AgentRouteHandler } from "./route-support.ts";
 import { resolveAgent } from "./delegation.ts";
 import { handleAgentTreeRequest } from "./session-tree.ts";
@@ -49,7 +49,7 @@ export const handleSessionRequest: AgentRouteHandler = async (request, url, opti
       ? await readJsonObject(request)
       : Object.fromEntries(await request.formData());
     if (!Value.Check(abortInputSchema, body)) {
-      throw new AgentsInTheCloudCoreError("invalid_arguments", "The note must be text.");
+      throw new KintsugiCoreError("invalid_arguments", "The note must be text.");
     }
     const aborted = await controller.abortTool(callId, body.note);
     await invalidateAgentView(options, workspaceId, agentId);
@@ -65,7 +65,7 @@ export const handleSessionRequest: AgentRouteHandler = async (request, url, opti
     const form = await request.formData();
     const entry = String(form.get("entry") ?? "");
     const mode = String(form.get("rewindMode") ?? "discard") === "summary" ? "summary" : "discard";
-    if (mode === "summary") throw new AgentsInTheCloudCoreError("invalid_arguments", "Continue without a summary for this history.");
+    if (mode === "summary") throw new KintsugiCoreError("invalid_arguments", "Continue without a summary for this history.");
     const controller = await requireAgentController(params[0], params[1], options);
     if (entry) {
       await controller.navigate(entry, true);

@@ -1,7 +1,7 @@
-import { disclosureHtml } from "@agents-in-the-cloud/design-system/disclosure";
-import { transcriptRowContent, transcriptRow } from "@agents-in-the-cloud/agent/server/render-markup";
-import { type AgentTranscriptAnchor, type AgentTranscriptSnapshot } from "@agents-in-the-cloud/agent/server/transcript-contributions";
-import { escapeHtml } from "@agents-in-the-cloud/shared";
+import { disclosureHtml } from "@kintsugi/design-system/disclosure";
+import { transcriptRowContent, transcriptRow } from "@kintsugi/agent/server/render-markup";
+import { type AgentTranscriptAnchor, type AgentTranscriptSnapshot } from "@kintsugi/agent/server/transcript-contributions";
+import { escapeHtml } from "@kintsugi/shared";
 import type { ConversationView } from "@earendil-works/pi-durable";
 import { inheritedBoundaryEntry, communicationEntry, communicationStateEntry, type Receipt } from "./native-state.ts";
 import { communicationCardHtml, communicationTraceHtml } from "./render-markup.ts";

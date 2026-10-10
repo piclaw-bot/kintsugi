@@ -1,19 +1,19 @@
 import { copyFile, mkdir, rename, rm } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
 import { dirname, join } from "node:path";
-import { getAgentsInTheCloudRuntimeContext } from "@agents-in-the-cloud/core";
-import type { GitWorkspaceTemplateInitInstruction } from "@agents-in-the-cloud/workspace-templates";
-import { isGitWorkspaceTemplateInit } from "@agents-in-the-cloud/workspace-templates";
-import type { WorkspaceInitInstruction } from "@agents-in-the-cloud/workspace";
+import { getKintsugiRuntimeContext } from "@kintsugi/core";
+import type { GitWorkspaceTemplateInitInstruction } from "@kintsugi/workspace-templates";
+import { isGitWorkspaceTemplateInit } from "@kintsugi/workspace-templates";
+import type { WorkspaceInitInstruction } from "@kintsugi/workspace";
 
 const projectlessSessionShareKey = "projectless";
-export const sessionShareMountPath = "/agents-in-the-cloud/session-share";
+export const sessionShareMountPath = "/kintsugi/session-share";
 
-function workspaceMetadataInitPath(workspaceId: string, dataDir = getAgentsInTheCloudRuntimeContext().agentsInTheCloudDataDir): string {
+function workspaceMetadataInitPath(workspaceId: string, dataDir = getKintsugiRuntimeContext().kintsugiDataDir): string {
   return join(dataDir, "workspaces", workspaceId, "metadata", "init.json");
 }
 
-async function readWorkspaceTemplateInit(workspaceId: string, dataDir = getAgentsInTheCloudRuntimeContext().agentsInTheCloudDataDir): Promise<GitWorkspaceTemplateInitInstruction | undefined> {
+async function readWorkspaceTemplateInit(workspaceId: string, dataDir = getKintsugiRuntimeContext().kintsugiDataDir): Promise<GitWorkspaceTemplateInitInstruction | undefined> {
   const file = Bun.file(workspaceMetadataInitPath(workspaceId, dataDir));
   if (!(await file.exists())) return undefined;
   const init: unknown = JSON.parse(await file.text());
@@ -42,11 +42,11 @@ export function sessionShareKeyForInit(init: WorkspaceInitInstruction | undefine
   return sessionShareKeySlug(key);
 }
 
-export async function workspaceSessionShareKey(workspaceId: string, dataDir = getAgentsInTheCloudRuntimeContext().agentsInTheCloudDataDir): Promise<string> {
+export async function workspaceSessionShareKey(workspaceId: string, dataDir = getKintsugiRuntimeContext().kintsugiDataDir): Promise<string> {
   return sessionShareKeyForInit(await readWorkspaceTemplateInit(workspaceId, dataDir));
 }
 
-export function sessionShareDir(shareKey: string, dataDir = getAgentsInTheCloudRuntimeContext().agentsInTheCloudDataDir): string {
+export function sessionShareDir(shareKey: string, dataDir = getKintsugiRuntimeContext().kintsugiDataDir): string {
   return join(dataDir, "session-shares", sessionShareKeySlug(shareKey));
 }
 

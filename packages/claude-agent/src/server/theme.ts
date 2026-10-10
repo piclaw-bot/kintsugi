@@ -1,7 +1,7 @@
-import { transcriptSlot } from "@agents-in-the-cloud/cli-agent/server";
-import { themeAppearance, type AgentsInTheCloudTheme } from "@agents-in-the-cloud/shared/theme";
+import { transcriptSlot } from "@kintsugi/cli-agent/server";
+import { themeAppearance, type KintsugiTheme } from "@kintsugi/shared/theme";
 
-export const claudeThemeName = "agents-in-the-cloud";
+export const claudeThemeName = "kintsugi";
 
 // Claude's own diff and selection backgrounds; the palette has no role for them.
 const pinnedBackgrounds = {
@@ -29,13 +29,13 @@ const slot = (index: number) => `ansi256(${index})`;
 
 /**
  * Claude's markdown ignores overrides and reads the base theme, whose inline code
- * is bright blue: AgentsInTheCloud's accent. AgentsInTheCloud's palette assigns the same roles in
+ * is bright blue: Kintsugi's accent. Kintsugi's palette assigns the same roles in
  * every theme, so dark-ansi also suits light themes; only pinned backgrounds differ.
  */
-export function claudeAgentsInTheCloudTheme(theme: AgentsInTheCloudTheme) {
+export function claudeKintsugiTheme(theme: KintsugiTheme) {
   const { muted, surface, text } = transcriptSlot;
   return {
-    name: "AgentsInTheCloud",
+    name: "Kintsugi",
     base: "dark-ansi",
     overrides: {
       subtle: slot(muted),

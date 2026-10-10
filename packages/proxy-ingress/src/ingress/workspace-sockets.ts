@@ -1,7 +1,7 @@
 import { Type } from "typebox";
 import { Value } from "typebox/value";
-import { isNotFoundError } from "@agents-in-the-cloud/core";
-import { isWorkspaceAppPort } from "@agents-in-the-cloud/shared";
+import { isNotFoundError } from "@kintsugi/core";
+import { isWorkspaceAppPort } from "@kintsugi/shared";
 import { mkdir, chmod, unlink } from "node:fs/promises";
 import { join } from "node:path";
 import type { WorkspaceIngress } from "./index.ts";

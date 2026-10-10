@@ -23,7 +23,7 @@ import { toggleHtml } from "../src/toggle/toggle-html.ts";
 import { autocompleteHtml } from "../src/autocomplete/autocomplete-html.ts";
 import { transientFeedbackHtml } from "../src/transient-feedback/transient-feedback-html.ts";
 import { warningBannerHtml } from "../src/warning-banner/warning-banner-html.ts";
-import { agentsInTheCloudBrandIconHtml, builtinAgentIconHtml, Icons } from "../src/icons/icons-html.ts";
+import { kintsugiBrandIconHtml, builtinAgentIconHtml, Icons } from "../src/icons/icons-html.ts";
 
 export interface CatalogueEntry {
   id: string;
@@ -258,7 +258,7 @@ export const entries: CatalogueEntry[] = [
             kind: "results",
             label: "Example suggestions",
             attributesHtml: 'id="motion-suggestions" hidden',
-            contentHtml: ["agents-in-the-cloud/design-system", "agents-in-the-cloud/workspace"]
+            contentHtml: ["kintsugi/design-system", "kintsugi/workspace"]
               .map((text) =>
                 contentRowHtml({
                   kind: "compact",
@@ -816,7 +816,7 @@ export const entries: CatalogueEntry[] = [
         render: () =>
           copyButtonHtml({
             label: "Copy example",
-            copyText: "Copied from AgentsInTheCloud design system",
+            copyText: "Copied from Kintsugi design system",
           }) +
           copyButtonHtml({
             label: "Copy command",
@@ -1064,7 +1064,7 @@ export const entries: CatalogueEntry[] = [
     title: "Panel",
     when: "A bounded surface with a continuous outline, soft upper-left rim reflection and faint localized background light, fixed chrome and flexible body. Dialog composes this; workspace panes use it directly.",
     contract:
-      "Supply semantic element tag, trusted header/body and optional footer. Use an outer layout container for dimensions. bodyLayout: padded/full-bleed and bodyOverflow: scroll/contained are the supported body behaviors. No root or body classes. panel__title uses normal body text and accepts a leading icon; strong.panel__title adds emphasis for the AgentsInTheCloud identity.",
+      "Supply semantic element tag, trusted header/body and optional footer. Use an outer layout container for dimensions. bodyLayout: padded/full-bleed and bodyOverflow: scroll/contained are the supported body behaviors. No root or body classes. panel__title uses normal body text and accepts a leading icon; strong.panel__title adds emphasis for the Kintsugi identity.",
     imports: { panel: "panelHtml", icons: "Icons" },
     examples: [
       {
@@ -1099,7 +1099,7 @@ export const entries: CatalogueEntry[] = [
             label: "Repositories",
             contentHtml: contentRowHtml({
               kind: "compact",
-              label: { kind: "text", text: "agents-in-the-cloud/design-system" },
+              label: { kind: "text", text: "kintsugi/design-system" },
               element: {
                 tag: "div",
                 attributesHtml: 'role="option" aria-selected="false"',
@@ -1207,12 +1207,12 @@ export const entries: CatalogueEntry[] = [
     title: "Icons",
     when: "Shared decorative vocabulary. Use icon-only Button for standalone icon actions.",
     contract:
-      "Icons exports trusted decorative SVG strings. WorkspaceTemplates uses a repository/book outline; Files uses a folder; Server uses a single rack for host diagnostics and administration. agentsInTheCloudBrandIconHtml is the compact raster product mark for app branding. builtinAgentIconHtml is the transparent A robot from the social card, used for Builtin agent tabs and launchers. Put the accessible name on the containing control. Never use an unlabeled icon as an action.",
+      "Icons exports trusted decorative SVG strings. WorkspaceTemplates uses a repository/book outline; Files uses a folder; Server uses a single rack for host diagnostics and administration. kintsugiBrandIconHtml is the compact raster product mark for app branding. builtinAgentIconHtml is the transparent A robot from the social card, used for Builtin agent tabs and launchers. Put the accessible name on the containing control. Never use an unlabeled icon as an action.",
     imports: { icons: "Icons" },
     examples: [
       {
         title: "Product brand mark",
-        render: () => `<span class="catalogue-icon">${agentsInTheCloudBrandIconHtml}<span>AgentsInTheCloud</span></span>`,
+        render: () => `<span class="catalogue-icon">${kintsugiBrandIconHtml}<span>Kintsugi</span></span>`,
       },
       {
         title: "Builtin agent mark",

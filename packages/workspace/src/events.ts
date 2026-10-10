@@ -1,4 +1,4 @@
-import type { JsonObject } from "@agents-in-the-cloud/core";
+import type { JsonObject } from "@kintsugi/core";
 import type { WorkspaceCreationContext, WorkspaceDockerPlan, WorkspaceInitInstruction } from "./types.ts";
 
 export interface WorkspaceCreatedEvent {
@@ -58,8 +58,8 @@ export interface WorkspaceImageConfigureEvent {
   dockerfile?: string;
 }
 
-declare module "@agents-in-the-cloud/core" {
-  interface AgentsInTheCloudEventMap {
+declare module "@kintsugi/core" {
+  interface KintsugiEventMap {
     agent_type_default_changed: { agentTypeId: string };
     workspace_image_configure: WorkspaceImageConfigureEvent;
     workspace_source_prepare: WorkspaceSourcePrepareEvent;

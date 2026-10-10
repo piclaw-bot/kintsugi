@@ -1,14 +1,14 @@
 #!/bin/bash
 # This is guidance, not a security boundary: the container runtime denies host access.
 set -euo pipefail
-mapfile -t configuration < /etc/agents-in-the-cloud/docker-support
+mapfile -t configuration < /etc/kintsugi/docker-support
 case "${configuration[0]}" in
-    enabled) exec /usr/local/libexec/agents-in-the-cloud/docker "$@" ;;
+    enabled) exec /usr/local/libexec/kintsugi/docker "$@" ;;
     disabled)
         cat >&2 <<'MESSAGE'
 Docker support is off for this workspace.
 
-AgentsInTheCloud can run Docker inside workspaces, but it requires privileged mode,
+Kintsugi can run Docker inside workspaces, but it requires privileged mode,
 which reduces isolation: agents may read or modify host data.
 
 MESSAGE

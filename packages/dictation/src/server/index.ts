@@ -1,4 +1,4 @@
-import type { WorkspaceModule } from "@agents-in-the-cloud/shared";
+import type { WorkspaceModule } from "@kintsugi/shared";
 import { createDictationSocketSession } from "./realtime.ts";
 import { dictationSettingsContribution } from "./settings.ts";
 
@@ -6,7 +6,7 @@ const dictationStaticFiles = {
   "/dictation.css": { url: new URL("../client/style.css", import.meta.url), contentType: "text/css; charset=utf-8" },
 } as const;
 
-export const agentsInTheCloudServerModule: WorkspaceModule = {
+export const kintsugiServerModule: WorkspaceModule = {
   id: "dictation",
   staticFiles: dictationStaticFiles,
   settingsContributions: [dictationSettingsContribution],

@@ -1,4 +1,4 @@
-# AgentsInTheCloud releases
+# Kintsugi releases
 
 The app’s **Update channel** follows either the published `latest` image or the image promoted to `stable`. Those image tags remain the publication boundary.
 
@@ -8,7 +8,7 @@ bun run release --stable    # latest and stable
 bun run release --check     # validate the builder without publishing
 ```
 
-This branch publishes `ghcr.io/lucasmeijer/agents-in-the-cloud:latest` and
+This branch publishes `ghcr.io/rcarmo/kintsugi:latest` and
 immutable commit/staging tags. `--stable` also advances its `stable` tag after
 VM acceptance. Atelier hotfix releases remain on `main` and use their original
 image repositories and release command. These two lanes have separate log
@@ -20,7 +20,7 @@ App, System and workspace images pin its multi-platform digest; commit updated
 pins before releasing.
 
 For the VM test, publish this branch's app and separately publish its System image
-as `ghcr.io/lucasmeijer/agents-in-the-cloud-system:latest` (`images/system/publish.sh` moves latest); this release command
+as `ghcr.io/rcarmo/kintsugi-system:latest` (`images/system/publish.sh` moves latest); this release command
 publishes only the app and its workspace dependency. Use the branch's installer
 (which defaults to latest images) and record both tested image digests. The new
 installation starts empty: do not mount Atelier storage or import its settings.
@@ -47,7 +47,7 @@ local Docker daemon: arm64 for an amd64 workstation, or amd64 for an ARM laptop.
 Both daemons need registry access. Missing, unreachable, or wrong-architecture
 helpers fail before publishing; there is no emulation fallback.
 
-The command fetches `origin/rename-agents-in-the-cloud` and records its exact SHA. It uses the integrated
+The command fetches `origin/rename-kintsugi` and records its exact SHA. It uses the integrated
 Docker BuildKit builders (`docker` driver) for the current Docker context and a
 persistent SSH context derived from the helper destination. No separate BuildKit
 container is created. Inside Atelier this preserves the patched daemon's EROFS
@@ -55,7 +55,7 @@ snapshotter and shared-cache configuration.
 
 Every invocation checks both daemon architectures and builder drivers, then exercises
 COPY, RUN (including `uname -m` verification), and local image export on each node.
-The probe image is `agents-in-the-cloud-release-probe:check` on each daemon. `--check` stops
+The probe image is `kintsugi-release-probe:check` on each daemon. `--check` stops
 here: it fetches Git and may pull the Ubuntu probe base, but never logs into or
 writes to the registry. It does not prove write credentials or that a full
 application build succeeds.
@@ -63,7 +63,7 @@ application build succeeds.
 A real release builds an isolated detached worktree of that SHA, not your working
 files, and removes the worktree afterward. Your branch and local edits are left
 alone. It uses the existing image-building script to reuse/build the deterministic
-workspace image and upload the app as `ghcr.io/lucasmeijer/agents-in-the-cloud:sha-<full-sha>`.
+workspace image and upload the app as `ghcr.io/rcarmo/kintsugi:sha-<full-sha>`.
 Each image is built and pushed in two native slices, with `-amd64` and `-arm64`
 staging tags, then combined by digest into a multi-platform manifest. The workspace
 manifest is assembled first so both app slices pin the same workspace digest.
@@ -95,17 +95,17 @@ in a persistent tmux session, **present that session with Atelier's `present`
 tool**, and read the status file periodically. Screenshots are unnecessary.
 
 ```sh
-tmux new-session -d -s agents-in-the-cloud-release 'cd /work; bun run release; result=$?; printf "\nRelease exited %s\n" "$result"; exec bash'
+tmux new-session -d -s kintsugi-release 'cd /work; bun run release; result=$?; printf "\nRelease exited %s\n" "$result"; exec bash'
 ```
 
-The agent then calls `present` with `kind: "tmux", session: "agents-in-the-cloud-release"`.
+The agent then calls `present` with `kind: "tmux", session: "kintsugi-release"`.
 For evaluation without publishing, use `bun run release --check` instead.
 The interactive shell keeps the final transcript visible; the log/status files
 remain the authoritative result if the session closes. Ctrl-C interrupts a running
 release and forwards termination to its command group; rerun to recover.
 
 At startup the CLI prints absolute log and status paths. Each run has a directory
-under Git's common directory, `agents-in-the-cloud-releases/<timestamp>-<pid>/`, containing:
+under Git's common directory, `kintsugi-releases/<timestamp>-<pid>/`, containing:
 
 - `release.log`: complete live command output (including ANSI phase headings).
 - `status.json`: atomically updated phase, elapsed seconds, commit, builder,
@@ -117,7 +117,7 @@ Find the latest invocation without knowing its timestamp:
 
 ```sh
 common=$(git rev-parse --path-format=absolute --git-common-dir)
-run=$(cat "$common/agents-in-the-cloud-releases/last-run.txt")
+run=$(cat "$common/kintsugi-releases/last-run.txt")
 cat "$run/status.json"
 tail -n 20 "$run/release.log"
 ```

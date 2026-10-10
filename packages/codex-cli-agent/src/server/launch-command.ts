@@ -1,9 +1,9 @@
-import { shellQuote } from "@agents-in-the-cloud/core";
-import { parseModelRef } from "@agents-in-the-cloud/llm/server";
-import { managedCliLaunchScript, cliPromptText, turnSignalArgv, turnSignalShell, writeFileScript, type CliAgentSession, type CliModelSettings } from "@agents-in-the-cloud/cli-agent/server";
-import { workspaceRoot } from "@agents-in-the-cloud/workspace";
-import { codexAgentsInTheCloudTmTheme, codexThemeName } from "./theme.ts";
-import type { WorkspaceAgentInput } from "@agents-in-the-cloud/shared";
+import { shellQuote } from "@kintsugi/core";
+import { parseModelRef } from "@kintsugi/llm/server";
+import { managedCliLaunchScript, cliPromptText, turnSignalArgv, turnSignalShell, writeFileScript, type CliAgentSession, type CliModelSettings } from "@kintsugi/cli-agent/server";
+import { workspaceRoot } from "@kintsugi/workspace";
+import { codexKintsugiTmTheme, codexThemeName } from "./theme.ts";
+import type { WorkspaceAgentInput } from "@kintsugi/shared";
 
 /** Run inside tmux so installation progress and failures stay visible in the tab. */
 export function codexLaunchScript(input: WorkspaceAgentInput, imagePaths: string[], settings: CliModelSettings, session: CliAgentSession, resumeId?: string): string {
@@ -27,6 +27,6 @@ if [ -d ${shellQuote(`${session.directory}/codex/sessions`)} ]; then
   mkdir -p "$HOME/.codex/sessions"
   cp -a --update=none ${shellQuote(`${session.directory}/codex/sessions/.`)} "$HOME/.codex/sessions/"
 fi
-` + writeFileScript(`"\${CODEX_HOME:-$HOME/.codex}/themes/${codexThemeName}.tmTheme"`, codexAgentsInTheCloudTmTheme());
+` + writeFileScript(`"\${CODEX_HOME:-$HOME/.codex}/themes/${codexThemeName}.tmTheme"`, codexKintsugiTmTheme());
   return managedCliLaunchScript({ agent: "codex", args, configOverrides: [`${session.directory}/codex/instructions.override`, `${session.directory}/codex/mcp.override`], setup });
 }

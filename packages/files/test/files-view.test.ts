@@ -1,7 +1,7 @@
-import { createAgentsInTheCloudEventBus } from "@agents-in-the-cloud/core";
-import type { WorkspaceWorkViewReference } from "@agents-in-the-cloud/shared";
+import { createKintsugiEventBus } from "@kintsugi/core";
+import type { WorkspaceWorkViewReference } from "@kintsugi/shared";
 import { describe, expect, test } from "bun:test";
-import { agentsInTheCloudServerModule } from "../src/server/index.ts";
+import { kintsugiServerModule } from "../src/server/index.ts";
 import { closeFilesView, createFilesView, deleteFilesViewState, filesDiskGeneration, listFilesViews, setFilesViewFile } from "../src/server/state.ts";
 
 describe("Files view integration", () => {
@@ -9,7 +9,7 @@ describe("Files view integration", () => {
     const request = new Request("http://test.local/workspaces/workspace-progressive/files-view/open?path=%2Fwork%2Fnew.ts");
     let opened: WorkspaceWorkViewReference | undefined;
     // SAFETY: The test fixture supplies the route context fields exercised by this endpoint.
-    await agentsInTheCloudServerModule.routes![0]!.handle(request, new URL(request.url), {
+    await kintsugiServerModule.routes![0]!.handle(request, new URL(request.url), {
       openWorkView: async (_workspaceId: string, reference: WorkspaceWorkViewReference) => {
         opened = reference;
         return new Response("<turbo-stream></turbo-stream>");
@@ -27,14 +27,14 @@ describe("Files view integration", () => {
       body: "---\ntitle: Internal title\ndraft: true\n---\n# Public guide",
     });
     // SAFETY: The Markdown preview endpoint does not use the route context.
-    const response = await agentsInTheCloudServerModule.routes![0]!.handle(request, new URL(request.url), {} as never);
+    const response = await kintsugiServerModule.routes![0]!.handle(request, new URL(request.url), {} as never);
 
     expect(response?.headers.get("content-type")).toContain("text/html");
     expect(await response?.text()).toBe("<h1>Public guide</h1>");
   });
 
   test("the Files command creates a blank independent view", async () => {
-    const result = await agentsInTheCloudServerModule.commands![0]!.execute({ workspaceId: "workspace-command", input: {}, events: createAgentsInTheCloudEventBus() });
+    const result = await kintsugiServerModule.commands![0]!.execute({ workspaceId: "workspace-command", input: {}, events: createKintsugiEventBus() });
     const created = listFilesViews("workspace-command").find((view) => view.id === result.createdWorkView?.id);
     expect(created?.path).toBeUndefined();
     deleteFilesViewState("workspace-command");
@@ -58,10 +58,10 @@ describe("Files view integration", () => {
   });
 
   test.each([undefined, "/work/example.ts"])("refreshes Files after an agent turn with selected path %s", async (path) => {
-    const events = createAgentsInTheCloudEventBus();
+    const events = createKintsugiEventBus();
     const invalidations: string[] = [];
     // SAFETY: The test fixture supplies the module initialization fields exercised by this test.
-    await agentsInTheCloudServerModule.initialize!({ events, invalidateWorkspace: (workspaceId: string) => invalidations.push(workspaceId), onWorkspaceRemoved: () => {} } as never);
+    await kintsugiServerModule.initialize!({ events, invalidateWorkspace: (workspaceId: string) => invalidations.push(workspaceId), onWorkspaceRemoved: () => {} } as never);
     setFilesViewFile("workspace-events", "workspace", path);
     await events.emit("workspace_agent_turn_finished", { workspaceId: "workspace-events", agentId: "conversation-1" });
     expect(invalidations).toEqual(["workspace-events"]);
@@ -73,7 +73,7 @@ describe("Files view integration", () => {
     const view = createFilesView("workspace-attach");
     setFilesViewFile("workspace-attach", view.id, "/work/README.md");
     // SAFETY: The test fixture supplies the attachment context field exercised by Files.
-    const attachment = await agentsInTheCloudServerModule.attachToWorkspace!({ workspaceId: "workspace-attach" } as never);
+    const attachment = await kintsugiServerModule.attachToWorkspace!({ workspaceId: "workspace-attach" } as never);
     expect(attachment.workViews).toHaveLength(2);
     expect(attachment.workViews?.map((view) => view.reference.type)).toEqual(["files", "files"]);
     expect(attachment.workViews?.map((view) => view.initiallyOpen)).toEqual([false, true]);

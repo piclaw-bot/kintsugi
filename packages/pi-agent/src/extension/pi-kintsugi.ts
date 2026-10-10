@@ -4,11 +4,11 @@ import { Type, type Static } from "typebox";
 import { Value } from "typebox/value";
 
 const configSchema = Type.Object({ url: Type.String(), token: Type.String(), turnSignalCommand: Type.String(), instructions: Type.String() });
-type AgentsInTheCloudSessionConfig = Static<typeof configSchema>;
+type KintsugiSessionConfig = Static<typeof configSchema>;
 
 /** Pi owns MCP discovery and execution; we only wire up the session. */
-export function registerPiAgentsInTheCloud(pi: ExtensionAPI, config: AgentsInTheCloudSessionConfig): void {
-  pi.registerMcpServer("agents-in-the-cloud", {
+export function registerPiKintsugi(pi: ExtensionAPI, config: KintsugiSessionConfig): void {
+  pi.registerMcpServer("kintsugi", {
     url: config.url,
     headers: { Authorization: `Bearer ${config.token}` },
     exposure: "codemode",
@@ -27,7 +27,7 @@ export function registerPiAgentsInTheCloud(pi: ExtensionAPI, config: AgentsInThe
   pi.on("agent_end", () => signalTurn("finished"));
 }
 
-export default async function piAgentsInTheCloudExtension(pi: ExtensionAPI): Promise<void> {
+export default async function piKintsugiExtension(pi: ExtensionAPI): Promise<void> {
   const config = Value.Parse(configSchema, JSON.parse(await readFile(new URL("./config.json", import.meta.url), "utf8")));
-  registerPiAgentsInTheCloud(pi, config);
+  registerPiKintsugi(pi, config);
 }

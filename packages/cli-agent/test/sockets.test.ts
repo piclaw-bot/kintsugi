@@ -8,13 +8,13 @@ test("each adapter exposes its own interactive terminal protocol", async () => {
   try {
     const child = Bun.spawn([process.execPath, "-e", `
       import { expect, mock } from "bun:test";
-      const workspace = await import("@agents-in-the-cloud/workspace");
-      const { createAgentsInTheCloudEventBus } = await import("@agents-in-the-cloud/core");
-      const observable = await import("@agents-in-the-cloud/observable-terminal/server");
+      const workspace = await import("@kintsugi/workspace");
+      const { createKintsugiEventBus } = await import("@kintsugi/core");
+      const observable = await import("@kintsugi/observable-terminal/server");
       const writes = [], sizes = [], attachments = [];
       let callbacks, closed = 0;
-      mock.module("@agents-in-the-cloud/workspace", () => ({ ...workspace, execWorkspaceShell: async () => ({ exitCode: 0, stdout: "", stderr: "", durationMs: 0 }) }));
-      mock.module(import.meta.resolve("@agents-in-the-cloud/observable-terminal/server").replace("/index.ts", "/attach.ts"), () => ({ ...observable, attachObservableTerminal: (options, handlers) => {
+      mock.module("@kintsugi/workspace", () => ({ ...workspace, execWorkspaceShell: async () => ({ exitCode: 0, stdout: "", stderr: "", durationMs: 0 }) }));
+      mock.module(import.meta.resolve("@kintsugi/observable-terminal/server").replace("/index.ts", "/attach.ts"), () => ({ ...observable, attachObservableTerminal: (options, handlers) => {
         attachments.push(options); callbacks = handlers;
         return { write: text => writes.push(text), resize: (...size) => sizes.push(size), close: () => { closed++; } };
       } }));
@@ -27,7 +27,7 @@ test("each adapter exposes its own interactive terminal protocol", async () => {
           launchScript: () => "true",
         });
         let handler;
-        module.initialize({ events: createAgentsInTheCloudEventBus(), registerSocketHandler: (value) => { handler = value; } });
+        module.initialize({ events: createKintsugiEventBus(), registerSocketHandler: (value) => { handler = value; } });
         const id = await module.agentType.create({ workspaceId: "socket" });
         expect(await handler(new URL("http://localhost/workspaces/socket/unrelated-agents/" + id + "/ws"))).toBeUndefined();
         const route = "http://localhost/workspaces/socket/" + providerId + "-agents/";
@@ -37,7 +37,7 @@ test("each adapter exposes its own interactive terminal protocol", async () => {
         let socketClosed = false;
         const socket = { send: chunk => output.push(chunk), close: () => { socketClosed = true; } };
         connection.open(socket);
-        expect(attachments.at(-1)).toMatchObject({ session: providerId + "-" + id, cols: 120, rows: 24, readonly: false, user: "agents-in-the-cloud", workdir: "/work" });
+        expect(attachments.at(-1)).toMatchObject({ session: providerId + "-" + id, cols: 120, rows: 24, readonly: false, user: "agent", workdir: "/work" });
         connection.message(socket, "hello");
         connection.message(socket, new TextEncoder().encode("world"));
         connection.message(socket, JSON.stringify({ type: "resize", cols: 100, rows: 40 }));

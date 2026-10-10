@@ -1,4 +1,4 @@
-import { escapeHtml } from "@agents-in-the-cloud/shared";
+import { escapeHtml } from "@kintsugi/shared";
 import { attributesHtml } from "../html.ts";
 
 interface ButtonGroupBase {

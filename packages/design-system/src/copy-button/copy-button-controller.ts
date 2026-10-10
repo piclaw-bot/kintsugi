@@ -1,7 +1,7 @@
 /// <reference lib="dom" />
 
 import { Controller } from "@hotwired/stimulus";
-import { copyTextToClipboard } from "@agents-in-the-cloud/shared";
+import { copyTextToClipboard } from "@kintsugi/shared";
 import { showButtonConfirmation } from "../button-confirmation/button-confirmation-controller.ts";
 
 export class CopyButtonController extends Controller<HTMLButtonElement> {

@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { GitHubRepositorySearchRateLimitError, searchGitHubRepositories } from "../src/server/github-repo-search.ts";
 
-import { shouldSearchGitHubRepositories } from "@agents-in-the-cloud/shared";
+import { shouldSearchGitHubRepositories } from "@kintsugi/shared";
 
 const originalFetch = globalThis.fetch;
 let previousDataDir: string | undefined;
@@ -16,7 +16,7 @@ let requests: URL[];
 beforeEach(async () => {
   previousDataDir = process.env.ATELIER_DATA_DIR;
   previousToken = process.env.GH_TOKEN;
-  dataDir = await mkdtemp(join(tmpdir(), "agents-in-the-cloud-repo-search-"));
+  dataDir = await mkdtemp(join(tmpdir(), "kintsugi-repo-search-"));
   process.env.ATELIER_DATA_DIR = dataDir;
   process.env.GH_TOKEN = crypto.randomUUID();
   queries = [];

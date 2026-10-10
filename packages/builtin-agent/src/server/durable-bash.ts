@@ -1,8 +1,8 @@
 import { defineDoc, defineExtension, defineTask, defineTool, type TaskId } from "@earendil-works/pi-durable";
-import { execWorkspaceCommand, workspaceRoot } from "@agents-in-the-cloud/workspace";
+import { execWorkspaceCommand, workspaceRoot } from "@kintsugi/workspace";
 import { Type, type Static } from "typebox";
 import { Value } from "typebox/value";
-import { bashToolDefinition, forcedColorEnvironment, formatBashOutput } from "@agents-in-the-cloud/agent/server/bash-tmux";
+import { bashToolDefinition, forcedColorEnvironment, formatBashOutput } from "@kintsugi/agent/server/bash-tmux";
 
 export type BashOperationRequest = {
   id: string;
@@ -26,7 +26,7 @@ export type BashOperations = (action: BashOperationAction, request: BashOperatio
 
 function workspaceBashOperations(workspaceId: string): BashOperations {
   return async (action, request, create = false) => {
-    const command = ["/opt/agents-in-the-cloud/bin/agents-in-the-cloud-agent-bash", action, JSON.stringify(request)];
+    const command = ["/opt/kintsugi/bin/kintsugi-agent-bash", action, JSON.stringify(request)];
     if (create) command.push("--create");
     // Do not pass the host's invocation signal: it must not own the workspace
     // command lifetime. These are short receipt operations, not command waits.
@@ -39,13 +39,13 @@ function workspaceBashOperations(workspaceId: string): BashOperations {
 type BashInput = { request: BashOperationRequest; timeout: number };
 type BashCheckpoint = { phase: "execute" };
 const BashChild = defineDoc<{ id: TaskId<BashOperationReceipt> | null }>({
-  kind: "agents-in-the-cloud.bash-child", version: 1, scope: "task", initial: () => ({ id: null }),
+  kind: "kintsugi.bash-child", version: 1, scope: "task", initial: () => ({ id: null }),
 });
 
 /** Install the tool AND its owned task together. The task's abort protocol owns Stop. */
 export function createDurableBashExtension(workspaceId: string, operations: BashOperations = workspaceBashOperations(workspaceId)) {
   const operation = defineTask<BashInput, BashCheckpoint, BashOperationReceipt>({
-    name: "agents-in-the-cloud.bash-operation", version: 1,
+    name: "kintsugi.bash-operation", version: 1,
     initial: () => ({ phase: "execute" }),
     phases: {
       async execute(task, runtime, context) {
@@ -95,7 +95,7 @@ export function createDurableBashExtension(workspaceId: string, operations: Bash
       const record = (await api.getTask(child, context))!;
       // SAFETY: this ID is atomically bound above to our version-1 operation task and its BashInput.
       const input = record.input as BashInput;
-      await api.details({ workspaceId, tmuxSession: `agents-in-the-cloud-agent-${input.request.id}`, command: input.request.command }, context);
+      await api.details({ workspaceId, tmuxSession: `kintsugi-agent-${input.request.id}`, command: input.request.command }, context);
       const settled = await api.waitForTask(child, context);
       if (settled.state.outcome.status === "faulted" || settled.state.outcome.status === "failed") throw new Error(settled.state.outcome.error.message);
       if (settled.state.outcome.status !== "completed") throw new Error(`Command operation ${settled.state.outcome.status}`);
@@ -114,5 +114,5 @@ export function createDurableBashExtension(workspaceId: string, operations: Bash
       };
     },
   });
-  return defineExtension({ name: "agents-in-the-cloud.bash", tools: [bash], tasks: [operation] });
+  return defineExtension({ name: "kintsugi.bash", tools: [bash], tasks: [operation] });
 }

@@ -2,7 +2,7 @@ import { expect, test } from "bun:test";
 import { chmod, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { managementOriginRejection } from "@agents-in-the-cloud/proxy-ingress/server";
+import { managementOriginRejection } from "@kintsugi/proxy-ingress/server";
 import { preparePreview } from "../../../scripts/run-redesign-preview.ts";
 import { startLightingTuner } from "../scripts/surface-lighting-tuner.ts";
 
@@ -71,13 +71,13 @@ test("acceptance staging sends Origin without requiring a real Docker workspace"
     await writeFile(docker, "#!/bin/sh\ncat >/dev/null\n");
     await chmod(docker, 0o755);
     const module = new URL("../../../acceptance/lib/stage.ts", import.meta.url).href;
-    const process = Bun.spawn(["bun", "-e", `import { stage } from ${JSON.stringify(module)}; console.log(JSON.stringify(await stage({ atelier: ${JSON.stringify(management.origin)}, model: "test::model", log() {} })));`], {
+    const process = Bun.spawn(["bun", "-e", `import { stage } from ${JSON.stringify(module)}; console.log(JSON.stringify(await stage({ kintsugi: ${JSON.stringify(management.origin)}, model: "test::model", log() {} })));`], {
       env: { ...globalThis.process.env, PATH: `${directory}:${globalThis.process.env.PATH}` },
       stdin: "ignore", stdout: "pipe", stderr: "pipe",
     });
     const [code, output, error] = await Promise.all([process.exited, new Response(process.stdout).text(), new Response(process.stderr).text()]);
     expect({ code, error }).toEqual({ code: 0, error: "" });
-    expect(JSON.parse(output)).toEqual({ atelier: management.origin, workspaceId: "one", builtinId: "builtin", piId: "pi", terminalKey: "terminal:one" });
+    expect(JSON.parse(output)).toEqual({ kintsugi: management.origin, workspaceId: "one", builtinId: "builtin", piId: "pi", terminalKey: "terminal:one" });
     const posts = management.requests.filter(request => request.method === "POST");
     expect(posts.map(request => request.path)).toEqual([
       "/workspaces", "/workspaces/one/commands/agent.create.builtin", "/workspaces/one/agents/builtin/model", "/workspaces/one/agents/builtin/messages",
@@ -96,7 +96,7 @@ test("lighting proxy translates only same-origin HTTP and WebSocket requests", a
     const response = await fetch(`${tunerOrigin}/workspaces/one/commands/terminal.create`, {
       method: "POST", headers: {
         Origin: tunerOrigin, "content-type": "application/json", "x-forwarded-proto": "https",
-        "x-forwarded-host": "attacker.example", "x-agents-in-the-cloud-origin-context": tunerOrigin,
+        "x-forwarded-host": "attacker.example", "x-kintsugi-origin-context": tunerOrigin,
       }, body: '{"title":"Shell"}',
     });
     expect(response.status).toBe(200);

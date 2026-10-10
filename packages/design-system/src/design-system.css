@@ -39,7 +39,7 @@
 }
 
 /*
- * AgentsInTheCloud design system
+ * Kintsugi design system
  *
  * This file is the shared visual interface for the shell and every workspace
  * module. Tokens describe visual roles rather than accumulated measurements.
@@ -94,7 +94,7 @@
   --danger: #d23b3b;
   --decorative: #7c3aed;
 
-  /* Shared source palette. Shiki and Pierre classify; AgentsInTheCloud owns color. */
+  /* Shared source palette. Shiki and Pierre classify; Kintsugi owns color. */
   --syntax-keyword: #cf222e;
   --syntax-string: #0a3069;
   --syntax-number: #0550ae;
@@ -274,9 +274,9 @@
 .syntax-punctuation { color: var(--syntax-punctuation); }
 
 /* Shared bridge into Pierre's Shadow DOM diff surfaces. */
-.agents-in-the-cloud-pierre-host,
-.agents-in-the-cloud-pierre-host diffs-container { display: block; min-width: 0; }
-.agents-in-the-cloud-pierre-host diffs-container {
+.kintsugi-pierre-host,
+.kintsugi-pierre-host diffs-container { display: block; min-width: 0; }
+.kintsugi-pierre-host diffs-container {
   --diffs-font-family: var(--font-mono);
   --diffs-font-size: var(--text-code);
   --diffs-line-height: calc(var(--text-code) * var(--leading-standard));

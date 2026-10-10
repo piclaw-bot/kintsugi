@@ -1,4 +1,4 @@
-import type { JsonObject } from "@agents-in-the-cloud/core";
+import type { JsonObject } from "@kintsugi/core";
 import { expect, test } from "bun:test";
 import { fetchCodexSubscriptionUsage } from "../../src/server/codex-subscription-usage.ts";
 

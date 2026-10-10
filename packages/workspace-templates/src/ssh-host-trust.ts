@@ -1,7 +1,7 @@
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
-import { invalidArguments, runCommand, shellQuote, writeFileAtomic } from "@agents-in-the-cloud/core";
+import { invalidArguments, runCommand, shellQuote, writeFileAtomic } from "@kintsugi/core";
 import { gitHubKnownHosts } from "./github-host-keys.ts";
 import { findConfigurationRecord, workspaceScopes, workspaceTemplatesFile, readWorkspaceTemplateStore, updateWorkspaceTemplateStore, type ConfigurationScope } from "./workspace-template.ts";
 
@@ -12,7 +12,7 @@ export async function getWorkspaceTemplateSshKnownHosts(scope: ConfigurationScop
 /** Additional trust is supplied explicitly, never learned from an unverified network scan. */
 export async function setWorkspaceTemplateSshKnownHosts(scope: ConfigurationScope, input: string, file = workspaceTemplatesFile()): Promise<string> {
   const lines = input.split(/\r?\n/).map((line) => line.trim()).filter((line) => line && !line.startsWith("#"));
-  const directory = await mkdtemp(join(tmpdir(), "agents-in-the-cloud-host-keys-"));
+  const directory = await mkdtemp(join(tmpdir(), "kintsugi-host-keys-"));
   try {
     for (const line of lines) {
       // Each record must include a host pattern and a public key (not an authorized_keys record).

@@ -11,63 +11,63 @@ function expectRequest(result: Request | Response | void): asserts result is Req
 describe("secret placeholder hooks", () => {
   test("creates placeholder env var, not real secret", () => {
     const hooks = createHttpHooks({ secrets: { GH_TOKEN: { value: "real-secret", hosts: ["github.com"] } } });
-    expect(hooks.env.GH_TOKEN).toMatch(/^AGENTSINTHECLOUD_SECRET_[0-9a-f]{48}$/);
+    expect(hooks.env.GH_TOKEN).toMatch(/^KINTSUGI_SECRET_[0-9a-f]{48}$/);
     expect(hooks.env.GH_TOKEN).not.toBe("real-secret");
   });
 
   test("replaces bearer placeholder for allowed host", async () => {
-    const hooks = createHttpHooks({ secrets: { GH_TOKEN: { value: "real-secret", hosts: ["api.github.com"], placeholder: "AGENTSINTHECLOUD_SECRET_fake" } } });
-    const result = await hooks.httpHooks.onRequest!(new Request("https://api.github.com/user", { headers: { authorization: "Bearer AGENTSINTHECLOUD_SECRET_fake" } }));
+    const hooks = createHttpHooks({ secrets: { GH_TOKEN: { value: "real-secret", hosts: ["api.github.com"], placeholder: "KINTSUGI_SECRET_fake" } } });
+    const result = await hooks.httpHooks.onRequest!(new Request("https://api.github.com/user", { headers: { authorization: "Bearer KINTSUGI_SECRET_fake" } }));
     expectRequest(result);
     expect(result.headers.get("authorization")).toBe("Bearer real-secret");
   });
 
   test("blocks placeholder sent to disallowed host", async () => {
-    const hooks = createHttpHooks({ secrets: { GH_TOKEN: { value: "real-secret", hosts: ["github.com"], placeholder: "AGENTSINTHECLOUD_SECRET_fake" } } });
-    await expect(hooks.httpHooks.onRequest!(new Request("https://example.com", { headers: { authorization: "Bearer AGENTSINTHECLOUD_SECRET_fake" } }))).rejects.toBeInstanceOf(HttpRequestBlockedError);
+    const hooks = createHttpHooks({ secrets: { GH_TOKEN: { value: "real-secret", hosts: ["github.com"], placeholder: "KINTSUGI_SECRET_fake" } } });
+    await expect(hooks.httpHooks.onRequest!(new Request("https://example.com", { headers: { authorization: "Bearer KINTSUGI_SECRET_fake" } }))).rejects.toBeInstanceOf(HttpRequestBlockedError);
   });
 
   test("preserves unrelated headers and request ownership during repeated secret injection", async () => {
     for (const allowInPath of [false, true]) {
-      const hooks = createHttpHooks({ secrets: { TOKEN: { allowInPath, value: "real-secret", hosts: ["example.com"], placeholder: "AGENTSINTHECLOUD_SECRET_fake" } } });
+      const hooks = createHttpHooks({ secrets: { TOKEN: { allowInPath, value: "real-secret", hosts: ["example.com"], placeholder: "KINTSUGI_SECRET_fake" } } });
       for (let attempt = 0; attempt < 2; attempt++) {
-        const request = new Request("https://example.com/AGENTSINTHECLOUD_SECRET_fake", {
-          headers: { authorization: "Bearer AGENTSINTHECLOUD_SECRET_fake", "x-request-id": String(attempt) },
+        const request = new Request("https://example.com/KINTSUGI_SECRET_fake", {
+          headers: { authorization: "Bearer KINTSUGI_SECRET_fake", "x-request-id": String(attempt) },
         });
         const result = await hooks.httpHooks.onRequest(request);
         expect(result === request).toBe(!allowInPath);
         expect(result.headers.get("authorization")).toBe("Bearer real-secret");
         expect(result.headers.get("x-request-id")).toBe(String(attempt));
-        expect(request.headers.get("authorization")).toBe(allowInPath ? "Bearer AGENTSINTHECLOUD_SECRET_fake" : "Bearer real-secret");
+        expect(request.headers.get("authorization")).toBe(allowInPath ? "Bearer KINTSUGI_SECRET_fake" : "Bearer real-secret");
       }
     }
   });
 
   test("replaces Basic auth password placeholders", async () => {
-    const hooks = createHttpHooks({ secrets: { GH_TOKEN: { value: "real-secret", hosts: ["github.com"], placeholder: "AGENTSINTHECLOUD_SECRET_fake" } } });
-    const basic = Buffer.from("x-access-token:AGENTSINTHECLOUD_SECRET_fake").toString("base64");
+    const hooks = createHttpHooks({ secrets: { GH_TOKEN: { value: "real-secret", hosts: ["github.com"], placeholder: "KINTSUGI_SECRET_fake" } } });
+    const basic = Buffer.from("x-access-token:KINTSUGI_SECRET_fake").toString("base64");
     const result = await hooks.httpHooks.onRequest!(new Request("https://github.com/repo.git", { headers: { authorization: `Basic ${basic}` } }));
     expectRequest(result);
     expect(result.headers.get("authorization")).toBe(`Basic ${Buffer.from("x-access-token:real-secret").toString("base64")}`);
   });
 
   test("does not replace request body", async () => {
-    const hooks = createHttpHooks({ secrets: { GH_TOKEN: { value: "real-secret", hosts: ["github.com"], placeholder: "AGENTSINTHECLOUD_SECRET_fake" } } });
-    const result = await hooks.httpHooks.onRequest!(new Request("https://github.com", { method: "POST", body: "AGENTSINTHECLOUD_SECRET_fake" }));
+    const hooks = createHttpHooks({ secrets: { GH_TOKEN: { value: "real-secret", hosts: ["github.com"], placeholder: "KINTSUGI_SECRET_fake" } } });
+    const result = await hooks.httpHooks.onRequest!(new Request("https://github.com", { method: "POST", body: "KINTSUGI_SECRET_fake" }));
     expectRequest(result);
-    expect(await result.text()).toBe("AGENTSINTHECLOUD_SECRET_fake");
+    expect(await result.text()).toBe("KINTSUGI_SECRET_fake");
   });
 
   test("does not replace URL path by default", async () => {
-    const hooks = createHttpHooks({ secrets: { API_TOKEN: { value: "123:secret", hosts: ["api.example.com"], placeholder: "AGENTSINTHECLOUD_SECRET_fake" } } });
-    const result = await hooks.httpHooks.onRequest!(new Request("https://api.example.com/botAGENTSINTHECLOUD_SECRET_fake/getMe"));
+    const hooks = createHttpHooks({ secrets: { API_TOKEN: { value: "123:secret", hosts: ["api.example.com"], placeholder: "KINTSUGI_SECRET_fake" } } });
+    const result = await hooks.httpHooks.onRequest!(new Request("https://api.example.com/botKINTSUGI_SECRET_fake/getMe"));
     expectRequest(result);
-    expect(result.url).toBe("https://api.example.com/botAGENTSINTHECLOUD_SECRET_fake/getMe");
+    expect(result.url).toBe("https://api.example.com/botKINTSUGI_SECRET_fake/getMe");
   });
 
   test("optionally replaces a URL path placeholder for an allowed host", async () => {
-    const hooks = createHttpHooks({ secrets: { API_TOKEN: { allowInPath: true, value: "123:secret", hosts: ["api.example.com"], placeholder: "AGENTSINTHECLOUD_SECRET_fake" } } });
-    const result = await hooks.httpHooks.onRequest!(new Request("https://api.example.com/botAGENTSINTHECLOUD_SECRET_fake/getMe"));
+    const hooks = createHttpHooks({ secrets: { API_TOKEN: { allowInPath: true, value: "123:secret", hosts: ["api.example.com"], placeholder: "KINTSUGI_SECRET_fake" } } });
+    const result = await hooks.httpHooks.onRequest!(new Request("https://api.example.com/botKINTSUGI_SECRET_fake/getMe"));
     expectRequest(result);
     expect(result.url).toBe("https://api.example.com/bot123:secret/getMe");
   });
@@ -83,39 +83,39 @@ describe("secret placeholder hooks", () => {
   });
 
   test("leaves a URL path placeholder unchanged for a nonmatching host", async () => {
-    const hooks = createHttpHooks({ secrets: { API_TOKEN: { allowInPath: true, value: "123:secret", hosts: ["api.example.com"], placeholder: "AGENTSINTHECLOUD_SECRET_fake" } } });
-    const result = await hooks.httpHooks.onRequest!(new Request("https://example.com/botAGENTSINTHECLOUD_SECRET_fake/getMe"));
+    const hooks = createHttpHooks({ secrets: { API_TOKEN: { allowInPath: true, value: "123:secret", hosts: ["api.example.com"], placeholder: "KINTSUGI_SECRET_fake" } } });
+    const result = await hooks.httpHooks.onRequest!(new Request("https://example.com/botKINTSUGI_SECRET_fake/getMe"));
     expectRequest(result);
-    expect(result.url).toBe("https://example.com/botAGENTSINTHECLOUD_SECRET_fake/getMe");
+    expect(result.url).toBe("https://example.com/botKINTSUGI_SECRET_fake/getMe");
   });
 
   test("URL-encodes reserved characters injected into a path", async () => {
-    const hooks = createHttpHooks({ secrets: { API_TOKEN: { allowInPath: true, value: "secret value?#", hosts: ["api.example.com"], placeholder: "AGENTSINTHECLOUD_SECRET_fake" } } });
-    const result = await hooks.httpHooks.onRequest!(new Request("https://api.example.com/token/AGENTSINTHECLOUD_SECRET_fake"));
+    const hooks = createHttpHooks({ secrets: { API_TOKEN: { allowInPath: true, value: "secret value?#", hosts: ["api.example.com"], placeholder: "KINTSUGI_SECRET_fake" } } });
+    const result = await hooks.httpHooks.onRequest!(new Request("https://api.example.com/token/KINTSUGI_SECRET_fake"));
     expectRequest(result);
     expect(result.url).toBe("https://api.example.com/token/secret%20value%3F%23");
   });
 
   test("does not replace query string by default", async () => {
-    const hooks = createHttpHooks({ secrets: { GH_TOKEN: { value: "real-secret", hosts: ["github.com"], placeholder: "AGENTSINTHECLOUD_SECRET_fake" } } });
-    const result = await hooks.httpHooks.onRequest!(new Request("https://github.com/?token=AGENTSINTHECLOUD_SECRET_fake"));
+    const hooks = createHttpHooks({ secrets: { GH_TOKEN: { value: "real-secret", hosts: ["github.com"], placeholder: "KINTSUGI_SECRET_fake" } } });
+    const result = await hooks.httpHooks.onRequest!(new Request("https://github.com/?token=KINTSUGI_SECRET_fake"));
     expectRequest(result);
-    expect(result.url).toContain("AGENTSINTHECLOUD_SECRET_fake");
+    expect(result.url).toContain("KINTSUGI_SECRET_fake");
   });
 
   test("optionally replaces query string only for a matching host", async () => {
-    const hooks = createHttpHooks({ replaceSecretsInQuery: true, secrets: { GH_TOKEN: { value: "real-secret", hosts: ["github.com"], placeholder: "AGENTSINTHECLOUD_SECRET_fake" } } });
-    const matching = await hooks.httpHooks.onRequest!(new Request("https://github.com/?token=AGENTSINTHECLOUD_SECRET_fake"));
-    const nonmatching = await hooks.httpHooks.onRequest!(new Request("https://example.com/?token=AGENTSINTHECLOUD_SECRET_fake"));
+    const hooks = createHttpHooks({ replaceSecretsInQuery: true, secrets: { GH_TOKEN: { value: "real-secret", hosts: ["github.com"], placeholder: "KINTSUGI_SECRET_fake" } } });
+    const matching = await hooks.httpHooks.onRequest!(new Request("https://github.com/?token=KINTSUGI_SECRET_fake"));
+    const nonmatching = await hooks.httpHooks.onRequest!(new Request("https://example.com/?token=KINTSUGI_SECRET_fake"));
     expectRequest(matching);
     expectRequest(nonmatching);
     expect(matching.url).toContain("token=real-secret");
-    expect(nonmatching.url).toContain("token=AGENTSINTHECLOUD_SECRET_fake");
+    expect(nonmatching.url).toContain("token=KINTSUGI_SECRET_fake");
   });
 
   test("rejects duplicate and overlapping placeholders", () => {
     expect(() => createHttpHooks({ secrets: { A: { value: "a", hosts: ["*"], placeholder: "same" }, B: { value: "b", hosts: ["*"], placeholder: "same" } } })).toThrow(/duplicate/);
-    expect(() => createHttpHooks({ secrets: { A: { value: "a", hosts: ["*"], placeholder: "AGENTSINTHECLOUD_SECRET_abc" }, B: { value: "b", hosts: ["*"], placeholder: "AGENTSINTHECLOUD_SECRET_abc123" } } })).toThrow(/overlaps/);
+    expect(() => createHttpHooks({ secrets: { A: { value: "a", hosts: ["*"], placeholder: "KINTSUGI_SECRET_abc" }, B: { value: "b", hosts: ["*"], placeholder: "KINTSUGI_SECRET_abc123" } } })).toThrow(/overlaps/);
   });
 
   test("allows placeholder equal to secret for nested hooks", () => {
@@ -124,7 +124,7 @@ describe("secret placeholder hooks", () => {
   });
 
   test("blocks real secret value sent to disallowed host", async () => {
-    const hooks = createHttpHooks({ secrets: { GH_TOKEN: { value: "real-secret", hosts: ["github.com"], placeholder: "AGENTSINTHECLOUD_SECRET_fake" } } });
+    const hooks = createHttpHooks({ secrets: { GH_TOKEN: { value: "real-secret", hosts: ["github.com"], placeholder: "KINTSUGI_SECRET_fake" } } });
     await expect(hooks.httpHooks.onRequest!(new Request("https://example.com", { headers: { authorization: "Bearer real-secret" } }))).rejects.toBeInstanceOf(HttpRequestBlockedError);
   });
 });

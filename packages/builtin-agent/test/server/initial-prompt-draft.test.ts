@@ -19,7 +19,7 @@ afterEach(async () => {
 });
 
 async function useTemporaryDataDir(): Promise<void> {
-  temporaryDataDir = await mkdtemp(join(tmpdir(), "agents-in-the-cloud-initial-agent-draft-"));
+  temporaryDataDir = await mkdtemp(join(tmpdir(), "kintsugi-initial-agent-draft-"));
   process.env.ATELIER_DATA_DIR = temporaryDataDir;
 }
 

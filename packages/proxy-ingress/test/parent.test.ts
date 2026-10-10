@@ -28,12 +28,12 @@ test("Tailscale parent starts before login, fails publication clearly, and works
     expect(requests).toBe(0);
     await expect(parent.publish(42001)).rejects.toThrow("connect Tailscale before publishing a preview");
     expect(config.Web).toEqual({});
-    dnsName = "agents-in-the-cloud.example.ts.net.";
+    dnsName = "kintsugi.example.ts.net.";
     await expect(parent.publish(42001)).rejects.toThrow("HTTPS certificates are not enabled");
     expect(config.Web).toEqual({});
-    certDomains = ["agents-in-the-cloud.example.ts.net"];
-    expect(await parent.publish(42001)).toBe("https://agents-in-the-cloud.example.ts.net:42001");
-    expect(config.Web["agents-in-the-cloud.example.ts.net:42001"].Handlers["/"].Proxy).toBe("http://127.0.0.1:42001/");
+    certDomains = ["kintsugi.example.ts.net"];
+    expect(await parent.publish(42001)).toBe("https://kintsugi.example.ts.net:42001");
+    expect(config.Web["kintsugi.example.ts.net:42001"].Handlers["/"].Proxy).toBe("http://127.0.0.1:42001/");
     certDomains = [];
     await expect(parent.publish(42001)).rejects.toThrow("HTTPS certificates are not enabled");
     await parent.unpublish!(42001);
@@ -58,19 +58,19 @@ test("System mode is queried for each origin without relying on Tailscale socket
   const { createSystemOriginPublisher } = await import("../src/ingress/parent.ts");
   let port = 53000;
   const publisher = createSystemOriginPublisher(undefined, (async () => Response.json({ mode: "localhost", localPort: port })));
-  expect(await publisher.publish(41001)).toBe("http://p41001.agents-in-the-cloud.localhost:53000");
+  expect(await publisher.publish(41001)).toBe("http://p41001.kintsugi.localhost:53000");
   port = 53001;
-  expect(await publisher.publish(41001)).toBe("http://p41001.agents-in-the-cloud.localhost:53001");
+  expect(await publisher.publish(41001)).toBe("http://p41001.kintsugi.localhost:53001");
   expect(publisher.refresh).toBe(true);
 });
 
 
 test("older System resources do not advertise the access protocol", async () => {
-  const oldFiles = new Set(["/run/agents-in-the-cloud-system/resources.json", "/var/run/tailscale"]);
+  const oldFiles = new Set(["/run/kintsugi-system/resources.json", "/var/run/tailscale"]);
   const old = await detectParentOriginPublisher(undefined, path => oldFiles.has(path));
   expect(old.kind).toBe("tailscale");
-  oldFiles.add("/run/agents-in-the-cloud-system/access-v1");
+  oldFiles.add("/run/kintsugi-system/access-v1");
   expect((await detectParentOriginPublisher(undefined, path => oldFiles.has(path))).kind).toBe("system");
-  oldFiles.add("/run/agents-in-the-cloud-parent");
-  expect((await detectParentOriginPublisher(undefined, path => oldFiles.has(path))).kind).toBe("agents-in-the-cloud");
+  oldFiles.add("/run/kintsugi-parent");
+  expect((await detectParentOriginPublisher(undefined, path => oldFiles.has(path))).kind).toBe("kintsugi");
 });

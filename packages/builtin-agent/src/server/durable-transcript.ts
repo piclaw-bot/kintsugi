@@ -1,13 +1,13 @@
 import { agentDelegation } from "./delegation.ts";
-import { applyTranscriptContributions } from "@agents-in-the-cloud/agent/server/transcript-contributions";
+import { applyTranscriptContributions } from "@kintsugi/agent/server/transcript-contributions";
 import { durableTimingEntry, DurableTurnTiming } from "./durable-timing.ts";
-import { historyNote } from "@agents-in-the-cloud/legacy-converter/entries";
+import { historyNote } from "@kintsugi/legacy-converter/entries";
 import { contentText, type Message } from "@earendil-works/pi-ai";
 import { AgentDoc, CompactionEntry, InboxDoc, LiveDoc, ResetEntry, ToolResultEntry, UsageDoc, type AgentState, type ConversationView, type InboxState, type LiveState, type UsageState } from "@earendil-works/pi-durable";
 import { Type } from "typebox";
 import { Value } from "typebox/value";
-import { isJsonObject } from "@agents-in-the-cloud/core";
-import { buildTranscript, isFinalAssistantMessage, isToolViewDetails, toolDetailsIndicateError, type SessionImageRef, type ToolView, type TranscriptItem, type TranscriptRecord } from "@agents-in-the-cloud/agent/server/transcript";
+import { isJsonObject } from "@kintsugi/core";
+import { buildTranscript, isFinalAssistantMessage, isToolViewDetails, toolDetailsIndicateError, type SessionImageRef, type ToolView, type TranscriptItem, type TranscriptRecord } from "@kintsugi/agent/server/transcript";
 
 /** The native watch is an exact committed frame, not an AgentSession event stream. */
 export function durableViewState(view: ConversationView) {

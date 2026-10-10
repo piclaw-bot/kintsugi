@@ -41,7 +41,7 @@ type WorkspaceAgentCatalog = { workspaceId: string; agents: DurableAgentRecord[]
 
 /** Application identity is independent of Durable's storage-local numeric IDs. */
 export const WorkspaceAgents = defineDoc<WorkspaceAgentCatalog>({
-  kind: "agents-in-the-cloud.workspace",
+  kind: "kintsugi.workspace",
   version: 2,
   scope: "session",
   initial: () => ({ workspaceId: "", agents: [] }),

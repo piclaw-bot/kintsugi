@@ -9,7 +9,7 @@ import { resolveWorkspaceImage } from "../src/index.ts";
 import { buildRepositoryImage } from "../src/repository-builder.ts";
 import { initializeResources } from "../../../images/system/src/resources.ts";
 import { installWorkspaceFirewall, resolverAddresses } from "../../../images/system/src/firewall.ts";
-import { runCommand, withCommandSignal, shellQuote } from "@agents-in-the-cloud/core";
+import { runCommand, withCommandSignal, shellQuote } from "@kintsugi/core";
 
 async function command(args: string[]) {
   const result = await runCommand(args);
@@ -20,7 +20,7 @@ async function command(args: string[]) {
 async function inside(base: string) {
   const resources = await initializeResources();
   // The real app receives this path as a bind mount; the harness runs in System.
-  await symlink(resources.buildClientsCgroup, "/run/agents-in-the-cloud-system/build-client-processes");
+  await symlink(resources.buildClientsCgroup, "/run/kintsugi-system/build-client-processes");
   await installWorkspaceFirewall(resources.buildClientsCgroupParent, resolverAddresses(await readFile("/etc/resolv.conf", "utf8")));
   const received: string[] = [];
   const fixture = Bun.serve({ hostname: "::", port: 38080, fetch(request) {
@@ -33,12 +33,12 @@ async function inside(base: string) {
   async function build(dockerfile: string, extra: string[] = [], unprotectedClient = false) {
     const context = join(root, `ephemeral-workspace-${++number}`);
     await mkdir(context);
-    await writeFile(join(context, "Dockerfile"), `FROM agents-in-the-cloud-workspace\n${dockerfile}\n`);
+    await writeFile(join(context, "Dockerfile"), `FROM kintsugi-workspace\n${dockerfile}\n`);
     const tag = `repository-builder-test:build-${number}`;
     let output = "";
     await buildRepositoryImage(base, tag, async (prefix) => {
       const client = unprotectedClient ? prefix.slice(prefix.indexOf("docker")) : prefix;
-      const result = await runCommand([...client, "build", "--builder", "default", "--progress=plain", "--label", "com.agents-in-the-cloud.workspace-image.kind=repository", ...extra, "-t", tag, context], { env: { ...process.env, DOCKER_BUILDKIT: "1" } });
+      const result = await runCommand([...client, "build", "--builder", "default", "--progress=plain", "--label", "com.kintsugi.workspace-image.kind=repository", ...extra, "-t", tag, context], { env: { ...process.env, DOCKER_BUILDKIT: "1" } });
       output = result.stderr + result.stdout.toString();
       if (result.exitCode !== 0) throw new Error(output);
     });
@@ -47,14 +47,14 @@ async function inside(base: string) {
   }
   const imageFile = (tag: string, path: string) => command(["docker", "run", "--rm", "--network=none", "--entrypoint", "cat", tag, path]);
   async function builderName() {
-    return command(["docker", "ps", "-aq", "--filter", "label=com.agents-in-the-cloud.role=repository-builder"]);
+    return command(["docker", "ps", "-aq", "--filter", "label=com.kintsugi.role=repository-builder"]);
   }
   try {
     // Positive control: the old integrated System builder can read the fixture.
-    await command(["docker", "tag", base, "agents-in-the-cloud-workspace"]);
+    await command(["docker", "tag", base, "kintsugi-workspace"]);
     const control = join(root, "old-builder");
     await mkdir(control);
-    await writeFile(join(control, "Dockerfile"), "FROM agents-in-the-cloud-workspace\nADD http://127.0.0.1:38080/old-builder /marker\nRUN grep management-only-marker /marker\n");
+    await writeFile(join(control, "Dockerfile"), "FROM kintsugi-workspace\nADD http://127.0.0.1:38080/old-builder /marker\nRUN grep management-only-marker /marker\n");
     await command(["docker", "build", "--builder", "default", "--no-cache", control]);
     assert(received.includes("/old-builder"));
 
@@ -148,17 +148,17 @@ async function inside(base: string) {
     assert.equal(await imageFile(final.tag, "/marker"), "isolated");
     // Exercise the application's resolver too, not just the builder module.
     // The bundled resolver's repoRoot is /; this is only the disposable fixture.
-    await writeFile("/.agents-in-the-cloud-default-workspace-image", base);
+    await writeFile("/.kintsugi-default-workspace-image", base);
     const repository = join(root, "actual-repository");
-    await mkdir(join(repository, ".agents-in-the-cloud"), { recursive: true });
-    const dockerfile = join(repository, ".agents-in-the-cloud", "Dockerfile");
-    await writeFile(dockerfile, "FROM agents-in-the-cloud-workspace\nRUN echo resolver-ok > /marker\n");
+    await mkdir(join(repository, ".kintsugi"), { recursive: true });
+    const dockerfile = join(repository, ".kintsugi", "Dockerfile");
+    await writeFile(dockerfile, "FROM kintsugi-workspace\nRUN echo resolver-ok > /marker\n");
     const resolved = await resolveWorkspaceImage({ sourcePath: repository, buildOutput: "inherit" });
     assert.equal(await imageFile(resolved, "/marker"), "resolver-ok");
-    await writeFile(dockerfile, "FROM agents-in-the-cloud-workspace\nRUN echo observable-ok > /marker\n");
+    await writeFile(dockerfile, "FROM kintsugi-workspace\nRUN echo observable-ok > /marker\n");
     const observable = await resolveWorkspaceImage({ sourcePath: repository });
     assert.equal(await imageFile(observable, "/marker"), "observable-ok");
-    await writeFile(dockerfile, "FROM agents-in-the-cloud-workspace\nADD http://127.0.0.1:38080/resolver-leak /stolen\n");
+    await writeFile(dockerfile, "FROM kintsugi-workspace\nADD http://127.0.0.1:38080/resolver-leak /stolen\n");
     await assert.rejects(withCommandSignal(AbortSignal.timeout(12_000), () => resolveWorkspaceImage({ sourcePath: repository, buildOutput: "inherit" })));
     assert.equal(received.length, before);
     console.log("PASS actual repository image resolver publishes builds and rejects daemon-local ADD");
@@ -204,7 +204,7 @@ async function outside(systemImage: string, base: string) {
     await docker("cp", join(directory, "test.js"), `${endpoint}:/test.js`);
     await docker("start", endpoint);
     for (const address of ["10.201.0.2/32", "169.254.169.254/32"]) await docker("exec", endpoint, "ip", "addr", "add", address, "dev", "eth0");
-    await docker("run", "-d", "--name", name, "--privileged", "--cgroupns=host", "--tmpfs", "/run", "--volume", "/data", "--network", name, "--ip", "11.201.0.3", "--entrypoint", "/usr/local/bin/agents-in-the-cloud-dockerd", systemImage, "dockerd");
+    await docker("run", "-d", "--name", name, "--privileged", "--cgroupns=host", "--tmpfs", "/run", "--volume", "/data", "--network", name, "--ip", "11.201.0.3", "--entrypoint", "/usr/local/bin/kintsugi-dockerd", systemImage, "dockerd");
     await docker("exec", name, "sh", "-ec", 'for n in $(seq 1 120); do if docker info >/dev/null 2>&1; then exit 0; fi; sleep 0.5; done; exit 1');
     for (const address of ["10.201.0.2/32", "169.254.169.254/32"]) await docker("exec", name, "ip", "route", "add", address, "via", "11.201.0.2");
     await docker("exec", name, "mkdir", "/audit");

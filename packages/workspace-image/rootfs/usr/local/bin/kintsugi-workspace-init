@@ -1,14 +1,14 @@
 #!/bin/bash
 # Bootstrap the container, then hand PID 1 and service supervision to systemd.
 set -euo pipefail
-mkdir -p /.agents-in-the-cloud /run/systemd
-rm -f /.agents-in-the-cloud/ready
+mkdir -p /.kintsugi /run/systemd
+rm -f /.kintsugi/ready
 printf 'docker\n' > /run/systemd/container
 # System services do not inherit PID 1's environment. Preserve the workspace's
 # supplied environment, including multiline values, without shell evaluation.
 python3 - <<'PY'
 import os
-with open('/.agents-in-the-cloud/environment', 'w', opener=lambda path, flags: os.open(path, flags, 0o600)) as file:
+with open('/.kintsugi/environment', 'w', opener=lambda path, flags: os.open(path, flags, 0o600)) as file:
     for key, value in os.environ.items():
         # Each service gets its identity from systemd, not the root bootstrap.
         if key in {"HOME", "USER", "LOGNAME", "SHELL"}:
@@ -17,7 +17,7 @@ with open('/.agents-in-the-cloud/environment', 'w', opener=lambda path, flags: o
             escaped = value.replace('\\', '\\\\').replace('"', '\\"').replace('`', '\\`').replace('$', '\\$')
             file.write(f'{key}="{escaped}"\n')
 PY
-read -r docker_support < /etc/agents-in-the-cloud/docker-support
+read -r docker_support < /etc/kintsugi/docker-support
 case "$docker_support" in
     enabled)
         systemctl enable docker.socket
@@ -27,5 +27,5 @@ case "$docker_support" in
         ;;
     *) echo "Invalid Docker support configuration: $docker_support" >&2; exit 1 ;;
 esac
-if [ -f /usr/lib/systemd/system/agents-in-the-cloud-gateway.service ]; then systemctl enable agents-in-the-cloud-gateway.service; fi
+if [ -f /usr/lib/systemd/system/kintsugi-gateway.service ]; then systemctl enable kintsugi-gateway.service; fi
 exec /sbin/init

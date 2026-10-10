@@ -1,9 +1,9 @@
-import { disclosureHtml, type DisclosureSummary } from "@agents-in-the-cloud/design-system/disclosure";
-import { buttonHtml } from "@agents-in-the-cloud/design-system/button";
-import { Icons } from "@agents-in-the-cloud/design-system/icons";
-import { renderStreamingMarkdownSnapshot } from "@agents-in-the-cloud/markdown";
-import type { ModelRef } from "@agents-in-the-cloud/llm/server";
-import { escapeHtml } from "@agents-in-the-cloud/shared";
+import { disclosureHtml, type DisclosureSummary } from "@kintsugi/design-system/disclosure";
+import { buttonHtml } from "@kintsugi/design-system/button";
+import { Icons } from "@kintsugi/design-system/icons";
+import { renderStreamingMarkdownSnapshot } from "@kintsugi/markdown";
+import type { ModelRef } from "@kintsugi/llm/server";
+import { escapeHtml } from "@kintsugi/shared";
 import { agentPath, commentaryContext, ids, sessionImageUrl, transcriptItemPath, type AgentRenderContext } from "./render-context.ts";
 import { codeBlockHtml, detailFullscreen, fullscreenAttributes, markdown, renderMarkdownRow, transcriptRowContent, transcriptRow } from "./render-markup.ts";
 import { renderToolCard, renderToolDetail } from "./render-tool.ts";

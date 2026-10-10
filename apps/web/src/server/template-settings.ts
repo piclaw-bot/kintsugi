@@ -1,15 +1,15 @@
-import { disclosureHtml } from "@agents-in-the-cloud/design-system/disclosure";
-import { invalidArguments } from "@agents-in-the-cloud/core";
-import { buttonHtml } from "@agents-in-the-cloud/design-system/button";
-import { destructiveConfirmationHtml } from "@agents-in-the-cloud/design-system/destructive-confirmation";
-import { dialogHtml } from "@agents-in-the-cloud/design-system/dialog";
-import { Icons } from "@agents-in-the-cloud/design-system/icons";
-import { panelHtml } from "@agents-in-the-cloud/design-system/panel";
-import { toggleHtml } from "@agents-in-the-cloud/design-system/toggle";
-import { warningBannerHtml } from "@agents-in-the-cloud/design-system/warning-banner";
-import { buttonConfirmationHtml } from "@agents-in-the-cloud/design-system/button-confirmation";
-import { escapeHtml } from "@agents-in-the-cloud/shared";
-import { formatWorkspaceTemplateSpec, getConfiguration, getWorkspaceTemplateConfiguration, globalWorkspaceConfiguration, isGlobalScope, workspaceTemplateSecretAllowsPath, type ConfigurationScope, type ScopeConfiguration, type WorkspaceTemplateEnvironmentVariable, type WorkspaceTemplateSecretSummary, type WorkspaceTemplateSshKeySummary } from "@agents-in-the-cloud/workspace-templates";
+import { disclosureHtml } from "@kintsugi/design-system/disclosure";
+import { invalidArguments } from "@kintsugi/core";
+import { buttonHtml } from "@kintsugi/design-system/button";
+import { destructiveConfirmationHtml } from "@kintsugi/design-system/destructive-confirmation";
+import { dialogHtml } from "@kintsugi/design-system/dialog";
+import { Icons } from "@kintsugi/design-system/icons";
+import { panelHtml } from "@kintsugi/design-system/panel";
+import { toggleHtml } from "@kintsugi/design-system/toggle";
+import { warningBannerHtml } from "@kintsugi/design-system/warning-banner";
+import { buttonConfirmationHtml } from "@kintsugi/design-system/button-confirmation";
+import { escapeHtml } from "@kintsugi/shared";
+import { formatWorkspaceTemplateSpec, getConfiguration, getWorkspaceTemplateConfiguration, globalWorkspaceConfiguration, isGlobalScope, workspaceTemplateSecretAllowsPath, type ConfigurationScope, type ScopeConfiguration, type WorkspaceTemplateEnvironmentVariable, type WorkspaceTemplateSecretSummary, type WorkspaceTemplateSshKeySummary } from "@kintsugi/workspace-templates";
 
 import { workspaceTemplateSwatchColor } from "./workspace-template-presentation.ts";
 
@@ -194,7 +194,7 @@ export async function renderTemplateSettingsFrame(id: string, location: Template
   const onlyHere = disclosureHtml({ summary: { kind: "compact", width: "fit", label: { kind: "text", text: "Only for this template" } }, bodyHtml: `<div class="template-settings-inline-body">${configurationSections(ownEditors, own, { records: global, describe: name => `Overrides global ${name} with the same name` })}</div>`, open: ["secrets", "ssh", "environment"].includes(section) });
   const dockerSupport = ownEditors.form("/privileged", `${selection("Docker support", "privileged", String(t.privileged ?? false), [{ value: "false", label: "Off" }, { value: "true", label: "On" }])}${paragraph("Privileged workspaces can access host devices and data. Enable only for templates and agents you trust.")}`, { section: "container", editor: "docker", autosave: true });
   const images = ownEditors.disclosure("container", "images", "Preloaded images", ownEditors.form("/preload-images", `${t.privileged ? "" : paragraph("Turn on Docker support to edit preloaded images. Saved references are kept while Docker is off.")}${textarea("Image references, one per line", "preloadImages", (t.preloadImages ?? []).join("\n"), 6, `spellcheck="false"${t.privileged ? "" : " readonly"}`)}`, { section: "container", editor: "images", available: Boolean(t.privileged) }));
-  const dockerfile = ownEditors.disclosure("container", "dockerfile", "Custom Dockerfile", ownEditors.form("/dockerfile", `${textarea("Dockerfile override", "dockerfile", t.dockerfile ?? "", 14, 'spellcheck="false" placeholder="FROM agents-in-the-cloud-workspace"')}${paragraph("Leave blank to use the repository Dockerfile or default image. An override must start with FROM agents-in-the-cloud-workspace.")}`, { section: "container", editor: "dockerfile" }));
+  const dockerfile = ownEditors.disclosure("container", "dockerfile", "Custom Dockerfile", ownEditors.form("/dockerfile", `${textarea("Dockerfile override", "dockerfile", t.dockerfile ?? "", 14, 'spellcheck="false" placeholder="FROM kintsugi-workspace"')}${paragraph("Leave blank to use the repository Dockerfile or default image. An override must start with FROM kintsugi-workspace.")}`, { section: "container", editor: "dockerfile" }));
   const docker = ownEditors.disclosure("container", undefined, "Docker", `${paragraph("Docker changes apply to new workspaces. Existing containers stay unchanged.")}${dockerSupport}<div class="template-settings-inline-records">${images}${dockerfile}</div>`);
   const developer = ownEditors.disclosure("developer", undefined, "Developer settings", ownEditors.form("/seed-config", `${selection("Atelier-in-Atelier seeding", "seedConfigEnabled", String(t.seedConfigEnabled ?? false), [{ value: "false", label: "Off" }, { value: "true", label: "On" }])}${paragraph("Allows the repository manifest to copy provider credentials and template configuration into new workspaces. Enable only for repositories and agents you trust.")}${paragraph("Disabling this does not remove credentials already copied into existing workspaces.")}`, { section: "developer" }), undefined, 'hidden data-template-settings-target="developer"');
   const deleteLabel = references.length ? `Delete template — delete ${references.length === 1 ? `workspace “${references[0]!.title}”` : `${references.length} workspaces`} first. This template is still in use.` : "Delete template";

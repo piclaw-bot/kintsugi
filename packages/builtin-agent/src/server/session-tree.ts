@@ -1,7 +1,7 @@
-import { AgentsInTheCloudCoreError } from "@agents-in-the-cloud/core";
-import { contentRowHtml } from "@agents-in-the-cloud/design-system/content-row";
-import { escapeHtml } from "@agents-in-the-cloud/shared";
-import { response, textResponse } from "@agents-in-the-cloud/shared/http";
+import { KintsugiCoreError } from "@kintsugi/core";
+import { contentRowHtml } from "@kintsugi/design-system/content-row";
+import { escapeHtml } from "@kintsugi/shared";
+import { response, textResponse } from "@kintsugi/shared/http";
 
 export const treeFilterOptions = [
   ["default", "Default"],
@@ -40,7 +40,7 @@ export async function handleAgentTreeRequest(request: Request, url: URL, suffix:
 ): Promise<Response | undefined> {
   if (suffix === "/summary" && request.method === "GET") {
     const entry = url.searchParams.get("entry") ?? "";
-    if (!entry) throw new AgentsInTheCloudCoreError("invalid_arguments", "tree entry is required");
+    if (!entry) throw new KintsugiCoreError("invalid_arguments", "tree entry is required");
     return response(renderAgentTreeContinuationMenu(entry));
   }
   if (suffix === "/label" && request.method === "POST") {
@@ -48,7 +48,7 @@ export async function handleAgentTreeRequest(request: Request, url: URL, suffix:
     const entry = String(form.get("entry") ?? "");
     const label = String(form.get("label") ?? "");
     const operation = form.get("operation");
-    if (!entry || !label.trim() || (operation !== "add" && operation !== "remove")) throw new AgentsInTheCloudCoreError("invalid_arguments", "tree entry, label, and valid operation are required");
+    if (!entry || !label.trim() || (operation !== "add" && operation !== "remove")) throw new KintsugiCoreError("invalid_arguments", "tree entry, label, and valid operation are required");
     await (await controller()).label(entry, label, operation);
     return new Response(null, { status: 204 });
   }
@@ -59,10 +59,10 @@ export async function handleAgentTreeRequest(request: Request, url: URL, suffix:
   if (suffix === "" && request.method === "POST") {
     const form = await request.formData();
     const entry = String(form.get("entry") ?? "");
-    if (!entry) throw new AgentsInTheCloudCoreError("invalid_arguments", "tree entry is required");
+    if (!entry) throw new KintsugiCoreError("invalid_arguments", "tree entry is required");
     const summaryMode = String(form.get("summaryMode") ?? "none");
-    if (summaryMode !== "none" && summaryMode !== "summary" && summaryMode !== "custom") throw new AgentsInTheCloudCoreError("invalid_arguments", "valid summary mode is required");
-    if (summaryMode !== "none") throw new AgentsInTheCloudCoreError("invalid_arguments", "Continue without a summary for this history.");
+    if (summaryMode !== "none" && summaryMode !== "summary" && summaryMode !== "custom") throw new KintsugiCoreError("invalid_arguments", "valid summary mode is required");
+    if (summaryMode !== "none") throw new KintsugiCoreError("invalid_arguments", "Continue without a summary for this history.");
     await (await controller()).navigate(entry);
     return textResponse("");
   }

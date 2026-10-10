@@ -1,13 +1,13 @@
 import { finishOnboarding, onboardingCompleted } from "./state.ts";
-import { actionLinkHtml } from "@agents-in-the-cloud/design-system/action-link";
-import { buttonHtml } from "@agents-in-the-cloud/design-system/button";
-import { dialogHtml } from "@agents-in-the-cloud/design-system/dialog";
-import { agentsInTheCloudBrandIconHtml } from "@agents-in-the-cloud/design-system/icons";
-import { turboStreamResponse } from "@agents-in-the-cloud/shared";
-import { hasGitHubToken } from "@agents-in-the-cloud/proxy-egress";
-import { hasAvailableEnabledModel, renderModelsDialog } from "@agents-in-the-cloud/llm/server";
+import { actionLinkHtml } from "@kintsugi/design-system/action-link";
+import { buttonHtml } from "@kintsugi/design-system/button";
+import { dialogHtml } from "@kintsugi/design-system/dialog";
+import { kintsugiBrandIconHtml } from "@kintsugi/design-system/icons";
+import { turboStreamResponse } from "@kintsugi/shared";
+import { hasGitHubToken } from "@kintsugi/proxy-egress";
+import { hasAvailableEnabledModel, renderModelsDialog } from "@kintsugi/llm/server";
 import { renderGitHubConnectButton, renderGitHubConnection } from "../settings/github.ts";
-import { update } from "@agents-in-the-cloud/shared/http";
+import { update } from "@kintsugi/shared/http";
 
 export async function renderOnboardingDialog(options: { includeCompleted?: boolean; resumeAfter?: "github" } = {}): Promise<string> {
   if (!options.includeCompleted && !options.resumeAfter && await onboardingCompleted()) return "";
@@ -23,8 +23,8 @@ export async function renderOnboardingDialog(options: { includeCompleted?: boole
     : `<form method="post" action="/onboarding/finish" data-turbo="true">${buttonHtml({ type: "submit", variant: "secondary", content: { kind: "caption", caption } })}</form>`;
   return dialogHtml({
     element: { id: "onboarding_dialog", attributesHtml: "data-dialog-auto-show" },
-    iconHtml: agentsInTheCloudBrandIconHtml,
-    titleCaption: "Set up AgentsInTheCloud",
+    iconHtml: kintsugiBrandIconHtml,
+    titleCaption: "Set up Kintsugi",
     bodyHtml: `<div class="onboarding-progress" aria-label="Onboarding progress"><span class="onboarding-progress-item" aria-current="step"></span>${needsModelsStep ? '<span class="onboarding-progress-item"></span>' : ""}</div>
       <div class="onboarding-body form-stack"><h2 class="title">Connect GitHub</h2>${renderGitHubConnection("onboarding")}</div>`,
     bodyLayout: "full-bleed",

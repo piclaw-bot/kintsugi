@@ -6,7 +6,7 @@ import { BACKGROUND_CONTEXT as ctx } from "@earendil-works/chord/context";
 import { createModels, normalizeContext, type Models, type Model, type SimpleStreamOptions, type UserMessage } from "@earendil-works/pi-ai";
 import { stream as codexStream } from "@earendil-works/pi-ai/api/openai-codex-responses";
 import { stream as anthropicStream } from "@earendil-works/pi-ai/api/anthropic-messages";
-import { isJsonObject, type JsonObject } from "@agents-in-the-cloud/core";
+import { isJsonObject, type JsonObject } from "@kintsugi/core";
 import { Harness, createRegistry, defineExtension } from "@earendil-works/pi-durable";
 import { openNodeJsonlStorage } from "@earendil-works/pi-durable/storage/jsonl/node";
 import { delegationModels, delegationRequestIdentity } from "../../../subagents/src/server/native-models.ts";
@@ -60,9 +60,9 @@ for (const api of ["openai-codex-responses", "anthropic-messages"] as const) {
         (await tx.doc(Delegation)).receipts[receipt.id] = receipt;
         (await tx.doc(Mailbox, conversation.id)).receipts.push(receipt);
       }, ctx);
-      const part = { type: "text" as const, text: envelope, agentsInTheCloudAgentMessage: { id: "receipt-1", conversationId: conversation.id, author: native.author, recipient: native.recipient, kind: "message" } };
+      const part = { type: "text" as const, text: envelope, kintsugiAgentMessage: { id: "receipt-1", conversationId: conversation.id, author: native.author, recipient: native.recipient, kind: "message" } };
       const attributed: UserMessage = { role: "user", timestamp: 42, content: [part] };
-      await conversation.submit({ type: "write", entry: { kind: "agents-in-the-cloud.agent-message", data: { receiptId: "receipt-1" }, model: [attributed] } }, ctx);
+      await conversation.submit({ type: "write", entry: { kind: "kintsugi.agent-message", data: { receiptId: "receipt-1" }, model: [attributed] } }, ctx);
       const id = conversation.id;
       const head = (await conversation.entries({}, 1, undefined, ctx)).items[0]!;
       const branch = await conversation.fork(head.id, { ownership: { kind: "ownerless" } }, ctx);
@@ -90,8 +90,8 @@ for (const api of ["openai-codex-responses", "anthropic-messages"] as const) {
         }
       }
       for (const payload of captured) {
-        expect(JSON.stringify(payload)).not.toContain("agents-in-the-cloud-agent-message:");
-        expect(JSON.stringify(payload)).not.toContain("agentsInTheCloudAgentMessage");
+        expect(JSON.stringify(payload)).not.toContain("kintsugi-agent-message:");
+        expect(JSON.stringify(payload)).not.toContain("kintsugiAgentMessage");
         expect(JSON.stringify(payload)).not.toContain("requestConversationId");
         if (api === "openai-codex-responses") {
           if (!Array.isArray(payload.input)) throw new Error("Expected Responses input");

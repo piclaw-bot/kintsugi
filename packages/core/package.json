@@ -1,5 +1,5 @@
 {
-  "name": "@agents-in-the-cloud/core",
+  "name": "@kintsugi/core",
   "private": true,
   "type": "module",
   "exports": {

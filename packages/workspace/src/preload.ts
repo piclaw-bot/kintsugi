@@ -1,9 +1,9 @@
 import { mkdir, readFile, writeFile, stat } from "node:fs/promises";
 import { join } from "node:path";
-import { isNotFoundError, requireDocker, workloadCommand, runCommand, waitForCommand, withCommandSignal, shellQuote, writeFileAtomic } from "@agents-in-the-cloud/core";
-import { ensureDefaultWorkspaceImage } from "@agents-in-the-cloud/workspace-image";
+import { isNotFoundError, requireDocker, workloadCommand, runCommand, waitForCommand, withCommandSignal, shellQuote, writeFileAtomic } from "@kintsugi/core";
+import { ensureDefaultWorkspaceImage } from "@kintsugi/workspace-image";
 
-import { runHostObservableCommand, stripTerminalControls, tailTerminalText } from "@agents-in-the-cloud/observable-terminal/server";
+import { runHostObservableCommand, stripTerminalControls, tailTerminalText } from "@kintsugi/observable-terminal/server";
 import type { WorkspaceProvisionProgress } from "./provisioning.ts";
 
 type Report = (progress: WorkspaceProvisionProgress) => void;
@@ -14,7 +14,7 @@ interface CachePreparation {
 }
 async function buildCacheCommand(args: string[], report: Report) {
   const result = await runHostObservableCommand({
-    session: `agents-in-the-cloud-provision-image-cache-${crypto.randomUUID().slice(0, 12)}`,
+    session: `kintsugi-provision-image-cache-${crypto.randomUUID().slice(0, 12)}`,
     cwd: "/",
     command: args.map(shellQuote).join(" "),
     onSessionStarted: (terminalSession) => report({ terminalSession, output: undefined }),
@@ -24,7 +24,7 @@ async function buildCacheCommand(args: string[], report: Report) {
   if (result.exitCode !== 0) throw new Error(output || `Image cache preparation failed with exit code ${result.exitCode}`);
 }
 
-export const defaultWorkspacePreload = "agents-in-the-cloud:default-workspace";
+export const defaultWorkspacePreload = "kintsugi:default-workspace";
 
 export interface PreparedImage { requested: string; reference?: string }
 type Command = (args: string[]) => Promise<{ stdout: Buffer; stderr: string }>;
@@ -123,8 +123,8 @@ export function createImagePreloader(run: Command = command, docker: typeof requ
       let referenceFile: string | undefined;
       if (workspace) {
         workspace.reference = await resolve(await defaultWorkspace());
-        await mkdir(join(directory, "agents-in-the-cloud"), { recursive: true });
-        referenceFile = join(directory, "agents-in-the-cloud", "default-workspace-image");
+        await mkdir(join(directory, "kintsugi"), { recursive: true });
+        referenceFile = join(directory, "kintsugi", "default-workspace-image");
         await writeFile(referenceFile, `${workspace.reference}\n`);
       }
       await writeFile(join(directory, "preloads.json"), JSON.stringify(prepared));
@@ -154,15 +154,15 @@ export function createImagePreloader(run: Command = command, docker: typeof requ
         });
         activity({ output: undefined, terminalSession: undefined });
         report(`Exporting image ${image.requested}`);
-        const archive = await run(["agents-in-the-cloud-image-transfer", "export", image.reference]);
+        const archive = await run(["kintsugi-image-transfer", "export", image.reference]);
         report(`Importing image ${image.requested} into workspace`);
-        const imported = await docker(["exec", "--user", "root", "-i", container, "agents-in-the-cloud-image-transfer", "import"], { stdin: archive.stdout });
+        const imported = await docker(["exec", "--user", "root", "-i", container, "kintsugi-image-transfer", "import"], { stdin: archive.stdout });
         if (image.requested === defaultWorkspacePreload) {
           // Transfer selects the native manifest from a multi-platform index.
           // FROM must name that installed manifest, not the source index digest.
           const reference = imported.stdout.trim();
           if (!/^[^\s]+@sha256:[a-f0-9]{64}$/.test(reference)) throw new Error("Image transfer did not return an installed image reference");
-          await docker(["exec", "--user", "root", "-i", container, "tee", "/etc/agents-in-the-cloud/default-workspace-image"], { stdin: `${reference}\n` });
+          await docker(["exec", "--user", "root", "-i", container, "tee", "/etc/kintsugi/default-workspace-image"], { stdin: `${reference}\n` });
         }
       }
     },
