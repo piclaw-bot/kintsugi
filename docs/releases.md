@@ -52,6 +52,12 @@ builds, smoke tests and GHCR publication of all three dual-architecture manifest
 Re-running publication reuses verified images without native builds. This does
 not deploy or restart an existing installation.
 
+Verification on 10 October 2026: [full CI](https://github.com/rcarmo/kintsugi/actions/runs/38050978303)
+passed 1,854 tests with 39 skips in one 2m26s job; [native image verification](https://github.com/rcarmo/kintsugi/actions/runs/38047362949)
+passed on both architectures. [Unchanged publication](https://github.com/rcarmo/kintsugi/actions/runs/38051386289)
+skipped all native builds, manifest assembly, promotion and the result/cleanup job.
+These are observed runs, not timing guarantees.
+
 ## Local release command
 
 The existing local command uses a two-daemon SSH builder. This requirement applies
