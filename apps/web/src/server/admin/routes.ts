@@ -45,7 +45,7 @@ route("DELETE", "/admin/tokens/{tokenId}", ["security"], "Revoke an admin token 
 
 route("GET", "/settings/release-source", ["security"], "Read the installation release repositories and pins");
 route("POST", "/settings/release-source", ["security"], "Configure app and System release repositories and pins");
-route("POST", "/settings/update-channel", ["security"], "Select fork Stable/Latest or the saved Custom source");
+route("POST", "/settings/update-channel", ["security"], "Follow Stable/Latest in the configured repositories or select explicit Custom pins");
 route("GET", "/settings/release-registry", ["security"], "Read registry credential availability (never credentials)");
 route("POST", "/settings/release-registry", ["security"], "Store private GHCR package read credentials in System");
 route("DELETE", "/settings/release-registry", ["security"], "Remove private GHCR credentials");

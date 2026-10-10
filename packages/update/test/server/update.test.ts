@@ -143,7 +143,7 @@ test("channel changes persist, discard prior prepared images, and survive manage
   process.env.ATELIER_DATA_DIR = directory;
   try {
     await writeStoredUpdateChannel("stable");
-    expect(JSON.parse(await readFile(join(directory, "update.json"), "utf8"))).toEqual({ releaseChannel: "stable" });
+    expect(JSON.parse(await readFile(join(directory, "update.json"), "utf8"))).toEqual({ releaseChannel: "stable", releaseSelection: "stable" });
     const dependencies = { readChannel: readStoredUpdateChannel, writeChannel: writeStoredUpdateChannel };
     const instance = manager(dependencies);
     await instance.initialize(context().ctx); await instance.startPull();
@@ -152,7 +152,7 @@ test("channel changes persist, discard prior prepared images, and survive manage
     const restarted = manager(dependencies);
     await restarted.initialize(context().ctx);
     expect(restarted.snapshot().updateChannel).toBe("latest");
-    expect(JSON.parse(await readFile(join(directory, "update.json"), "utf8"))).toEqual({ releaseChannel: "latest" });
+    expect(JSON.parse(await readFile(join(directory, "update.json"), "utf8"))).toEqual({ releaseChannel: "latest", releaseSelection: "latest" });
   } finally {
     if (previous === undefined) delete process.env.ATELIER_DATA_DIR; else process.env.ATELIER_DATA_DIR = previous;
     await rm(directory, { recursive: true, force: true });
@@ -282,7 +282,7 @@ test("JSON source and update controls return JSON without Turbo markup", async (
   }
 });
 
-test("Custom selection survives upstream selection and restores the saved source", async () => {
+test("Latest follows the configured custom repositories and Custom reopens their fields", async () => {
   const previous = process.env.ATELIER_DATA_DIR;
   const directory = await mkdtemp(join(tmpdir(), "custom-channel-"));
   process.env.ATELIER_DATA_DIR = directory;
@@ -302,7 +302,7 @@ test("Custom selection survives upstream selection and restores the saved source
     const references: string[] = [];
     const upstream = manager({ readChannel: readStoredUpdateChannel, readSource: readStoredReleaseSource, prepareUpdate: async reference => { references.push(reference); return { reference, imageId: "test" }; } });
     await upstream.initialize(context().ctx); await upstream.startPull();
-    expect(references).toEqual([exact]);
+    expect(references).toEqual([`docker.io/example/app@${newDigest}`]);
   } finally {
     if (previous === undefined) delete process.env.ATELIER_DATA_DIR; else process.env.ATELIER_DATA_DIR = previous;
     await rm(directory, { recursive: true, force: true });
@@ -341,4 +341,35 @@ test("unlabelled images compare the running index digest with the remote index",
   const instance = manager({ detectRuntime: async () => ({ currentDigest: oldDigest }), fetchMetadata: async () => ({ digest: newDigest, indexDigest: oldDigest }) });
   await instance.initialize(context().ctx);
   expect(instance.snapshot().state).toBe("idle");
+});
+
+
+test("existing controls use a whole-installation plan rather than the app updater",async()=>{
+  const plan={id:crypto.randomUUID(),app:exact,system:`ghcr.io/rcarmo/kintsugi-system@${newerDigest}`,available:true,selection:"selection",previousSystem:oldDigest,previousApp:oldDigest};
+  const calls:string[]=[];
+  const installationClient={installed:async()=>true,status:async()=>({phase:"available" as const,plan,message:"available"}),check:async()=>({phase:"available" as const,plan,message:"available"}),prepare:async(id:string)=>{calls.push("prepare:"+id);return {phase:"ready" as const,plan,message:"ready"};},apply:async(id:string)=>{calls.push("apply:"+id);return {phase:"updating" as const,plan,message:"updating"};},rollback:async()=>({phase:"updating" as const,plan,message:"rollback"})};
+  const instance=manager({installationClient,prepareUpdate:async()=>{throw Error("app-only preparation must not run");},requestUpdate:async()=>{throw Error("app-only replacement must not run");}});
+  await instance.initialize(context().ctx);expect(instance.snapshot().updateScope).toBe("installation");
+  await instance.startPull();expect(instance.snapshot().state).toBe("ready_to_restart");await instance.restart();expect(instance.snapshot().state).toBe("restarting");expect(calls).toEqual(["prepare:"+plan.id,"apply:"+plan.id]);
+});
+
+test("an installed but unavailable updater fails closed",async()=>{
+  const unavailable=async()=>{throw Error("host service unavailable");};
+  const instance=manager({installationClient:{installed:async()=>true,status:unavailable,check:unavailable,prepare:unavailable,apply:unavailable,rollback:unavailable}});
+  await instance.initialize(context().ctx);expect(instance.snapshot()).toMatchObject({updateScope:"installation",state:"failed"});expect(()=>instance.startPull()).toThrow("No update is available");
+});
+
+
+test("installation progress polls quickly and clears restarting when the host finishes",async()=>{
+  let phase:import("@kintsugi/shared/installation-update").InstallationUpdate["phase"]="updating";let tick:(()=>void)|undefined;let milliseconds=0;
+  const status=async()=>({phase,message:phase});
+  const instance=manager({installationClient:{installed:async()=>true,status,check:status,prepare:status,apply:status,rollback:status},setInterval:(callback,ms)=>{tick=callback;milliseconds=ms;}});
+  await instance.initialize(context().ctx);expect(milliseconds).toBe(2000);expect(instance.snapshot().state).toBe("restarting");phase="succeeded";tick!();await Bun.sleep(0);expect(instance.snapshot().state).toBe("idle");
+});
+
+
+test("temporary service loss during restart recovers without app-only fallback",async()=>{
+  let available=false;let tick:(()=>void)|undefined;const status=async()=>{if(!available)throw Error("socket unavailable");return {phase:"succeeded" as const,message:"healthy"};};
+  const instance=manager({installationClient:{installed:async()=>true,status,check:status,prepare:status,apply:status,rollback:status},setInterval:callback=>{tick=callback;}});
+  await instance.initialize(context().ctx);expect(instance.snapshot()).toMatchObject({updateScope:"installation",state:"failed"});available=true;tick!();await Bun.sleep(0);expect(instance.snapshot().state).toBe("idle");
 });

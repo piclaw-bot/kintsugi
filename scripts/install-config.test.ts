@@ -40,15 +40,17 @@ test("updates retain saved source, pins and hostname, while explicit upstream se
 }));
 
 test("registry-qualified overrides persist on existing installations; local overrides remain one-off", () => fixture(async (directory, run) => {
+  await writeFile(join(directory,"app/update.json"),JSON.stringify({releaseSelection:"latest",releaseChannel:"latest",releaseMode:"upstream"}));
   expect(run("apply", "", "ghcr.io/example/app:v2", `ghcr.io/example/system@${pinned}`, "saved-name", pinned, previous, "", pinned).status).toBe(0);
   const settings = await readReleaseSettings(join(directory, "app/update.json"));
   expect(releaseReference(settings, "app")).toBe("ghcr.io/example/app:v2");
+  expect(selectedReleaseChannel(settings)).toBe("custom");
   expect(run("plan", "", "local-app:test", "local-system:test", "").stdout.split("\n").slice(0, 2)).toEqual(["local-system:test", "local-app:test"]);
   expect(run("apply", "", "local-app:test", "local-system:test", "", pinned, previous, "", pinned).status).toBe(0);
   expect(await readReleaseSettings(join(directory, "app/update.json"))).toEqual(settings);
 }));
 
-test.each(["{", "null", "[]", '{"releaseMode":"custom"}', '{"releaseSource":{"appRepository":"bad"}}'])("malformed settings %s do not fall back to upstream", settings => fixture(async (directory, run) => {
+test.each(["{", "null", "[]", '{"releaseSelection":"invalid"}', '{"releaseMode":"custom"}', '{"releaseSource":{"appRepository":"bad"}}'])("malformed settings %s do not fall back to upstream", settings => fixture(async (directory, run) => {
   await writeFile(join(directory, "app/update.json"), settings);
   expect(run("plan", "", "", "", "").status).not.toBe(0);
   expect(run("plan", "", "", "", "").stdout).toBe("");

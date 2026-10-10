@@ -162,18 +162,18 @@ Release [`v0.0.1`](https://github.com/rcarmo/kintsugi/releases/tag/v0.0.1) passe
 
 ## Fork release sources
 
-App updates and the host installer consume the persisted release selection below. Only pushed version tags publish verified app, System and workspace manifests; ordinary branch CI never publishes images. Upstream-sync automation is not configured. Installer install/update requires a System image carrying `kintsugi.installer-config=1`, built from this branch; an incompatible image is rejected before the existing System is stopped. A retained older System image can still be restored with installer rollback.
+The updater and host installer consume the persisted release selection below. Only pushed version tags publish verified app, System and workspace manifests; ordinary branch CI never publishes images. Upstream-sync automation is not configured. Installer install/update requires a System image carrying `kintsugi.installer-config=1`, built from this branch; an incompatible image is rejected before the existing System is stopped. A retained older System image can still be restored with installer rollback.
 
-System-managed installations store release selection in `/data/app/update.json`. Stable and Latest explicitly select this fork’s release images; Custom selects the saved Docker repositories and pins. Switching to a standard channel retains the custom source for later use. Existing files with a `releaseSource` show Custom and keep their previous Stable/Latest tag selection. Custom never silently falls back to the default source. Invalid settings disable updates without preventing the app from starting.
+System-managed installations store release selection in `/data/app/update.json`. Stable and Latest follow the configured repositories using their corresponding tags. Choosing either replaces active version pins without resetting the repositories. Custom shows the repository and version fields; these fields are hidden for Stable and Latest. Existing saved version pins remain unchanged until a channel is explicitly selected. Custom never silently falls back to the default source. Invalid settings disable updates without preventing the app from starting.
 
 Update settings endpoints (also available on admin listeners with the `security` scope):
 
 - `GET/POST /settings/release-source`: read or replace both GHCR or Docker Hub repositories and optional pins. Saving selects Custom.
 - `POST /settings/update-channel`: select `{"channel":"stable"}`, `{"channel":"latest"}`, or `{"channel":"custom"}`.
 - `GET/POST/DELETE /settings/release-registry`: inspect credential availability, store package read credentials, or remove them. POST takes `{"username":"github-user","token":"package-read-token"}`; no read operation returns credentials.
-- `GET /update/status`: inspect app update state.
-- `POST /update/check-now`, `/update/start`, `/update/restart`: check, prepare, then restart the app. Send `{}` for these mutations.
-- `POST /update/rollback`: restart the previous locally retained app image. Its workspace dependencies must still be present. Mutable dependency aliases are not yet restored on rollback; avoid mutable workspace dependency tags. This does not roll back stored app data or System.
+- `GET /update/status`: inspect update state and `updateScope` (`installation` or `app`).
+- `POST /update/check-now`, `/update/start`, `/update/restart`: check, download, then restart to apply the selected update. Send `{}` for these mutations.
+- `POST /update/rollback`: with the host updater, restore the recorded System/app image pair after validating it against installer history. Without it, restore only the previous locally retained app image. Workspace dependencies must still be present. Custom images with mutable dependency tags do not restore old aliases; use immutable dependency references for reliable rollback. Neither operation rolls back stored app data.
 
 A release-source body contains:
 
@@ -185,9 +185,30 @@ A release-source body contains:
 }
 ```
 
-`appVersion` and `systemVersion` accept a tag or `sha256:` digest. Omit a custom version to use the last selected Stable/Latest tag (Latest on a new installation). Public Docker Hub sources use an explicit `docker.io/owner/name` repository; private authentication currently supports GHCR only. Source changes discard a prepared app update. A successful save remains successful even when the subsequent registry check fails; `/update/status` reports that failure. System resolves the app and its declared dependency metadata before pulling immutable references; it retains the previous app image before replacement for recovery.
+`appVersion` and `systemVersion` accept a tag or `sha256:` digest. Omit a custom version to follow Latest. Public Docker Hub sources use an explicit `docker.io/owner/name` repository; private authentication currently supports GHCR only. Source changes invalidate the prepared installation plan. A successful save remains successful even when the subsequent registry check fails; `/update/status` reports that failure. System resolves the app and its declared dependency metadata before pulling immutable references; it retains the previous app image before replacement for recovery.
 
-Private GHCR credentials live in System's `/data/supervisor/docker-auth/config.json` (mode `0600`, directory `0700`), outside the app/workspace bind mounts. Registry token requests cannot redirect. Recognised signed blob-storage redirects receive no registry bearer token. The installer reuses saved GHCR auth for host pulls through a temporary Docker configuration with restrictive permissions, removed on exit. It never sends those credentials to workspace containers.
+Private GHCR credentials live in System's `/data/supervisor/docker-auth/config.json` (mode `0600`, directory `0700`), outside the app/workspace bind mounts. Registry token requests cannot redirect. Recognised signed blob-storage redirects receive no registry bearer token. The installer reuses saved GHCR auth for host pulls from its private configuration on the physical host when running as root; explicitly supplied credential files remain supported. It never sends those credentials to workspace containers.
+
+### Default host updater
+
+On Linux with systemd, the installer enables `kintsugi-updater.service` by default. The existing **Check now → Download update → Restart to update** controls resolve immutable app and System images, prepare workspace image dependencies, and replace the whole installation. Downloads do not replace running containers. Restart interrupts workspaces but retains their saved data, storage driver, proxy configuration and published ports. Dependency downloads do not rewrite user-installed workspace packages or explicit workspace image/template selections.
+
+The root service owns physical-host Docker. System receives only the private `/run/kintsugi-updater/control.sock` directory, mounted read-only; neither System nor the app receives physical-host Docker's socket. State is root-private in `/var/lib/kintsugi-updater`. Packaged code lives in `/usr/local/lib/kintsugi-updater`. Interrupted operations are reported as failed rather than resumed blindly. A failed replacement attempts recovery only when installer history matches the recorded previous image pair. Recovery restores images, not data; incompatible persisted data may still require host intervention.
+
+Existing installations need one reviewed host-installer update from a release containing this service, with matching app/System images and `--confirm-replace`. This change is not present in previously published releases. Do not point an old installer at an unpublished version. The Host terminal in Kintsugi is inside System, not the physical OS; run this one-time enablement through the physical host's terminal or SSH.
+
+Use `--no-updater` to skip service installation and its socket mount, for example in disposable fixtures or non-systemd environments. macOS remains app-only. Without the service, Settings explicitly reports that web updates replace only the app. An installed but unavailable service fails closed rather than silently using app-only replacement.
+
+Inspect the physical host with `sudo systemctl status kintsugi-updater.service` and `sudo journalctl -u kintsugi-updater.service`. Subprocess failures are recorded in root-private `/var/lib/kintsugi-updater/diagnostics.log`; do not copy this file into public bug reports without reviewing it for secrets. Normal unattended setup also needs permission for the service's file installation and systemd commands, not just module loading.
+
+The disposable native updater fixture exercises the existing JSON controls, real System/app replacement, reconnect, retained-pair rollback, saved data/storage/source selection, proxy publications and the private read-only socket boundary:
+
+```sh
+bun scripts/verify-installation-updater.ts --app LOCAL_APP --system LOCAL_SYSTEM \
+  --workspace LOCAL_WORKSPACE --out updater-receipts.json
+```
+
+Use matching locally built images. Registry resolution/pulls are mapped to preloaded local image IDs; this is not a private-registry network or systemd installation test. Native AMD64 replacement/reconnect/rollback passed locally. Default service installation, root-private file permissions, app discovery and socket relay after unit restart also passed in a disposable native Linux/systemd host analogue. Physical ARM acceptance remains unverified.
 
 ### Installer setup, update and rollback
 
@@ -285,7 +306,7 @@ The `access` section controls **Connection mode** in a System-managed installati
 
 **Commit identity** uses section `commit-identity` and POST `/settings/commit-identity` with `commitAuthorName` and `commitAuthorEmail`. Existing `git-identity` section links and POST `/settings/git-identity` remain valid.
 
-The `update-channel` section is **Update channel**, with **Stable** and **Latest** choices. Its POST endpoint is `/settings/update-channel` with form field `channel=stable` or `channel=latest`. The image tags and saved settings format are unchanged.
+The `update-channel` section is **Update channel**, with **Stable**, **Latest** and **Custom** choices. Its POST endpoint is `/settings/update-channel` with form field `channel=stable`, `channel=latest` or `channel=custom`. The image tags and saved settings format are unchanged.
 
 The `update` section is **Updates**, the feature for managing Kintsugi installation Updates. It is separate from Workspace package and agent CLI updates.
 

@@ -78,7 +78,7 @@ try {
     await Bun.write(path,script);
     const input=join(directory,"bootstrap.json"), output=join(directory,"issued.json"), result=join(directory,"result.json");
     await Bun.write(input,JSON.stringify({bindings:[{host:"0.0.0.0",port:3443,tls:{cert:"/data/app/admin-tls/cert.pem",key:"/data/app/admin-tls/key.pem"}},{host:"127.0.0.1",port:3445}],token:{name:"proxy-integration",scopes:[...adminScopes]}}));
-    await run(["bash",path,"--non-interactive","--action","install","--access-mode","proxy","--storage-driver",storageDriver,"--tailscale-hostname","integration-cloud","--system-image",values.system!,"--app-image",fixtureApp,"--public-origin",proxyOrigin,"--acknowledge-lan-trust","--ui-publish",`127.0.0.1:${hostPort+5}:3081`,"--admin-proxy-publish",`127.0.0.1:${hostPort+6}:3082`,"--admin-proxy-port","3445","--admin-publish",`127.0.0.1:${hostPort}:3443`,"--admin-bootstrap",input,"--admin-token-output",output,"--result-file",result]);
+    await run(["bash",path,"--no-updater","--non-interactive","--action","install","--access-mode","proxy","--storage-driver",storageDriver,"--tailscale-hostname","integration-cloud","--system-image",values.system!,"--app-image",fixtureApp,"--public-origin",proxyOrigin,"--acknowledge-lan-trust","--ui-publish",`127.0.0.1:${hostPort+5}:3081`,"--admin-proxy-publish",`127.0.0.1:${hostPort+6}:3082`,"--admin-proxy-port","3445","--admin-publish",`127.0.0.1:${hostPort}:3443`,"--admin-bootstrap",input,"--admin-token-output",output,"--result-file",result]);
     const issuedProxy=JSON.parse(await readFile(output,"utf8"));proxySecret=issuedProxy.secret;
     const receipt=JSON.parse(await readFile(result,"utf8"));
     assert.equal(receipt.storageDriver,storageDriver);assert.equal(receipt.uiUrl,proxyOrigin);assert.equal(receipt.admin.authenticatedApiReady,true);
@@ -186,7 +186,7 @@ try {
       .replace("run_root tee /etc/modules-load.d", "tee /etc/modules-load.d")
       .replaceAll("/etc/modules-load.d", `${directory}/modules`);
     const path = join(directory, "install.sh"); await Bun.write(path, script);
-    await run(["bash", path, "--action", "update", "--system-image", values["installer-system"], "--app-image", installerApp, "--tailscale-hostname", "integration-cloud", "--non-interactive", "--confirm-replace"]);
+    await run(["bash", path, "--no-updater", "--action", "update", "--system-image", values["installer-system"], "--app-image", installerApp, "--tailscale-hostname", "integration-cloud", "--non-interactive", "--confirm-replace"]);
     assert.equal(await run(["docker", "inspect", "--format", "{{.Config.Hostname}}", name]), "integration-cloud");
     const updated = JSON.parse(await exec("bun", "-e", 'console.log(JSON.stringify(await (await fetch("http://127.0.0.1:3001/status")).json()))'));
     assert.equal(updated.currentImage, installerAppId); assert.equal(updated.healthy, true);
@@ -196,7 +196,7 @@ try {
     assert.equal(selected.releaseSource.appRepository, "ghcr.io/example/fixture-app");
     assert.equal(selected.releaseSource.systemRepository, "ghcr.io/example/fixture-system");
     assert.equal(await run(["docker", "inspect", "--format", mappingTemplate, name]), mapping);
-    await run(["bash", path, "--action", "rollback", "--non-interactive", "--confirm-replace"]);
+    await run(["bash", path, "--no-updater", "--action", "rollback", "--non-interactive", "--confirm-replace"]);
     assert.equal(await run(["docker", "inspect", "--format", "{{.Image}}", name]), originalSystem);
     const restored = JSON.parse(await exec("bun", "-e", 'console.log(JSON.stringify(await (await fetch("http://127.0.0.1:3001/status")).json()))'));
     assert.equal(restored.currentImage, originalApp); assert.equal(restored.healthy, true);

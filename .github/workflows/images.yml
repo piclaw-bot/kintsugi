@@ -74,9 +74,9 @@ jobs:
           bun packages/workspace-image/scripts/build-context.mjs .ci-image-context/workspace
           mkdir -p .ci-image-context/system/.build
           cp images/system/Dockerfile images/system/.dockerignore .ci-image-context/system/
-          cp images/system/.build/{supervisor.js,client.js,design-system.css} .ci-image-context/system/.build/
+          cp images/system/.build/{supervisor.js,client.js,design-system.css,host-updater.js,install.sh} .ci-image-context/system/.build/
           signature=$(jq -er '.tag | select(startswith("kintsugi-workspace:")) | ltrimstr("kintsugi-workspace:")' .ci-image-context/workspace/metadata.json)
-          system_signature=$(sha256sum images/system/Dockerfile images/system/.build/{supervisor.js,client.js,design-system.css} | sha256sum | cut -d' ' -f1)
+          system_signature=$(sha256sum images/system/Dockerfile images/system/.build/{supervisor.js,client.js,design-system.css,host-updater.js,install.sh} | sha256sum | cut -d' ' -f1)
           owner='${{ github.repository_owner }}'
           {
             echo "commit=$(git rev-parse HEAD)"
