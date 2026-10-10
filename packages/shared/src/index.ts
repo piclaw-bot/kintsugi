@@ -542,3 +542,5 @@ export interface WorkspaceAgentType {
 }
 
 export { createLivePresentation, createPublishedRefresh, liveCollection, type LiveRegion, type LiveSubscription } from "./live-presentation.ts";
+
+export * from "./proxy-access.ts";
