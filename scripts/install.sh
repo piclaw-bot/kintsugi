@@ -14,6 +14,9 @@ old_system_image=""
 action=""
 uninstall_requested=0
 access_mode=""
+admin_publish=()
+admin_publish_disabled=0
+admin_allow_all=0
 system_name=kintsugi-system
 
 # Keep subprocess output available without turning the welcome into a log tail.
@@ -133,6 +136,9 @@ Update also installs the newest Kintsugi app on the installation's selected chan
   --tailscale-hostname NAME  Tailscale machine name (prompted on setup)
   --registry-config FILE  Docker config with inline GHCR auth; copied privately into System
   --access-mode MODE  localhost or tailscale (default selected for this machine)
+  --admin-publish IP:HOST_PORT:ADMIN_PORT  Publish an admin listener (repeatable; TLS/token setup separate)
+  --no-admin-publish   Remove all admin port publications on install/update
+  --allow-admin-all-interfaces  Explicitly allow 0.0.0.0 admin publication (all host interfaces)
   --action ACTION     install, update, rollback, connect, or open
                       connect enables Tailscale without replacing an existing installation
   --uninstall         Permanently delete Kintsugi installation data
@@ -158,6 +164,11 @@ while [ "$#" -gt 0 ]; do
         --access-mode) access_mode="$2" ;;
       esac
       shift 2 ;;
+    --admin-publish)
+      [ "$#" -ge 2 ] && [ -n "$2" ] || fail "$1 requires IP:HOST_PORT:ADMIN_PORT"
+      admin_publish+=("$2"); shift 2 ;;
+    --no-admin-publish) admin_publish_disabled=1; shift ;;
+    --allow-admin-all-interfaces) admin_allow_all=1; shift ;;
     --uninstall) uninstall_requested=1; shift ;;
     -h|--help) usage; exit 0 ;;
     *) fail "unknown option: $1" ;;
@@ -171,6 +182,26 @@ case "$action" in ""|install|update|rollback|connect|open|uninstall) ;; *) fail 
 case "$access_mode" in ""|localhost|tailscale) ;; *) fail "unknown access mode: $access_mode" ;; esac
 for reference in "$app_image_override" "$system_image_override"; do
   [ -z "$reference" ] || [[ "$reference" =~ ^[a-zA-Z0-9][a-zA-Z0-9._/:@-]*$ ]] || fail "Invalid explicit image reference"
+done
+validate_admin_publish() {
+  local mapping="$1" ip host_port container_port octet
+  local -a octets
+  [[ "$mapping" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}:[0-9]{1,5}:[0-9]{1,5}$ ]] || fail "--admin-publish requires an explicit IPv4 IP:HOST_PORT:ADMIN_PORT"
+  IFS=: read -r ip host_port container_port <<<"$mapping"
+  IFS=. read -r -a octets <<<"$ip"
+  for octet in "${octets[@]}"; do [ "$((10#$octet))" -le 255 ] || fail "Invalid admin publication IP"; done
+  host_port=$((10#$host_port)); container_port=$((10#$container_port))
+  [ "$host_port" -ge 1024 ] && [ "$host_port" -le 65535 ] && [ "$container_port" -ge 1024 ] && [ "$container_port" -le 65535 ] || fail "Admin ports must be between 1024 and 65535"
+  case "$container_port" in 2999|3000|3001|3080|24800) fail "Cannot publish an internal management or gateway port as an admin listener" ;; esac
+  [ "$container_port" -lt 41000 ] || [ "$container_port" -gt 41999 ] || fail "Cannot publish a workspace preview port as an admin listener"
+}
+[ "$admin_publish_disabled" -eq 0 ] || [ "${#admin_publish[@]}" -eq 0 ] || fail "--no-admin-publish cannot be combined with --admin-publish"
+for mapping in "${admin_publish[@]}"; do
+  validate_admin_publish "$mapping"
+  if [[ "$mapping" == 0.0.0.0:* ]]; then
+    [ "$admin_allow_all" -eq 1 ] || fail "0.0.0.0 exposes all host interfaces; requires --allow-admin-all-interfaces"
+    printf 'Warning: admin publication covers all interfaces, possibly public. Docker publication may bypass host firewall rules.\n' >&2
+  fi
 done
 # stdin may carry the script itself (curl | bash). With sudo's use_pty option,
 # /dev/tty is sudo's relay PTY and receives no input when sudo itself was piped.
@@ -517,6 +548,9 @@ if [ -n "$source_repository$tailscale_hostname$registry_config$app_image_overrid
   case "$action" in install|update) ;; *) fail "Source, hostname, registry and image options require install or update" ;; esac
 fi
 
+if [ "${#admin_publish[@]}" -gt 0 ] || [ "$admin_publish_disabled" -eq 1 ] || [ "$admin_allow_all" -eq 1 ]; then
+  case "$action" in install|update) ;; *) fail "Admin publication options require --action install or update; Docker ports require container replacement" ;; esac
+fi
 
 # This portable Bun helper also runs in older System images, without app/module dependencies.
 release_config_script="$(cat <<'INSTALLER_CONFIG_JS'
@@ -716,18 +750,19 @@ case "$action" in
     if [ -n "$registry_directory" ] && [ "$host_os" = Darwin ] && [ "$(id -u)" -eq 0 ] && [ -n "${SUDO_USER:-}" ]; then
       chown "$SUDO_USER" "$registry_directory" "$registry_directory/config.json"
     fi
-    # Retain existing host port publications; replacements must not reset access.
-    publication_args=()
-    if [ "$installed" -eq 1 ]; then
+    # Preserve existing publications unless the caller explicitly replaces/removes them.
+    admin_port_args=()
+    if [ "$installed" -eq 1 ] && [ "${#admin_publish[@]}" -eq 0 ] && [ "$admin_publish_disabled" -eq 0 ]; then
       saved_publications="$(docker inspect --format '{{range $port, $bindings := .HostConfig.PortBindings}}{{if ne $port "3080/tcp"}}{{range $bindings}}{{.HostIp}}:{{.HostPort}}:{{$port}}{{println}}{{end}}{{end}}{{end}}' "$system_name")"
       while IFS= read -r mapping; do
         [ -n "$mapping" ] || continue
-        [[ "$mapping" =~ ^(.*):([0-9]+):([0-9]+)/(tcp|udp)$ ]] || fail "Invalid retained port publication"
-        host_ip="${BASH_REMATCH[1]:-0.0.0.0}"
-        [[ "$host_ip" != *:* ]] || host_ip="[$host_ip]"
-        publication_args+=(--publish "$host_ip:${BASH_REMATCH[2]}:${BASH_REMATCH[3]}/${BASH_REMATCH[4]}")
+        port="${mapping##*:}"; address="${mapping%:*}"
+        host_port="${address##*:}"; host_ip="${address%:*}"
+        if [[ "$host_ip" == *:* ]]; then host_ip="[$host_ip]"; fi
+        admin_port_args+=(--publish "$host_ip:$host_port:$port")
       done <<<"$saved_publications"
     fi
+    for mapping in "${admin_publish[@]}"; do admin_port_args+=(--publish "$mapping"); done
     pull_log_start="$(($(wc -l <"$log_file") + 1))"
     if [ "$action" = rollback ]; then
       docker image inspect "$system_image" >>"$log_file" 2>&1 || fail "Previous System image is no longer retained; nothing was replaced"
@@ -780,7 +815,7 @@ case "$action" in
     fi
     stop_on_failure=1
     run_quiet "Starting Kintsugi services" docker run -d --name "$system_name" --hostname "$tailscale_hostname" --privileged --cgroupns=host --restart unless-stopped \
-      --stop-timeout 120 --tmpfs /run --mount "source=$system_name,target=/data" --publish 127.0.0.1:3080:3080 "${publication_args[@]}" \
+      --stop-timeout 120 --tmpfs /run --mount "source=$system_name,target=/data" --publish 127.0.0.1:3080:3080 "${admin_port_args[@]}" \
       "$system_image" --app-image "$app_image" --access-mode "${access_mode:-tailscale}"
     ;;
   connect)

@@ -4,14 +4,16 @@
 
 Kintsugi is an opinionated fork of [AgentsInTheCloud](https://github.com/lucasmeijer/AgentsInTheCloud), originally created by Lucas Meijer. It runs coding agents on your own infrastructure, with your choice of model providers and tools for evaluating their work.
 
-The fork adds an embedded Draw.io editor and diagram previews, configurable Docker release sources, private GHCR authentication, pinned updates and installer rollback. The name comes from **金継ぎ**, the Japanese art of repairing pottery with gold.
+This fork adds an embedded Draw.io editor and diagram previews, a scoped management API, configurable Docker release sources, private GHCR authentication, pinned updates and installer rollback.
+
+The name comes from **金継ぎ**, the Japanese art of repairing pottery with gold, because the original project was a brilliant way to glue together several components and I want to honor that approach.
 
 ## Installation
 
-Use a dedicated Linux server with Docker. This branch selects `ghcr.io/rcarmo/kintsugi` and `ghcr.io/rcarmo/kintsugi-system`; matching images must be available before installation.
+Use a dedicated Linux server with Docker. The installer defaults to `ghcr.io/rcarmo/kintsugi` and `ghcr.io/rcarmo/kintsugi-system`; matching images must be available before installation.
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/rcarmo/kintsugi/feature/rebranding-kintsugi/scripts/install.sh -o /tmp/install-kintsugi.sh
+curl -fsSL https://raw.githubusercontent.com/rcarmo/kintsugi/main/scripts/install.sh -o /tmp/install-kintsugi.sh
 bash /tmp/install-kintsugi.sh --action install
 ```
 
@@ -19,14 +21,13 @@ Setup asks for the app image repository and Tailscale machine name. System defau
 
 ## Management API
 
-The app exposes an HTTP management interface for workspaces, agents, Work views and configuration. Discover its endpoints and request schemas at `GET /openapi.json`. Send `Accept: application/json` to request JSON representations of supported UI operations.
+Kintsugi provides an optional token-authenticated JSON management API for host-local or LAN automation without Tailscale. It is **disabled by default**. Configure listeners and issue scoped tokens with `apps/web/scripts/admin-bindings.ts`.
 
-```sh
-curl -fsS http://localhost:3000/workspaces \
-  -H 'Accept: application/json'
-```
+Scopes cover workspace lifecycle, templates and shared configuration, secrets, SSH configuration, host diagnostics, and release/update management. Every request, including `GET /openapi.json`, requires `Authorization: Bearer <token>`. The `security` scope grants administrative power, including issuing tokens; grant it sparingly.
 
-Mutations also require `Content-Type: application/json` and an `Origin` header matching the app URL. The interface uses the app's existing access boundary; the `Origin` check prevents CSRF, not unauthorised access. Do not expose it to untrusted networks. See [automation](docs/automation.md) for commands, configuration and access requirements.
+Non-loopback listeners require TLS, including listeners published through Docker. The installer publishes no admin ports unless explicitly requested with `--admin-publish IP:HOST_PORT:ADMIN_PORT`. Docker publications can bypass host firewall rules: bind to a trusted interface and enforce network filtering. See [admin setup and permissions](docs/automation.md#optional-authenticated-admin-bindings) for configuration, certificates, token storage and revocation.
+
+The normal app also supports JSON representations of UI operations for agents and Work views. Those use the app's existing access boundary and require a matching `Origin` on mutations; this CSRF check is not authentication. Agent prompting, arbitrary commands and terminal access are not exposed through admin listeners.
 
 ## Development
 
