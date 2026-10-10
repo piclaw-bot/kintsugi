@@ -26,7 +26,7 @@ export function validateBindings(value: JsonValue): AdminBinding[] {
   const addresses = new Set<string>();
   for (const binding of value) {
     if (!isIP(binding.host)) throw new Error("Admin bind host must be an explicit IPv4 or IPv6 address");
-    if ([2999, 3000, 3001, 3080, 24800].includes(binding.port) || (binding.port >= 41000 && binding.port <= 41999)) throw new Error("Invalid admin bindings: reserved service port");
+    if ([2999, 3000, 3001, 3080, 3081, 3082, 24800].includes(binding.port) || (binding.port >= 41000 && binding.port <= 41999)) throw new Error("Invalid admin bindings: reserved service port");
     const loopback = binding.host === "::1" || binding.host.startsWith("127.");
     if (!loopback && !binding.tls) throw new Error("Non-loopback admin bindings require TLS");
     if (binding.tls && (!isAbsolute(binding.tls.cert) || !isAbsolute(binding.tls.key))) throw new Error("TLS certificate and key paths must be absolute");
@@ -40,6 +40,14 @@ export function validateBindings(value: JsonValue): AdminBinding[] {
 function validExpiry(value: string) {
   if (!new RegExp(expiryPattern).test(value) || !Number.isFinite(Date.parse(value))) return false;
   return new Date(value).toISOString() === (value.includes(".") ? value : value.replace("Z", ".000Z"));
+}
+
+export function validateAdminBootstrap(value: JsonValue) {
+  const schema = Type.Object({ bindings: Type.Array(bindingSchema, { minItems: 1 }), token: tokenInputSchema }, { additionalProperties: false });
+  if (!Value.Check(schema, value)) throw new Error("Expected bootstrap { bindings: [...], token: { name, scopes, expiresAt? } }");
+  validateBindings(value.bindings);
+  if (value.token.expiresAt !== undefined && (!validExpiry(value.token.expiresAt) || Date.parse(value.token.expiresAt) <= Date.now())) throw new Error("Token expiry must be a future timestamp");
+  return value;
 }
 
 const hashToken = (secret: string) => createHash("sha256").update(secret).digest("hex");
@@ -76,6 +84,19 @@ export function createAdminStore(path: string) {
       const secret = `kintsugi_admin_${randomBytes(32).toString("base64url")}`;
       const token: AdminToken = { ...value, id: crypto.randomUUID(), createdAt: new Date().toISOString(), hash: hashToken(secret) };
       return update(config => { config.tokens.push(token); return { token: publicToken(token), secret }; });
+    },
+    async bootstrap(value: JsonValue, deliver: (issued: { token: ReturnType<typeof publicToken>; secret: string }) => Promise<() => Promise<void>>) {
+      const input = validateAdminBootstrap(value);
+      return lock(async () => {
+        const config = await read();
+        const secret = `kintsugi_admin_${randomBytes(32).toString("base64url")}`;
+        const token: AdminToken = { ...input.token, id: crypto.randomUUID(), createdAt: new Date().toISOString(), hash: hashToken(secret) };
+        const rollbackDelivery = await deliver({ token: publicToken(token), secret });
+        config.bindings = input.bindings; config.tokens.push(token);
+        try { await writeJsonAtomic(path, config, { mode: 0o600 }); }
+        catch (error) { await rollbackDelivery(); throw error; }
+        return { bindings: config.bindings, token: publicToken(token), restartRequired: true };
+      });
     },
     async revoke(id: string) {
       return update(config => {

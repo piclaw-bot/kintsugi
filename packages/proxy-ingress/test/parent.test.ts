@@ -74,3 +74,13 @@ test("older System resources do not advertise the access protocol", async () => 
   oldFiles.add("/run/kintsugi-parent");
   expect((await detectParentOriginPublisher(undefined, path => oldFiles.has(path))).kind).toBe("kintsugi");
 });
+
+test("System proxy publication uses the single LAN hostname on distinct ports", async () => {
+  const { createSystemOriginPublisher } = await import("../src/ingress/parent.ts");
+  const proxy = {origin:"https://agent-host.local",previewPorts:{start:41000,end:41009}};
+  const publisher=createSystemOriginPublisher(undefined,async()=>Response.json({mode:"proxy",proxy}));
+  expect(await publisher.publish(41001)).toBe("https://agent-host.local:41001");
+  await expect(publisher.publish(41010)).rejects.toThrow("outside");
+  const invalid=createSystemOriginPublisher(undefined,async()=>Response.json({mode:"proxy"}));
+  await expect(invalid.publish(41000)).rejects.toThrow("configuration");
+});

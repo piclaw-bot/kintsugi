@@ -1,3 +1,4 @@
+import { accessModeSchema } from "@kintsugi/shared";
 import { releaseSourceSchema, registryCredentialSchema } from "@kintsugi/shared/release-source";
 import { Type, type TSchema } from "typebox";
 import type { AdminRoute } from "./routes.ts";
@@ -36,6 +37,6 @@ export function adminInputSchema(route: AdminRoute): TSchema {
   if (path === "/workspaces/{id}/delete") return object({ force: Type.Optional(Type.Boolean()) });
   if (path === "/admin/bindings") return object({ bindings: Type.Array(bindingSchema) });
   if (path === "/admin/tokens") return tokenInputSchema;
-  if (path === "/settings/access") return object({ mode: Type.Union([Type.Literal("localhost"), Type.Literal("tailscale")]) });
+  if (path === "/settings/access") return object({ mode: accessModeSchema });
   return empty;
 }

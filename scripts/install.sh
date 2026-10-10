@@ -20,6 +20,21 @@ admin_allow_all=0
 storage_driver="erofs"
 storage_override=""
 system_name=kintsugi-system
+non_interactive=0
+confirm_replace=0
+confirm_delete=0
+install_docker=0
+lan_trust=0
+public_origin=""
+preview_ports="41000:41009"
+ui_publish=""
+admin_proxy_publish=""
+admin_proxy_port="3443"
+proxy_config=""
+admin_bootstrap=""
+admin_token_output=""
+result_file=""
+admin_ready=false
 
 # Keep subprocess output available without turning the welcome into a log tail.
 log_file=""
@@ -73,6 +88,7 @@ fail() {
   exit 1
 }
 prompt() {
+  [ "$non_interactive" -eq 0 ] || fail "Missing unattended input: $2"
   printf '%s' "$2"
   IFS= read -r -t 120 "$1" <"$prompt_input" || fail "No response received within 2 minutes, or terminal input closed. Run the installer again when ready."
 }
@@ -138,7 +154,20 @@ Update also installs the newest Kintsugi app on the installation's selected chan
   --tailscale-hostname NAME  Tailscale machine name (prompted on setup)
   --registry-config FILE  Docker config with inline GHCR auth; copied privately into System
   --storage-driver MODE  erofs (default) or overlayfs; selected on fresh install, retained on update
-  --access-mode MODE  localhost or tailscale (default selected for this machine)
+  --access-mode MODE  localhost, proxy (trusted LAN), or tailscale
+  --non-interactive   Never prompt; fully specify fresh install inputs
+  --confirm-replace   Confirm interruption for unattended update/rollback
+  --confirm-delete    Confirm permanent deletion for unattended uninstall
+  --install-docker    Allow unattended Docker package installation
+  --public-origin URL  Advertised UI origin for proxy mode (no path)
+  --preview-ports FIRST:LAST  Proxy preview ports (default 41000:41009)
+  --ui-publish 127.IP:HOST_PORT:3081  Loopback UI upstream for external proxy
+  --admin-proxy-publish 127.IP:HOST_PORT:3082  Loopback upstream to loopback HTTP API
+  --admin-proxy-port PORT  Inner HTTP admin listener (default 3443)
+  --acknowledge-lan-trust  Everyone who can reach the UI is trusted
+  --admin-bootstrap FILE  JSON {bindings:[...],token:{name,scopes,expiresAt?}}
+  --admin-token-output FILE|-  New private token file or secure stdout capture
+  --result-file FILE|-  Credential-free JSON result; progress stays on stderr
   --admin-publish IP:HOST_PORT:ADMIN_PORT  Publish an admin listener (repeatable; TLS/token setup separate)
   --no-admin-publish   Remove all admin port publications on install/update
   --allow-admin-all-interfaces  Explicitly allow 0.0.0.0 admin publication (all host interfaces)
@@ -155,7 +184,7 @@ HELP
 
 while [ "$#" -gt 0 ]; do
   case "$1" in
-    --system-image|--app-image|--action|--access-mode|--source-repository|--tailscale-hostname|--registry-config|--storage-driver)
+    --system-image|--app-image|--action|--access-mode|--source-repository|--tailscale-hostname|--registry-config|--storage-driver|--public-origin|--preview-ports|--ui-publish|--admin-proxy-publish|--admin-proxy-port|--admin-bootstrap|--admin-token-output|--result-file)
       [ "$#" -ge 2 ] && [ -n "$2" ] || fail "$1 requires a value"
       case "$1" in
         --system-image) system_image="$2"; system_image_override="$2" ;;
@@ -166,11 +195,24 @@ while [ "$#" -gt 0 ]; do
         --registry-config) registry_config="$2" ;;
         --action) action="$2" ;;
         --access-mode) access_mode="$2" ;;
+        --public-origin) public_origin="$2" ;;
+        --preview-ports) preview_ports="$2" ;;
+        --ui-publish) ui_publish="$2" ;;
+        --admin-proxy-publish) admin_proxy_publish="$2" ;;
+        --admin-proxy-port) admin_proxy_port="$2" ;;
+        --admin-bootstrap) admin_bootstrap="$2" ;;
+        --admin-token-output) admin_token_output="$2" ;;
+        --result-file) result_file="$2" ;;
       esac
       shift 2 ;;
     --admin-publish)
       [ "$#" -ge 2 ] && [ -n "$2" ] || fail "$1 requires IP:HOST_PORT:ADMIN_PORT"
       admin_publish+=("$2"); shift 2 ;;
+    --non-interactive) non_interactive=1; shift ;;
+    --confirm-replace) confirm_replace=1; shift ;;
+    --confirm-delete) confirm_delete=1; shift ;;
+    --install-docker) install_docker=1; shift ;;
+    --acknowledge-lan-trust) lan_trust=1; shift ;;
     --no-admin-publish) admin_publish_disabled=1; shift ;;
     --allow-admin-all-interfaces) admin_allow_all=1; shift ;;
     --uninstall) uninstall_requested=1; shift ;;
@@ -183,11 +225,61 @@ if [ "$uninstall_requested" -eq 1 ]; then
   action=uninstall
 fi
 case "$action" in ""|install|update|rollback|connect|open|uninstall) ;; *) fail "unknown action: $action" ;; esac
-case "$access_mode" in ""|localhost|tailscale) ;; *) fail "unknown access mode: $access_mode" ;; esac
+case "$access_mode" in ""|localhost|proxy|tailscale) ;; *) fail "unknown access mode: $access_mode" ;; esac
 case "$storage_driver" in erofs|overlayfs) ;; *) fail "Storage driver must be erofs or overlayfs" ;; esac
 for reference in "$app_image_override" "$system_image_override"; do
   [ -z "$reference" ] || [[ "$reference" =~ ^[a-zA-Z0-9][a-zA-Z0-9._/:@-]*$ ]] || fail "Invalid explicit image reference"
 done
+# Validate unattended intent before any package, kernel or Docker mutation.
+if [ "$non_interactive" -eq 1 ]; then
+  [ -n "$action" ] || fail "--non-interactive requires --action"
+  case "$action" in
+    update|rollback) [ "$confirm_replace" -eq 1 ] || fail "Unattended replacement requires --confirm-replace" ;;
+    uninstall) [ "$confirm_delete" -eq 1 ] || fail "Unattended uninstall requires --confirm-delete" ;;
+    install)
+      [ -n "$access_mode" ] && [ -n "$storage_override" ] && [ -n "$tailscale_hostname" ] || fail "Unattended install requires --access-mode, --storage-driver and --tailscale-hostname"
+      [ -n "$source_repository" ] || { [ -n "$app_image_override" ] && [ -n "$system_image_override" ]; } || fail "Unattended install requires --source-repository or both image overrides"
+      ;;
+  esac
+fi
+exec 3>&1
+if [ -n "$result_file" ] || [ "$admin_token_output" = - ]; then
+  exec 1>&2
+  interactive=0
+  if [ -n "$result_file" ] && [ "$result_file" != - ]; then (umask 077; set -o noclobber; : > "$result_file") || fail "Result file must be a new writable file"; fi
+fi
+[ "$admin_token_output" != - ] || [ "$result_file" != - ] || fail "Token and result cannot both use stdout"
+if [ -n "$admin_bootstrap" ]; then
+  [ -f "$admin_bootstrap" ] && [ -r "$admin_bootstrap" ] || fail "Admin bootstrap file must be readable"
+  [ -n "$admin_token_output" ] || fail "--admin-bootstrap requires --admin-token-output"
+  if [ "$admin_token_output" != - ]; then
+    [ ! -e "$admin_token_output" ] && [ ! -L "$admin_token_output" ] || fail "Token output must be a new file"
+  fi
+else
+  [ -z "$admin_token_output" ] || fail "--admin-token-output requires --admin-bootstrap"
+fi
+validate_proxy_publish() {
+  local mapping="$1" target="$2" ip port actual octet
+  [[ "$mapping" =~ ^127\.([0-9]{1,3}\.){2}[0-9]{1,3}:[0-9]{1,5}:$target$ ]] || fail "Proxy publications require a loopback IPv4 IP:HOST_PORT:$target"
+  IFS=: read -r ip port actual <<<"$mapping"
+  for octet in ${ip//./ }; do [ "$((10#$octet))" -le 255 ] || fail "Invalid loopback publication IP"; done
+  [ "$((10#$port))" -ge 1024 ] && [ "$((10#$port))" -le 65535 ] || fail "Invalid proxy publication port"
+}
+if [ -n "$ui_publish" ]; then validate_proxy_publish "$ui_publish" 3081; fi
+if [ -n "$admin_proxy_publish" ]; then validate_proxy_publish "$admin_proxy_publish" 3082; fi
+if [ -n "$public_origin" ]; then
+  [ "$lan_trust" -eq 1 ] || fail "Proxy UI access trusts every reachable client; requires --acknowledge-lan-trust"
+  [[ "$public_origin" =~ ^https?://[a-z0-9]([a-z0-9.-]*[a-z0-9])?(:[0-9]+)?$ ]] || fail "Use a canonical HTTP(S) public origin without a path or credentials"
+  [[ "$preview_ports" =~ ^41[0-9]{3}:41[0-9]{3}$ ]] || fail "Preview ports must be FIRST:LAST within 41000–41999"
+  preview_first="${preview_ports%:*}"; preview_last="${preview_ports#*:}"
+  [ "$preview_first" -le "$preview_last" ] || fail "Invalid preview port range"
+  [[ "$admin_proxy_port" =~ ^[0-9]{4,5}$ ]] || fail "Invalid admin proxy port"
+  proxy_admin=""; if [ -n "$admin_proxy_publish" ]; then proxy_admin=',"adminPort":'"$admin_proxy_port"; fi
+  proxy_config='{ "origin":"'"$public_origin"'", "previewPorts":{"start":'"$preview_first"',"end":'"$preview_last"'}'"$proxy_admin"'}'
+fi
+if [ "$access_mode" = proxy ] && [ "$action" = install ]; then
+  [ -n "$public_origin" ] && [ -n "$ui_publish" ] || fail "Fresh proxy access requires --public-origin and --ui-publish"
+fi
 validate_admin_publish() {
   local mapping="$1" ip host_port container_port octet
   local -a octets
@@ -197,7 +289,7 @@ validate_admin_publish() {
   for octet in "${octets[@]}"; do [ "$((10#$octet))" -le 255 ] || fail "Invalid admin publication IP"; done
   host_port=$((10#$host_port)); container_port=$((10#$container_port))
   [ "$host_port" -ge 1024 ] && [ "$host_port" -le 65535 ] && [ "$container_port" -ge 1024 ] && [ "$container_port" -le 65535 ] || fail "Admin ports must be between 1024 and 65535"
-  case "$container_port" in 2999|3000|3001|3080|24800) fail "Cannot publish an internal management or gateway port as an admin listener" ;; esac
+  case "$container_port" in 2999|3000|3001|3080|3081|3082|24800) fail "Cannot publish an internal management or gateway port as an admin listener" ;; esac
   [ "$container_port" -lt 41000 ] || [ "$container_port" -gt 41999 ] || fail "Cannot publish a workspace preview port as an admin listener"
 }
 [ "$admin_publish_disabled" -eq 0 ] || [ "${#admin_publish[@]}" -eq 0 ] || fail "--no-admin-publish cannot be combined with --admin-publish"
@@ -212,8 +304,10 @@ done
 # /dev/tty is sudo's relay PTY and receives no input when sudo itself was piped.
 # SUDO_TTY names the caller's terminal, which remains available for prompts.
 prompt_input="${SUDO_TTY:-/dev/tty}"
+if [ "$non_interactive" -eq 0 ]; then
 { [ -t 0 ]; } 2>/dev/null <"$prompt_input" ||
-  fail "Interactive setup requires a terminal. Run this installer from a terminal (piping to bash is supported)."
+  fail "Interactive setup requires a terminal. Run this installer from a terminal, or use --non-interactive."
+fi
 
 host_os="$(uname -s)"
 desktop=0
@@ -237,19 +331,26 @@ request_root() {
     command -v sudo >/dev/null || fail "sudo is required for Linux host setup; install sudo or run as root"
     finish_line
     printf '  Kintsugi needs administrator access to prepare this Linux host.\n'
-    sudo -v || fail "administrator access was not granted"
+    # Command-specific NOPASSWD rules can allow operations while rejecting sudo -v.
+    # Test each actual command without allowing an unattended password prompt.
     root_required=1
   fi
 }
 
 run_root() {
-  if [ "$root_required" -eq 1 ]; then sudo "$@"; else "$@"; fi
+  if [ "$root_required" -eq 1 ]; then
+    if ! sudo -n "$@"; then
+      [ "$non_interactive" -eq 0 ] || fail "Administrator access required for $1; run the reviewed installer as root or allow this command with NOPASSWD"
+      sudo "$@" || fail "Administrator access was not granted for $1"
+    fi
+  else "$@"; fi
 }
 
 log_file="$(mktemp /tmp/kintsugi-install.XXXXXX)"
 printf "\n  %sLet's get your Kintsugi setup!%s\n\n" "$violet" "$reset"
 status "Preparing your server"
 if ! command -v docker >/dev/null; then
+  [ "$non_interactive" -eq 0 ] || [ "$install_docker" -eq 1 ] || fail "Docker is missing; install it first or explicitly allow --install-docker"
   [ "$action" != uninstall ] || fail "Docker is not installed; no installation can be inspected or removed"
   [ "$host_os" != Darwin ] || fail "install and start Docker Desktop first, then run this installer again"
   request_root
@@ -266,7 +367,7 @@ fi
 if [ "$host_os" = Linux ] && [ "$(id -u)" -ne 0 ] && ! docker info >>"$log_file" 2>&1; then
   request_root
   docker_binary="$(command -v docker)"
-  docker() { sudo "$docker_binary" "$@"; }
+  docker() { sudo -n "$docker_binary" "$@"; }
   docker_via_sudo=1
 fi
 run_quiet "Checking Docker" docker info
@@ -419,6 +520,7 @@ wait_for_system() {
         [ -z "${fields[5]:-}" ] || printf '\n  %s\n\n' "${fields[5]}"
         last_action="$current_action"
       fi
+      if [ "$non_interactive" -eq 1 ] && [ -n "${fields[4]:-}" ]; then break; fi
       case "${fields[0]}" in
         ready) [ "$request_connect" -ne 0 ] || break ;;
         failed)
@@ -491,7 +593,7 @@ uninstall_system() {
     printf '\n  System was already removed, but its installation volume remains.\n  Workspace count unavailable: all remaining installation data will be deleted.\n'
   fi
   printf '\n  This also deletes workspace files, conversations, nested Docker data,\n  shared /persistent files, projects, settings, and locally saved credentials.\n  Nothing is imported into a new installation. Save anything you need first.\n\n'
-  prompt answer "  Type DELETE KINTSUGI to confirm, or anything else to cancel: "
+  if [ "$non_interactive" -eq 1 ]; then answer="DELETE KINTSUGI"; else prompt answer "  Type DELETE KINTSUGI to confirm, or anything else to cancel: "; fi
   if [ "$answer" != "DELETE KINTSUGI" ]; then
     printf '\n  Uninstall cancelled. No data was deleted.\n'
     return
@@ -565,13 +667,16 @@ if [ -n "$storage_override" ]; then
   case "$action" in install|update|rollback) ;; *) fail "--storage-driver requires install, update or rollback" ;; esac
 fi
 
+if [ -n "$proxy_config$ui_publish$admin_proxy_publish$admin_bootstrap" ]; then
+  case "$action" in install|update) ;; *) fail "Proxy/bootstrap options require install or update" ;; esac
+fi
 if [ "${#admin_publish[@]}" -gt 0 ] || [ "$admin_publish_disabled" -eq 1 ] || [ "$admin_allow_all" -eq 1 ]; then
   case "$action" in install|update) ;; *) fail "Admin publication options require --action install or update; Docker ports require container replacement" ;; esac
 fi
 
 # This portable Bun helper also runs in older System images, without app/module dependencies.
 release_config_script="$(cat <<'INSTALLER_CONFIG_JS'
-const [operation, sourceOverride, appOverride, systemOverride, hostnameOverride, systemId, preparedApp, credentialFile, previousSystemId, storageOverride] = process.argv.slice(1);
+const [operation, sourceOverride, appOverride, systemOverride, hostnameOverride, systemId, preparedApp, credentialFile, previousSystemId, storageOverride, proxyOverride, accessOverride] = process.argv.slice(1);
 const fs = await import('node:fs/promises');
 const repositoryPattern = /^(?:ghcr\.io|docker\.io)\/[a-z0-9]+(?:[._-][a-z0-9]+)*\/[a-z0-9]+(?:[._/-][a-z0-9]+)*$/;
 const versionPattern = /^(?:[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}|sha256:[a-f0-9]{64})$/;
@@ -584,6 +689,14 @@ async function read(path) {
 let settings = await read('/data/app/update.json');
 const state = await read('/data/supervisor/state.json');
 const history = await read('/data/supervisor/installer.json');
+if (proxyOverride) state.proxy = JSON.parse(proxyOverride);
+if (state.proxy) {
+  const p=state.proxy; const url=new URL(p.origin);
+  if (!['http:','https:'].includes(url.protocol) || url.origin !== p.origin || url.username || url.password || url.hostname.startsWith('[') || !p.previewPorts || !Number.isInteger(p.previewPorts.start) || !Number.isInteger(p.previewPorts.end) || p.previewPorts.start < 41000 || p.previewPorts.end > 41999 || p.previewPorts.end < p.previewPorts.start || Number(url.port)>=41000 && Number(url.port)<=41999 || Object.keys(p).some(k=>!['origin','previewPorts','adminPort'].includes(k))) throw Error('Invalid proxy configuration');
+  if (p.adminPort !== undefined && (!Number.isInteger(p.adminPort) || p.adminPort < 1024 || p.adminPort>65535 || [2999,3000,3001,3080,3081,3082,24800].includes(p.adminPort) || p.adminPort>=41000 && p.adminPort<=41999)) throw Error('Invalid proxy admin port');
+}
+if (accessOverride) { if (!['localhost','proxy','tailscale'].includes(accessOverride)) throw Error('Invalid access mode'); state.accessMode=accessOverride; }
+if (state.accessMode==='proxy' && !state.proxy) throw Error('Proxy mode requires --public-origin');
 let storage;
 try {
   storage = JSON.parse(await fs.readFile('/data/supervisor/storage.json','utf8'));
@@ -679,9 +792,9 @@ INSTALLER_CONFIG_JS
 )"
 release_plan() {
   if [ -n "$registry_directory" ]; then
-    docker run --rm -i --network none --entrypoint bun --mount "source=$system_name,target=/data,readonly" "$1" -e "$release_config_script" "${2:-plan}" "$source_repository" "$app_image_override" "$system_image_override" "$tailscale_hostname" "" "" - "" "$storage_driver" < "$registry_directory/config.json"
+    docker run --rm -i --network none --entrypoint bun --mount "source=$system_name,target=/data,readonly" "$1" -e "$release_config_script" "${2:-plan}" "$source_repository" "$app_image_override" "$system_image_override" "$tailscale_hostname" "" "" - "" "$storage_driver" "$proxy_config" "$access_mode" < "$registry_directory/config.json"
   else
-    docker run --rm --network none --entrypoint bun --mount "source=$system_name,target=/data,readonly" "$1" -e "$release_config_script" "${2:-plan}" "$source_repository" "$app_image_override" "$system_image_override" "$tailscale_hostname" "" "" "" "" "$storage_driver"
+    docker run --rm --network none --entrypoint bun --mount "source=$system_name,target=/data,readonly" "$1" -e "$release_config_script" "${2:-plan}" "$source_repository" "$app_image_override" "$system_image_override" "$tailscale_hostname" "" "" "" "" "$storage_driver" "$proxy_config" "$access_mode"
   fi
 }
 host_pull() {
@@ -692,6 +805,7 @@ prepare_installed_app() {
     const reference=process.argv[1];
     const driver=process.argv[2];
     const rollback=process.argv[3]==="rollback";
+    const deployment=process.argv[4]==="1";
     function compatible(image) { if(driver==="overlayfs" && !image.Config.Labels?.["kintsugi.storage-drivers"]?.split(",").includes(driver)) throw Error("Image does not support overlayfs; existing services were retained"); }
     async function docker(...args) {
       const p=Bun.spawn(["docker","--config","/data/supervisor/docker-auth",...args],{stdout:"pipe",stderr:"pipe"});
@@ -704,6 +818,7 @@ prepare_installed_app() {
     if(!rollback && /^(ghcr\.io|docker\.io)\//.test(reference)) await docker("pull",reference);
     const image=JSON.parse(await docker("image","inspect",reference))[0];
     compatible(image);
+    if(deployment && image.Config.Labels?.["kintsugi.deployment-config"]!=="1") throw Error("Selected app lacks deployment configuration support; nothing was replaced");
     const dependencies=JSON.parse(image.Config.Labels?.["eagerly-preload"]??"[]");
     if(!Array.isArray(dependencies)||dependencies.length>100||dependencies.some(ref=>typeof ref!=="string"||! /^[a-zA-Z0-9][a-zA-Z0-9._/:@-]*$/.test(ref)))throw new Error("Invalid workspace dependency references");
     for(const dependency of dependencies){
@@ -711,7 +826,7 @@ prepare_installed_app() {
       compatible(JSON.parse(await docker("image","inspect",dependency))[0]);
     }
     console.log(image.Id);
-  ' "$app_image" "$storage_driver" "$action"
+  ' "$app_image" "$storage_driver" "$action" "$deployment_required"
 }
 
 case "$action" in
@@ -719,7 +834,7 @@ case "$action" in
     if [ "$installed" -eq 1 ]; then
       finish_line
       printf '  %sUpdating interrupts running workspaces.%s\n' "$amber" "$reset"
-      prompt answer "  Continue? [y/N]: "
+      if [ "$non_interactive" -eq 1 ]; then [ "$confirm_replace" -eq 1 ] || fail "Replacement requires --confirm-replace"; answer=yes; else prompt answer "  Continue? [y/N]: "; fi
       case "$answer" in y|Y|yes) ;; *) exit 0 ;; esac
     fi
     if [ "$installed" -eq 0 ] && [ -z "$access_mode" ]; then
@@ -738,6 +853,7 @@ case "$action" in
       case "${answer:-1}" in 1) ;; 2) access_mode="$alternate_mode" ;; *) fail "choose 1 or 2" ;; esac
     fi
     if [ "$installed" -eq 0 ]; then
+      if [ -z "$source_repository" ] && [ -n "$app_image_override" ] && [ -n "$system_image_override" ]; then source_repository=ghcr.io/rcarmo/kintsugi; fi
       if [ -z "$source_repository" ]; then
         prompt source_repository "  Release image repository [ghcr.io/rcarmo/kintsugi]: "
         source_repository="${source_repository:-ghcr.io/rcarmo/kintsugi}"
@@ -782,16 +898,32 @@ case "$action" in
     # Preserve existing publications unless the caller explicitly replaces/removes them.
     admin_port_args=()
     if [ "$installed" -eq 1 ] && [ "${#admin_publish[@]}" -eq 0 ] && [ "$admin_publish_disabled" -eq 0 ]; then
-      saved_publications="$(docker inspect --format '{{range $port, $bindings := .HostConfig.PortBindings}}{{if ne $port "3080/tcp"}}{{range $bindings}}{{.HostIp}}:{{.HostPort}}:{{$port}}{{println}}{{end}}{{end}}{{end}}' "$system_name")"
+      saved_publications="$(docker inspect --format '{{range $port, $bindings := .HostConfig.PortBindings}}{{if and (ne $port "3080/tcp") (ne $port "3081/tcp") (ne $port "3082/tcp")}}{{range $bindings}}{{.HostIp}}:{{.HostPort}}:{{$port}}{{println}}{{end}}{{end}}{{end}}' "$system_name")"
       while IFS= read -r mapping; do
         [ -n "$mapping" ] || continue
         port="${mapping##*:}"; address="${mapping%:*}"
         host_port="${address##*:}"; host_ip="${address%:*}"
         if [[ "$host_ip" == *:* ]]; then host_ip="[$host_ip]"; fi
+        # Explicit proxy mappings replace legacy sidecar bindings at the same host endpoint.
+        if [[ "$ui_publish" == "$host_ip:$host_port:"* || "$admin_proxy_publish" == "$host_ip:$host_port:"* ]]; then continue; fi
         admin_port_args+=(--publish "$host_ip:$host_port:$port")
       done <<<"$saved_publications"
     fi
     for mapping in "${admin_publish[@]}"; do admin_port_args+=(--publish "$mapping"); done
+    # Proxy mappings have their own reserved ports; never discard them with --no-admin-publish.
+    proxy_port_args=()
+    saved_proxy=""
+    if [ "$installed" -eq 1 ]; then
+      saved_proxy="$(docker inspect --format '{{range $port, $bindings := .HostConfig.PortBindings}}{{if or (eq $port "3081/tcp") (eq $port "3082/tcp")}}{{range $bindings}}{{.HostIp}}:{{.HostPort}}:{{$port}}{{println}}{{end}}{{end}}{{end}}' "$system_name")"
+      while IFS= read -r mapping; do
+        [ -n "$mapping" ] || continue
+        case "$mapping" in *:3081/tcp) [ -n "$ui_publish" ] || proxy_port_args+=(--publish "$mapping") ;; *:3082/tcp) [ -n "$admin_proxy_publish" ] || proxy_port_args+=(--publish "$mapping") ;; esac
+      done <<<"$saved_proxy"
+    fi
+    [ -z "$ui_publish" ] || proxy_port_args+=(--publish "$ui_publish")
+    [ -z "$admin_proxy_publish" ] || proxy_port_args+=(--publish "$admin_proxy_publish")
+    deployment_required=0
+    if [ -n "$proxy_config$admin_bootstrap" ] || [ "$access_mode" = proxy ] || [ "${#proxy_port_args[@]}" -gt 0 ]; then deployment_required=1; fi
     pull_log_start="$(($(wc -l <"$log_file") + 1))"
     if [ "$action" = rollback ]; then
       docker image inspect "$system_image" >>"$log_file" 2>&1 || fail "Previous System image is no longer retained; nothing was replaced"
@@ -812,6 +944,9 @@ case "$action" in
       storage_capability="$(docker image inspect --format '{{index .Config.Labels "kintsugi.storage-drivers"}}' "$system_image")"
       [[ ",$storage_capability," == *,overlayfs,* ]] || fail "The selected System image does not support overlayfs; nothing was replaced"
     fi
+    if [ "$deployment_required" -eq 1 ]; then
+      [ "$(docker image inspect --format '{{index .Config.Labels "kintsugi.deployment-config"}}' "$system_image")" = 1 ] || fail "Selected System lacks deployment configuration support; nothing was replaced"
+    fi
     # Validate the persisted plan with the exact selected image before stopping anything.
     plan="$(release_plan "$system_image" "${plan_operation:-plan}" 2>>"$log_file")" || fail "The selected System image cannot validate this installation"
     plan_fields=(); while IFS= read -r field; do plan_fields+=("$field"); done <<<"$plan"
@@ -822,7 +957,7 @@ case "$action" in
         run_quiet "Starting System to prepare the selected app" docker start "$system_name"
       fi
       if [ -n "$registry_directory" ]; then
-        run_quiet "Preparing private registry access" docker run --rm -i --network none --entrypoint bun --mount "source=$system_name,target=/data" "$system_image" -e "$release_config_script" credentials "$source_repository" "$app_image_override" "$system_image_override" "$tailscale_hostname" "" "" - "" "$storage_driver" < "$registry_directory/config.json"
+        run_quiet "Preparing private registry access" docker run --rm -i --network none --entrypoint bun --mount "source=$system_name,target=/data" "$system_image" -e "$release_config_script" credentials "$source_repository" "$app_image_override" "$system_image_override" "$tailscale_hostname" "" "" - "" "$storage_driver" "$proxy_config" "$access_mode" < "$registry_directory/config.json"
       fi
       if [ "$action" = rollback ]; then
         pinned_app="$app_image"
@@ -840,19 +975,22 @@ case "$action" in
       fi
       [[ "$pinned_app" =~ ^sha256:[a-f0-9]{64}$ ]] || fail "App image was not pinned; nothing was replaced"
     fi
+    if [ "$installed" -eq 1 ] && [ -n "$admin_bootstrap" ]; then
+      docker exec -i "$system_name" docker run --rm -i --network none --mount type=bind,source=/data/app,target=/data/app,readonly --entrypoint bun "$pinned_app" /app/apps/web/scripts/admin-bindings.ts bootstrap --file /dev/stdin --check < "$admin_bootstrap" >>"$log_file" 2>&1 || fail "Invalid admin bootstrap; existing services were retained"
+    fi
     if [ "$installed" -eq 1 ]; then
       run_quiet "Stopping Kintsugi services" docker stop --time 120 "$system_name"
       run_quiet "Replacing Kintsugi services" docker rm "$system_name"
     fi
     apply_operation=apply; if [ "$action" = rollback ]; then apply_operation=rollback-apply; fi
     if [ -n "$registry_directory" ]; then
-      run_quiet "Saving installation source and hostname" docker run --rm -i --network none --entrypoint bun --mount "source=$system_name,target=/data" "$system_image" -e "$release_config_script" "$apply_operation" "$source_repository" "$app_image_override" "$system_image_override" "$tailscale_hostname" "$system_image" "$pinned_app" - "$old_system_image" "$storage_driver" < "$registry_directory/config.json"
+      run_quiet "Saving installation source and hostname" docker run --rm -i --network none --entrypoint bun --mount "source=$system_name,target=/data" "$system_image" -e "$release_config_script" "$apply_operation" "$source_repository" "$app_image_override" "$system_image_override" "$tailscale_hostname" "$system_image" "$pinned_app" - "$old_system_image" "$storage_driver" "$proxy_config" "$access_mode" < "$registry_directory/config.json"
     else
-      run_quiet "Saving installation source and hostname" docker run --rm --network none --entrypoint bun --mount "source=$system_name,target=/data" "$system_image" -e "$release_config_script" "$apply_operation" "$source_repository" "$app_image_override" "$system_image_override" "$tailscale_hostname" "$system_image" "$pinned_app" "" "$old_system_image" "$storage_driver"
+      run_quiet "Saving installation source and hostname" docker run --rm --network none --entrypoint bun --mount "source=$system_name,target=/data" "$system_image" -e "$release_config_script" "$apply_operation" "$source_repository" "$app_image_override" "$system_image_override" "$tailscale_hostname" "$system_image" "$pinned_app" "" "$old_system_image" "$storage_driver" "$proxy_config" "$access_mode"
     fi
     stop_on_failure=1
     run_quiet "Starting Kintsugi services" docker run -d --name "$system_name" --label "kintsugi.storage-driver=$storage_driver" --hostname "$tailscale_hostname" --privileged --cgroupns=host --restart unless-stopped \
-      --stop-timeout 120 --tmpfs /run --mount "source=$system_name,target=/data" --publish 127.0.0.1:3080:3080 "${admin_port_args[@]}" \
+      --stop-timeout 120 --tmpfs /run --mount "source=$system_name,target=/data" --publish 127.0.0.1:3080:3080 "${admin_port_args[@]}" "${proxy_port_args[@]}" \
       "$system_image" --app-image "$app_image" --access-mode "${access_mode:-tailscale}"
     ;;
   connect)
@@ -882,3 +1020,38 @@ if [ "$action" = install ] || [ "$action" = update ] || [ "$action" = rollback ]
   [ "$attempt" -lt 60 ] || fail "Could not configure access"
 fi
 wait_for_system
+if [ -n "$admin_bootstrap" ]; then
+  # Secrets travel only to an exclusive private file or the caller's stdout, never the bootstrap log.
+  {
+    docker cp "$admin_bootstrap" "$system_name:/data/app/.installer-admin-bootstrap.json"
+    docker exec "$system_name" chown 1000:1000 /data/app/.installer-admin-bootstrap.json
+    docker exec "$system_name" chmod 600 /data/app/.installer-admin-bootstrap.json
+  } >>"$log_file" 2>&1
+  docker exec "$system_name" docker exec --user 1000:1000 kintsugi bun /app/apps/web/scripts/admin-bindings.ts bootstrap --file /data/app/.installer-admin-bootstrap.json --check >>"$log_file" 2>&1 || fail "Invalid admin bootstrap; settings were not changed"
+  if [ "$admin_token_output" = - ]; then
+    docker exec "$system_name" docker exec --user 1000:1000 kintsugi bun /app/apps/web/scripts/admin-bindings.ts bootstrap --file /data/app/.installer-admin-bootstrap.json --token-output - >&3
+  else
+    (umask 077; set -o noclobber; docker exec "$system_name" docker exec --user 1000:1000 kintsugi bun /app/apps/web/scripts/admin-bindings.ts bootstrap --file /data/app/.installer-admin-bootstrap.json --token-output - > "$admin_token_output") || fail "Admin bootstrap or secure token delivery failed"
+  fi
+  docker exec "$system_name" rm /data/app/.installer-admin-bootstrap.json >>"$log_file" 2>&1
+  run_quiet "Restarting app for admin bindings" docker exec "$system_name" bun -e 'const r=await fetch("http://127.0.0.1:3001/restart",{method:"POST"});if(r.status!==202)throw Error("Supervisor rejected app restart");'
+  wait_for_system
+  if [ "$admin_token_output" != - ] && [ -n "$admin_proxy_publish" ]; then
+    for ((attempt=0; attempt<30; attempt++)); do
+      if docker exec -i "$system_name" bun -e 'const issued=JSON.parse(await new Response(Bun.stdin.stream()).text()); const r=await fetch("http://127.0.0.1:"+process.argv[1]+"/openapi.json",{headers:{authorization:"Bearer "+issued.secret},signal:AbortSignal.timeout(3000)});process.exit(r.ok?0:1);' "$admin_proxy_port" < "$admin_token_output" >>"$log_file" 2>&1; then admin_ready=true; break; fi
+      sleep 1
+    done
+    [ "$admin_ready" = true ] || fail "Admin token was delivered but authenticated API is not ready; inspect bindings and TLS before retrying bootstrap"
+  fi
+fi
+if [ -n "$result_file" ]; then
+  report_result() {
+    docker exec "$system_name" bun -e '
+      const r=await fetch("http://127.0.0.1:3001/status"); const s=await r.json();
+      const a=await (await fetch("http://127.0.0.1:3001/access")).json();
+      const settings=JSON.parse(await Bun.file("/data/supervisor/storage.json").text());
+      console.log(JSON.stringify({state:s.state,systemImage:process.argv[1],appImage:s.currentImage,storageDriver:settings.driver,accessMode:a.mode,uiUrl:a.origin,admin:{authenticatedApiReady:process.argv[2]==="true",portPublished:process.argv[3]==="true",tls:"External proxy/client trust must be verified separately"},pendingActions:[...(s.action?[{description:s.action.description}]:[]),...(a.mode==="proxy"?[{description:"Configure external Caddy, LAN DNS/listeners and client CA trust; verify from a separate physical client"}]:[])],verification:"Service health is not remote LAN or workspace lifecycle acceptance"}));
+    ' "$(docker inspect --format '{{.Image}}' "$system_name")" "$admin_ready" "$([ -n "$admin_proxy_publish" ] && echo true || echo false)"
+  }
+  if [ "$result_file" = - ]; then report_result >&3; else report_result > "$result_file"; fi
+fi

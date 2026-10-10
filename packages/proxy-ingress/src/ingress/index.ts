@@ -6,7 +6,7 @@ import { backendTransport } from "./backend-transport.ts";
 import type { ServerWebSocket } from "bun";
 import { workspaceGatewayErrorHeader, isWorkspaceAppPort, parseWorkspacePortAppKey, workspacePortAppKey, stripHopByHopHeaders, type WorkspaceAppBackend, type WorkspaceAppRef, type WorkspaceHttpAppBackend } from "@kintsugi/shared";
 import { createMemoryOriginIdentityStore, type OriginIdentityStore } from "./origin-identity.ts";
-import { closeWebSocket, maxSocketBufferedBytes, forwardToUpstream } from "./websocket.ts";
+import { bufferUpstreamSocket, closeWebSocket, maxSocketBufferedBytes, forwardToUpstream } from "./websocket.ts";
 import {
   defaultPublicOriginPortRange,
   type PortRange,
@@ -51,6 +51,7 @@ export interface WorkspaceIngress {
 }
 
 interface AppSocketData {
+  attach: ReturnType<typeof bufferUpstreamSocket>;
   lease: OriginLease;
   upstream: WebSocket;
 }
@@ -165,9 +166,9 @@ export function createWorkspaceIngress(options: WorkspaceIngressOptions): Worksp
                 const upstreamHeaders = await appRequestHeaders(lease, backend, request);
                 for (const name of ["sec-websocket-key", "sec-websocket-version", "sec-websocket-extensions", "sec-websocket-protocol"]) upstreamHeaders.delete(name);
                 const transport = backendTransport(backend, upstreamHeaders);
-                const upstream = await openUpstreamSocket(websocketTarget(transport.target), transport.headers, websocketProtocols(request));
+                const { upstream, attach } = await openUpstreamSocket(websocketTarget(transport.target), transport.headers, websocketProtocols(request));
                 const headers = upstream.protocol ? { "sec-websocket-protocol": upstream.protocol } : undefined;
-                if (server.upgrade(request, { data: { upstream, lease }, headers })) return undefined;
+                if (server.upgrade(request, { data: { upstream, attach, lease }, headers })) return undefined;
                 upstream.close(1011, "Downstream WebSocket upgrade failed");
                 throw new Error("WebSocket upgrade failed");
               } catch (thrown) {
@@ -497,11 +498,12 @@ function websocketProtocols(request: Request): string[] {
   return (request.headers.get("sec-websocket-protocol") ?? "").split(",").map((value) => value.trim()).filter(Boolean);
 }
 
-async function openUpstreamSocket(target: string, headers: Headers, protocols: string[]): Promise<WebSocket> {
+async function openUpstreamSocket(target: string, headers: Headers, protocols: string[]): Promise<{ upstream: WebSocket; attach: ReturnType<typeof bufferUpstreamSocket> }> {
   // SAFETY: Bun supports the options constructor at runtime although DOM declarations omit it.
   const WebSocketWithOptions = WebSocket as typeof WebSocket & (new (url: string | URL, options: Bun.WebSocketOptions) => WebSocket);
   const upstream = new WebSocketWithOptions(target, { headers: Object.fromEntries(headers), protocols, proxy: "" });
   upstream.binaryType = "arraybuffer";
+  const attach = bufferUpstreamSocket(upstream);
   await new Promise<void>((resolve, reject) => {
     const timer = setTimeout(() => {
       upstream.close();
@@ -516,21 +518,13 @@ async function openUpstreamSocket(target: string, headers: Headers, protocols: s
       reject(new Error("Workspace app WebSocket connection failed"));
     }, { once: true });
   });
-  return upstream;
+  return { upstream, attach };
 }
 
 function openAppSocket(ws: ServerWebSocket<AppSocketData>): void {
   ws.data.lease.activeConnections += 1;
   ws.data.lease.lastUsedAt = Date.now();
-  ws.data.upstream.addEventListener("message", (event: MessageEvent<string | ArrayBuffer>) => {
-    const bytes = event.data instanceof ArrayBuffer ? event.data.byteLength : event.data.length;
-    if (ws.send(event.data) === 0 && bytes > 0) {
-      ws.close(1013, "Workspace stream consumer is too slow");
-      ws.data.upstream.close(1013, "Workspace stream consumer is too slow");
-    }
-  });
-  ws.data.upstream.addEventListener("close", (event: CloseEvent) => closeWebSocket(ws, event.code, event.reason));
-  ws.data.upstream.addEventListener("error", () => ws.close(1011, "Upstream WebSocket failed"));
+  ws.data.attach(ws);
 }
 
 function handleAppSocketMessage(ws: ServerWebSocket<AppSocketData>, message: string | Buffer): void {

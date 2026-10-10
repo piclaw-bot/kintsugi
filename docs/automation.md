@@ -447,3 +447,110 @@ once its reset is due.
 Usage is contributed by the Agent module, including these OpenAPI paths. Its
 header action and directly navigable dialog use the generic
 [module-owned workspace-pane action interface](workspace-pane-actions.md).
+
+
+## Trusted LAN proxy deployment (v0.0.2)
+
+Proxy mode advertises one public UI origin and separate preview ports on the same hostname. The UI has no bearer authentication: every reachable LAN client is trusted. Use a dedicated production host where possible. On a shared test host, inventory unrelated services, storage, listeners and containers before installing. Preserve their volumes and the original kernel; OverlayFS is an explicit alternative when EROFS is unavailable.
+
+Read the README at the release tag before running its installer. With Bun and a checkout of that release, collect a read-only inventory:
+
+```sh
+bun scripts/deployment.ts preflight --storage overlayfs --mode proxy \
+  --origin https://orangepi6plus.local \
+  --image ghcr.io/rcarmo/kintsugi:v0.0.2 \
+  --image ghcr.io/rcarmo/kintsugi-system:v0.0.2 > preflight.json
+```
+
+Preflight does not install Docker, pull images, clone code, load modules, alter kernel settings or remove services. Missing/unavailable commands and local images have non-zero status in the report. Review these before proceeding; unloaded filesystem modules can appear absent. Check free space, Docker architecture and image storage/deployment labels. The installer checks pulled replacement capabilities before stopping the existing installation.
+
+### Unattended installation and Orange Pi upgrade
+
+Use an account with Docker access and passwordless sudo for the required module-loading and configuration commands. The installer uses `sudo -n` on each actual command; it never treats `sudo -v` as proof of permission. Unattended permission errors name the required command and do not prompt for a password. Docker installation requires the separate `--install-docker` acknowledgement.
+
+Download the tagged installer and pin both images:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/rcarmo/kintsugi/v0.0.2/scripts/install.sh \
+  -o /tmp/install-kintsugi-v0.0.2.sh
+bash /tmp/install-kintsugi-v0.0.2.sh --non-interactive --action update \
+  --system-image ghcr.io/rcarmo/kintsugi-system:v0.0.2 \
+  --app-image ghcr.io/rcarmo/kintsugi:v0.0.2 \
+  --access-mode proxy --public-origin https://orangepi6plus.local \
+  --preview-ports 41000:41009 --ui-publish 127.0.0.1:3000:3081 \
+  --acknowledge-lan-trust --result-file /tmp/kintsugi-upgrade.json
+```
+
+Updates retain the installed storage driver. For a fresh installation, replace `--action update` with `--action install` and add `--storage-driver overlayfs`. Replacing an existing installation with `install` requires `--confirm-replace`; deleting data requires `--confirm-delete`. Complete unattended arguments are validated before host mutation. Progress goes to stderr; `--result-file FILE|-` writes credential-free JSON with selected immutable images, storage, URLs and pending actions. A proxy publication alone does not mean external Caddy, name resolution or client trust is ready.
+
+Preview identities are retained. The default range supports ten retained origins, including retired ports. On an existing installation with assignments outside this range, choose the original `41000:41999` range for both installer and Caddy. No automatic origin migration occurs. Publications and proxy intent survive updates and rollback to compatible images. Older replacements without `kintsugi.deployment-config=1` are rejected while proxy mode is configured.
+
+For an existing loopback HTTP admin listener on 3443, add `--admin-proxy-port 3443 --admin-proxy-publish 127.0.0.1:3444:3082`. Existing bindings and tokens are preserved. New proxy mappings replace legacy sidecar publications at the same host address/port; unrelated admin publications remain. The old inner Caddy sidecar is no longer required; remove it only after checking that nothing else uses it. Do not expose supervisor port 3001 or the inner Docker daemon.
+
+### Transactional optional admin bootstrap
+
+Create a private input file, for example:
+
+```json
+{"bindings":[{"host":"127.0.0.1","port":3443}],"token":{"name":"lan-automation","scopes":["workspaces","host:read"]}}
+```
+
+Add these flags to the install/update command:
+
+```sh
+--admin-bootstrap /secure/admin-bootstrap.json \
+--admin-token-output /secure/issued-token.json \
+--admin-proxy-port 3443 --admin-proxy-publish 127.0.0.1:3444:3082
+```
+
+The input must have mode 0600. Bindings, scopes, expiry and TLS files are checked before issuing a token. Token delivery uses a new exclusive mode-0600 file; an existing output file fails without replacing it. Configuration and token hashes commit atomically after successful delivery, preserving prior tokens. Failed configuration writes roll back the new output file. `--admin-token-output -` emits the secret JSON once on stdout for direct keychain ingestion; use a file for the separate result. Stdout delivery cannot be retracted if a later commit fails: check exit status before treating the token as valid. Secrets do not enter progress logs or the result.
+
+Bootstrap requests a supervisor-managed app restart and verifies authenticated API readiness. Distinguish Docker publication, active listener, usable TLS and authenticated readiness. The result confirms the internal authenticated listener; external Caddy and client CA trust still require separate checks. For direct CLI bootstrap, use `bun apps/web/scripts/admin-bindings.ts bootstrap --file INPUT --token-output OUTPUT`; `--check` validates without issuing or writing. The same-user/data-directory rules above apply. Direct non-loopback listeners still require TLS; proxy mode uses a loopback plaintext listener behind external TLS.
+
+### Caddy, mDNS and client trust
+
+System port 3080 keeps its original `kintsugi.localhost`/`p41000.kintsugi.localhost` hostname routing. Point LAN Caddy at the dedicated UI/preview port 3081, published on host loopback, and optional admin relay 3082. Previews use isolated port origins such as `https://orangepi6plus.local:41000`; hosting workspace content under the UI origin would grant it management access.
+
+Generate a Caddyfile with the real LAN address:
+
+```sh
+bun scripts/deployment.ts caddyfile --origin https://orangepi6plus.local \
+  --bind 192.168.1.50 --upstream 127.0.0.1:3000 --preview-ports 41000:41009 \
+  --admin-origin https://orangepi6plus.local:3443 --admin-upstream 127.0.0.1:3444 \
+  > /tmp/kintsugi.Caddyfile
+caddy validate --config /tmp/kintsugi.Caddyfile --adapter caddyfile
+```
+
+Without host Bun, generate the file using `docker run --rm --entrypoint bun ghcr.io/rcarmo/kintsugi:v0.0.2 /app/scripts/deployment.ts caddyfile` followed by the same options. Omit the admin options when no admin relay is configured. Review and merge the generated blocks into the existing Caddyfile; do not overwrite unrelated sites. Each block binds only the intended LAN address, uses `tls internal` and `flush_interval -1`. Caddy handles WebSocket upgrades and streams SSE immediately. Preserve Host, Origin and Authorization. Never inject a bearer token or rewrite Origin. System pins forwarded scheme at this configured boundary and strips misleading forwarded-host metadata. API and UI remain separate ports and policies. Use the configured HTTPS UI origin; this recipe does not advertise a parallel HTTP UI.
+
+Restrict Avahi to the intended interface where appropriate:
+
+```ini
+[server]
+allow-interfaces=eth0
+```
+
+Choose the actual interface name, check the resolved address with `avahi-resolve-host-name orangepi6plus.local`, and reserve its DHCP address. Do not advertise Docker bridge addresses. Match advertised IPv4/IPv6 records to Caddy listeners and LAN firewall rules; the generator accepts comma-separated IPv4/IPv6 bind addresses. Avahi IPv6 policy affects other advertised services, so change it only deliberately. Host-local resolution does not verify a Mac or another LAN device.
+
+Distribute only Caddy's public root certificate (usually `/var/lib/caddy/.local/share/caddy/pki/authorities/local/root.crt`). Trust it on the Mac for Safari; use `curl --cacert root.crt` for diagnostics. Never distribute Caddy's CA private key or disable TLS verification to pass acceptance. Open the UI, API and configured preview ports only to trusted clients; Docker publications can bypass ordinary host firewall rules.
+
+### Acceptance evidence
+
+The disposable AMD64 System integration exercises fresh no-PTY install, token delivery, CA-verified TLS termination over plaintext upstreams, actual same-origin mutation, foreign-origin denial, UI WebSocket/SSE, preview isolation, Desktop canonical HTTPS redirect, workspace create/park/unpark/delete and file persistence, pinned System/app replacement and retained-pair rollback:
+
+```sh
+bun scripts/verify-admin-bindings-system.ts --app LOCAL_APP --system LOCAL_SYSTEM \
+  --workspace LOCAL_WORKSPACE --storage-driver overlayfs --proxy-access \
+  --release-updates --installer-system LOCAL_SYSTEM
+```
+
+Run the non-UI client probe on a second physical LAN client, with Bun and the release checkout. Its token needs `workspaces`; add `--confirm-create-workspace` to create, mutate, park, unpark and delete only its disposable workspace. `--preview-origin` must name an existing reachable preview:
+
+```sh
+bun scripts/verify-lan-client.ts --ui https://orangepi6plus.local \
+  --api https://orangepi6plus.local:3443 --ca root.crt \
+  --token-file /secure/issued-token.json --out lan-client-report.json \
+  --preview-origin https://orangepi6plus.local:41000 --confirm-create-workspace
+```
+
+The report contains no token and lists omitted/unverified checks. Separately record ARM host kernel/filesystem preflight, workspace file persistence after restart/update/rollback, preview WebSockets/SSE, and Safari Desktop/terminal visual interaction. Native ARM image smoke checks and client-container probes do not establish a physical ARM/LAN lifecycle. Actual VNC interaction has not passed this workspace's acceptance: the local x11vnc fixture listened but did not deliver its TCP greeting. The canonical Desktop redirect and separate preview WebSocket transport passed independently. Hardware acceptance is still required.

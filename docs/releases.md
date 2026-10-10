@@ -14,7 +14,7 @@ The full suite runs once on AMD64, including installer ownership checks.
 
 `images.yml` builds workspace, System and app images on native `ubuntu-24.04`
 and `ubuntu-24.04-arm` runners. It requires successful CI at the exact source
-revision. Manual runs default to build-and-smoke-test only. No SSH builder,
+revision. The image workflow is reusable-only; there is no manual publisher. No SSH builder,
 QEMU or package-write PAT is required by CI.
 
 Contexts and System bundles are prepared once. Workspace and System builds run
@@ -33,11 +33,7 @@ Disposable Docker build records are removed after each run; logs and short-lived
 verification receipts remain. Named jobs and step summaries show selection,
 reuse, native builds and promotion.
 
-`publish-workspace-image.yml` now publishes all three images after successful
-push CI on `main`. Documentation, test-only and CI-check-only changes skip image
-publication. Build/publication workflow changes and unknown paths require it. Manual publication still requires successful exact-revision CI.
-The workflow uses its `GITHUB_TOKEN` with job-scoped `packages: write`; no
-additional secrets or environment variables are needed.
+`release.yml` runs only on `v*.*.*` tag pushes. It validates stable semver and main ancestry, runs full checks and invokes the native image workflow. Immutable version tags are published for all three images. The newest version advances `latest`; `stable` is unchanged. Documentation-only and workflow-only branch changes do not run ordinary CI. No package-write PAT or extra environment variables are needed.
 
 Both native slices must pass smoke tests before their receipts are merged.
 Every combined manifest, source/signature label and pinned workspace dependency

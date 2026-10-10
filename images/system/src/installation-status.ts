@@ -13,6 +13,7 @@ export type InstallationStatus = {
 export function installationStatus(input: {
   activity: Activity;
   localMode?: boolean;
+  proxyMode?: boolean;
   localOrigin?: string;
   failure?: string;
   stopping: boolean;
@@ -26,7 +27,7 @@ export function installationStatus(input: {
   logs: string[];
 }): InstallationStatus {
   const { hostname, appliedRoute } = input;
-  const localSupervisor = input.localOrigin?.replace("//kintsugi.", "//system.kintsugi.");
+  const localSupervisor = input.proxyMode ? undefined : input.localOrigin?.replace("//kintsugi.", "//system.kintsugi.");
   const supervisorUrl = !input.localMode && !input.connectionAction && hostname && appliedRoute.startsWith(`${hostname}:`)
     ? `https://${hostname}:8443` : localSupervisor;
   const ready = input.appResponding && !input.busy && !input.stopping && !input.failure &&

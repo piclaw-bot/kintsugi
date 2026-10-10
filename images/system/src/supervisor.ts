@@ -3,7 +3,8 @@ import { hostSocketPath } from "../../../packages/host/src/protocol.ts";
 import { startHostService } from "../../../packages/host/src/system/service.ts";
 import { dirname } from "node:path";
 import { escapeHtml } from "../../../packages/shared/src/html.ts";
-import { startLocalIngress } from "./local-ingress.ts";
+import { accessModeSchema, validateProxyAccess, type ProxyAccess } from "../../../packages/shared/src/proxy-access.ts";
+import { startLocalIngress, startProxyIngress, startAdminProxy } from "./local-ingress.ts";
 import { installationStatus, type Activity } from "./installation-status.ts";
 import { PullProgress } from "./pull-progress.ts";
 import { readReleaseSettings, releaseReference } from "../../../packages/shared/src/release-source.ts";
@@ -52,12 +53,14 @@ await Promise.all(
 await mkdir("/run/kintsugi-system", { recursive: true });
 await writeFile("/run/kintsugi-system/access-v1", "");
 // Retain the serialized accessMode field and external access API spelling.
-type State = { accessMode?: "localhost" | "tailscale"; localPort?: number; currentImage?: string; previousImage?: string; pendingImage?: string; tailscaleHostname?: string; runningContainers?: string[]; uninstall?: UninstallState };
+type State = { accessMode?: "localhost" | "tailscale" | "proxy"; proxy?: ProxyAccess; localPort?: number; currentImage?: string; previousImage?: string; pendingImage?: string; tailscaleHostname?: string; runningContainers?: string[]; uninstall?: UninstallState };
 const persisted: State = (await Bun.file(`${stateDir}/state.json`).exists())
   ? JSON.parse(await readFile(`${stateDir}/state.json`, "utf8"))
   : {};
-persisted.accessMode ??= Value.Parse(Type.Union([Type.Literal("localhost"), Type.Literal("tailscale")]), values["access-mode"]);
+persisted.accessMode ??= Value.Parse(accessModeSchema, values["access-mode"]);
 persisted.tailscaleHostname = Value.Parse(Type.String({ pattern: "^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$" }), persisted.tailscaleHostname ?? "kintsugi-system");
+if (persisted.proxy) persisted.proxy = validateProxyAccess(persisted.proxy);
+if (persisted.accessMode === "proxy" && !persisted.proxy) throw new Error("Proxy mode requires installer --public-origin configuration");
 const tailscaleHostname = persisted.tailscaleHostname;
 if (persisted.pendingImage) Value.Assert(Type.String({ pattern: "^sha256:[a-f0-9]{64}$" }), persisted.pendingImage);
 const tailscaleSelected = () => persisted.accessMode === "tailscale";
@@ -124,7 +127,8 @@ function accessChanged() {
   emit("access", "changed");
   emit();
 }
-async function setConnectionMode(mode: "localhost" | "tailscale") {
+async function setConnectionMode(mode: "localhost" | "tailscale" | "proxy") {
+  if (mode === "proxy" && !persisted.proxy) throw new Error("Configure proxy access through the installer first");
   persisted.accessMode = mode;
   if (mode === "tailscale" && connectionAttempt !== "running") {
     connectionAttempt = "idle";
@@ -215,6 +219,7 @@ async function prepareImage(reference: string, options: { pullApp: boolean; pull
     await pullImage(reference, "Downloading Kintsugi");
   const image = JSON.parse(await docker("image", "inspect", reference))[0];
   assertStorageSupport(image.Config.Labels, storageDriver);
+  if (persisted.proxy && image.Config.Labels?.["kintsugi.deployment-config"] !== "1") throw new Error("App image does not support configured proxy access");
   const preload: unknown = JSON.parse(
     image.Config.Labels?.["eagerly-preload"] ?? "[]",
   );
@@ -255,6 +260,7 @@ const releaseRequests = createReleaseRequests({
 let routing: Promise<void> = Promise.resolve();
 let appliedRoute = "";
 function accessOrigin(): string | undefined {
+  if (persisted.accessMode === "proxy") return persisted.proxy?.origin;
   if (!tailscaleSelected()) return persisted.localPort ? `http://kintsugi.localhost:${persisted.localPort}` : undefined;
   if (tailnetHost && appliedRoute === `${tailnetHost}:${routeTarget}`) return `https://${tailnetHost}`;
   return undefined;
@@ -423,6 +429,8 @@ function allowedOrigin(request: Request) {
   );
 }
 const localIngress = startLocalIngress(() => routeTarget);
+const proxyIngress = startProxyIngress(() => routeTarget === 3000 ? 3000 : 0, () => persisted.accessMode === "proxy" ? persisted.proxy : undefined);
+const adminProxy = startAdminProxy(() => persisted.proxy);
 const server = Bun.serve({
   hostname: "127.0.0.1",
   port: 3001,
@@ -438,12 +446,13 @@ const server = Bun.serve({
       if (request.method === "POST") {
         if (!allowedOrigin(request)) return new Response("Forbidden", { status: 403 });
         const body: unknown = await request.json().catch(() => null);
-        if (!Value.Check(Type.Object({ mode: Type.Optional(Type.Union([Type.Literal("localhost"), Type.Literal("tailscale")])), localPort: Type.Optional(Type.Integer({ minimum: 1, maximum: 65535 })) }), body)) return new Response("Invalid access setting", { status: 400 });
+        if (!Value.Check(Type.Object({ mode: Type.Optional(accessModeSchema), localPort: Type.Optional(Type.Integer({ minimum: 1, maximum: 65535 })) }), body)) return new Response("Invalid access setting", { status: 400 });
+        if (body.mode === "proxy" && !persisted.proxy) return new Response("Proxy access is not configured", { status: 400 });
         if (body.localPort) persisted.localPort = body.localPort;
         if (body.mode) await setConnectionMode(body.mode);
         else { await persist(); accessChanged(); }
       }
-      return Response.json({ mode: persisted.accessMode, localPort: persisted.localPort, connectionState, authUrl, origin: accessOrigin(), error: connectionFailure ?? networkError });
+      return Response.json({ mode: persisted.accessMode, proxy: persisted.proxy, localPort: persisted.localPort, connectionState, authUrl, origin: accessOrigin(), error: connectionFailure ?? networkError });
     }
     if (url.pathname === "/status") {
       // Check again at the handoff: startup health alone can become stale.
@@ -454,7 +463,8 @@ const server = Bun.serve({
           failure: failure ?? connectionProblem(),
           stopping, busy, appResponding, hostname: tailnetHost, appliedRoute,
           connectionState, authUrl, connectionAction: httpsAction, logs,
-          localOrigin: persisted.localPort ? `http://kintsugi.localhost:${persisted.localPort}` : undefined,
+          localOrigin: accessOrigin(),
+          proxyMode: persisted.accessMode === "proxy",
           localMode: !tailscaleSelected(),
         }),
         failure,
@@ -523,6 +533,11 @@ const server = Bun.serve({
         activeOperation = recheckHealth();
         await activeOperation;
         return Response.redirect(request.headers.get("origin") ?? url.origin, 303);
+      }
+      if (url.pathname === "/restart") {
+        if (!persisted.currentImage) return new Response("No app image to restart", { status: 409 });
+        activeOperation = replace({ image: persisted.currentImage, pull: false });
+        return new Response(null, { status: 202 });
       }
       if (url.pathname === "/retry") {
         activeOperation = replace(replacement);
@@ -712,6 +727,8 @@ async function shutdown(code: number) {
     ]);
   }
   localIngress.stop(true);
+  proxyIngress.stop(true);
+  adminProxy.stop(true);
   uninstallControl.stop(true);
   server.stop(true);
   process.exit(code);

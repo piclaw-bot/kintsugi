@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { forwardToUpstream, maxSocketBufferedBytes } from "../src/ingress/websocket.ts";
+import { bufferUpstreamSocket, forwardToUpstream, maxSocketBufferedBytes } from "../src/ingress/websocket.ts";
 
 test("forwards binary stream bytes unchanged", () => {
   const payload = new Uint8Array([0, 128, 255]).buffer;
@@ -55,3 +55,14 @@ test("a stalled downstream closes the real ingress stream and releases its upstr
     app.stop(true);
   }
 }, 6000);
+
+test("buffers the initial upstream greeting until downstream upgrade completes", () => {
+ // SAFETY: This fixture exercises only message event registration, not connection or close methods.
+ const upstream = new EventTarget() as WebSocket;
+ const attach = bufferUpstreamSocket(upstream);
+ upstream.dispatchEvent(new MessageEvent("message", {data: "RFB 003.008\n"}));
+ const sent: unknown[] = [];
+ attach({send(payload) {sent.push(payload);return 1;},close(){throw Error("unexpected close");}});
+ upstream.dispatchEvent(new MessageEvent("message", {data: new Uint8Array([1,2]).buffer}));
+ expect(sent).toEqual(["RFB 003.008\n",new Uint8Array([1,2]).buffer]);
+});

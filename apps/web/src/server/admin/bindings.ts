@@ -79,7 +79,7 @@ export function createAdminHandler(options: {
     }
     if (route.path === "/settings/access" || route.path === "/host/status") {
       if (!options.systemAvailable?.()) return problem(503, "system_unavailable", "This instance is not managed by System");
-      if (body && (Object.keys(body).some(key => key !== "mode") || (body.mode !== "localhost" && body.mode !== "tailscale"))) throw new RequestProblem(400, "invalid_arguments", "Expected mode: localhost or tailscale");
+      if (body && (Object.keys(body).some(key => key !== "mode") || (body.mode !== "localhost" && body.mode !== "tailscale" && body.mode !== "proxy"))) throw new RequestProblem(400, "invalid_arguments", "Expected mode: localhost, proxy or tailscale");
       const result = await systemFetch(route.path === "/host/status" ? "/status" : "/access", forwarded);
       if (!result.ok) return problem(502, "system_request_failed", "System rejected the operation");
       const value = await result.json();
