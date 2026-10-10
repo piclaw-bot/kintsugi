@@ -23,6 +23,9 @@ import { join } from "node:path";
 import { gzipSync } from "node:zlib";
 import { Type } from "typebox";
 import { Value } from "typebox/value";
+import { createAdminStore } from "./admin/store.ts";
+import { startOptionalAdminBindings } from "./admin/bindings.ts";
+import { connectionModeManaged } from "./settings/connection-mode.ts";
 import { getAgentType, rememberAgentType } from "./agent-types.ts";
 import { createWebApp, type WebApp } from "./app.ts";
 import { parseAssetManifest } from "./asset-manifest.ts";
@@ -357,6 +360,14 @@ const server = Bun.serve<SocketData>({
     },
   },
 });
+const adminServers = await startOptionalAdminBindings({
+  store: createAdminStore(join(runtimeContext.kintsugiDataDir, "admin-bindings.json")),
+  auditPath: join(runtimeContext.kintsugiDataDir, "admin-audit.jsonl"),
+  app,
+  systemAvailable: connectionModeManaged,
+  reportError: error => console.error(error.message),
+});
+for (const listener of adminServers) console.log(`Admin API listening on ${listener.hostname}:${listener.port}`);
 const serverPort = server.port ?? requestedPort;
 
 void kintsugiEvents.emit("kintsugi_host_started", {
@@ -381,6 +392,7 @@ for (const signal of ["SIGINT", "SIGTERM"] as const) process.on(signal, () => {
   if (hostStopping) return;
   hostStopping = true;
   server.stop();
+  for (const listener of adminServers) listener.stop();
   void app.provisioning.drain().then(() => kintsugiEvents.emit("kintsugi_host_stopping", {})).then(() => process.exit(0), error => {
     console.error("Kintsugi shutdown failed", error);
     process.exit(1);

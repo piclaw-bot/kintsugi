@@ -507,6 +507,59 @@ test("updates preserve existing host publications, including a stopped System", 
   expect(installer).not.toContain(".NetworkSettings.Ports");
 });
 
+test("admin publication is explicit and does not replace local ingress", () => {
+  const result = run({}, ["--action", "install", "--admin-publish", "192.168.1.10:3443:3443"]);
+  expect(result.status).toBe(0);
+  expect(result.output).toContain("--publish 127.0.0.1:3080:3080 --publish 192.168.1.10:3443:3443");
+});
+test("loopback admin publication and multiple ports are supported", () => {
+  const result = run({}, ["--action", "install", "--admin-publish", "127.0.0.1:3443:3443", "--admin-publish", "192.168.1.10:3444:3444"]);
+  expect(result.status).toBe(0);
+  expect(result.output).toContain("--publish 127.0.0.1:3443:3443 --publish 192.168.1.10:3444:3444");
+});
+test("invalid admin publication cannot expose internal UI, supervisor or previews", () => {
+  for (const mapping of ["3443", "localhost:3443:3443", "192.168.1.10:3443:3000", "192.168.1.10:3443:3001", "192.168.1.10:3443:3080", "192.168.1.10:3443:41001", "999.1.1.1:3443:3443"]) {
+    const result = run({}, ["--action", "install", "--admin-publish", mapping]);
+    expect(result.status).not.toBe(0);
+    expect(result.output).not.toContain("DOCKER run");
+  }
+});
+test("updates retain previously published admin ports", () => {
+  const result = run({ installed: true, portMappings: "192.168.1.10:3443:3443/tcp" }, ["--action", "update"]);
+  expect(result.status).toBe(0);
+  expect(result.output).toContain("--publish 192.168.1.10:3443:3443");
+});
+
+test("admin publication removal skips saved mappings on update", () => {
+  const result = run({ installed: true, portMappings: "192.168.1.10:3443:3443/tcp" }, ["--action", "update", "--no-admin-publish"]);
+  expect(result.status).toBe(0);
+  expect(result.output).not.toContain("--publish 192.168.1.10:3443:3443");
+});
+test("publication persistence reads Docker HostConfig, including stopped System", () => {
+  expect(installer).toContain(".HostConfig.PortBindings");
+  expect(installer).not.toContain(".NetworkSettings.Ports");
+  const result = run({ installed: true, initiallyStopped: true, portMappings: "192.168.1.10:3443:3443/tcp" }, ["--action", "update"]);
+  expect(result.status).toBe(0);
+  expect(result.output).toContain("--publish 192.168.1.10:3443:3443");
+});
+test("publication flags cannot be silently ignored on open or connect", () => {
+  for (const action of ["open", "connect"]) {
+    const result = run({ installed: true }, ["--action", action, "--admin-publish", "127.0.0.1:3443:3443"]);
+    expect(result.status).not.toBe(0);
+    expect(result.output).toContain("require --action install or update");
+  }
+});
+test("wildcard publication requires explicit informed opt-in", () => {
+  const denied = run({}, ["--action", "install", "--admin-publish", "0.0.0.0:3443:3443"]);
+  expect(denied.status).not.toBe(0);
+  const allowed = run({}, ["--action", "install", "--admin-publish", "0.0.0.0:3443:3443", "--allow-admin-all-interfaces"]);
+  expect(allowed.status).toBe(0);
+  expect(allowed.output).toContain("Docker publication may bypass host firewall");
+});
+test("publication removal and replacement are mutually exclusive", () => {
+  expect(run({}, ["--action", "install", "--admin-publish", "127.0.0.1:3443:3443", "--no-admin-publish"]).status).not.toBe(0);
+});
+
 test("setup prompts for a source repository and hostname and uses the answers", () => {
   const result = run({ promptRepository: "ghcr.io/example/cloud", promptHostname: "cloud-home" });
   expect(result.status).toBe(0);
