@@ -1,7 +1,7 @@
 export {
-  createAgentsInTheCloudEventBus,
-  type AgentsInTheCloudEventBus,
-  type AgentsInTheCloudEventMap,
+  createKintsugiEventBus,
+  type KintsugiEventBus,
+  type KintsugiEventMap,
 } from "./events.ts";
 
 export {
@@ -14,7 +14,7 @@ export {
 } from "./docker.ts";
 
 export {
-  AgentsInTheCloudCoreError,
+  KintsugiCoreError,
   invalidArguments,
 } from "./errors.ts";
 
@@ -41,10 +41,10 @@ export {
 export { isNotFoundError, readTextIfExists, writeFileAtomic, writeJsonAtomic } from "./fs.ts";
 
 export {
-  agentsInTheCloudDataPath,
-  dockerHostAgentsInTheCloudDataPath,
-  getAgentsInTheCloudRuntimeContext,
-  type AgentsInTheCloudRuntimeContext,
+  kintsugiDataPath,
+  dockerHostKintsugiDataPath,
+  getKintsugiRuntimeContext,
+  type KintsugiRuntimeContext,
 } from "./runtime-context.ts";
 
 export {

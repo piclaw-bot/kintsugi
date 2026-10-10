@@ -1,4 +1,4 @@
-import type { RegistryCredentials } from "@agents-in-the-cloud/shared/release-source";
+import type { RegistryCredentials } from "@kintsugi/shared/release-source";
 import { Type } from "typebox";
 import { Value } from "typebox/value";
 import type { HttpFetcher } from "./registry.ts";

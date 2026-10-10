@@ -1,4 +1,4 @@
-import { escapeHtml } from "@agents-in-the-cloud/shared";
+import { escapeHtml } from "@kintsugi/shared";
 
 /** Two 0–100 values on one clockwise ring. */
 export interface Comparison { referencePercent: number; valuePercent: number }

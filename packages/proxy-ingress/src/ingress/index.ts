@@ -4,7 +4,7 @@ import { createLocalOriginPublisher, type ParentOriginPublisher } from "./parent
 import { adaptLocalAppResponse, localAppHost, translateLocalAppOrigin } from "./local-app.ts";
 import { backendTransport } from "./backend-transport.ts";
 import type { ServerWebSocket } from "bun";
-import { workspaceGatewayErrorHeader, isWorkspaceAppPort, parseWorkspacePortAppKey, workspacePortAppKey, stripHopByHopHeaders, type WorkspaceAppBackend, type WorkspaceAppRef, type WorkspaceHttpAppBackend } from "@agents-in-the-cloud/shared";
+import { workspaceGatewayErrorHeader, isWorkspaceAppPort, parseWorkspacePortAppKey, workspacePortAppKey, stripHopByHopHeaders, type WorkspaceAppBackend, type WorkspaceAppRef, type WorkspaceHttpAppBackend } from "@kintsugi/shared";
 import { createMemoryOriginIdentityStore, type OriginIdentityStore } from "./origin-identity.ts";
 import { closeWebSocket, maxSocketBufferedBytes, forwardToUpstream } from "./websocket.ts";
 import {
@@ -90,8 +90,8 @@ interface OriginLease {
   target?: string;
 }
 
-const originContextHeader = "x-agents-in-the-cloud-origin-context";
-const publicOriginHeader = "x-agents-in-the-cloud-public-origin";
+const originContextHeader = "x-kintsugi-origin-context";
+const publicOriginHeader = "x-kintsugi-public-origin";
 export * from "./parent.ts";
 export * from "./workspace-sockets.ts";
 export * from "./tailscale-serve.ts";
@@ -144,7 +144,7 @@ export function createWorkspaceIngress(options: WorkspaceIngressOptions): Worksp
   }
 
   async function startLease(key: string, app: WorkspaceAppRef, protocol: "http" | "https"): Promise<OriginLease> {
-    const scope = publisher.kind === "agents-in-the-cloud" ? "nested" : "public";
+    const scope = publisher.kind === "kintsugi" ? "nested" : "public";
     const range = publicRange;
     const assignment = await identityStore.assignedPort(app, range, protocol);
     const port = assignment.port;
@@ -352,7 +352,7 @@ export function createWorkspaceIngress(options: WorkspaceIngressOptions): Worksp
 async function appRequestHeaders(lease: OriginLease, backend: WorkspaceHttpAppBackend, request: Request): Promise<Headers> {
   let headers = stripHopByHopHeaders(request.headers, ["host"]);
   // Give apps one coherent local origin, including frameworks that prefer
-  // forwarded headers to Host. Public routing identity is AgentsInTheCloud metadata only.
+  // forwarded headers to Host. Public routing identity is Kintsugi metadata only.
   const localHost = localAppHost(backend);
   headers.set("host", localHost);
   headers.set("x-forwarded-host", localHost);
@@ -360,12 +360,12 @@ async function appRequestHeaders(lease: OriginLease, backend: WorkspaceHttpAppBa
   headers.set("x-forwarded-port", backend.target.port || (backend.target.protocol === "https:" ? "443" : "80"));
   headers.delete("forwarded");
   headers.set(publicOriginHeader, appPublicOrigin(lease, request));
-  headers.delete("x-agents-in-the-cloud-parent-origin");
-  headers.delete("x-agents-in-the-cloud-parent-workspace");
+  headers.delete("x-kintsugi-parent-origin");
+  headers.delete("x-kintsugi-parent-workspace");
   const receivingOrigin = receivingAppOrigin(lease, request);
   const sameOrigin = receivingOrigin !== undefined && headers.get("origin") === receivingOrigin;
   if (receivingOrigin !== undefined) translateLocalAppOrigin(backend, headers, receivingOrigin);
-  // Attest the decision to nested AgentsInTheCloud. A foreign Origin could coincidentally
+  // Attest the decision to nested Kintsugi. A foreign Origin could coincidentally
   // equal a nested listener's localhost address; it must stay foreign at that hop.
   headers.set(originContextHeader, sameOrigin ? headers.get("origin")! : "null");
   if (backend.adaptRequestHeaders) headers = await backend.adaptRequestHeaders(headers, request);
@@ -457,15 +457,15 @@ function finishRequest(lease: OriginLease): void {
 }
 
 export function publicWorkspaceAppOrigin(request: Request): string {
-  return publicAgentsInTheCloudOrigin(request);
+  return publicKintsugiOrigin(request);
 }
 
-/** The AgentsInTheCloud URL for the current browser connection, not a guarantee of reachability from other devices. */
-export function agentsInTheCloudUrl(request: Request): string {
-  return publicAgentsInTheCloudOrigin(request);
+/** The Kintsugi URL for the current browser connection, not a guarantee of reachability from other devices. */
+export function kintsugiUrl(request: Request): string {
+  return publicKintsugiOrigin(request);
 }
 
-function publicAgentsInTheCloudOrigin(request: Request): string {
+function publicKintsugiOrigin(request: Request): string {
   const context = publicRequestContext(request);
   return `${context.protocol}://${context.host}`;
 }
@@ -624,7 +624,7 @@ export async function handleCanonicalWorkspaceRequest(request: Request, ingress:
   const destination = new URL(response.headers.get("location")!);
   // Compare both the socket-facing and public identity: TLS termination and
   // nested ingress can make them different. Never fall back to same-origin HTML.
-  if (destination.origin === url.origin || destination.origin === agentsInTheCloudUrl(request)) {
+  if (destination.origin === url.origin || destination.origin === kintsugiUrl(request)) {
     await response.body?.cancel();
     return new Response("Workspace content must use an isolated origin", {
       status: 502,

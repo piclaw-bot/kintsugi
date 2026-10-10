@@ -1,6 +1,6 @@
 /// <reference lib="dom" />
 
-import { isWorkspacePaneVisible, type WorkspaceClientController, type WorkspaceClientControllerConstructor, type WorkspaceClientModule } from "@agents-in-the-cloud/shared";
+import { isWorkspacePaneVisible, type WorkspaceClientController, type WorkspaceClientControllerConstructor, type WorkspaceClientModule } from "@kintsugi/shared";
 import { installFileEditorControllers } from "./editor-controllers.ts";
 type UploadResult = { kind: "ok" | "conflict" | "error" | "cancelled"; message?: string };
 type UploadTask = { file: File; loaded: number; xhr?: XMLHttpRequest };
@@ -229,11 +229,11 @@ function createFilesViewController(Controller: WorkspaceClientControllerConstruc
 
     connect(): void {
       this.pane = this.element.closest<HTMLElement>("[data-workspace-pane-id]")!;
-      this.pane.addEventListener("agents-in-the-cloud:workspace-pane-visible", this.becameVisible);
+      this.pane.addEventListener("kintsugi:workspace-pane-visible", this.becameVisible);
     }
 
     disconnect(): void {
-      this.pane.removeEventListener("agents-in-the-cloud:workspace-pane-visible", this.becameVisible);
+      this.pane.removeEventListener("kintsugi:workspace-pane-visible", this.becameVisible);
     }
 
     preservePaneState(event: Event & { detail: { attributeName: string } }): void {
@@ -257,7 +257,7 @@ function createFilesViewController(Controller: WorkspaceClientControllerConstruc
     refresh(): void {
       // Submit the current filter into its Turbo Frame; never replace the editor.
       this.element.querySelector<HTMLFormElement>(".files-filter")?.requestSubmit();
-      this.element.querySelector<HTMLElement>('[data-controller="file-editor"]')?.dispatchEvent(new Event("agents-in-the-cloud:file-editor-refresh"));
+      this.element.querySelector<HTMLElement>('[data-controller="file-editor"]')?.dispatchEvent(new Event("kintsugi:file-editor-refresh"));
     }
 
     expand(): void {
@@ -301,4 +301,4 @@ const filesClientModule: WorkspaceClientModule = {
   },
 };
 
-export { filesClientModule as agentsInTheCloudClientModule };
+export { filesClientModule as kintsugiClientModule };

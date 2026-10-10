@@ -29,7 +29,7 @@ describe("renderMarkdown", () => {
 
   test("escapes filenames in fenced code blocks", () => {
     const html = renderMarkdown("work 1", "```html <demo>.html\n<p>Hello</p>\n```");
-    expect(html).toContain(`data-agents-in-the-cloud-fullscreen-title-value="&lt;demo&gt;.html"`);
+    expect(html).toContain(`data-kintsugi-fullscreen-title-value="&lt;demo&gt;.html"`);
     expect(html).toContain(`title="&lt;demo&gt;.html"`);
     expect(html).not.toContain(`<demo>`);
   });
@@ -79,14 +79,14 @@ describe("renderMarkdown", () => {
     expect(html).toContain('href="#setup"');
   });
 
-  test("does not rewrite AgentsInTheCloud links inside inline code", () => {
-    const html = renderMarkdown("work 1", "`[render.ts:55](agents-in-the-cloud://file/work/render.ts?line=55&column=1)`");
-    expect(html).toContain("<code>[render.ts:55](agents-in-the-cloud://file/work/render.ts?line=55&amp;column=1)</code>");
+  test("does not rewrite Kintsugi links inside inline code", () => {
+    const html = renderMarkdown("work 1", "`[render.ts:55](kintsugi://file/work/render.ts?line=55&column=1)`");
+    expect(html).toContain("<code>[render.ts:55](kintsugi://file/work/render.ts?line=55&amp;column=1)</code>");
     expect(html).not.toContain("data-turbo-stream");
   });
 
   test("escapes special characters in code-formatted link labels", () => {
-    const html = renderMarkdown("work 1", "[`<tag>&\"`](agents-in-the-cloud://file/work/render.ts)");
+    const html = renderMarkdown("work 1", "[`<tag>&\"`](kintsugi://file/work/render.ts)");
     expect(html).toContain("<code>&lt;tag&gt;&amp;&quot;</code>");
   });
 

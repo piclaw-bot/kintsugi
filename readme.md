@@ -1,33 +1,32 @@
-<p align="center">
-  <a href="https://agentsinthecloud.com/">
-    <img src="docs/readme/hero.jpg" alt="AgentsInTheCloud, with robots forming the A and the T, above a cloud-shaped window full of robots at a workbench." width="600">
-  </a>
-</p>
+# Kintsugi
 
-- Run cloud coding agents on your own server
-- Use any model provider you want
-- Workflows optimized for evaluating agent work
-- Free, [MIT licensed](LICENSE)
+![Kintsugi](docs/readme/hero.svg)
 
-<p align="center">
-  <a href="https://agentsinthecloud.com/">Website</a> · <a href="#installation">Install AgentsInTheCloud</a> · <a href="#contributing">Contributing</a>
-</p>
+Kintsugi is an opinionated fork of [AgentsInTheCloud](https://github.com/lucasmeijer/AgentsInTheCloud), created by Lucas Meijer. It runs coding agents on your own infrastructure, with your choice of model providers and tools for evaluating their work.
+
+The fork adds configurable Docker release sources, private GHCR authentication, pinned updates and installer rollback. The name comes from **金継ぎ**, the Japanese art of repairing pottery with gold.
 
 ## Installation
 
-1. **Connect to your server.** SSH into a Linux server that will only be used for AgentsInTheCloud.
-2. **Install AgentsInTheCloud.** Run:
+Use a dedicated Linux server with Docker. This branch selects `ghcr.io/rcarmo/kintsugi` and `ghcr.io/rcarmo/kintsugi-system`; matching images must be available before installation.
 
-   ```sh
-   curl -fsSL https://agentsinthecloud.com/install.sh | bash
-   ```
+```sh
+curl -fsSL https://raw.githubusercontent.com/rcarmo/kintsugi/feature/rebranding-kintsugi/scripts/install.sh -o /tmp/install-kintsugi.sh
+bash /tmp/install-kintsugi.sh --action install
+```
 
-## Contributing
+Setup asks for the app image repository and Tailscale machine name. System defaults to the app repository with `-system` appended. For locally built or separately named images, use `--app-image` and `--system-image`. Private GHCR sources accept `--registry-config FILE`. See [automation](docs/automation.md) for source selection, updates and rollback.
 
-I'm still figuring out how to accept contributions.
+## Development
 
-I would love to hear how the product could be made better for your use case. In your human voice, not your AI's. Your description can include some AI-generated extra detail, sure, but the main thing you're trying to tell me should be *you* trying to tell *me*.
+```sh
+bun install
+bun run check
+bun run web
+```
 
-For now, please don't send pull requests. Telling me exactly how the product could be better for you is very welcome, though. Think of it as a PR in the form of a prompt.
+Internal packages use `@kintsugi/*`. Container accounts are `agent:agent`, with `/home/agent` as their home. The app uses UID/GID 1000; workspace startup aligns the numeric IDs with the host process to preserve shared-volume ownership. Existing `ATELIER_*` environment variables keep their names for compatibility.
 
-We're all just figuring out this new world in real time :-). Hope you like the product, I had a lot of fun building it.
+## Attribution and licence
+
+Kintsugi derives from Lucas Meijer's [AgentsInTheCloud](https://github.com/lucasmeijer/AgentsInTheCloud). The original copyright and [MIT licence](LICENSE) are retained. Third-party attributions are in [NOTICE](NOTICE).

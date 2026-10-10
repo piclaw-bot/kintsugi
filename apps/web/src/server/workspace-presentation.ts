@@ -1,21 +1,21 @@
 import { workspaceTemplateChoiceHtml, workspaceTemplateIconHtml } from "./workspace-template-presentation.ts";
-import { disclosureHtml } from "@agents-in-the-cloud/design-system/disclosure";
-import { contentRowHtml } from "@agents-in-the-cloud/design-system/content-row";
-import { addBadgeHtml } from "@agents-in-the-cloud/design-system/add-badge";
-import { actionLinkHtml } from "@agents-in-the-cloud/design-system/action-link";
-import { buttonHtml, type ButtonVariant } from "@agents-in-the-cloud/design-system/button";
-import { buttonGroupHtml } from "@agents-in-the-cloud/design-system/button-group";
-import { dialogHtml } from "@agents-in-the-cloud/design-system/dialog";
-import { Icons } from "@agents-in-the-cloud/design-system/icons";
-import { panelHtml } from "@agents-in-the-cloud/design-system/panel";
-import { popupHtml } from "@agents-in-the-cloud/design-system/popup";
-import { tabHtml, tabStripHtml } from "@agents-in-the-cloud/design-system/tab-strip";
-import { domId, escapeHtml, turboStream, workspaceWorkViewLabelDomId } from "@agents-in-the-cloud/shared";
+import { disclosureHtml } from "@kintsugi/design-system/disclosure";
+import { contentRowHtml } from "@kintsugi/design-system/content-row";
+import { addBadgeHtml } from "@kintsugi/design-system/add-badge";
+import { actionLinkHtml } from "@kintsugi/design-system/action-link";
+import { buttonHtml, type ButtonVariant } from "@kintsugi/design-system/button";
+import { buttonGroupHtml } from "@kintsugi/design-system/button-group";
+import { dialogHtml } from "@kintsugi/design-system/dialog";
+import { Icons } from "@kintsugi/design-system/icons";
+import { panelHtml } from "@kintsugi/design-system/panel";
+import { popupHtml } from "@kintsugi/design-system/popup";
+import { tabHtml, tabStripHtml } from "@kintsugi/design-system/tab-strip";
+import { domId, escapeHtml, turboStream, workspaceWorkViewLabelDomId } from "@kintsugi/shared";
 import { formatShortcutBinding } from "../shortcut-binding.ts";
 import { renderAgentPane, renderMobileAgentAttention, type AgentPaneContribution } from "./agent-pane.ts";
 import { renderPwaReminder } from "./pwa-reminder.ts";
 import type { WorkspaceDeletionState } from "./workspace-registry.ts";
-import type { WorkspaceWorkViewState } from "@agents-in-the-cloud/workspace";
+import type { WorkspaceWorkViewState } from "@kintsugi/workspace";
 import { barButton, behaviorTurboStream, busyAttentionIndicator, fullscreenViewAttributes, selectorCloseForm, type ViewCloseAction } from "./workspace-view-markup.ts";
 
 export type WorkViewAvailability =
@@ -92,7 +92,7 @@ function renderWorkspaceRowStatus(workspace: WorkspacePaneEntry): string {
     return workspaceStatusSlot(busyAttentionIndicator(workspace));
   }
   const issues = (workspace.issues ?? []).map((issue) => issue.message);
-  if (workspace.outdated) issues.push("New workspaces get a newer image, after an AgentsInTheCloud update or a Dockerfile change. Make a new workspace to use it.");
+  if (workspace.outdated) issues.push("New workspaces get a newer image, after an Kintsugi update or a Dockerfile change. Make a new workspace to use it.");
   return issues.length
     ? workspaceStatusSlot(`<i class="fixed-shell-workspace-warning" aria-label="${escapeHtml(issues.join("\n"))}" title="${escapeHtml(issues.join("\n"))}">⚠︎</i>`)
     : "";
@@ -218,17 +218,17 @@ export function renderWorkspacePane(presentation: WorkspacePanePresentation, sid
   })}</div></div>`;
 }
 
-const agentsInTheCloudNextAttentionDomId = "fixed_shell_agents-in-the-cloud_next_attention";
+const kintsugiNextAttentionDomId = "fixed_shell_kintsugi_next_attention";
 
-function renderAgentsInTheCloudNextAttentionButton(): string {
+function renderKintsugiNextAttentionButton(): string {
   const icon = `${Icons.Next}<i class="status-dot attention" aria-hidden="true"></i>`;
-  return barButton("Next workspace requesting attention", "click->agents-in-the-cloud-shortcuts#openAttentionWorkspace", icon, `id="${agentsInTheCloudNextAttentionDomId}" disabled`);
+  return barButton("Next workspace requesting attention", "click->kintsugi-shortcuts#openAttentionWorkspace", icon, `id="${kintsugiNextAttentionDomId}" disabled`);
 }
 
-export function renderAgentsInTheCloudBar(): string {
+export function renderKintsugiBar(): string {
   const close = barButton("Close workspace list", "click->workspace-navigation#closeWorkspacePane", Icons.Close, "data-close-workspace-pane disabled");
-  const newWorkspace = barButton("New workspace from same template", "click->agents-in-the-cloud-shortcuts#runCommand", Icons.Plus, 'data-command-id="agent.open-launch-composer"');
-  return `<nav class="fixed-shell-mobile-nav fixed-shell-agents-in-the-cloud-bar" data-popular-button aria-label="AgentsInTheCloud">${close}${renderAgentsInTheCloudNextAttentionButton()}${newWorkspace}</nav>`;
+  const newWorkspace = barButton("New workspace from same template", "click->kintsugi-shortcuts#runCommand", Icons.Plus, 'data-command-id="agent.open-launch-composer"');
+  return `<nav class="fixed-shell-mobile-nav fixed-shell-kintsugi-bar" data-popular-button aria-label="Kintsugi">${close}${renderKintsugiNextAttentionButton()}${newWorkspace}</nav>`;
 }
 
 export function workspacePresentationDomId(workspaceId: string): string {
@@ -273,7 +273,7 @@ export function workContentId(workspaceId: string, key: string): string {
 function renderWorkViewPane(workspaceId: string, view: WorkPaneContribution, active: boolean): string {
   const body = view.bodyHtml ?? "";
   const source = view.sourceKey ? ` data-source-work-view-key="${escapeHtml(view.sourceKey)}"` : "";
-  return `<section id="${workViewPaneDomId(workspaceId, view.key)}" class="fixed-shell-surface${active ? " is-active" : ""}" data-workspace-pane-role="work" data-workspace-pane-id="${escapeHtml(view.key)}" data-agents-in-the-cloud-fullscreen-view-key="${escapeHtml(view.sourceKey ?? view.key)}" data-workspace-logically-visible="false"${source} tabindex="-1"><div id="${workViewAvailabilityDomId(workspaceId, view.key)}">${renderAvailability(view)}</div><div id="${workViewActionsDomId(workspaceId, view.key)}" class="fixed-shell-work-actions">${view.actionsHtml ?? ""}</div><div class="fixed-shell-live-body" id="${workContentId(workspaceId, view.key)}" data-turbo-permanent>${body}</div></section>`;
+  return `<section id="${workViewPaneDomId(workspaceId, view.key)}" class="fixed-shell-surface${active ? " is-active" : ""}" data-workspace-pane-role="work" data-workspace-pane-id="${escapeHtml(view.key)}" data-kintsugi-fullscreen-view-key="${escapeHtml(view.sourceKey ?? view.key)}" data-workspace-logically-visible="false"${source} tabindex="-1"><div id="${workViewAvailabilityDomId(workspaceId, view.key)}">${renderAvailability(view)}</div><div id="${workViewActionsDomId(workspaceId, view.key)}" class="fixed-shell-work-actions">${view.actionsHtml ?? ""}</div><div class="fixed-shell-live-body" id="${workContentId(workspaceId, view.key)}" data-turbo-permanent>${body}</div></section>`;
 }
 
 
@@ -426,10 +426,10 @@ export function renderWorkspaceDeletionPresentation(workspaceId: string, deletio
   });
   let content: string;
   if (deletion.status === "checking") {
-    content = '<div class="workspace-deletion-heading"><span class="status-spinner" aria-hidden="true"></span><h1>Checking if it’s safe to delete…</h1><p>AgentsInTheCloud is checking for local Git work and saved review comments.</p></div>';
+    content = '<div class="workspace-deletion-heading"><span class="status-spinner" aria-hidden="true"></span><h1>Checking if it’s safe to delete…</h1><p>Kintsugi is checking for local Git work and saved review comments.</p></div>';
   } else if (deletion.status === "deleting") {
     const title = deletion.forced ? "Force deleting workspace…" : "Deleting workspace…";
-    const detail = deletion.forced ? "Local changes may be discarded." : "The safety check passed. AgentsInTheCloud is removing the workspace.";
+    const detail = deletion.forced ? "Local changes may be discarded." : "The safety check passed. Kintsugi is removing the workspace.";
     content = `<div class="workspace-deletion-heading"><span class="status-spinner" aria-hidden="true"></span><h1>${title}</h1><p>${detail}</p></div>`;
   } else if (deletion.status === "blocked") {
     content = `<div class="workspace-deletion-evidence" aria-label="Work that may be lost">${evidenceHtml}</div><footer class="workspace-deletion-actions"><form method="post" action="/workspaces/${id}/delete/cancel" data-turbo="true">${deletionButton("Cancel deletion")}</form><form method="post" action="/workspaces/${id}/delete/confirm" data-turbo="true" data-controller="submit-shortcut" data-action="keydown@window->submit-shortcut#windowKeydown submit->submit-shortcut#submit turbo:submit-end->submit-shortcut#submitted"><input type="hidden" name="fingerprint" value="${escapeHtml(deletion.fingerprint)}">${deletionButton("Delete anyway", "danger")}</form></footer>`;
@@ -455,7 +455,7 @@ export function presentWorkViewTurboStream(workspaceId: string, key: string): st
   return behaviorTurboStream("present-work-view", workspaceId, { "work-view-key": key });
 }
 
-export function workspacePaneCollectionsRegions(presentation: WorkspacePanePresentation): import("@agents-in-the-cloud/shared").LiveRegion[] {
+export function workspacePaneCollectionsRegions(presentation: WorkspacePanePresentation): import("@kintsugi/shared").LiveRegion[] {
   return [
     { target: workspacePaneScrollDomId, html: renderWorkspaceRows(presentation) },
     { target: workspacePaneNewWorkspaceDomId, html: renderNewWorkspaceRow(presentation) },

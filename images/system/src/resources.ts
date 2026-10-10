@@ -5,11 +5,11 @@ const GiB = 1024 ** 3;
 export function resourcePolicy(memory: number, pids: number) {
   if (memory < 3 * GiB)
     throw new Error(
-      "AgentsInTheCloud System requires at least 3 GiB effective memory for management and workloads",
+      "Kintsugi System requires at least 3 GiB effective memory for management and workloads",
     );
   if (pids < 2048)
     throw new Error(
-      "AgentsInTheCloud System requires an effective process limit of at least 2048",
+      "Kintsugi System requires an effective process limit of at least 2048",
     );
   const reserve = Math.min(4 * GiB, Math.max(GiB, Math.ceil(memory * 0.2)));
   const max = Math.floor(memory - reserve);
@@ -139,14 +139,14 @@ export async function initializeResources() {
     policy,
     effectiveMemory: memory,
   };
-  await mkdir("/run/agents-in-the-cloud-system", { recursive: true });
-  await writeFile("/run/agents-in-the-cloud-system/resources.json", JSON.stringify(result));
+  await mkdir("/run/kintsugi-system", { recursive: true });
+  await writeFile("/run/kintsugi-system/resources.json", JSON.stringify(result));
   const config = JSON.parse(await readFile("/etc/docker/daemon.json", "utf8"));
   config["cgroup-parent"] = result.workloadsCgroupParent;
   config["exec-opts"] = ["native.cgroupdriver=cgroupfs"];
   // Each workspace needs one container address, not Docker's default /16.
   // Keep this private-daemon policy separate from the host and workspace daemons.
   config["default-address-pools"] = [{ base: "172.16.0.0/12", size: 24 }];
-  await writeFile("/run/agents-in-the-cloud-system/daemon.json", JSON.stringify(config));
+  await writeFile("/run/kintsugi-system/daemon.json", JSON.stringify(config));
   return result;
 }

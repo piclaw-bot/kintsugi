@@ -1,5 +1,5 @@
 {
-  "name": "@agents-in-the-cloud/workspace-templates",
+  "name": "@kintsugi/workspace-templates",
   "private": true,
   "type": "module",
   "exports": {
@@ -8,9 +8,9 @@
     "./secret-path-policy": "./src/secret-path-policy.ts"
   },
   "dependencies": {
-    "@agents-in-the-cloud/core": "workspace:*",
-    "@agents-in-the-cloud/observable-terminal": "workspace:*",
-    "@agents-in-the-cloud/workspace": "workspace:*",
+    "@kintsugi/core": "workspace:*",
+    "@kintsugi/observable-terminal": "workspace:*",
+    "@kintsugi/workspace": "workspace:*",
     "typebox": "^1.0.57"
   }
 }

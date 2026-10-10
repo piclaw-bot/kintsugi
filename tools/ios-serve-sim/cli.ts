@@ -1,5 +1,5 @@
 #!/usr/bin/env bun
-import { shellQuote } from "@agents-in-the-cloud/core";
+import { shellQuote } from "@kintsugi/core";
 import { port, remoteCommand, serveOptions, installScript } from './core';
 import { deviceName, guardedCommand, workspaceId, workspaceRoot } from './lifecycle';
 

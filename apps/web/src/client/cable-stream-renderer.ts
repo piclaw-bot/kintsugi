@@ -37,12 +37,12 @@ export const renderCableStreams: CableStreamRenderer = (html, isCurrent, onAppli
     }
     if (!isCurrent()) return;
     document.querySelectorAll("[data-controller~='workspace-presentation']").forEach(element => element.dispatchEvent(new Event("live:structure")));
-    document.dispatchEvent(new Event("agents-in-the-cloud:workspace-pane-changed"));
+    document.dispatchEvent(new Event("kintsugi:workspace-pane-changed"));
     onApplied();
   }).catch(error => {
     // A failed application cannot be treated as current. Report it and force a
     // new snapshot rather than continuing from a partially applied delta stream.
     console.error("Live presentation could not be applied", error);
-    window.AgentsInTheCloudCable?.reconnect();
+    window.KintsugiCable?.reconnect();
   });
 };

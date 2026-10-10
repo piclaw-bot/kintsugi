@@ -1,4 +1,4 @@
-import { agentsInTheCloudDataPath, dockerHostAgentsInTheCloudDataPath, type AgentsInTheCloudRuntimeContext } from "@agents-in-the-cloud/core";
+import { kintsugiDataPath, dockerHostKintsugiDataPath, type KintsugiRuntimeContext } from "@kintsugi/core";
 import { chmod, copyFile, mkdir, readdir, rename, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -6,10 +6,10 @@ import type { WorkspaceDockerMount } from "../types.ts";
 
 /** Publish workspace helpers into one read-only directory mount, including nested installations. */
 export async function prepareWorkspaceToolsMount(
-  runtime: AgentsInTheCloudRuntimeContext,
+  runtime: KintsugiRuntimeContext,
   packagesDirectory = fileURLToPath(new URL("../../../", import.meta.url)),
 ): Promise<WorkspaceDockerMount> {
-  const directory = agentsInTheCloudDataPath(runtime, "workspace-tools");
+  const directory = kintsugiDataPath(runtime, "workspace-tools");
   const tools = new Map<string, string>();
   const packages = await readdir(packagesDirectory, { withFileTypes: true });
   for (const entry of packages.sort((left, right) => left.name.localeCompare(right.name))) {
@@ -40,8 +40,8 @@ export async function prepareWorkspaceToolsMount(
   }
   return {
     type: "bind",
-    source: dockerHostAgentsInTheCloudDataPath(runtime, "workspace-tools"),
-    target: "/opt/agents-in-the-cloud/bin",
+    source: dockerHostKintsugiDataPath(runtime, "workspace-tools"),
+    target: "/opt/kintsugi/bin",
     readonly: true,
   };
 }

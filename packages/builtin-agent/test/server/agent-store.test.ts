@@ -1,4 +1,4 @@
-import { sessionShareDir, sessionShareKeySlug } from "@agents-in-the-cloud/agent/server/session-share";
+import { sessionShareDir, sessionShareKeySlug } from "@kintsugi/agent/server/session-share";
 import { mkdtemp, rm, writeFile, mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
@@ -14,7 +14,7 @@ import {
 let dir: string | undefined;
 
 async function dataDir(): Promise<string> {
-  dir = await mkdtemp(join(tmpdir(), "agents-in-the-cloud-agent-test-"));
+  dir = await mkdtemp(join(tmpdir(), "kintsugi-agent-test-"));
   process.env.ATELIER_DATA_DIR = dir;
   return dir;
 }

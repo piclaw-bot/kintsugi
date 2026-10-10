@@ -1,8 +1,8 @@
 # Logic Prototype
 
-Build one interactive HTML file that lets anyone drive a state model by clicking AgentsInTheCloud UI controls and watching the result. Use this when the question is about **business logic, state transitions, or data shape**—the kind of idea that only becomes clear when exercised through real cases.
+Build one interactive HTML file that lets anyone drive a state model by clicking Kintsugi UI controls and watching the result. Use this when the question is about **business logic, state transitions, or data shape**—the kind of idea that only becomes clear when exercised through real cases.
 
-The model is the subject, but the artifact is still an AgentsInTheCloud prototype. Follow the shared design-system rules in [SKILL.md](SKILL.md): load `/design-system.css` (owned by `packages/design-system`), reuse its elements, and present the model in the visual and product context where it would eventually live.
+The model is the subject, but the artifact is still an Kintsugi prototype. Follow the shared design-system rules in [SKILL.md](SKILL.md): load `/design-system.css` (owned by `packages/design-system`), reuse its elements, and present the model in the visual and product context where it would eventually live.
 
 If the question is primarily “what should this look like or how should this interaction be organized?”, use [UI.md](UI.md).
 
@@ -17,7 +17,7 @@ If the question is primarily “what should this look like or how should this in
 
 ### 1. State the question
 
-At the top of the demo, visibly state the model and the exact uncertainty being explored. Use domain language, not implementation terminology. Also identify the real AgentsInTheCloud surface this model supports and the existing design-system elements used to represent it.
+At the top of the demo, visibly state the model and the exact uncertainty being explored. Use domain language, not implementation terminology. Also identify the real Kintsugi surface this model supports and the existing design-system elements used to represent it.
 
 ### 2. Isolate the model
 
@@ -34,17 +34,17 @@ The surrounding HTML is throwaway. Keeping the model pure makes the validated id
 
 ### 3. Build the HTML explorer
 
-Place one clearly marked file under `apps/web/public/prototypes/` by default. Link `../design-system.css`; do not copy, inline, or reproduce the design system. Use shipped controls such as `.button`, `.button-group`, `.toggle`, `.action-item`, fields, and status indicators wherever their semantics fit. Any prototype-only layout CSS must use AgentsInTheCloud's tokens rather than custom colors, fonts, radii, shadows, or spacing scales.
+Place one clearly marked file under `apps/web/public/prototypes/` by default. Link `../design-system.css`; do not copy, inline, or reproduce the design system. Use shipped controls such as `.button`, `.button-group`, `.toggle`, `.action-item`, fields, and status indicators wherever their semantics fit. Any prototype-only layout CSS must use Kintsugi's tokens rather than custom colors, fonts, radii, shadows, or spacing scales.
 
 Lay out the explorer with a clear hierarchy:
 
-1. **Question and context**—what the demo explores and where it belongs in AgentsInTheCloud.
+1. **Question and context**—what the demo explores and where it belongs in Kintsugi.
 2. **Current state**—all relevant state as readable labelled fields, not merely raw JSON. Highlight what changed after each action using existing status and color roles.
 3. **Free play**—one action per control so the model can be exercised in any order. Disable illegal actions when that is part of the model, and explain why.
 4. **Guided scenarios**—tabs, toggles, action items, or another appropriate design-system pattern for several walkthroughs. Each scenario explains the setup and what to watch, resets to known initial state, and presents the ordered actions as real controls.
 5. **Event history**—when ordering matters, show a compact domain-language history so surprising transitions can be diagnosed.
 
-Include at least a happy path, a difficult edge case, and an illegal or rejected attempt. Use realistic AgentsInTheCloud terminology and representative data. The UI should be polished enough that presentation flaws do not obscure the model, but it should not become an unrelated visual design exercise.
+Include at least a happy path, a difficult edge case, and an illegal or rejected attempt. Use realistic Kintsugi terminology and representative data. The UI should be polished enough that presentation flaws do not obscure the model, but it should not become an unrelated visual design exercise.
 
 ### 4. Keep it simple and evaluable
 
@@ -54,7 +54,7 @@ Include at least a happy path, a difficult edge case, and an illegal or rejected
 - No tests, generic abstractions, or production-grade error handling.
 - A top-of-file comment naming the design question and marking the artifact as throwaway.
 
-Run AgentsInTheCloud with `bun run web`, open the served prototype URL, and leave the most revealing scenario selected for review.
+Run Kintsugi with `bun run web`, open the served prototype URL, and leave the most revealing scenario selected for review.
 
 ### 5. Hand it over
 
@@ -66,7 +66,7 @@ Record what the prototype established. Implement the validated model properly in
 
 ## Anti-patterns
 
-- A generic stand-alone demo that visually ignores AgentsInTheCloud.
+- A generic stand-alone demo that visually ignores Kintsugi.
 - Copying or approximating `design-system.css` instead of linking and using it.
 - A raw JSON dump as the only state presentation.
 - DOM manipulation inside the model.

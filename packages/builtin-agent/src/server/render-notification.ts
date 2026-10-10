@@ -1,7 +1,7 @@
-import { buttonHtml } from "@agents-in-the-cloud/design-system/button";
-import { Icons } from "@agents-in-the-cloud/design-system/icons";
-import { domId, escapeHtml } from "@agents-in-the-cloud/shared";
-import { agentPath, type AgentRenderContext } from "@agents-in-the-cloud/agent/server/render-context";
+import { buttonHtml } from "@kintsugi/design-system/button";
+import { Icons } from "@kintsugi/design-system/icons";
+import { domId, escapeHtml } from "@kintsugi/shared";
+import { agentPath, type AgentRenderContext } from "@kintsugi/agent/server/render-context";
 import { currentNotificationTurn } from "./turn-notifications.ts";
 
 export function notificationControlId(ctx: AgentRenderContext): string { return domId("agent_notification", ctx.workspaceId, ctx.agentId); }

@@ -2,14 +2,14 @@ import { createHash } from "node:crypto";
 import { readdir, rm } from "node:fs/promises";
 import { join } from "node:path";
 
-export const uninstallSocketPath = "/run/agents-in-the-cloud-system/uninstall.sock";
+export const uninstallSocketPath = "/run/kintsugi-system/uninstall.sock";
 export type UninstallState = { state: "running" | "failed" | "complete"; description: string };
 export type UninstallPlan = { token: string; workspaceCount: number };
 type Docker = (...args: string[]) => Promise<string>;
 
 /** Inventory is independent of app health and includes parked and orphaned workspace data. */
 export async function uninstallPlan(docker: Docker, dataDir = "/data/app"): Promise<UninstallPlan> {
-  const labelled = await docker("ps", "-a", "--filter", "label=com.agents-in-the-cloud.type=workspace", "--format", '{{.ID}}\t{{.Label "com.agents-in-the-cloud.workspace-id"}}');
+  const labelled = await docker("ps", "-a", "--filter", "label=com.kintsugi.type=workspace", "--format", '{{.ID}}\t{{.Label "com.kintsugi.workspace-id"}}');
   const ids = new Set(labelled.split("\n").filter(Boolean).map(line => {
     const [containerId, workspaceId] = line.split("\t");
     return workspaceId?.trim() || containerId!.trim().slice(0, 8);

@@ -1,4 +1,4 @@
-import { progressButtonHtml } from "@agents-in-the-cloud/design-system/progress-button";
+import { progressButtonHtml } from "@kintsugi/design-system/progress-button";
 
 export const dictationComposerController = "dictation-composer";
 

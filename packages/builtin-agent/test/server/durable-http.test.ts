@@ -4,8 +4,8 @@ import { afterEach, expect, test } from "bun:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { createAgentsInTheCloudEventBus } from "@agents-in-the-cloud/core";
-import { agentAttachmentDraftId, findStagedAttachment, stageAttachment } from "@agents-in-the-cloud/prompt/server";
+import { createKintsugiEventBus } from "@kintsugi/core";
+import { agentAttachmentDraftId, findStagedAttachment, stageAttachment } from "@kintsugi/prompt/server";
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
 import { createModels, fauxAssistantMessage, fauxProvider } from "@earendil-works/pi-ai";
 import { createRegistry, defineExtension, defineTool } from "@earendil-works/pi-durable";
@@ -45,7 +45,7 @@ test("lost HTTP response retries admitted input after attachment staging is cons
   const attachment = await stageAttachment(draft, new File([image], "image.png", { type: "image/png" }));
   let admissions = 0;
   let accepted: Awaited<ReturnType<typeof controller.submit>>;
-  const events = createAgentsInTheCloudEventBus();
+  const events = createKintsugiEventBus();
   // The route boundary uses an actual native execution controller. No HTML or UI assertions.
   const countedController = {
     ...controller,
@@ -55,7 +55,7 @@ test("lost HTTP response retries admitted input after attachment staging is cons
       return accepted;
     },
   };
-  const request = () => new Request(`http://agents-in-the-cloud.test/workspaces/${agent.workspaceId}/agents/${agent.agentId}/messages`, {
+  const request = () => new Request(`http://kintsugi.test/workspaces/${agent.workspaceId}/agents/${agent.agentId}/messages`, {
     method: "POST", body: new URLSearchParams({ text: "Look at the image", requestId: "lost-response", attachmentDraft: draft, attachment: attachment.id }),
   });
   const first = request();
@@ -64,7 +64,7 @@ test("lost HTTP response retries admitted input after attachment staging is cons
     getController: async () => countedController,
     suggestTitleFromPrompt: () => {},
   });
-  expect(response?.headers.get("x-agents-in-the-cloud-attachment-draft-consumed")).toBe("true");
+  expect(response?.headers.get("x-kintsugi-attachment-draft-consumed")).toBe("true");
   expect(await findStagedAttachment(draft, attachment.id)).toBeUndefined();
   expect((await accepted!.wait(BACKGROUND_CONTEXT)).status).toBe("done");
   await suspendAllDurableWorkspaceOwners();
@@ -83,7 +83,7 @@ test("lost HTTP response retries admitted input after attachment staging is cons
     getController: async () => { throw new Error("Must not acquire execution on retry"); },
   });
   expect(retried?.status).toBe(200);
-  expect(retried?.headers.get("x-agents-in-the-cloud-attachment-draft-consumed")).toBe("true");
+  expect(retried?.headers.get("x-kintsugi-attachment-draft-consumed")).toBe("true");
   expect(admissions).toBe(1);
   expect(faux.state.callCount).toBe(1);
 });
@@ -122,7 +122,7 @@ test("offline HTTP Stop bypasses model/UI preparation and commits intent before 
     expand: async () => { throw new Error("No workspace"); }, validateModel: async (_ref: { provider: string; modelId: string } | undefined) => {},
     ready: async () => { throw new Error("Offline"); },
   });
-  const request = new Request(`http://agents-in-the-cloud.test/workspaces/${agent.workspaceId}/agents/${agent.agentId}/abort`, { method: "POST" });
+  const request = new Request(`http://kintsugi.test/workspaces/${agent.workspaceId}/agents/${agent.agentId}/abort`, { method: "POST" });
   await expect(handleAgentRequest(request, new URL(request.url), {
     getPresentation: async () => { throw new Error("Must not mount UI for Stop"); },
   })).rejects.toThrow("Stop saved");
@@ -157,7 +157,7 @@ test("thinking level HTTP configuration uses canonical fields and validates nati
   });
   const controller = await owner.agent(agent, { model });
   const configure = (thinkingLevel?: string) => {
-    const request = new Request(`http://agents-in-the-cloud.test/workspaces/${agent.workspaceId}/agents/${agent.agentId}/thinking-level`, {
+    const request = new Request(`http://kintsugi.test/workspaces/${agent.workspaceId}/agents/${agent.agentId}/thinking-level`, {
       method: "POST", headers: { Accept: "application/json", "Content-Type": "application/json" }, body: JSON.stringify({ thinkingLevel }),
     });
     return handleAgentRequest(request, new URL(request.url), { getController: async () => controller });

@@ -1,4 +1,4 @@
-import { escapeHtml } from "@agents-in-the-cloud/shared";
+import { escapeHtml } from "@kintsugi/shared";
 import type { ContentRowContent } from "../content-row/content-row-html.ts";
 import { contentRowClasses, contentRowContentHtml } from "../content-row/content-row-markup.ts";
 import { attributesHtml } from "../html.ts";

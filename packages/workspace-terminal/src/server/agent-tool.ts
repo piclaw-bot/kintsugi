@@ -1,5 +1,5 @@
-import { AgentsInTheCloudCoreError } from "@agents-in-the-cloud/core";
-import type { WorkspacePresenterDefinition, WorkspacePresenterDeps } from "@agents-in-the-cloud/agent/server/tools";
+import { KintsugiCoreError } from "@kintsugi/core";
+import type { WorkspacePresenterDefinition, WorkspacePresenterDeps } from "@kintsugi/agent/server/tools";
 import { Type } from "typebox";
 import { terminalViewKey } from "../shared.ts";
 import { attachWorkspaceTerminal, listWorkspaceTerminals, tmuxSessionExists } from "./workspace-terminals.ts";
@@ -7,7 +7,7 @@ import { attachWorkspaceTerminal, listWorkspaceTerminals, tmuxSessionExists } fr
 export function createTmuxPresenter(workspaceId: string, deps: WorkspacePresenterDeps): WorkspacePresenterDefinition<{ kind: "tmux"; session: string }> {
   return {
     kind: "tmux",
-    description: "Present an existing tmux session in AgentsInTheCloud's preview area. If needed, this opens a persisted Terminal view attached to that session.",
+    description: "Present an existing tmux session in Kintsugi's preview area. If needed, this opens a persisted Terminal view attached to that session.",
     parameters: {
       session: Type.String({ description: "Exact name of the pre-existing tmux session. The session must already exist." }),
     },
@@ -16,7 +16,7 @@ export function createTmuxPresenter(workspaceId: string, deps: WorkspacePresente
       let terminal = existing;
       if (terminal) {
         if (!(await tmuxSessionExists(workspaceId, params.session))) {
-          throw new AgentsInTheCloudCoreError("terminal_not_found", `tmux session not found: ${params.session}`);
+          throw new KintsugiCoreError("terminal_not_found", `tmux session not found: ${params.session}`);
         }
       } else {
         terminal = await attachWorkspaceTerminal(workspaceId, params.session);

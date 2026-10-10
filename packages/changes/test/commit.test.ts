@@ -3,7 +3,7 @@ import { afterEach, beforeEach, expect, test } from "bun:test";
 import { chmod, rm, symlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { collectCommitChangesFile, collectCommitChangesStats } from "../src/server/diff.ts";
-import { git } from "@agents-in-the-cloud/workspace/git";
+import { git } from "@kintsugi/workspace/git";
 import { command, createChangesRepository } from "./support/repository.ts";
 
 let root: string;

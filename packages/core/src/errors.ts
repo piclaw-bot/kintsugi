@@ -1,12 +1,12 @@
 import type { JsonObject } from "./json.ts";
 
-export interface AgentsInTheCloudError {
+export interface KintsugiError {
   code: string;
   message: string;
   details?: JsonObject;
 }
 
-export class AgentsInTheCloudCoreError extends Error {
+export class KintsugiCoreError extends Error {
   readonly code: string;
   readonly details?: JsonObject;
 
@@ -17,6 +17,6 @@ export class AgentsInTheCloudCoreError extends Error {
   }
 }
 
-export function invalidArguments(message: string): AgentsInTheCloudCoreError {
-  return new AgentsInTheCloudCoreError("invalid_arguments", message);
+export function invalidArguments(message: string): KintsugiCoreError {
+  return new KintsugiCoreError("invalid_arguments", message);
 }

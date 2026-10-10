@@ -11,13 +11,13 @@ import {
   listWorkspaceTemplates,
   workspaceInitFromTemplate,
   revealWorkspaceTemplateSecrets,
-} from "@agents-in-the-cloud/workspace-templates";
+} from "@kintsugi/workspace-templates";
 import {
   createTestApp,
   deferred,
   postJson,
   postForm,
-  temporaryAgentsInTheCloudDataDir,
+  temporaryKintsugiDataDir,
   type ProvisionWorkspaceOptions,
 } from "./support/test-web-app.ts";
 
@@ -75,7 +75,7 @@ const workspaceTemplateDeletionBlockedResponseSchema = Type.Object({
   blocked: Type.Literal(true),
   references: Type.Array(Type.Object({ workspaceId: Type.String(), title: Type.String() }, { additionalProperties: false })),
 }, { additionalProperties: false });
-const dataDir = temporaryAgentsInTheCloudDataDir();
+const dataDir = temporaryKintsugiDataDir();
 beforeEach(dataDir.setUp);
 afterEach(dataDir.tearDown);
 
@@ -106,7 +106,7 @@ describe("HTTP contracts", () => {
     for (const surface of ["sidebar", "settings"]) {
       const result = await app.fetch(new Request(`http://test.local/update/restart?surface=${surface}`, { method: "POST" }));
       expect(result.status).toBe(409);
-      expect(await result.text()).toBe("Updates require AgentsInTheCloud System");
+      expect(await result.text()).toBe("Updates require Kintsugi System");
     }
   });
 
@@ -144,7 +144,7 @@ describe("HTTP contracts", () => {
     expect(response.headers.get("location")).toBe(body.workspace.url);
     expect(body.workspace.url).toBe(`/workspaces/${body.workspace.id}`);
     expect(statusBody.workspace.url).toBe(body.workspace.url);
-    expect(new URL(body.workspace.url, "https://demoagents-in-the-cloud-arm.tail67e2f4.ts.net/workspaces").protocol).toBe("https:");
+    expect(new URL(body.workspace.url, "https://demokintsugi-arm.tail67e2f4.ts.net/workspaces").protocol).toBe("https:");
     expect(statusBody.workspace).toMatchObject({ title: "Evaluation", phase: { kind: "provisioningPhase" } });
     expect(registry.get(body.workspace.id)?.init).toBeUndefined();
     expect(seen[0]?.id).toBe(body.workspace.id);

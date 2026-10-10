@@ -4,14 +4,14 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { setSupervisorRoutes } from "./tailscale.ts";
 
 test("Serve compare-and-set retries contention and preserves preview routes", async () => {
-  const directory = await mkdtemp("/tmp/agents-in-the-cloud-serve-");
+  const directory = await mkdtemp("/tmp/kintsugi-serve-");
   const socket = `${directory}/api.sock`;
   let revision = 1;
   let writes = 0;
   let config: any = {
     TCP: { "42001": { HTTPS: true } },
     Web: {
-      "agents-in-the-cloud.test:42001": {
+      "kintsugi.test:42001": {
         Handlers: { "/": { Proxy: "http://127.0.0.1:42001" } },
       },
     },
@@ -39,17 +39,17 @@ test("Serve compare-and-set retries contention and preserves preview routes", as
   });
   await new Promise<void>((resolve) => server.listen(socket, resolve));
   try {
-    await setSupervisorRoutes("agents-in-the-cloud.test", 3000, socket);
+    await setSupervisorRoutes("kintsugi.test", 3000, socket);
     expect(writes).toBe(2);
     expect(config.TCP["42001"].HTTPS).toBe(true);
     expect(config.TCP["42002"].HTTPS).toBe(true);
-    expect(config.Web["agents-in-the-cloud.test:42001"].Handlers["/"].Proxy).toBe(
+    expect(config.Web["kintsugi.test:42001"].Handlers["/"].Proxy).toBe(
       "http://127.0.0.1:42001",
     );
-    expect(config.Web["agents-in-the-cloud.test:443"].Handlers["/"].Proxy).toBe(
+    expect(config.Web["kintsugi.test:443"].Handlers["/"].Proxy).toBe(
       "http://127.0.0.1:3000",
     );
-    expect(config.Web["agents-in-the-cloud.test:8443"].Handlers["/"].Proxy).toBe(
+    expect(config.Web["kintsugi.test:8443"].Handlers["/"].Proxy).toBe(
       "http://127.0.0.1:3001",
     );
   } finally {

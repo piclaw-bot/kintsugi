@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1
-# Shared base for workspace and service daemons. Neither AgentsInTheCloud nor workspace
+# Shared base for workspace and service daemons. Neither Kintsugi nor workspace
 # policy belongs here. Build from this directory with ./build.sh --load.
 FROM docker:29.6.1-dind@sha256:66d292e5c26bd33a6f6f61cacb880de2186339a524ecba1ce098dbbaceed6515 AS docker-tools
 FROM ubuntu:26.04@sha256:513c074113a871b51a8d16ab445c88779d6452d937a164fb5cc479f32668a41d AS ubuntu
@@ -34,7 +34,7 @@ RUN --mount=type=cache,id=patched-docker-go-${TARGETARCH},target=/root/.cache/go
       PKG_CONFIG_LIBDIR="/usr/lib/${compiler}/pkgconfig" \
       /usr/local/go/bin/go build -mod=vendor -trimpath \
       -tags 'seccomp exclude_graphdriver_btrfs' \
-      -ldflags '-X github.com/moby/moby/v2/dockerversion.Version=agents-in-the-cloud-erofs-1 -X github.com/moby/moby/v2/dockerversion.GitCommit=0584603+agents-in-the-cloud-erofs' \
+      -ldflags '-X github.com/moby/moby/v2/dockerversion.Version=kintsugi-erofs-1 -X github.com/moby/moby/v2/dockerversion.GitCommit=0584603+kintsugi-erofs' \
       -o /out/dockerd ./cmd/dockerd \
     && /usr/local/go/bin/go version -m /out/dockerd > /out/build-info.txt
 
@@ -45,9 +45,9 @@ COPY image-transfer/go.mod image-transfer/go.sum ./
 RUN GOTOOLCHAIN=go1.26.8 go mod download
 COPY image-transfer/*.go ./
 ARG TARGETARCH
-RUN --mount=type=cache,id=agents-in-the-cloud-image-transfer-go,target=/root/.cache/go-build \
+RUN --mount=type=cache,id=kintsugi-image-transfer-go,target=/root/.cache/go-build \
     GOTOOLCHAIN=go1.26.8 go test ./... \
-    && GOTOOLCHAIN=go1.26.8 CGO_ENABLED=0 GOOS=linux GOARCH="$TARGETARCH" go build -trimpath -o /out/agents-in-the-cloud-image-transfer .
+    && GOTOOLCHAIN=go1.26.8 CGO_ENABLED=0 GOOS=linux GOARCH="$TARGETARCH" go build -trimpath -o /out/kintsugi-image-transfer .
 
 # Patch ctr cache leases and the daemon's empty-mount EROFS differ dispatch.
 # Keep the shims from the matching upstream release.
@@ -62,10 +62,10 @@ COPY patches/0005-containerd-erofs-cache-reuse.patch /tmp/cache-reuse.patch
 COPY patches/0006-containerd-loop-device-node.patch /tmp/loop-device-node.patch
 RUN git apply /tmp/lease.patch /tmp/empty-mounts.patch /tmp/cache-reuse.patch /tmp/loop-device-node.patch
 ARG TARGETARCH
-RUN --mount=type=cache,id=agents-in-the-cloud-ctr-go,target=/root/.cache/go-build \
+RUN --mount=type=cache,id=kintsugi-ctr-go,target=/root/.cache/go-build \
     GOTOOLCHAIN=go1.26.8 go test -mod=vendor ./internal/erofsutils \
     && GOTOOLCHAIN=go1.26.8 CGO_ENABLED=0 GOOS=linux GOARCH="$TARGETARCH" go build -mod=vendor -trimpath \
-      -ldflags '-X github.com/containerd/containerd/v2/version.Version=v2.4.0-beta.0-agents-in-the-cloud -X github.com/containerd/containerd/v2/version.Revision=58e6cee9dee67ee87ee2f727d3570009050f9954+cache-lease+mount-root+cache-reuse+loop-node' \
+      -ldflags '-X github.com/containerd/containerd/v2/version.Version=v2.4.0-beta.0-kintsugi -X github.com/containerd/containerd/v2/version.Revision=58e6cee9dee67ee87ee2f727d3570009050f9954+cache-lease+mount-root+cache-reuse+loop-node' \
       -o /out/ ./cmd/ctr ./cmd/containerd
 
 FROM --platform=$BUILDPLATFORM ubuntu:26.04@sha256:513c074113a871b51a8d16ab445c88779d6452d937a164fb5cc479f32668a41d AS containerd
@@ -80,8 +80,8 @@ RUN cd /tmp \
     && mkdir /out && tar xzf containerd-2.4.0-beta.0-linux-${TARGETARCH}.tar.gz -C /out
 
 FROM ubuntu AS runtime
-LABEL org.opencontainers.image.source="https://github.com/lucasmeijer/atelier" \
-      org.opencontainers.image.title="AgentsInTheCloud Docker runtime" \
+LABEL org.opencontainers.image.source="https://github.com/rcarmo/kintsugi" \
+      org.opencontainers.image.title="Kintsugi Docker runtime" \
       org.opencontainers.image.description="Ubuntu-based Docker runtime with patched embedded BuildKit and containerd EROFS shared-cache support."
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates erofs-utils iproute2 iptables libseccomp2 runc tini \
@@ -92,14 +92,14 @@ COPY --from=docker-tools /usr/local/libexec/docker/cli-plugins/ /usr/local/libex
 COPY --from=containerd /out/bin/ /usr/local/bin/
 COPY --from=containerd-patched /out/ /usr/local/bin/
 COPY --from=build /out/dockerd /usr/local/bin/dockerd
-COPY --from=image-transfer /out/agents-in-the-cloud-image-transfer /usr/local/bin/agents-in-the-cloud-image-transfer
-COPY --from=build /src/LICENSE /src/NOTICE /usr/share/agents-in-the-cloud-patched-docker/
-COPY --from=build /out/build-info.txt /usr/share/agents-in-the-cloud-patched-docker/build-info.txt
-COPY patches/ /usr/share/agents-in-the-cloud-patched-docker/patches/
+COPY --from=image-transfer /out/kintsugi-image-transfer /usr/local/bin/kintsugi-image-transfer
+COPY --from=build /src/LICENSE /src/NOTICE /usr/share/kintsugi-patched-docker/
+COPY --from=build /out/build-info.txt /usr/share/kintsugi-patched-docker/build-info.txt
+COPY patches/ /usr/share/kintsugi-patched-docker/patches/
 COPY containerd.toml /etc/containerd/config.toml
 COPY daemon.json /etc/docker/daemon.json
-COPY --chmod=755 entrypoint.sh /usr/local/bin/agents-in-the-cloud-dockerd
+COPY --chmod=755 entrypoint.sh /usr/local/bin/kintsugi-dockerd
 # Both daemon stores live under this one explicitly mounted volume. No VOLUME
 # instruction: derived images choose their storage and do not inherit anonymous volumes.
-ENTRYPOINT ["/usr/bin/tini", "--", "/usr/local/bin/agents-in-the-cloud-dockerd"]
+ENTRYPOINT ["/usr/bin/tini", "--", "/usr/local/bin/kintsugi-dockerd"]
 CMD ["dockerd"]

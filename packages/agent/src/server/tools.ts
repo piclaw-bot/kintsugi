@@ -1,16 +1,16 @@
-import type { AgentsInTheCloudEventBus } from "@agents-in-the-cloud/core";
-import type { DeleteCurrentWorkspaceResult, WorkspaceWorkViewReference } from "@agents-in-the-cloud/shared";
+import type { KintsugiEventBus } from "@kintsugi/core";
+import type { DeleteCurrentWorkspaceResult, WorkspaceWorkViewReference } from "@kintsugi/shared";
 import { Type, type TSchema } from "typebox";
 import { defineWorkspaceTool, type WorkspaceTool } from "./workspace-tool.ts";
 
 export interface WorkspaceAgentToolOptions {
-  events?: AgentsInTheCloudEventBus;
-  /** Only AgentsInTheCloud's own transcript renders artifact-preview: URLs. */
+  events?: KintsugiEventBus;
+  /** Only Kintsugi's own transcript renders artifact-preview: URLs. */
   embeds?: boolean;
 }
 
 export interface WorkspacePresenterDeps {
-  events?: AgentsInTheCloudEventBus;
+  events?: KintsugiEventBus;
   presentWorkView(reference: WorkspaceWorkViewReference): Promise<void>;
 }
 
@@ -42,7 +42,7 @@ export function registerWorkspacePresenter(kind: string, factory: WorkspacePrese
   };
 }
 
-const presentEmbedHint = " Images, videos, SVGs, and HTML files are already automatically visible to the user when you reference them with an AgentsInTheCloud embed URL in Markdown image syntax, for example: ![](artifact-preview:/work/app/screenshot.png) or ![](artifact-preview:/work/app/demo.html).";
+const presentEmbedHint = " Images, videos, SVGs, and HTML files are already automatically visible to the user when you reference them with an Kintsugi embed URL in Markdown image syntax, for example: ![](artifact-preview:/work/app/screenshot.png) or ![](artifact-preview:/work/app/demo.html).";
 
 function createPresentTool(workspaceId: string, options: WorkspaceAgentToolOptions): WorkspaceTool<any, any> | undefined {
   const presenters = [...registeredWorkspacePresenters.values()].map((factory) => factory(workspaceId, options));
@@ -54,7 +54,7 @@ function createPresentTool(workspaceId: string, options: WorkspaceAgentToolOptio
   return defineWorkspaceTool({
     name: "present",
     label: "Present",
-    description: "Present one primary interactive surface to the user in AgentsInTheCloud. Use this when the user should look at or interact with while evaluating your work. AgentsInTheCloud will place the chosen surface in the preview area. Calling this again should update or replace the primary presentation rather than adding multiple competing presentations. Do not use this tool for static or inline artifacts." + (options.embeds ? presentEmbedHint : "") + presenters.map((presenter) => `${presenter.kind}: ${presenter.description}`).join(" "),
+    description: "Present one primary interactive surface to the user in Kintsugi. Use this when the user should look at or interact with while evaluating your work. Kintsugi will place the chosen surface in the preview area. Calling this again should update or replace the primary presentation rather than adding multiple competing presentations. Do not use this tool for static or inline artifacts." + (options.embeds ? presentEmbedHint : "") + presenters.map((presenter) => `${presenter.kind}: ${presenter.description}`).join(" "),
     // Moonshot requires function parameters to be one top-level object, not a union.
     parameters: Type.Object({
       kind: Type.String({ enum: kinds, description: `Surface to present. One of: ${kinds.join(", ")}.` }),
@@ -90,7 +90,7 @@ export function createDeleteCurrentWorkspaceTool(workspaceId: string, deleteCurr
   return defineWorkspaceTool({
     name: "delete_current_workspace",
     label: "Delete Current Workspace",
-    description: "Permanently delete this agent's current AgentsInTheCloud workspace. This tears down the execution context the agent has been doing all of its work in, including the workspace container and local files/changes that have not been preserved elsewhere. The agent cannot choose another workspace; this tool always deletes only its own current workspace. Execute this only when the user has explicitly requested deletion of this workspace.",
+    description: "Permanently delete this agent's current Kintsugi workspace. This tears down the execution context the agent has been doing all of its work in, including the workspace container and local files/changes that have not been preserved elsewhere. The agent cannot choose another workspace; this tool always deletes only its own current workspace. Execute this only when the user has explicitly requested deletion of this workspace.",
     parameters: Type.Object({
       force: Type.Boolean({
         description: "Set to false to run the existing workspace delete safety checks and report outstanding local changes instead of deleting when they are present. Set to true only when the user explicitly requested force deletion.",
@@ -100,7 +100,7 @@ export function createDeleteCurrentWorkspaceTool(workspaceId: string, deleteCurr
   });
 }
 
-export function createAgentsInTheCloudControlTools(workspaceId: string, options: WorkspaceAgentToolOptions = {}): WorkspaceTool<any, any>[] {
+export function createKintsugiControlTools(workspaceId: string, options: WorkspaceAgentToolOptions = {}): WorkspaceTool<any, any>[] {
   const present = createPresentTool(workspaceId, options);
   const external = [...registeredWorkspaceAgentTools.values()].map((factory) => factory(workspaceId, options));
   return [...(present ? [present] : []), ...external];

@@ -1,8 +1,8 @@
 import { Controller } from "@hotwired/stimulus";
-import { createHtmlAutocompleteController, PromptHistoryNavigator } from "@agents-in-the-cloud/agent/client";
-import { composerViewportHeight, focusComposerText, revealComposerCaret, sizeComposer } from "@agents-in-the-cloud/prompt/client";
-import { autocompleteHtml } from "@agents-in-the-cloud/design-system/autocomplete";
-import { changeLayout, composerSubmitKey, focusLikelyOpensSoftwareKeyboard, isWorkspacePaneVisible, shouldSearchGitHubRepositories, softwareKeyboardArranged } from "@agents-in-the-cloud/shared";
+import { createHtmlAutocompleteController, PromptHistoryNavigator } from "@kintsugi/agent/client";
+import { composerViewportHeight, focusComposerText, revealComposerCaret, sizeComposer } from "@kintsugi/prompt/client";
+import { autocompleteHtml } from "@kintsugi/design-system/autocomplete";
+import { changeLayout, composerSubmitKey, focusLikelyOpensSoftwareKeyboard, isWorkspacePaneVisible, shouldSearchGitHubRepositories, softwareKeyboardArranged } from "@kintsugi/shared";
 import { Type } from "typebox";
 import { Value } from "typebox/value";
 import { submitFormWithFirstButton } from "./form-submission.ts";
@@ -57,7 +57,7 @@ class SubmitShortcutController extends Controller {
   }
 }
 
-const launchComposerPromptHistoryStorageKey = "agents-in-the-cloud:launch-composer-prompt-history";
+const launchComposerPromptHistoryStorageKey = "kintsugi:launch-composer-prompt-history";
 const launchComposerPromptHistorySchema = Type.Array(Type.String());
 
 class LaunchComposerDialogController extends Controller<HTMLDialogElement> {

@@ -1,6 +1,6 @@
-import { designSystemStaticFiles } from "@agents-in-the-cloud/design-system/assets";
-import type { StaticFileContribution } from "@agents-in-the-cloud/shared";
-import { workspaceProvisioningStaticFiles } from "@agents-in-the-cloud/workspace/server/provisioning";
+import { designSystemStaticFiles } from "@kintsugi/design-system/assets";
+import type { StaticFileContribution } from "@kintsugi/shared";
+import { workspaceProvisioningStaticFiles } from "@kintsugi/workspace/server/provisioning";
 import { workspaceModules } from "./workspace-modules.generated.ts";
 
 export type StaticFileEntry = StaticFileContribution;
@@ -18,17 +18,9 @@ export const clientEntrypoints = {
 } satisfies Record<string, StaticFileEntry>;
 
 export const fingerprintedStaticFiles: StaticFileRegistry = {
-  "/brand/artwork.png": { url: new URL("../../public/brand/artwork.png", import.meta.url), contentType: "image/png" },
-  "/favicon.ico": { url: new URL("../../public/favicon.ico", import.meta.url), contentType: "image/x-icon" },
-  "/favicon-32x32.png": { url: new URL("../../public/favicon-32x32.png", import.meta.url), contentType: "image/png" },
-  "/favicon-16x16.png": { url: new URL("../../public/favicon-16x16.png", import.meta.url), contentType: "image/png" },
-  "/apple-touch-icon.png": { url: new URL("../../public/apple-touch-icon.png", import.meta.url), contentType: "image/png" },
-  "/icon-192.png": { url: new URL("../../public/icon-192.png", import.meta.url), contentType: "image/png" },
-  "/icon-512.png": { url: new URL("../../public/icon-512.png", import.meta.url), contentType: "image/png" },
-  "/icon-1024.png": { url: new URL("../../public/icon-1024.png", import.meta.url), contentType: "image/png" },
-  "/icon-maskable-192.png": { url: new URL("../../public/icon-maskable-192.png", import.meta.url), contentType: "image/png" },
-  "/icon-maskable-512.png": { url: new URL("../../public/icon-maskable-512.png", import.meta.url), contentType: "image/png" },
-  "/icon-maskable-1024.png": { url: new URL("../../public/icon-maskable-1024.png", import.meta.url), contentType: "image/png" },
+  "/brand/artwork.svg": { url: new URL("../../public/brand/artwork.svg", import.meta.url), contentType: "image/svg+xml" },
+  "/icon.svg": { url: new URL("../../public/icon.svg", import.meta.url), contentType: "image/svg+xml" },
+  "/icon-maskable.svg": { url: new URL("../../public/icon-maskable.svg", import.meta.url), contentType: "image/svg+xml" },
   "/manifest.webmanifest": { url: new URL("../../public/manifest.webmanifest", import.meta.url), contentType: "application/manifest+json; charset=utf-8" },
   "/service-worker.js": { url: new URL("../client/service-worker.js", import.meta.url), contentType: "text/javascript; charset=utf-8" },
   "/style.css": { url: new URL("../../public/style.css", import.meta.url), contentType: "text/css; charset=utf-8" },

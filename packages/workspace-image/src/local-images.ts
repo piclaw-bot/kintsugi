@@ -1,4 +1,4 @@
-import { requireDocker, runDocker, type CommandResult } from "@agents-in-the-cloud/core";
+import { requireDocker, runDocker, type CommandResult } from "@kintsugi/core";
 
 export type DockerCommand = (args: string[]) => Promise<CommandResult>;
 
@@ -24,9 +24,9 @@ export async function nativeImageExists(ref: string, docker: DockerCommand = run
 /** Discover default images by their embedded signature, independent of the name
  * used to preload them. Restore our local alias for downstream Docker builds. */
 export async function reuseDefaultWorkspaceImage(tag: string, docker: DockerCommand = runDocker): Promise<boolean> {
-  const signature = tag.slice("agents-in-the-cloud-workspace:".length);
+  const signature = tag.slice("kintsugi-workspace:".length);
   const platform = await dockerServerPlatform(docker);
-  const listing = await docker(["image", "ls", "--all", "--quiet", "--no-trunc", "--filter", `label=com.agents-in-the-cloud.workspace-image.signature=${signature}`]);
+  const listing = await docker(["image", "ls", "--all", "--quiet", "--no-trunc", "--filter", `label=com.kintsugi.workspace-image.signature=${signature}`]);
   if (listing.exitCode !== 0) throw new Error(listing.stderr.trim() || "could not list default workspace images");
   const images = new Set(listing.stdout.split(/\s+/).filter(Boolean));
   for (const image of images) {

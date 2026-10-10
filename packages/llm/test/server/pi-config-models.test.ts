@@ -3,10 +3,10 @@ import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { getCustomModelsJson, getEnabledModels, loginPiOAuthProvider, setCustomModelsJson, setEnabledModels, validateModelProviderApiKey } from "../../src/server/pi-config-models.ts";
-import { updateJsonSettings } from "@agents-in-the-cloud/core/json-settings";
+import { updateJsonSettings } from "@kintsugi/core/json-settings";
 let dataDir: string;
 beforeEach(async () => {
-  dataDir = await mkdtemp(join(tmpdir(), "agents-in-the-cloud-llm-models-"));
+  dataDir = await mkdtemp(join(tmpdir(), "kintsugi-llm-models-"));
   process.env.ATELIER_DATA_DIR = dataDir;
 });
 afterEach(async () => {

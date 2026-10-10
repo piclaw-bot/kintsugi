@@ -1,6 +1,6 @@
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
-import { getAgentsInTheCloudRuntimeContext } from "./runtime-context.ts";
+import { getKintsugiRuntimeContext } from "./runtime-context.ts";
 
 // Submodule URLs are repository-controlled, so never offer the GitHub token to another host.
 export const gitHubCredentialHelperShellBody = `test "$1" = get || exit 0
@@ -22,11 +22,11 @@ export const gitHubCredentialHelperCommand = `!f() { ${gitHubCredentialHelperShe
 
 // Keep the existing credential paths so older installations retain their GitHub connection.
 function storedGitHubTokenPath(): string {
-  return join(getAgentsInTheCloudRuntimeContext().agentsInTheCloudDataDir, "workspace", "github-token");
+  return join(getKintsugiRuntimeContext().kintsugiDataDir, "workspace", "github-token");
 }
 
 function disabledHostGitHubTokenPath(): string {
-  return join(getAgentsInTheCloudRuntimeContext().agentsInTheCloudDataDir, "workspace", "github-token-disabled");
+  return join(getKintsugiRuntimeContext().kintsugiDataDir, "workspace", "github-token-disabled");
 }
 
 export function discoverGitHubToken(): string | undefined {

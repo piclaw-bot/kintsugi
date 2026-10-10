@@ -1,7 +1,7 @@
 import { Controller } from "@hotwired/stimulus";
-import { setActivityButtonState } from "@agents-in-the-cloud/design-system/activity-button/client";
+import { setActivityButtonState } from "@kintsugi/design-system/activity-button/client";
 
-const quietKey = "agents-in-the-cloud.pwa-reminder.quiet";
+const quietKey = "kintsugi.pwa-reminder.quiet";
 // Shared across controller reconnects, but reset on a full page reload.
 const animationDeadline = performance.now() + 60_000;
 

@@ -14,9 +14,9 @@ export function workspaceFirewallRules(buildClientsCgroup: string, nameservers: 
     if (!family) throw new Error(`Invalid DNS server: ${address}`);
     return `    ${family === 4 ? "ip" : "ip6"} daddr ${address} meta l4proto { tcp, udp } th dport 53 counter accept`;
   });
-  return `add table inet agents-in-the-cloud_workspaces
-flush table inet agents-in-the-cloud_workspaces
-table inet agents-in-the-cloud_workspaces {
+  return `add table inet kintsugi_workspaces
+flush table inet kintsugi_workspaces
+table inet kintsugi_workspaces {
   set non_public_v4 {
     type ipv4_addr; flags interval;
     elements = { ${workspaceEgressNftIpv4Elements()} }
@@ -46,9 +46,9 @@ ${protectBuildClients ? `    ${selector} jump public_egress` : ""}
     meta iifkind "bridge" jump public_destinations
   }
 }
-${(["ip", "ip6"] as const).map(family => `add table ${family} agents-in-the-cloud_workspaces
-flush table ${family} agents-in-the-cloud_workspaces
-table ${family} agents-in-the-cloud_workspaces {
+${(["ip", "ip6"] as const).map(family => `add table ${family} kintsugi_workspaces
+flush table ${family} kintsugi_workspaces
+table ${family} kintsugi_workspaces {
   chain forward {
     type filter hook forward priority -11; policy accept;
     meta iifkind "bridge" fib daddr type local counter drop

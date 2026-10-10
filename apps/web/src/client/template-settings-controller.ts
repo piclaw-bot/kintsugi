@@ -39,7 +39,7 @@ export class TemplateSettingsController extends Controller<HTMLElement> {
     const workspace = document.getElementById("workspace_detail")!;
     workspace.inert = true;
     workspace.setAttribute("aria-hidden", "true");
-    document.dispatchEvent(new Event("agents-in-the-cloud:workspace-pane-hidden"));
+    document.dispatchEvent(new Event("kintsugi:workspace-pane-hidden"));
     // Settings occupies the main destination on phones, rather than the workspace picker slide.
     this.element.closest(".fixed-shell-app")!.classList.remove("is-mobile-workspace-pane-open");
     document.addEventListener("click", this.navigate, true);
@@ -62,7 +62,7 @@ export class TemplateSettingsController extends Controller<HTMLElement> {
       const workspace = document.getElementById("workspace_detail")!;
       workspace.inert = false;
       workspace.removeAttribute("aria-hidden");
-      document.dispatchEvent(new Event("agents-in-the-cloud:workspace-pane-visible"));
+      document.dispatchEvent(new Event("kintsugi:workspace-pane-visible"));
       if (templateSettingsPath.test(location.pathname)) history.replaceState(history.state, "", this.returnUrl);
       if (this.opener?.isConnected) this.opener.focus({ preventScroll: true });
     }

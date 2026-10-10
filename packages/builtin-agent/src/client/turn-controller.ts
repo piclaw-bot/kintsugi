@@ -1,4 +1,4 @@
-import { CableTopics, type CableSubscription, type WorkspaceClientControllerConstructor } from "@agents-in-the-cloud/shared";
+import { CableTopics, type CableSubscription, type WorkspaceClientControllerConstructor } from "@kintsugi/shared";
 
 // Disclosure choice belongs to this pane instance, not another tab or browser.
 const expandedTurns = new WeakMap<Element, Set<string>>();
@@ -28,7 +28,7 @@ export function createAgentTurnController(Controller: WorkspaceClientControllerC
         return;
       }
       if (this.subscription) return;
-      this.subscription = window.AgentsInTheCloudCable!.subscribe(
+      this.subscription = window.KintsugiCable!.subscribe(
         CableTopics.agentTurn(this.workspaceIdValue, this.agentIdValue, this.turnIdValue, this.branchIdValue),
         { onReady: () => this.reveal() },
       );

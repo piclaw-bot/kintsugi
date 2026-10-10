@@ -15,7 +15,7 @@ afterEach(async () => {
 
 test("a new provider login cancels its abandoned pending attempt instead of queuing behind it", async () => {
   previous = process.env.ATELIER_DATA_DIR;
-  directory = await mkdtemp(join(tmpdir(), "agents-in-the-cloud-oauth-lifecycle-"));
+  directory = await mkdtemp(join(tmpdir(), "kintsugi-oauth-lifecycle-"));
   process.env.ATELIER_DATA_DIR = directory;
   const signals: AbortSignal[] = [];
   const rejectLogins: Array<(error: Error) => void> = [];

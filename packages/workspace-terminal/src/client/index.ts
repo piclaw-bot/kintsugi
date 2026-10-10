@@ -1,1 +1,1 @@
-export { workspaceTerminalClientModule as agentsInTheCloudClientModule } from "./terminal-controllers.ts";
+export { workspaceTerminalClientModule as kintsugiClientModule } from "./terminal-controllers.ts";

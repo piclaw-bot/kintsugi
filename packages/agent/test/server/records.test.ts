@@ -129,7 +129,7 @@ describe("recordsFromSessionEntries", () => {
 test("persisted run starts survive reconstruction before and after the summary", () => {
   const entries = [
     { type: "message", id: "start", timestamp: new Date(1000).toISOString(), message: { role: "user", content: "Initial" } },
-    { type: "custom", customType: "agents-in-the-cloud.turn-start", data: { turnEntryId: "start", startedAt: 900 }, timestamp: new Date(1001).toISOString() },
+    { type: "custom", customType: "kintsugi.turn-start", data: { turnEntryId: "start", startedAt: 900 }, timestamp: new Date(1001).toISOString() },
     { type: "message", id: "steer", timestamp: new Date(2000).toISOString(), message: { role: "user", content: "Steer" } },
   ];
   const restored = recordsFromSessionEntries(JSON.parse(JSON.stringify(entries)));
@@ -137,7 +137,7 @@ test("persisted run starts survive reconstruction before and after the summary",
   expect(buildTranscript(restored).map((item) => item.type)).toEqual(["user", "working"]);
   expect(buildTranscript(restored)[1]).toMatchObject({ items: [{ type: "user", key: "steer", steering: true }] });
   const completed = recordsFromSessionEntries([...entries,
-    { type: "custom", customType: "agents-in-the-cloud.turn-timing", timestamp: new Date(3000).toISOString(), data: { turnEntryId: "start", outcome: "completed", elapsedMs: 2100, toolMs: 0, inferenceMs: 2100, outputTokens: 4, usageComplete: true } },
+    { type: "custom", customType: "kintsugi.turn-timing", timestamp: new Date(3000).toISOString(), data: { turnEntryId: "start", outcome: "completed", elapsedMs: 2100, toolMs: 0, inferenceMs: 2100, outputTokens: 4, usageComplete: true } },
   ]);
   expect(buildTranscript(completed)[1]).toMatchObject({ key: "start:working", completedAt: 3000, timing: { outputTokens: 4 } });
 });

@@ -1,5 +1,5 @@
-import type { WorkspaceServerSocketSession } from "@agents-in-the-cloud/shared";
-import { workspaceContainerName } from "@agents-in-the-cloud/workspace";
+import type { WorkspaceServerSocketSession } from "@kintsugi/shared";
+import { workspaceContainerName } from "@kintsugi/workspace";
 import {
   createObservableTerminalSocket,
   normalizeCarriageReturns,
@@ -7,7 +7,7 @@ import {
   observableTerminalRows,
   stripObservablePaneFraming,
   stripTerminalControls,
-} from "@agents-in-the-cloud/observable-terminal/server";
+} from "@kintsugi/observable-terminal/server";
 import {
   DEFAULT_MAX_BYTES,
   DEFAULT_MAX_LINES,
@@ -103,7 +103,7 @@ export function createAgentTermSocketSession(url: URL): WorkspaceServerSocketSes
   if (!match) return undefined;
   const workspaceId = decodeURIComponent(match[1]);
   const session = decodeURIComponent(match[2]);
-  if (!/^agents-in-the-cloud-agent-(?:[0-9a-f]{8}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/.test(session)) return undefined;
+  if (!/^kintsugi-agent-(?:[0-9a-f]{8}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/.test(session)) return undefined;
   return createObservableTerminalSocket({
     containerName: workspaceContainerName(workspaceId),
     session,
@@ -112,7 +112,7 @@ export function createAgentTermSocketSession(url: URL): WorkspaceServerSocketSes
     // Inline terminals must never resize the agent's fixed-size command pane.
     cols: observableTerminalCols,
     rows: observableTerminalRows,
-    user: "agents-in-the-cloud",
+    user: "agent",
     readonly: true,
     fixedSize: true,
   });

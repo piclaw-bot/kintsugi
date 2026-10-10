@@ -1,5 +1,5 @@
-import type { ModelRef } from "@agents-in-the-cloud/llm/server";
-import { domId } from "@agents-in-the-cloud/shared";
+import type { ModelRef } from "@kintsugi/llm/server";
+import { domId } from "@kintsugi/shared";
 import type { SessionImageRef } from "./transcript.ts";
 
 export interface AgentRenderContext {

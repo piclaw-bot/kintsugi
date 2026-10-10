@@ -1,5 +1,5 @@
 import { collectChangesStats, type ChangesFileSummary } from "./diff.ts";
-import { git, parseGitNumstat, type Repository } from "@agents-in-the-cloud/workspace/git";
+import { git, parseGitNumstat, type Repository } from "@kintsugi/workspace/git";
 import type { ChangesNodeStats } from "../history.ts";
 
 function totals(stats: ReturnType<typeof parseGitNumstat>): ChangesNodeStats {

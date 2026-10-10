@@ -1,20 +1,20 @@
 import { Type } from "typebox";
-import { buttonHtml } from "@agents-in-the-cloud/design-system/button";
-import { destructiveConfirmationHtml } from "@agents-in-the-cloud/design-system/destructive-confirmation";
-import { Icons } from "@agents-in-the-cloud/design-system/icons";
-import { progressButtonHtml } from "@agents-in-the-cloud/design-system/progress-button";
-import { toggleHtml } from "@agents-in-the-cloud/design-system/toggle";
-import { transientFeedbackHtml } from "@agents-in-the-cloud/design-system/transient-feedback";
-import { errorMessage, escapeHtml, turboStream, turboStreamResponse, type SettingsContribution, type WorkspaceModule, type WorkspaceServerModuleContext } from "@agents-in-the-cloud/shared";
+import { buttonHtml } from "@kintsugi/design-system/button";
+import { destructiveConfirmationHtml } from "@kintsugi/design-system/destructive-confirmation";
+import { Icons } from "@kintsugi/design-system/icons";
+import { progressButtonHtml } from "@kintsugi/design-system/progress-button";
+import { toggleHtml } from "@kintsugi/design-system/toggle";
+import { transientFeedbackHtml } from "@kintsugi/design-system/transient-feedback";
+import { errorMessage, escapeHtml, turboStream, turboStreamResponse, type SettingsContribution, type WorkspaceModule, type WorkspaceServerModuleContext } from "@kintsugi/shared";
 import { isUpdateChannel, type UpdateChannel } from "./update-channel.ts";
 import { detectSelfUpdateRuntime, prepareUpdate, type PreparedUpdate, type PullProgress, type SelfUpdateRuntime } from "./docker.ts";
 import { fetchChannelImageMetadata, type ImageMetadata } from "./registry.ts";
 import { readStoredUpdateChannel, writeStoredUpdateChannel, readStoredReleaseSource, writeStoredReleaseSource } from "./settings-store.ts";
-import { defaultReleaseSource, releaseSourceSchema, registryCredentialSchema, type ReleaseSource } from "@agents-in-the-cloud/shared/release-source";
+import { defaultReleaseSource, releaseSourceSchema, registryCredentialSchema, type ReleaseSource } from "@kintsugi/shared/release-source";
 import { Value } from "typebox/value";
 import { requestSupervisorUpdate, checkSupervisorRelease, prepareSupervisorRelease, supervisorRegistryRequest, requestSupervisorRollback } from "./supervisor.ts";
 
-const updateSidebarContributionId = "agents-in-the-cloud-update";
+const updateSidebarContributionId = "kintsugi-update";
 const pollIntervalMs = 5 * 60 * 1000;
 
 type UpdateState = "idle" | "checking" | "available" | "pulling" | "ready_to_restart" | "failed" | "restarting";
@@ -130,7 +130,7 @@ export class UpdateManager {
   }
 
   async setUpdateChannel(channel: UpdateChannel): Promise<void> {
-    if (!this.runtime) throw new Error("AgentsInTheCloud is not running in a System-managed installation");
+    if (!this.runtime) throw new Error("Kintsugi is not running in a System-managed installation");
     if (this.switchingChannel || this.pullPromise || this.restarting) throw new Error("Cannot switch update channels while an update is in progress");
     if (channel === this.updateChannel) return await this.checkNow();
     this.switchingChannel = true;
@@ -148,7 +148,7 @@ export class UpdateManager {
   }
 
   startPull(): Promise<void> {
-    if (!this.runtime) throw new UpdateConflictError("AgentsInTheCloud is not running in a System-managed installation");
+    if (!this.runtime) throw new UpdateConflictError("Kintsugi is not running in a System-managed installation");
     if (this.switchingChannel) throw new UpdateConflictError("Update channel change is in progress");
     if (this.pullPromise) return this.pullPromise;
     if (!this.target || (this.state !== "available" && this.state !== "failed")) {
@@ -177,7 +177,7 @@ export class UpdateManager {
   }
 
   async restart(): Promise<void> {
-    if (!this.runtime) throw new UpdateConflictError("AgentsInTheCloud is not running in a System-managed installation");
+    if (!this.runtime) throw new UpdateConflictError("Kintsugi is not running in a System-managed installation");
     if (this.switchingChannel || this.restarting) throw new UpdateConflictError("An update is already in progress");
     if (this.state !== "ready_to_restart" || !this.prepared) throw new UpdateConflictError("No prepared update is ready to restart");
     this.restarting = true;
@@ -226,14 +226,14 @@ function renderReleaseSourceSettings(updateManager: UpdateManager, message = "")
   const snapshot = updateManager.snapshot();
   const source = snapshot.releaseSource;
   if (!snapshot.selfUpdatable) return '<section class="settings-sec" id="settings-sec-release-source"><h2>Release source</h2><p class="settings-sub">Release sources and private registry access require a System-managed installation.</p></section>';
-  if (snapshot.updateChannel !== "custom") return '<section class="settings-sec" id="settings-sec-release-source"><h2>Custom source</h2><p class="settings-sub">Stable and Latest use upstream images. Select Custom to choose Docker repositories and versions.</p></section>';
+  if (snapshot.updateChannel !== "custom") return '<section class="settings-sec" id="settings-sec-release-source"><h2>Custom source</h2><p class="settings-sub">Stable and Latest use Kintsugi releases. Select Custom to choose Docker repositories and versions.</p></section>';
   const fields = ([
     ["appRepository", "App repository"], ["systemRepository", "System repository"],
     ["appVersion", "App version or digest (optional)"], ["systemVersion", "System version or digest (optional)"],
   ] as const).map(([name, label]) => `<label>${label}<input class="text-field" name="${name}" value="${escapeHtml(source[name] ?? "")}" ${name.endsWith("Repository") ? "required" : ""}></label>`).join("");
   const save = buttonHtml({ type: "submit", variant: "secondary", content: { kind: "caption", caption: "Use custom source" } });
   const credentials = buttonHtml({ type: "submit", variant: "secondary", content: { kind: "caption", caption: "Save registry access" } });
-  return `<section class="settings-sec release-source-settings" id="settings-sec-release-source"><h2>Custom source</h2><p class="settings-sub">Saving selects Custom. Use a GHCR or Docker Hub repository, including an upstream image. Leave versions blank to use Latest (or the last selected channel). Stable and Latest select upstream images. System installer integration is not ready yet.</p><form method="post" action="/settings/release-source" data-turbo="true">${fields}${save}</form><h3>Private GHCR access</h3><p class="settings-sub">Stored privately in System, never sent to workspaces. Use a token with package read access.</p><form method="post" action="/settings/release-registry" data-turbo="true" autocomplete="off"><label>GitHub username<input class="text-field" name="username" required></label><label>Package read token<input class="text-field" type="password" name="token" required autocomplete="new-password"></label>${credentials}</form>${message ? `<p role="status">${escapeHtml(message)}</p>` : ""}</section>`;
+  return `<section class="settings-sec release-source-settings" id="settings-sec-release-source"><h2>Custom source</h2><p class="settings-sub">Saving selects Custom. Use a GHCR or Docker Hub repository. Leave versions blank to use Latest (or the last selected channel). The installer uses this saved selection.</p><form method="post" action="/settings/release-source" data-turbo="true">${fields}${save}</form><h3>Private GHCR access</h3><p class="settings-sub">Stored privately in System, never sent to workspaces. Use a token with package read access.</p><form method="post" action="/settings/release-registry" data-turbo="true" autocomplete="off"><label>GitHub username<input class="text-field" name="username" required></label><label>Package read token<input class="text-field" type="password" name="token" required autocomplete="new-password"></label>${credentials}</form>${message ? `<p role="status">${escapeHtml(message)}</p>` : ""}</section>`;
 }
 
 function renderCheckButton(state: "initial" | "in-progress"): string {
@@ -382,7 +382,7 @@ export function createUpdateRouteHandler(updateManager: UpdateManager): (request
   return async (request, url) => {
     const json = request.headers.get("accept")?.includes("application/json");
     const releasePath = url.pathname === "/settings/release-source" || url.pathname === "/settings/release-registry";
-    if ((releasePath || url.pathname === "/update/status") && !updateManager.snapshot().selfUpdatable) return Response.json({ error: "Updates require AgentsInTheCloud System" }, { status: 409 });
+    if ((releasePath || url.pathname === "/update/status") && !updateManager.snapshot().selfUpdatable) return Response.json({ error: "Updates require Kintsugi System" }, { status: 409 });
     if (url.pathname === "/update/rollback" && request.method === "POST") {
       await requestSupervisorRollback();
       return Response.json({ accepted: true }, { status: 202 });
@@ -415,7 +415,7 @@ export function createUpdateRouteHandler(updateManager: UpdateManager): (request
       const result = await supervisorRegistryRequest(request.method, request.method === "POST" ? Value.Parse(registryCredentialSchema, credentials) : undefined);
       return json || request.method === "GET" ? Response.json(result) : turboStreamResponse(turboStream("replace", "settings-sec-release-source", renderReleaseSourceSettings(updateManager, "Registry access saved.")));
     }
-    if (request.method === "POST" && (url.pathname.startsWith("/update/") || url.pathname === "/settings/update-channel") && !updateManager.snapshot().selfUpdatable) return new Response("Updates require AgentsInTheCloud System", { status: 409 });
+    if (request.method === "POST" && (url.pathname.startsWith("/update/") || url.pathname === "/settings/update-channel") && !updateManager.snapshot().selfUpdatable) return new Response("Updates require Kintsugi System", { status: 409 });
     if (url.pathname === "/update/dismiss-error" && request.method === "POST") {
       updateManager.clearError();
       return turboStreamResponse("");
@@ -444,7 +444,7 @@ export function createUpdateRouteHandler(updateManager: UpdateManager): (request
       try {
         await updateManager.restart();
         if (json) return Response.json({ accepted: true }, { status: 202 });
-        return new Response(null, { status: 204, headers: { "x-agents-in-the-cloud-reload": "true" } });
+        return new Response(null, { status: 204, headers: { "x-kintsugi-reload": "true" } });
       } catch (error) {
         if (json) return Response.json({ error: errorMessage(error) }, { status: 409 });
         const surface = url.searchParams.get("surface");
@@ -457,8 +457,8 @@ export function createUpdateRouteHandler(updateManager: UpdateManager): (request
   };
 }
 
-export const agentsInTheCloudServerModule: WorkspaceModule = {
-  id: "agents-in-the-cloud-update",
+export const kintsugiServerModule: WorkspaceModule = {
+  id: "kintsugi-update",
   settingsContributions: [updateChannelSettingsContribution, { id: "release-source", label: "Release source", order: 16, render: async () => renderReleaseSourceSettings(manager) }, updateSettingsContribution],
   staticFiles: {
     "/update-client.css": { url: new URL("../client/style.css", import.meta.url), contentType: "text/css; charset=utf-8" },

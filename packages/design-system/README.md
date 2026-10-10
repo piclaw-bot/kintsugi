@@ -1,4 +1,4 @@
-# AgentsInTheCloud design system
+# Kintsugi design system
 
 **Start here for UI work.** The package owns shared anatomy, visual roles and
 browser interaction. Features own business state, forms, URLs and composition.
@@ -58,14 +58,14 @@ Prefer consistency over feature-specific visual preservation.
 ```ts
 // Server integration: mount these logical URLs. Hosts may fingerprint them and
 // rewrite CSS imports; individual features must not maintain asset inventories.
-import { designSystemStaticFiles } from "@agents-in-the-cloud/design-system/assets";
+import { designSystemStaticFiles } from "@kintsugi/design-system/assets";
 
 // Browser entrypoint: use the host's existing Stimulus application, once.
-import { registerDesignSystemControllers } from "@agents-in-the-cloud/design-system/client";
+import { registerDesignSystemControllers } from "@kintsugi/design-system/client";
 registerDesignSystemControllers(application);
 
 // Server rendering:
-import { buttonHtml } from "@agents-in-the-cloud/design-system/button";
+import { buttonHtml } from "@kintsugi/design-system/button";
 const action = buttonHtml({
   type: "submit",
   variant: "primary",
@@ -75,7 +75,7 @@ const action = buttonHtml({
 
 Load `/design-system.css`. Tokens and theme selectors are package-owned.
 Foreign-origin diagnostic documents can embed the identical CSS/font with
-`inlineDesignSystemCss()` from `@agents-in-the-cloud/design-system/styles/server`, without
+`inlineDesignSystemCss()` from `@kintsugi/design-system/styles/server`, without
 a second hard-coded theme or asset server.
 The `styles` export identifies that stylesheet; `assets` describes the logical
 URLs it imports, including its font. Renderer modules never start Stimulus.
@@ -160,7 +160,7 @@ HTML content slots remain where composition is the purpose of the module:
 Panel/Dialog bodies, popup/autocomplete items, feedback contents, decorative
 icons and metadata. These fill defined regions; they do not replace anatomy.
 For browser-owned label changes use `setContentRowLabel(element, text)` from
-`@agents-in-the-cloud/design-system/content-row/client`; for server updates target the label
+`@kintsugi/design-system/content-row/client`; for server updates target the label
 ID and send escaped text, never replacement label markup.
 
 ## Package map / maintenance
@@ -177,6 +177,6 @@ aliases, legacy variant classes or alternate renderers. Add/update a catalogue
 entry in the same change. Reuse the public renderer in its examples. Keep IDs
 unique, and never run real destructive operations from the catalogue.
 
-Run `bun run check`. Review AgentsInTheCloud and the catalogue manually; **do not write UI
+Run `bun run check`. Review Kintsugi and the catalogue manually; **do not write UI
 tests**, DOM assertions or visual snapshots (see
 [UI testing policy](../../docs/ui-testing-policy.md)).

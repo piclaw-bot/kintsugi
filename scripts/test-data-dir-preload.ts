@@ -5,6 +5,6 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-const dataDir = mkdtempSync(join(tmpdir(), "agents-in-the-cloud-test-data-"));
+const dataDir = mkdtempSync(join(tmpdir(), "kintsugi-test-data-"));
 process.env.ATELIER_DATA_DIR = dataDir;
 afterAll(() => rmSync(dataDir, { recursive: true, force: true }));

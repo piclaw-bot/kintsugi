@@ -9,7 +9,7 @@ export async function command(root: string, ...args: string[]): Promise<void> {
 }
 
 export async function createChangesRepository(): Promise<string> {
-  const root = await mkdtemp(join(tmpdir(), "agents-in-the-cloud-changes-"));
+  const root = await mkdtemp(join(tmpdir(), "kintsugi-changes-"));
   await command(root, "git", "init", "-q");
   await command(root, "git", "config", "user.email", "changes@example.test");
   await command(root, "git", "config", "user.name", "Changes Test");

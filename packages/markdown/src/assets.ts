@@ -1,5 +1,5 @@
 import { readdirSync } from "node:fs";
-import type { StaticFileContribution } from "@agents-in-the-cloud/shared";
+import type { StaticFileContribution } from "@kintsugi/shared";
 
 const distribution = new URL("./", import.meta.resolve("katex"));
 const fonts = new URL("fonts/", distribution);

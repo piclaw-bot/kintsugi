@@ -1,4 +1,4 @@
-import { getEnabledModels, getAgentModelPreference, setAgentModelPreference } from "@agents-in-the-cloud/llm/server";
+import { getEnabledModels, getAgentModelPreference, setAgentModelPreference } from "@kintsugi/llm/server";
 
 export async function getAgentEnabledModels() {
   const [models, active] = await Promise.all([getEnabledModels(), getAgentModelPreference("builtin")]);

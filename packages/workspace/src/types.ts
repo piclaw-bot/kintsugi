@@ -1,4 +1,4 @@
-export type { WorkspaceCreationContext } from "@agents-in-the-cloud/shared";
+export type { WorkspaceCreationContext } from "@kintsugi/shared";
 
 export interface WorkspaceInitInstructionMap {}
 

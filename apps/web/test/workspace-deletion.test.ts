@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import type { WorkspaceDeletionAssessment } from "@agents-in-the-cloud/shared";
+import type { WorkspaceDeletionAssessment } from "@kintsugi/shared";
 import { createWorkspaceDeletion } from "../src/server/workspace-deletion.ts";
 import { createWorkspaceRegistry, type WorkspaceDeletionState } from "../src/server/workspace-registry.ts";
 

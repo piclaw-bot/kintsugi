@@ -1,5 +1,5 @@
 {
-  "name": "@agents-in-the-cloud/subagents",
+  "name": "@kintsugi/subagents",
   "private": true,
   "type": "module",
   "exports": {
@@ -7,14 +7,14 @@
     "./client": "./src/client/index.ts"
   },
   "dependencies": {
-    "@agents-in-the-cloud/agent": "workspace:*",
-    "@agents-in-the-cloud/core": "workspace:*",
-    "@agents-in-the-cloud/design-system": "workspace:*",
-    "@agents-in-the-cloud/shared": "workspace:*",
+    "@kintsugi/agent": "workspace:*",
+    "@kintsugi/core": "workspace:*",
+    "@kintsugi/design-system": "workspace:*",
+    "@kintsugi/shared": "workspace:*",
     "@earendil-works/pi-ai": "catalog:",
     "typebox": "^1.0.57",
     "@earendil-works/pi-durable": "catalog:",
     "@earendil-works/chord": "catalog:",
-    "@agents-in-the-cloud/builtin-agent": "workspace:*"
+    "@kintsugi/builtin-agent": "workspace:*"
   }
 }

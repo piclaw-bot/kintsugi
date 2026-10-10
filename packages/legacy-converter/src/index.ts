@@ -1,6 +1,6 @@
 import { readFile, readdir } from "node:fs/promises";
 import { join } from "node:path";
-import { isNotFoundError } from "@agents-in-the-cloud/core";
+import { isNotFoundError } from "@kintsugi/core";
 import { contentText } from "@earendil-works/pi-ai";
 import { migrateSessionEntries, type FileEntry } from "@earendil-works/pi-coding-agent";
 import { AssistantEntry, UserEntry, ToolResultEntry, type EntryDraft, type ConversationId } from "@earendil-works/pi-durable";

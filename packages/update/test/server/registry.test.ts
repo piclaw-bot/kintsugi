@@ -2,10 +2,10 @@ import { describe, expect, test } from "bun:test";
 import { parseWwwAuthenticate, selectManifestFromIndex, fetchChannelImageMetadata, resolveImage } from "../../src/server/registry.ts";
 describe("registry helpers", () => {
   test("parses bearer auth challenge", () => {
-    expect(parseWwwAuthenticate('Bearer realm="https://ghcr.io/token",service="ghcr.io",scope="repository:lucasmeijer/agents-in-the-cloud:pull"')).toEqual({
+    expect(parseWwwAuthenticate('Bearer realm="https://ghcr.io/token",service="ghcr.io",scope="repository:rcarmo/kintsugi:pull"')).toEqual({
       realm: "https://ghcr.io/token",
       service: "ghcr.io",
-      scope: "repository:lucasmeijer/agents-in-the-cloud:pull",
+      scope: "repository:rcarmo/kintsugi:pull",
     });
   });
 
@@ -15,7 +15,7 @@ describe("registry helpers", () => {
       const url = String(input);
       calls.push(url);
       if (url.endsWith("/manifests/stable") && calls.filter((call) => call === url).length === 1) {
-        return new Response("", { status: 401, headers: { "www-authenticate": 'Bearer realm="https://ghcr.io/token",service="ghcr.io",scope="repository:lucasmeijer/agents-in-the-cloud:pull"' } });
+        return new Response("", { status: 401, headers: { "www-authenticate": 'Bearer realm="https://ghcr.io/token",service="ghcr.io",scope="repository:rcarmo/kintsugi:pull"' } });
       }
       if (url.startsWith("https://ghcr.io/token")) return Response.json({ token: "token" });
       if (url.endsWith("/manifests/stable")) return Response.json({ config: { digest: "sha256:config" }, layers: [] }, { headers: { "docker-content-digest": "sha256:manifest" } });
@@ -137,10 +137,10 @@ test("latest discovery only requests the new product's latest tag", async () => 
   const fetcher = async (input: URL | RequestInfo) => {
     const url = String(input);
     calls.push(url);
-    if (url === "https://ghcr.io/v2/lucasmeijer/agents-in-the-cloud/manifests/latest") {
+    if (url === "https://ghcr.io/v2/rcarmo/kintsugi/manifests/latest") {
       return Response.json({ config: { digest: "sha256:latest-config" }, layers: [] }, { headers: { "docker-content-digest": "sha256:latest-manifest" } });
     }
-    if (url === "https://ghcr.io/v2/lucasmeijer/agents-in-the-cloud/blobs/sha256:latest-config") {
+    if (url === "https://ghcr.io/v2/rcarmo/kintsugi/blobs/sha256:latest-config") {
       return Response.json({ os: "linux", architecture: process.arch === "arm64" ? "arm64" : "amd64", config: { Labels: { "org.opencontainers.image.revision": "latest-revision" } } });
     }
     throw new Error(`unexpected fetch ${url}`);

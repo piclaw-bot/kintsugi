@@ -4,7 +4,7 @@ import { Value } from "typebox/value";
 import { registerWorkspaceControllers } from "./workspace-controller-registry.ts";
 
 const devReloadResponseSchema = Type.Object({ revision: Type.Integer({ minimum: 0 }) });
-const devReloadRevisionParam = "__agents-in-the-cloud_dev_reload";
+const devReloadRevisionParam = "__kintsugi_dev_reload";
 
 class DevReloadController extends Controller {
   static values = { url: String };

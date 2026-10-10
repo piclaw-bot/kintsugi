@@ -1,4 +1,4 @@
-import { isJsonObject } from "@agents-in-the-cloud/core";
+import { isJsonObject } from "@kintsugi/core";
 
 interface ObservableTerminalResizeMessage {
   type: "resize";

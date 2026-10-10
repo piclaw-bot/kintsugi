@@ -1,5 +1,5 @@
 {
-  "name": "@agents-in-the-cloud/shared",
+  "name": "@kintsugi/shared",
   "private": true,
   "type": "module",
   "exports": {
@@ -11,7 +11,7 @@
     "./file-metadata": "./src/file-metadata.ts"
   },
   "dependencies": {
-    "@agents-in-the-cloud/core": "workspace:*",
+    "@kintsugi/core": "workspace:*",
     "typebox": "^1.0.57"
   }
 }

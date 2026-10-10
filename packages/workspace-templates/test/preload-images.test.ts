@@ -11,7 +11,7 @@ test("preload settings preserve old projects, normalize references and do not in
     const { workspaceTemplate } = await addWorkspaceTemplate("/tmp/example", file);
     expect(workspaceTemplate.preloadImages).toEqual([]);
     const fingerprint = workspaceTemplate.configurationFingerprint;
-    const images = ["agents-in-the-cloud:default-workspace", "registry.example:5000/team/image:tag@sha256:" + "a".repeat(64)];
+    const images = ["kintsugi:default-workspace", "registry.example:5000/team/image:tag@sha256:" + "a".repeat(64)];
     const updated = await setWorkspaceTemplatePreloadImages(workspaceTemplate.id, [` ${images[0]} `, images[1]!, images[0]!], file);
     expect(updated.workspaceTemplate.preloadImages).toEqual(images);
     expect(updated.workspaceTemplate.configurationFingerprint).toBe(fingerprint);

@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-system_image=ghcr.io/lucasmeijer/agents-in-the-cloud-system:latest
-app_image=ghcr.io/lucasmeijer/agents-in-the-cloud:latest
+system_image=ghcr.io/rcarmo/kintsugi-system:latest
+app_image=ghcr.io/rcarmo/kintsugi:latest
 source_repository=""
 tailscale_hostname=""
 registry_config=""
@@ -14,11 +14,10 @@ old_system_image=""
 action=""
 uninstall_requested=0
 access_mode=""
-system_name=agents-in-the-cloud-system
+system_name=kintsugi-system
 
 # Keep subprocess output available without turning the welcome into a log tail.
 log_file=""
-legacy_installer=""
 interactive=0
 violet="" cyan="" green="" amber="" dim="" reset=""
 if [ -t 1 ] && [ "${TERM:-dumb}" != dumb ]; then
@@ -99,7 +98,6 @@ run_quiet() {
 cleanup() {
   local code=$?
   trap - ERR
-  if [ -n "$legacy_installer" ]; then rm -f "$legacy_installer"; fi
   finish_line
   if [ -n "$active_pid" ] && kill -0 "$active_pid" 2>/dev/null; then
     kill "$active_pid"
@@ -107,9 +105,9 @@ cleanup() {
   fi
   if [ -n "$registry_directory" ]; then rm -rf "$registry_directory"; fi
   if [ "$code" -ne 0 ] && [ "$stop_on_failure" -eq 1 ]; then
-    printf '\n  Stopping AgentsInTheCloud services after installation failure.\n' >&2
+    printf '\n  Stopping Kintsugi services after installation failure.\n' >&2
     if ! docker stop --time 120 "$system_name" >>"$log_file" 2>&1; then
-      printf '  Could not stop AgentsInTheCloud services. Run: docker stop %s\n' "$system_name" >&2
+      printf '  Could not stop Kintsugi services. Run: docker stop %s\n' "$system_name" >&2
     fi
     printf '  Local diagnostics: docker logs %s\n' "$system_name" >&2
   fi
@@ -125,9 +123,9 @@ usage() {
   cat <<'HELP'
 Usage: install.sh [options]
 
-Installs AgentsInTheCloud System, or offers actions for an existing installation.
-System replacements preserve the agents-in-the-cloud-system volume and interrupt workspaces.
-Update also installs the newest AgentsInTheCloud app on the installation's selected channel.
+Installs Kintsugi System, or offers actions for an existing installation.
+System replacements preserve the kintsugi-system volume and interrupt workspaces.
+Update also installs the newest Kintsugi app on the installation's selected channel.
 
   --system-image REF   Explicit System selection (otherwise the saved release source)
   --app-image REF      Explicit app selection, including on existing installations
@@ -142,7 +140,7 @@ Update also installs the newest AgentsInTheCloud app on the installation's selec
 
 Setup prompts for a release repository and a Tailscale hostname. Updates retain saved selections.
 Registry-qualified image overrides are persisted; local image overrides are one-off selections.
-There is no migration from the previous AgentsInTheCloud installation layout.
+There is no migration from the previous Kintsugi installation layout.
 HELP
 }
 
@@ -193,7 +191,7 @@ case "$host_os" in
       docker_binary="$(command -v docker)" || fail "install and start Docker Desktop first"
       docker() { sudo -H -u "$SUDO_USER" "$docker_binary" "$@"; }
     fi ;;
-  *) fail "AgentsInTheCloud System requires Linux or macOS with Docker Desktop" ;;
+  *) fail "Kintsugi System requires Linux or macOS with Docker Desktop" ;;
 esac
 
 root_required=0
@@ -202,7 +200,7 @@ request_root() {
   if [ "$(id -u)" -ne 0 ] && [ "$root_required" -eq 0 ]; then
     command -v sudo >/dev/null || fail "sudo is required for Linux host setup; install sudo or run as root"
     finish_line
-    printf '  AgentsInTheCloud needs administrator access to prepare this Linux host.\n'
+    printf '  Kintsugi needs administrator access to prepare this Linux host.\n'
     sudo -v || fail "administrator access was not granted"
     root_required=1
   fi
@@ -212,8 +210,8 @@ run_root() {
   if [ "$root_required" -eq 1 ]; then sudo "$@"; else "$@"; fi
 }
 
-log_file="$(mktemp /tmp/agents-in-the-cloud-install.XXXXXX)"
-printf "\n  %sLet's get your AgentsInTheCloud setup!%s\n\n" "$violet" "$reset"
+log_file="$(mktemp /tmp/kintsugi-install.XXXXXX)"
+printf "\n  %sLet's get your Kintsugi setup!%s\n\n" "$violet" "$reset"
 status "Preparing your server"
 if ! command -v docker >/dev/null; then
   [ "$action" != uninstall ] || fail "Docker is not installed; no installation can be inspected or removed"
@@ -244,19 +242,18 @@ if [ "$action" != uninstall ] && [ "$host_os" = Linux ] && [ "$desktop" -eq 0 ];
   for filesystem in erofs overlay; do
     if ! grep -qw "$filesystem" /proc/filesystems; then
       if ! command -v modprobe >/dev/null || ! run_root modprobe "$filesystem"; then
-        fail "The Linux kernel that powers your Docker does not have $filesystem, which AgentsInTheCloud requires."
+        fail "The Linux kernel that powers your Docker does not have $filesystem, which Kintsugi requires."
       fi
-      grep -qw "$filesystem" /proc/filesystems || fail "The Linux kernel that powers your Docker does not have $filesystem, which AgentsInTheCloud requires."
+      grep -qw "$filesystem" /proc/filesystems || fail "The Linux kernel that powers your Docker does not have $filesystem, which Kintsugi requires."
     fi
   done
   run_root mkdir -p /etc/modules-load.d
-  printf 'erofs\noverlay\n' | run_root tee /etc/modules-load.d/agents-in-the-cloud-system.conf >/dev/null
+  printf 'erofs\noverlay\n' | run_root tee /etc/modules-load.d/kintsugi-system.conf >/dev/null
 fi
 
 installed=0
 if docker container inspect "$system_name" >/dev/null 2>&1; then installed=1; fi
-# Keep the legacy cleanup implementation frozen: it knows Atelier's names,
-# socket, storage, inventory contract, and DELETE ATELIER confirmation.
+# Upstream installations belong to their own installer; never delete their data.
 if [ "$action" = uninstall ]; then
   new_volume="$(docker volume ls --format '{{.Name}}' --filter "name=^${system_name}$")"
   legacy_system=0
@@ -266,37 +263,28 @@ if [ "$action" = uninstall ]; then
   if docker container inspect atelier >/dev/null 2>&1; then legacy_container=1; fi
   if [ "$installed" -eq 1 ] || [ -n "$new_volume" ]; then
     if [ "$legacy_system" -eq 1 ] || [ -n "$legacy_volume" ] || [ "$legacy_container" -eq 1 ]; then
-      printf '\n  Removing AgentsInTheCloud only. Atelier will remain; run --uninstall again to inspect it.\n'
+      printf '\n  Removing Kintsugi only. Atelier will remain; use its own installer to remove it.\n'
     fi
   elif [ "$legacy_system" -eq 1 ] || [ -n "$legacy_volume" ]; then
-    finish_line
-    printf '\n  Atelier System found. Its legacy uninstaller will count workspaces and ask you to type DELETE ATELIER.\n'
-    printf '  Older System images may need an Atelier System update before uninstall is available. No update will be performed here.\n'
-    legacy_installer="$(mktemp /tmp/atelier-legacy-uninstall.XXXXXX)"
-    if ! curl -fsSL https://raw.githubusercontent.com/lucasmeijer/atelier/34cea8ec/scripts/install.sh -o "$legacy_installer"; then
-      fail "Could not download the legacy Atelier uninstaller. Nothing has been deleted."
-    fi
-    legacy_code=0
-    run_root bash "$legacy_installer" --uninstall || legacy_code=$?
-    exit "$legacy_code"
+    fail "An upstream Atelier installation is present. Use its own uninstaller; Kintsugi has retained all of its data."
   elif [ "$legacy_container" -eq 1 ]; then
     fail "The old atelier container predates Atelier System. Automatic uninstall is not supported for that layout; its container and data have been retained."
   fi
 fi
 if [ "$action" != uninstall ] && { docker container inspect atelier-system >/dev/null 2>&1 || docker container inspect atelier >/dev/null 2>&1; }; then
-  fail "Atelier is installed. Run this installer with --uninstall first; AgentsInTheCloud starts fresh and does not import Atelier data."
+  fail "Atelier is installed. Use its own installer to remove it; Kintsugi starts fresh and does not import Atelier data."
 fi
-if [ "$installed" -eq 0 ] && docker container inspect agents-in-the-cloud >/dev/null 2>&1; then
-  fail "an old AgentsInTheCloud container exists; this installer does not migrate old installations"
+if [ "$installed" -eq 0 ] && docker container inspect kintsugi >/dev/null 2>&1; then
+  fail "an old Kintsugi container exists; this installer does not migrate old installations"
 fi
 if [ "$installed" -eq 0 ]; then
   case "$action" in
     uninstall) ;; # A previous removal may have left only the outer volume.
     ""|install|update) action=install ;;
-    *) fail "AgentsInTheCloud System is not installed" ;;
+    *) fail "Kintsugi System is not installed" ;;
   esac
 elif [ "$action" = install ]; then
-  fail "AgentsInTheCloud System is already installed; use --action update"
+  fail "Kintsugi System is already installed; use --action update"
 fi
 
 # The supervisor owns app lifecycle and routing. Query locally so the host
@@ -348,7 +336,7 @@ check_system_running() {
   if [ "$state" != running ]; then
     finish_line
     docker logs --tail 40 "$system_name" 2>&1 | tee -a "$log_file" >&2
-    fail "AgentsInTheCloud services are $state. Container logs are shown above."
+    fail "Kintsugi services are $state. Container logs are shown above."
   fi
 }
 wait_for_system() {
@@ -401,7 +389,7 @@ wait_for_system() {
     fi
     if [ "${description%% · *}" != "$previous" ]; then activity_start=$SECONDS; previous="${description%% · *}"; fi
     status "$description" "$((SECONDS-activity_start))s" "$percent"
-    [ "$((SECONDS-start))" -lt 2400 ] || fail "AgentsInTheCloud did not finish starting within 40 minutes."
+    [ "$((SECONDS-start))" -lt 2400 ] || fail "Kintsugi did not finish starting within 40 minutes."
     for ((tick=0; tick<10; tick++)); do
       status "$description" "$((SECONDS-activity_start))s" "$percent"
       sleep 0.1
@@ -425,7 +413,7 @@ uninstall_system() {
       reply="$(docker exec --user root "$system_name" bun -e '
         let response;
         try {
-          response = await fetch("http://supervisor/uninstall", {unix:"/run/agents-in-the-cloud-system/uninstall.sock", signal:AbortSignal.timeout(3000)});
+          response = await fetch("http://supervisor/uninstall", {unix:"/run/kintsugi-system/uninstall.sock", signal:AbortSignal.timeout(3000)});
         } catch (error) { console.error(error); process.exit(75); }
         if (response.status === 503) process.exit(75);
         if (!response.ok) { console.error(await response.text()); process.exit(2); }
@@ -459,15 +447,15 @@ uninstall_system() {
     printf '\n  System was already removed, but its installation volume remains.\n  Workspace count unavailable: all remaining installation data will be deleted.\n'
   fi
   printf '\n  This also deletes workspace files, conversations, nested Docker data,\n  shared /persistent files, projects, settings, and locally saved credentials.\n  Nothing is imported into a new installation. Save anything you need first.\n\n'
-  prompt answer "  Type DELETE AGENTSINTHECLOUD to confirm, or anything else to cancel: "
-  if [ "$answer" != "DELETE AGENTSINTHECLOUD" ]; then
+  prompt answer "  Type DELETE KINTSUGI to confirm, or anything else to cancel: "
+  if [ "$answer" != "DELETE KINTSUGI" ]; then
     printf '\n  Uninstall cancelled. No data was deleted.\n'
     return
   fi
   if [ "$installed" -eq 1 ]; then
     docker exec --user root "$system_name" bun -e '
       const response = await fetch("http://supervisor/uninstall", {
-        unix:"/run/agents-in-the-cloud-system/uninstall.sock", method:"POST",
+        unix:"/run/kintsugi-system/uninstall.sock", method:"POST",
         headers:{"content-type":"application/json"}, body:JSON.stringify({token:process.argv[1]}),
         signal:AbortSignal.timeout(3000),
       });
@@ -504,9 +492,9 @@ uninstall_system() {
   [ -z "$remaining" ] || fail "System container still exists"
   remaining="$(docker volume ls --format '{{.Name}}' --filter "name=^${system_name}$")"
   [ -z "$remaining" ] || fail "Installation volume still exists"
-  if [ "$host_os" = Linux ] && [ -f /etc/modules-load.d/agents-in-the-cloud-system.conf ]; then
+  if [ "$host_os" = Linux ] && [ -f /etc/modules-load.d/kintsugi-system.conf ]; then
     request_root
-    run_root rm /etc/modules-load.d/agents-in-the-cloud-system.conf
+    run_root rm /etc/modules-load.d/kintsugi-system.conf
   fi
   finish_line
   printf '\n  %s✓ Uninstalled. System and all installation data have been removed.%s\n  Docker and unrelated host resources were left installed.\n\n' "$green" "$reset"
@@ -552,7 +540,7 @@ function validSource(source) {
 }
 if (settings.releaseSource !== undefined && !validSource(settings.releaseSource)) throw Error('Invalid release source; refusing upstream fallback');
 if (settings.releaseMode === 'custom' && !settings.releaseSource) throw Error('Custom source is missing');
-const defaults = {appRepository:'ghcr.io/lucasmeijer/agents-in-the-cloud',systemRepository:'ghcr.io/lucasmeijer/agents-in-the-cloud-system'};
+const defaults = {appRepository:'ghcr.io/rcarmo/kintsugi',systemRepository:'ghcr.io/rcarmo/kintsugi-system'};
 if (sourceOverride) {
   if (!repositoryPattern.test(sourceOverride)) throw Error('Use a GHCR or Docker Hub app repository');
   settings.releaseSource = {appRepository:sourceOverride,systemRepository:sourceOverride+'-system'};
@@ -577,7 +565,7 @@ function reference(component) {
   const version = source[component+'Version'] ?? settings.releaseChannel ?? 'latest';
   return source[component+'Repository']+(version.startsWith('sha256:')?'@':':')+version;
 }
-const hostname = hostnameOverride || state.tailscaleHostname || 'agents-in-the-cloud-system';
+const hostname = hostnameOverride || state.tailscaleHostname || 'kintsugi-system';
 if (typeof hostname !== 'string' || !/^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(hostname)) throw Error('Use a Tailscale hostname with 1–63 lowercase letters, digits or hyphens');
 let registryAuth;
 if (credentialFile) {
@@ -688,12 +676,12 @@ case "$action" in
     fi
     if [ "$installed" -eq 0 ]; then
       if [ -z "$source_repository" ]; then
-        prompt source_repository "  Release image repository [ghcr.io/lucasmeijer/agents-in-the-cloud]: "
-        source_repository="${source_repository:-ghcr.io/lucasmeijer/agents-in-the-cloud}"
+        prompt source_repository "  Release image repository [ghcr.io/rcarmo/kintsugi]: "
+        source_repository="${source_repository:-ghcr.io/rcarmo/kintsugi}"
       fi
       if [ -z "$tailscale_hostname" ]; then
-        prompt tailscale_hostname "  Tailscale hostname [agents-in-the-cloud-system]: "
-        tailscale_hostname="${tailscale_hostname:-agents-in-the-cloud-system}"
+        prompt tailscale_hostname "  Tailscale hostname [kintsugi-system]: "
+        tailscale_hostname="${tailscale_hostname:-kintsugi-system}"
       fi
       [[ "$source_repository" =~ ^(ghcr\.io|docker\.io)/[a-z0-9]+([._-][a-z0-9]+)*/[a-z0-9]+([._/-][a-z0-9]+)*$ ]] || fail "Use a GHCR or Docker Hub app repository"
       [[ "$tailscale_hostname" =~ ^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$ ]] || fail "Invalid Tailscale hostname"
@@ -711,7 +699,7 @@ case "$action" in
       auth_present="$(release_plan "$old_system_image" auth-check 2>>"$log_file")" || fail "Cannot inspect saved registry access"
       case "$auth_present" in
         1)
-          registry_directory="$(mktemp -d /tmp/agents-in-the-cloud-registry.XXXXXX)"; chmod 700 "$registry_directory"
+          registry_directory="$(mktemp -d /tmp/kintsugi-registry.XXXXXX)"; chmod 700 "$registry_directory"
           if [ "$host_os" = Darwin ] && [ "$(id -u)" -eq 0 ] && [ -n "${SUDO_USER:-}" ]; then chown "$SUDO_USER" "$registry_directory"; fi
           docker cp "$system_name:/data/supervisor/docker-auth/config.json" "$registry_directory/config.json" >>"$log_file" 2>&1 || fail "Cannot read saved registry access"
           chmod 600 "$registry_directory/config.json" ;;
@@ -721,7 +709,7 @@ case "$action" in
     fi
     if [ -n "$registry_config" ]; then
       [ -f "$registry_config" ] || fail "Registry config file not found"
-      registry_directory="$(mktemp -d /tmp/agents-in-the-cloud-registry.XXXXXX)"
+      registry_directory="$(mktemp -d /tmp/kintsugi-registry.XXXXXX)"
       chmod 700 "$registry_directory"
       cp "$registry_config" "$registry_directory/config.json"; chmod 600 "$registry_directory/config.json"
     fi
@@ -745,7 +733,7 @@ case "$action" in
       docker image inspect "$system_image" >>"$log_file" 2>&1 || fail "Previous System image is no longer retained; nothing was replaced"
     fi
     if [[ "$system_image" == ghcr.io/* || "$system_image" == docker.io/* ]] || ! docker image inspect "$system_image" >>"$log_file" 2>&1; then
-    if ! run_quiet_status "Downloading AgentsInTheCloud services" host_pull "$system_image"; then
+    if ! run_quiet_status "Downloading Kintsugi services" host_pull "$system_image"; then
       fail "Cannot pull the selected System image. Check the repository and Docker registry login; no upstream fallback was attempted. See the bootstrap log."
     fi
     fi
@@ -753,7 +741,7 @@ case "$action" in
     system_image="$(docker image inspect --format '{{.Id}}' "$system_image")"
     [[ "$system_image" =~ ^sha256:[a-f0-9]{64}$ ]] || fail "System image was not pinned; nothing was replaced"
     if [ "$action" != rollback ]; then
-      capability="$(docker image inspect --format '{{index .Config.Labels "agents-in-the-cloud.installer-config"}}' "$system_image")"
+      capability="$(docker image inspect --format '{{index .Config.Labels "kintsugi.installer-config"}}' "$system_image")"
       [ "$capability" = 1 ] || fail "The selected System image does not support this installer. Use a System image built from the fork release-source branch; nothing was replaced"
     fi
     # Validate the persisted plan with the exact selected image before stopping anything.
@@ -781,8 +769,8 @@ case "$action" in
       [[ "$pinned_app" =~ ^sha256:[a-f0-9]{64}$ ]] || fail "App image was not pinned; nothing was replaced"
     fi
     if [ "$installed" -eq 1 ]; then
-      run_quiet "Stopping AgentsInTheCloud services" docker stop --time 120 "$system_name"
-      run_quiet "Replacing AgentsInTheCloud services" docker rm "$system_name"
+      run_quiet "Stopping Kintsugi services" docker stop --time 120 "$system_name"
+      run_quiet "Replacing Kintsugi services" docker rm "$system_name"
     fi
     apply_operation=apply; if [ "$action" = rollback ]; then apply_operation=rollback-apply; fi
     if [ -n "$registry_directory" ]; then
@@ -791,7 +779,7 @@ case "$action" in
       run_quiet "Saving installation source and hostname" docker run --rm --network none --entrypoint bun --mount "source=$system_name,target=/data" "$system_image" -e "$release_config_script" "$apply_operation" "$source_repository" "$app_image_override" "$system_image_override" "$tailscale_hostname" "$system_image" "$pinned_app" "" "$old_system_image"
     fi
     stop_on_failure=1
-    run_quiet "Starting AgentsInTheCloud services" docker run -d --name "$system_name" --hostname "$tailscale_hostname" --privileged --cgroupns=host --restart unless-stopped \
+    run_quiet "Starting Kintsugi services" docker run -d --name "$system_name" --hostname "$tailscale_hostname" --privileged --cgroupns=host --restart unless-stopped \
       --stop-timeout 120 --tmpfs /run --mount "source=$system_name,target=/data" --publish 127.0.0.1:3080:3080 "${publication_args[@]}" \
       "$system_image" --app-image "$app_image" --access-mode "${access_mode:-tailscale}"
     ;;
@@ -799,7 +787,7 @@ case "$action" in
     access_mode="${access_mode:-tailscale}"
     if [ "$(docker inspect --format '{{.State.Running}}' "$system_name")" != true ]; then
       stop_on_failure=1
-      run_quiet "Starting AgentsInTheCloud services" docker start "$system_name"
+      run_quiet "Starting Kintsugi services" docker start "$system_name"
     fi
     ;;
   open) ;;

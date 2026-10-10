@@ -1,6 +1,6 @@
-import type { JsonValue } from "@agents-in-the-cloud/core";
-import type { WorkspaceFileTarget } from "@agents-in-the-cloud/shared";
-import { createWorkspaceMetadataState, execWorkspaceCommand, execWorkspaceShell } from "@agents-in-the-cloud/workspace";
+import type { JsonValue } from "@kintsugi/core";
+import type { WorkspaceFileTarget } from "@kintsugi/shared";
+import { createWorkspaceMetadataState, execWorkspaceCommand, execWorkspaceShell } from "@kintsugi/workspace";
 import { Type, type Static } from "typebox";
 import { Value } from "typebox/value";
 import { vscodeFileLocation } from "./render.ts";
@@ -52,15 +52,15 @@ export function deleteWorkspaceVSCodeState(workspaceId: string): void {
 }
 
 export async function ensureWorkspaceVSCodeServer(workspaceId: string): Promise<void> {
-  const workspaceFile = `/.agents-in-the-cloud/vscode/workspaces/${Buffer.from(workspaceId).toString("base64url")}.code-workspace`;
-  const result = await execWorkspaceShell(workspaceId, vscodeStartupScript(workspaceFile), { user: "agents-in-the-cloud" });
+  const workspaceFile = `/.kintsugi/vscode/workspaces/${Buffer.from(workspaceId).toString("base64url")}.code-workspace`;
+  const result = await execWorkspaceShell(workspaceId, vscodeStartupScript(workspaceFile), { user: "agent" });
   if (result.exitCode !== 0) throw new Error(result.stderr.trim() || result.stdout.trim() || `could not start VS Code server for ${workspaceId}`);
 }
 
 /** Returns whether any live VS Code window of the workspace opened the file. */
 export async function openFileInConnectedVSCodeWindows(workspaceId: string, target: WorkspaceFileTarget): Promise<boolean> {
   const { file, gotoLine } = vscodeFileLocation(target);
-  const result = await execWorkspaceCommand(workspaceId, ["sh", "-c", vscodeOpenFileScript(file, gotoLine)], { user: "agents-in-the-cloud" });
+  const result = await execWorkspaceCommand(workspaceId, ["sh", "-c", vscodeOpenFileScript(file, gotoLine)], { user: "agent" });
   if (result.exitCode !== 0) throw new Error(result.stderr.trim() || `could not open ${file} in VS Code for ${workspaceId}`);
   return result.stdout.trim() === "delivered";
 }

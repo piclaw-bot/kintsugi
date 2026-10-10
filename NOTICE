@@ -1,4 +1,10 @@
-AgentsInTheCloud includes portions adapted from @earendil-works/gondolin.
+Kintsugi is an opinionated fork of AgentsInTheCloud by Lucas Meijer.
+Original source: https://github.com/lucasmeijer/AgentsInTheCloud
+License: MIT (see LICENSE). Original copyright retained.
+
+The Docker runtime is pinned to an upstream AgentsInTheCloud image.
+
+Kintsugi includes portions adapted from @earendil-works/gondolin.
 
 Source: https://github.com/earendil-works/gondolin
 License: Apache License 2.0
@@ -6,7 +12,7 @@ License: Apache License 2.0
 Adapted components include HTTP secret placeholder substitution, host pattern matching,
 and internal IP detection helpers.
 
-AgentsInTheCloud's Codex-compatible subagent tool descriptions and message envelopes are adapted
+Kintsugi's Codex-compatible subagent tool descriptions and message envelopes are adapted
 from OpenAI Codex (https://github.com/openai/codex), commit
 574a36ff99f0807a24f5b043f593122bf151908d, licensed under Apache License 2.0.
 Copyright OpenAI. The license is included in docs/licenses/codex-LICENSE.

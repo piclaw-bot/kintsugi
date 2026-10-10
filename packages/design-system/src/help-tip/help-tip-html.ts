@@ -1,4 +1,4 @@
-import { escapeHtml } from "@agents-in-the-cloud/shared";
+import { escapeHtml } from "@kintsugi/shared";
 
 interface HelpTipOptions {
   /** Accessible name for the "?" button, phrased as the question it answers. */

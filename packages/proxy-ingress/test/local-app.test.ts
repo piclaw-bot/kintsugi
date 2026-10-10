@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import type { WorkspaceHttpAppBackend } from "@agents-in-the-cloud/shared";
+import type { WorkspaceHttpAppBackend } from "@kintsugi/shared";
 import { adaptLocalAppResponse, isSameLocalApp, localAppHost, translateLocalAppOrigin } from "../src/ingress/local-app.ts";
 import { createWorkspaceIngress } from "../src/ingress/index.ts";
 
@@ -139,7 +139,7 @@ describe("local app compatibility", () => {
     });
     const publicOrigin = `https://preview.example:${port}`;
     const originHeader = requestOrigin === "same-origin" ? publicOrigin : requestOrigin === "missing" ? null : requestOrigin;
-    const headers = new Headers({ host: `preview.example:${port}`, "x-forwarded-proto": "https", "x-agents-in-the-cloud-public-origin": "https://spoofed.example", forwarded: "host=spoofed.example;proto=https", referer: "https://attacker.example/form", cookie: "session=ok", authorization: "Bearer app-token" });
+    const headers = new Headers({ host: `preview.example:${port}`, "x-forwarded-proto": "https", "x-kintsugi-public-origin": "https://spoofed.example", forwarded: "host=spoofed.example;proto=https", referer: "https://attacker.example/form", cookie: "session=ok", authorization: "Bearer app-token" });
     if (originHeader !== null) headers.set("origin", originHeader);
     try {
       await ingress.initialize();
@@ -162,7 +162,7 @@ describe("local app compatibility", () => {
       for (const request of observed) {
         expect(request.get("host")).toBe(`localhost:${upstream.port}`);
         expect(request.get("x-forwarded-host")).toBe(`localhost:${upstream.port}`);
-        expect(request.get("x-agents-in-the-cloud-public-origin")).toBe(publicOrigin);
+        expect(request.get("x-kintsugi-public-origin")).toBe(publicOrigin);
         expect(request.get("forwarded")).toBeNull();
         expect(request.get("x-forwarded-proto")).toBe("http");
         expect(request.get("x-forwarded-port")).toBe(String(upstream.port));

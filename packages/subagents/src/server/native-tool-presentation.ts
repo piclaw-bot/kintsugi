@@ -1,8 +1,8 @@
 import { Type } from "typebox";
 import { Value } from "typebox/value";
-import { isJsonObject } from "@agents-in-the-cloud/core";
-import { escapeHtml } from "@agents-in-the-cloud/shared";
-import type { AgentToolPresentation } from "@agents-in-the-cloud/agent/server";
+import { isJsonObject } from "@kintsugi/core";
+import { escapeHtml } from "@kintsugi/shared";
+import type { AgentToolPresentation } from "@kintsugi/agent/server";
 import { communicationCardHtml, communicationTraceHtml } from "./render-markup.ts";
 
 const detailsSchema = Type.Object({ recipientId: Type.String(), receiptId: Type.String(), path: Type.String(), message: Type.String() });

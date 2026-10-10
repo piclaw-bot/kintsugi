@@ -26,7 +26,7 @@ export function installationStatus(input: {
   logs: string[];
 }): InstallationStatus {
   const { hostname, appliedRoute } = input;
-  const localSupervisor = input.localOrigin?.replace("//agents-in-the-cloud.", "//system.agents-in-the-cloud.");
+  const localSupervisor = input.localOrigin?.replace("//kintsugi.", "//system.kintsugi.");
   const supervisorUrl = !input.localMode && !input.connectionAction && hostname && appliedRoute.startsWith(`${hostname}:`)
     ? `https://${hostname}:8443` : localSupervisor;
   const ready = input.appResponding && !input.busy && !input.stopping && !input.failure &&
@@ -43,16 +43,16 @@ export function installationStatus(input: {
     };
   } else if (!input.localMode && input.authUrl && input.connectionState === "NeedsLogin") {
     action = {
-      description: "AgentsInTheCloud uses Tailscale so only your devices can reach it. Sign in to connect securely.",
+      description: "Kintsugi uses Tailscale so only your devices can reach it. Sign in to connect securely.",
       url: input.authUrl,
     };
   }
   return {
     state,
-    activity: state === "failed" ? { description: input.failure ?? "AgentsInTheCloud services stopped" }
-      : ready ? { description: "Your AgentsInTheCloud is ready!" }
+    activity: state === "failed" ? { description: input.failure ?? "Kintsugi services stopped" }
+      : ready ? { description: "Your Kintsugi is ready!" }
       : action ? { description: "Waiting for your private connection" }
-      : input.appResponding && !input.busy ? { description: "Connecting AgentsInTheCloud securely" }
+      : input.appResponding && !input.busy ? { description: "Connecting Kintsugi securely" }
       : input.activity,
     appUrl: ready ? input.localMode ? input.localOrigin : `https://${hostname}` : undefined,
     supervisorUrl,

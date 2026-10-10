@@ -1,4 +1,4 @@
-import { escapeHtml } from "@agents-in-the-cloud/shared";
+import { escapeHtml } from "@kintsugi/shared";
 import { buttonPresentation } from "../button/button-content.ts";
 import { attributesHtml, classNames, stimulusAttributes, stimulusHtml } from "../html.ts";
 import { Icons } from "../icons/icons-html.ts";

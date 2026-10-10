@@ -1,11 +1,11 @@
-import { type AgentsInTheCloudEventBus } from "@agents-in-the-cloud/core";
-import { workspaceRepository } from "@agents-in-the-cloud/workspace/git";
+import { type KintsugiEventBus } from "@kintsugi/core";
+import { workspaceRepository } from "@kintsugi/workspace/git";
 import { inspectWorkspaceDeleteSafety } from "./deletion-safety.ts";
 import { isGitWorkspaceTemplateInit, workspaceTemplateIdFromInit, recordWorkspaceCreation } from "./workspace-template.ts";
 import { registerCommitIdentityWorkspaceEvents } from "./commit-identity.ts";
 import { registerWorkspaceTemplateWorkspaceInitEvents } from "./workspace-source.ts";
 
-export function registerWorkspaceTemplateWorkspaceEvents(events: AgentsInTheCloudEventBus): void {
+export function registerWorkspaceTemplateWorkspaceEvents(events: KintsugiEventBus): void {
   registerWorkspaceTemplateWorkspaceInitEvents(events);
   registerCommitIdentityWorkspaceEvents(events);
   events.on("workspace_created", async ({ init }) => {

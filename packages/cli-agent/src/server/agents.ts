@@ -1,14 +1,14 @@
-import { agentKey } from "@agents-in-the-cloud/agent/server/render-context";
-import { publishWorkspaceAgentBusy, prepareCliAgentConnection, revokeAgentMcp, type AgentTurnFinishReason } from "@agents-in-the-cloud/agent/server";
-import { suggestAgentSlug } from "@agents-in-the-cloud/agent/server/slug-suggestion";
-import { parseModelRef } from "@agents-in-the-cloud/llm/server";
+import { agentKey } from "@kintsugi/agent/server/render-context";
+import { publishWorkspaceAgentBusy, prepareCliAgentConnection, revokeAgentMcp, type AgentTurnFinishReason } from "@kintsugi/agent/server";
+import { suggestAgentSlug } from "@kintsugi/agent/server/slug-suggestion";
+import { parseModelRef } from "@kintsugi/llm/server";
 import { exportCliHistory } from "./history.ts";
 import { emptyAgentInput } from "./launch-script.ts";
-import { AgentsInTheCloudCoreError, createKeyedOperationQueue, shellQuote } from "@agents-in-the-cloud/core";
-import { buildObservableSessionCommand } from "@agents-in-the-cloud/observable-terminal/server";
-import { imageMimeByExtension } from "@agents-in-the-cloud/shared/file-metadata";
-import { errorMessage, type AgentWorkspaceParameters, type WorkspaceAgentInput } from "@agents-in-the-cloud/shared";
-import { createWorkspaceMetadataState, execWorkspaceShell, getWorkspaceTitle, setWorkspaceTitle, workspaceRoot } from "@agents-in-the-cloud/workspace";
+import { KintsugiCoreError, createKeyedOperationQueue, shellQuote } from "@kintsugi/core";
+import { buildObservableSessionCommand } from "@kintsugi/observable-terminal/server";
+import { imageMimeByExtension } from "@kintsugi/shared/file-metadata";
+import { errorMessage, type AgentWorkspaceParameters, type WorkspaceAgentInput } from "@kintsugi/shared";
+import { createWorkspaceMetadataState, execWorkspaceShell, getWorkspaceTitle, setWorkspaceTitle, workspaceRoot } from "@kintsugi/workspace";
 import { Type, type Static } from "typebox";
 import { Value } from "typebox/value";
 import type { CliAgentAdapter, CliAgentSession } from "./adapter.ts";
@@ -60,7 +60,7 @@ export function createCliAgents(adapter: CliAgentAdapter, onTitleChanged: (works
   function list(workspaceId: string): CliAgentRecord[] { return store().read(workspaceId).agents; }
   function get(workspaceId: string, id: string): CliAgentRecord {
     const agent = list(workspaceId).find((agent) => agent.id === id);
-    if (!agent) throw new AgentsInTheCloudCoreError("agent_not_found", `${adapter.label} Agent not found: ${id}`);
+    if (!agent) throw new KintsugiCoreError("agent_not_found", `${adapter.label} Agent not found: ${id}`);
     return agent;
   }
 
@@ -86,7 +86,7 @@ export function createCliAgents(adapter: CliAgentAdapter, onTitleChanged: (works
     if (pendingPrompt) publishWorkspaceAgentBusy({ workspaceId, agentKey: agentKey(id), busy: true });
     try {
       await adapter.prepareWorkspace?.(workspaceId);
-      const directory = `/tmp/agents-in-the-cloud-attachments/${adapter.id}-${id}`;
+      const directory = `/tmp/kintsugi-attachments/${adapter.id}-${id}`;
       const imagePaths: string[] = [];
       for (const [index, image] of (input?.images ?? []).entries()) {
         const extension = Object.entries(imageMimeByExtension).find(([, mime]) => mime === image.mimeType)?.[0];
@@ -96,14 +96,14 @@ export function createCliAgents(adapter: CliAgentAdapter, onTitleChanged: (works
         imagePaths.push(path);
       }
       const connection = await prepareCliAgentConnection(workspaceId, id);
-      const sessionDirectory = `/home/agents-in-the-cloud/.local/share/agents-in-the-cloud-agents/${id}`;
+      const sessionDirectory = `/home/agent/.local/share/kintsugi-agents/${id}`;
       const turnSignalCommand = `${sessionDirectory}/turn-signal.sh`;
       const launchSession: CliAgentSession = { id, directory: sessionDirectory, turnSignalCommand };
       // $1 is the TurnBoundary the CLI reports.
       await writeCliSessionFiles(workspaceId, launchSession, { "turn-signal.sh": `#!/bin/sh
 exec curl --noproxy '*' --fail --silent --show-error --max-time 10 -X POST -H ${shellQuote("Authorization: Bearer " + connection.token)} ${shellQuote(new URL("/agent-turn-", connection.url).href)}"$1"
 ` });
-      const env = { HOME: "/home/agents-in-the-cloud", ...await adapter.prepareSession(workspaceId, launchSession, connection) };
+      const env = { HOME: "/home/agent", ...await adapter.prepareSession(workspaceId, launchSession, connection) };
       const script = input
         ? adapter.launchScript(input, imagePaths, settings, launchSession)
         : await adapter.resumeScript!(workspaceId, settings, launchSession);
@@ -215,7 +215,7 @@ exec curl --noproxy '*' --fail --silent --show-error --max-time 10 -X POST -H ${
     if (starting.has(agent.id)) return { starting: true, exists: false, ended: false };
     const result = await execWorkspaceShell(workspaceId, `tmux list-panes -t ${shellQuote(agent.tmuxSession)} -F '#{pane_dead}:#{pane_dead_status}'`);
     if (result.exitCode === 1) return { exists: false, ended: true };
-    if (result.exitCode !== 0) throw new AgentsInTheCloudCoreError(`${adapter.id}_session_check_failed`, result.stderr.trim() || `Could not inspect ${adapter.label} terminal`);
+    if (result.exitCode !== 0) throw new KintsugiCoreError(`${adapter.id}_session_check_failed`, result.stderr.trim() || `Could not inspect ${adapter.label} terminal`);
     const [dead, status] = result.stdout.trim().split(":");
     return { exists: true, ended: dead === "1", exitCode: status ? Number(status) : undefined };
   }

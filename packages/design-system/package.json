@@ -1,5 +1,5 @@
 {
-  "name": "@agents-in-the-cloud/design-system",
+  "name": "@kintsugi/design-system",
   "private": true,
   "type": "module",
   "exports": {
@@ -47,10 +47,10 @@
     "./disclosure": "./src/disclosure/disclosure-html.ts"
   },
   "dependencies": {
-    "@agents-in-the-cloud/shared": "workspace:*",
+    "@kintsugi/shared": "workspace:*",
     "@hotwired/stimulus": "github:hotwired/dev-builds#339df548999c34d440e04c24b59ad9dc57ce3eb1",
     "@fontsource/jetbrains-mono": "5.2.8",
-    "@agents-in-the-cloud/syntax": "workspace:*",
+    "@kintsugi/syntax": "workspace:*",
     "qrcode-generator": "2.0.4"
   }
 }

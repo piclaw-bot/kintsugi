@@ -1,4 +1,4 @@
-import type { WorkspaceClientControllerConstructor as StimulusControllerConstructor } from "@agents-in-the-cloud/shared";
+import type { WorkspaceClientControllerConstructor as StimulusControllerConstructor } from "@kintsugi/shared";
 
 export function createAgentTailFrameController(Controller: StimulusControllerConstructor) {
   return class AgentTailFrameController extends Controller {

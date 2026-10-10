@@ -10,7 +10,7 @@ as executable JavaScript by lint/build tools. The harness uses the original file
 name when selecting a language. Sources:
 
 - `style.css`, `board.js`, and `index.html`: exact decoded `write` tool contents from
-  `/var/lib/agents-in-the-cloud/session-shares/slay/we-are-going-to-start-work-on-a-modern-remake-of--61f5996e--agent-1--5ab1f00b-c2fa-4d13-add7-aba811324ac0.jsonl`
+  `/var/lib/kintsugi/session-shares/slay/we-are-going-to-start-work-on-a-modern-remake-of--61f5996e--agent-1--5ab1f00b-c2fa-4d13-add7-aba811324ac0.jsonl`
   on `root@agents`. The saved CSS write completed at 20:17:06 UTC; board.js at 20:17:40 UTC.
 - `view.js`: the user's pasted attachment, preserved as supplied. **Incomplete**:
   it ends at `const waveMat=new`. The active write had not been persisted in the

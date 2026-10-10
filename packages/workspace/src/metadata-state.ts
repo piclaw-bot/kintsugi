@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
-import { getAgentsInTheCloudRuntimeContext, isNotFoundError, type JsonValue } from "@agents-in-the-cloud/core";
+import { getKintsugiRuntimeContext, isNotFoundError, type JsonValue } from "@kintsugi/core";
 
 export interface WorkspaceMetadataState<State extends object> {
   read(workspaceId: string): State;
@@ -12,7 +12,7 @@ export interface WorkspaceMetadataState<State extends object> {
 /** A strict, atomically written adapter-owned state file under Workspace metadata. */
 export function createWorkspaceMetadataState<State extends object>(filename: string, parse: (value: JsonValue) => State, initial: () => State, options: { dataDir?: string } = {}): WorkspaceMetadataState<State> {
   const loaded = new Map<string, State>();
-  const dataDir = options.dataDir ?? getAgentsInTheCloudRuntimeContext().agentsInTheCloudDataDir;
+  const dataDir = options.dataDir ?? getKintsugiRuntimeContext().kintsugiDataDir;
   const pathFor = (workspaceId: string) => join(dataDir, "workspaces", workspaceId, "metadata", filename);
 
   return {

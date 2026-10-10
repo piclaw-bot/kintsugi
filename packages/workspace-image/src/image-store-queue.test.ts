@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { createAgentsInTheCloudEventBus } from "@agents-in-the-cloud/core";
+import { createKintsugiEventBus } from "@kintsugi/core";
 import type { WorkspaceProvisionProgress } from "../../workspace/src/provisioning.ts";
 import { createDockerImageStoreQueue, workspaceImageStoreWaitReporter, type DockerImageStoreWaitState } from "./image-store-queue.ts";
 
@@ -81,7 +81,7 @@ describe("Docker image store queue", () => {
   });
 
   test("reports image maintenance as progress, not provisioning state", async () => {
-    const events = createAgentsInTheCloudEventBus();
+    const events = createKintsugiEventBus();
     const steps: Array<WorkspaceProvisionProgress & { workspaceId: string }> = [];
     events.on("workspace_provision_progress", (event) => { steps.push(event); });
     const report = workspaceImageStoreWaitReporter({ events, workspaceId: "workspace-1" });
@@ -103,7 +103,7 @@ describe("Docker image store queue", () => {
 });
 
 test("a cancelled image-store waiter returns promptly without releasing its predecessor's lock", async () => {
-  const { withCommandSignal } = await import("@agents-in-the-cloud/core");
+  const { withCommandSignal } = await import("@kintsugi/core");
   const queue = createDockerImageStoreQueue();
   const started = Promise.withResolvers<void>();
   const release = Promise.withResolvers<void>();

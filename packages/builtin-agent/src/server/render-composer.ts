@@ -1,16 +1,16 @@
-import { activityButtonHtml } from "@agents-in-the-cloud/design-system/activity-button";
-import { buttonHtml } from "@agents-in-the-cloud/design-system/button";
-import { createPiModelRuntime, hasConnectedModelProvider, modelRefValue, parseModelRef, renderLaunchModelSettings, renderSharedComposerSelections, type ComposerModelOption } from "@agents-in-the-cloud/llm/server";
-import { agentAttachmentDraftId, listStagedAttachments, renderComposerBody, renderFloatingStack, renderFollowLatestButton, renderOpenComposerButton, agentComposerActions, composerAttachmentAttributes, type StagedAttachment } from "@agents-in-the-cloud/prompt/server";
-import { dictationComposerController } from "@agents-in-the-cloud/dictation/server";
-import { domId, escapeHtml } from "@agents-in-the-cloud/shared";
+import { activityButtonHtml } from "@kintsugi/design-system/activity-button";
+import { buttonHtml } from "@kintsugi/design-system/button";
+import { createPiModelRuntime, hasConnectedModelProvider, modelRefValue, parseModelRef, renderLaunchModelSettings, renderSharedComposerSelections, type ComposerModelOption } from "@kintsugi/llm/server";
+import { agentAttachmentDraftId, listStagedAttachments, renderComposerBody, renderFloatingStack, renderFollowLatestButton, renderOpenComposerButton, agentComposerActions, composerAttachmentAttributes, type StagedAttachment } from "@kintsugi/prompt/server";
+import { dictationComposerController } from "@kintsugi/dictation/server";
+import { domId, escapeHtml } from "@kintsugi/shared";
 import { readInitialPromptDraft } from "./initial-prompt-draft.ts";
-import { enabledModelOptionViews, launchComposerThinkingSettings, selectAvailableEnabledModel } from "@agents-in-the-cloud/agent/server/model-state";
-import { agentKey, agentPath, ids, type AgentRenderContext } from "@agents-in-the-cloud/agent/server/render-context";
+import { enabledModelOptionViews, launchComposerThinkingSettings, selectAvailableEnabledModel } from "@kintsugi/agent/server/model-state";
+import { agentKey, agentPath, ids, type AgentRenderContext } from "@kintsugi/agent/server/render-context";
 import { renderAgentNotifications } from "./render-notification.ts";
 import { agentDelegation } from "./delegation.ts";
 import type { WorkspaceAgentInfo } from "./agent-store.ts";
-import { formatCost, formatTokens } from "@agents-in-the-cloud/agent/server/transcript";
+import { formatCost, formatTokens } from "@kintsugi/agent/server/transcript";
 
 export interface AgentStatsView {
   contextPercent: number | null;

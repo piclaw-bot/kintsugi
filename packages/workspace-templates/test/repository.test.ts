@@ -2,7 +2,7 @@ import { mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, test } from "bun:test";
-import { setWorkspaceTemplateSeedConfigEnabled, addWorkspaceTemplate, createWorkspaceTemplateEnvironmentVariable, createWorkspaceTemplateSecret, deleteWorkspaceTemplate, deleteWorkspaceTemplateEnvironmentVariable, getCommitIdentity, getStoredCommitIdentity, createWorkspaceTemplateSshKey, deriveWorkspaceTemplateSshPublicKey, listWorkspaceTemplates, parseWorkspaceTemplateSpec, revealWorkspaceTemplateSecrets, revealWorkspaceTemplateSshKeys, renameWorkspaceTemplateSshKey, setCommitIdentity, updateWorkspaceTemplate, updateWorkspaceTemplateEnvironmentVariable, updateWorkspaceTemplateSecret, getConfiguration } from "@agents-in-the-cloud/workspace-templates";
+import { setWorkspaceTemplateSeedConfigEnabled, addWorkspaceTemplate, createWorkspaceTemplateEnvironmentVariable, createWorkspaceTemplateSecret, deleteWorkspaceTemplate, deleteWorkspaceTemplateEnvironmentVariable, getCommitIdentity, getStoredCommitIdentity, createWorkspaceTemplateSshKey, deriveWorkspaceTemplateSshPublicKey, listWorkspaceTemplates, parseWorkspaceTemplateSpec, revealWorkspaceTemplateSecrets, revealWorkspaceTemplateSshKeys, renameWorkspaceTemplateSshKey, setCommitIdentity, updateWorkspaceTemplate, updateWorkspaceTemplateEnvironmentVariable, updateWorkspaceTemplateSecret, getConfiguration } from "@kintsugi/workspace-templates";
 import { commitIdentitySettingsFile, hasCommitIdentity } from "../src/commit-identity.ts";
 
 describe("Workspace templates", () => {
@@ -14,14 +14,14 @@ describe("Workspace templates", () => {
   });
 
   test("rejects malformed persisted Workspace templates", async () => {
-    const file = join(await mkdtemp(join(tmpdir(), "agents-in-the-cloud-projects-")), "projects.json");
+    const file = join(await mkdtemp(join(tmpdir(), "kintsugi-projects-")), "projects.json");
     await writeFile(file, JSON.stringify({ projects: [{ id: 42 }] }));
 
     expect(listWorkspaceTemplates(file)).rejects.toThrow();
   });
 
   test("addWorkspaceTemplate records a remote URL without cloning it", async () => {
-    const file = join(await mkdtemp(join(tmpdir(), "agents-in-the-cloud-projects-")), "projects.json");
+    const file = join(await mkdtemp(join(tmpdir(), "kintsugi-projects-")), "projects.json");
 
     const result = await addWorkspaceTemplate("https://github.com/org/repo.git#feature", file);
     expect(result.workspaceTemplate.name).toBe("repo");
@@ -32,14 +32,14 @@ describe("Workspace templates", () => {
   });
 
   test("addWorkspaceTemplate accepts a GitHub URL without a scheme and matches its HTTPS equivalent", async () => {
-    const file = join(await mkdtemp(join(tmpdir(), "agents-in-the-cloud-projects-")), "projects.json");
+    const file = join(await mkdtemp(join(tmpdir(), "kintsugi-projects-")), "projects.json");
     const workspaceTemplate = (await addWorkspaceTemplate("github.com/octocat/Hello-World", file)).workspaceTemplate;
     expect(workspaceTemplate.gitUrl).toBe("https://github.com/octocat/Hello-World");
     expect(addWorkspaceTemplate("https://github.com/octocat/Hello-World", file)).rejects.toThrow("template already exists");
   });
 
   test("addWorkspaceTemplate includes the branch in the name only for an existing repository", async () => {
-    const file = join(await mkdtemp(join(tmpdir(), "agents-in-the-cloud-projects-")), "projects.json");
+    const file = join(await mkdtemp(join(tmpdir(), "kintsugi-projects-")), "projects.json");
     const first = (await addWorkspaceTemplate("https://github.com/org/repo.git#main", file)).workspaceTemplate;
     const second = (await addWorkspaceTemplate("https://github.com/org/repo.git#feature/search", file)).workspaceTemplate;
     const defaultBranch = (await addWorkspaceTemplate("https://github.com/org/repo.git", file)).workspaceTemplate;
@@ -55,7 +55,7 @@ describe("Workspace templates", () => {
   });
 
   test("updateProject edits project fields without changing id", async () => {
-    const file = join(await mkdtemp(join(tmpdir(), "agents-in-the-cloud-projects-")), "projects.json");
+    const file = join(await mkdtemp(join(tmpdir(), "kintsugi-projects-")), "projects.json");
     const workspaceTemplate = (await addWorkspaceTemplate("https://github.com/org/repo.git", file)).workspaceTemplate;
 
     const result = await updateWorkspaceTemplate(workspaceTemplate.id, { name: "Renamed", spec: "https://github.com/org/renamed.git#main" }, file);
@@ -78,7 +78,7 @@ describe("Workspace templates", () => {
   });
 
   test("Workspace template secrets are encrypted at rest and decryptable by the host", async () => {
-    const dir = await mkdtemp(join(tmpdir(), "agents-in-the-cloud-workspace-template-secrets-"));
+    const dir = await mkdtemp(join(tmpdir(), "kintsugi-workspace-template-secrets-"));
     const file = join(dir, "projects.json");
     const keyFile = join(dir, "workspace-template-secrets.key");
     const workspaceTemplate = (await addWorkspaceTemplate("https://github.com/org/secret-project.git", file)).workspaceTemplate;
@@ -101,7 +101,7 @@ describe("Workspace templates", () => {
   });
 
   test("secrets can be saved, annotated, and filled later", async () => {
-    const dir = await mkdtemp(join(tmpdir(), "agents-in-the-cloud-secret-requirements-"));
+    const dir = await mkdtemp(join(tmpdir(), "kintsugi-secret-requirements-"));
     const file = join(dir, "projects.json");
     const keyFile = join(dir, "key");
     const workspaceTemplate = (await addWorkspaceTemplate("https://github.com/org/requirements.git", file)).workspaceTemplate;
@@ -120,7 +120,7 @@ describe("Workspace templates", () => {
   });
 
   test("older persisted secrets remain configured with no annotation", async () => {
-    const dir = await mkdtemp(join(tmpdir(), "agents-in-the-cloud-old-secrets-"));
+    const dir = await mkdtemp(join(tmpdir(), "kintsugi-old-secrets-"));
     const file = join(dir, "projects.json");
     const keyFile = join(dir, "key");
     const workspaceTemplate = (await addWorkspaceTemplate("https://github.com/org/old.git", file)).workspaceTemplate;
@@ -135,7 +135,7 @@ describe("Workspace templates", () => {
   });
 
   test("Workspace template SSH private keys are encrypted at rest", async () => {
-    const dir = await mkdtemp(join(tmpdir(), "agents-in-the-cloud-workspace-template-ssh-key-"));
+    const dir = await mkdtemp(join(tmpdir(), "kintsugi-workspace-template-ssh-key-"));
     const file = join(dir, "projects.json");
     const keyFile = join(dir, "workspace-template-secrets.key");
     const workspaceTemplate = (await addWorkspaceTemplate("git@example.com:org/repo.git", file)).workspaceTemplate;
@@ -178,7 +178,7 @@ describe("Workspace templates", () => {
   });
 
   test("Workspace template environment variables support empty values", async () => {
-    const file = join(await mkdtemp(join(tmpdir(), "agents-in-the-cloud-workspace-template-environment-")), "projects.json");
+    const file = join(await mkdtemp(join(tmpdir(), "kintsugi-workspace-template-environment-")), "projects.json");
     const workspaceTemplate = (await addWorkspaceTemplate("https://github.com/org/environment-project.git", file)).workspaceTemplate;
 
     const created = await createWorkspaceTemplateEnvironmentVariable(workspaceTemplate.id, { name: "API_URL", value: "https://api.example.com" }, file);
@@ -200,7 +200,7 @@ describe("Workspace templates", () => {
   });
 
   test("deleteWorkspaceTemplate removes a Workspace template by id", async () => {
-    const file = join(await mkdtemp(join(tmpdir(), "agents-in-the-cloud-projects-")), "projects.json");
+    const file = join(await mkdtemp(join(tmpdir(), "kintsugi-projects-")), "projects.json");
     const first = (await addWorkspaceTemplate("https://github.com/org/first.git", file)).workspaceTemplate;
     const second = (await addWorkspaceTemplate("https://github.com/org/second.git", file)).workspaceTemplate;
 
@@ -210,7 +210,7 @@ describe("Workspace templates", () => {
   });
 
   test("Settings Commit identity is stored by the workspace-templates module", async () => {
-    const file = join(await mkdtemp(join(tmpdir(), "agents-in-the-cloud-workspace-template-settings-")), "project-settings.json");
+    const file = join(await mkdtemp(join(tmpdir(), "kintsugi-workspace-template-settings-")), "project-settings.json");
 
     expect(await hasCommitIdentity(file)).toBe(false);
     await setCommitIdentity({ name: " Ada Lovelace ", email: " ada@example.com " }, file);
@@ -221,7 +221,7 @@ describe("Workspace templates", () => {
   });
 
   test("Commit identity reads the existing serialized gitIdentity field", async () => {
-    const file = join(await mkdtemp(join(tmpdir(), "agents-in-the-cloud-commit-identity-")), "project-settings.json");
+    const file = join(await mkdtemp(join(tmpdir(), "kintsugi-commit-identity-")), "project-settings.json");
     await writeFile(file, JSON.stringify({ gitIdentity: { name: "Grace Hopper", email: "grace@example.com" } }));
     expect(await getStoredCommitIdentity(file)).toEqual({ name: "Grace Hopper", email: "grace@example.com" });
   });
@@ -229,8 +229,8 @@ describe("Workspace templates", () => {
   test("Commit identity adopts the host global git config when Settings has no saved Commit identity", async () => {
     const previousDataDir = process.env.ATELIER_DATA_DIR;
     const previousGlobalConfig = process.env.GIT_CONFIG_GLOBAL;
-    const dataDir = await mkdtemp(join(tmpdir(), "agents-in-the-cloud-workspace-template-settings-"));
-    const gitConfig = join(await mkdtemp(join(tmpdir(), "agents-in-the-cloud-git-config-")), ".gitconfig");
+    const dataDir = await mkdtemp(join(tmpdir(), "kintsugi-workspace-template-settings-"));
+    const gitConfig = join(await mkdtemp(join(tmpdir(), "kintsugi-git-config-")), ".gitconfig");
     process.env.ATELIER_DATA_DIR = dataDir;
     process.env.GIT_CONFIG_GLOBAL = gitConfig;
     try {
@@ -249,7 +249,7 @@ describe("Workspace templates", () => {
 });
 
 test("seeding permission defaults off for older templates and persists an explicit opt-in", async () => {
-  const file = join(await mkdtemp(join(tmpdir(), "agents-in-the-cloud-seed-permission-")), "projects.json");
+  const file = join(await mkdtemp(join(tmpdir(), "kintsugi-seed-permission-")), "projects.json");
   const template = (await addWorkspaceTemplate("https://github.com/org/nested.git", file)).workspaceTemplate;
   expect(template.seedConfigEnabled).toBe(false);
   const original = template.configurationFingerprint;

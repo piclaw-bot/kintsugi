@@ -3,7 +3,7 @@ name: Publish default workspace image
 on:
   push:
     branches:
-      - rename-agents-in-the-cloud
+      - rename-kintsugi
   workflow_dispatch:
 
 permissions:
@@ -16,7 +16,7 @@ concurrency:
 
 jobs:
   publish:
-    if: github.ref == 'refs/heads/rename-agents-in-the-cloud'
+    if: github.ref == 'refs/heads/rename-kintsugi'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -31,8 +31,8 @@ jobs:
           set -euo pipefail
           context="$RUNNER_TEMP/workspace-image"
           bun packages/workspace-image/scripts/build-context.mjs "$context"
-          tag=$(jq -er '.tag | select(startswith("agents-in-the-cloud-workspace:")) | ltrimstr("agents-in-the-cloud-workspace:")' "$context/metadata.json")
-          repository="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/agents-in-the-cloud-workspace"
+          tag=$(jq -er '.tag | select(startswith("kintsugi-workspace:")) | ltrimstr("kintsugi-workspace:")' "$context/metadata.json")
+          repository="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/kintsugi-workspace"
           {
             echo "context=$context"
             echo "ref=$repository:$tag"
@@ -80,7 +80,7 @@ jobs:
           tags: ${{ steps.image.outputs.ref }}
           labels: |
             org.opencontainers.image.source=https://github.com/${{ github.repository }}
-            com.agents-in-the-cloud.workspace-image.kind=default
+            com.kintsugi.workspace-image.kind=default
           cache-from: type=gha
           cache-to: type=gha,mode=max
 

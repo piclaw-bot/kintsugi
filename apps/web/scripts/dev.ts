@@ -21,7 +21,7 @@ let workspaceImageDirty = false;
 let server: ReturnType<typeof Bun.spawn> | undefined;
 let stoppingServer = false;
 const pendingRestartReasons = new Set<string>();
-const devReloadFile = join("/tmp", `agents-in-the-cloud-dev-reload-${process.pid}.json`);
+const devReloadFile = join("/tmp", `kintsugi-dev-reload-${process.pid}.json`);
 const devReloadTempFile = `${devReloadFile}.tmp`;
 
 function scheduleBrowserReload(): void {
@@ -174,7 +174,7 @@ function watchRecursive(path: string, onChange: (changed: string) => void): void
 
 function startServer(): void {
   stoppingServer = false;
-  const child = Bun.spawn(["bun", "run", "src/server/main.ts", `--agents-in-the-cloud-dev-reload-file=${devReloadFile}`], { cwd, stdout: "inherit", stderr: "inherit", stdin: "inherit" });
+  const child = Bun.spawn(["bun", "run", "src/server/main.ts", `--kintsugi-dev-reload-file=${devReloadFile}`], { cwd, stdout: "inherit", stderr: "inherit", stdin: "inherit" });
   server = child;
   void (async () => {
     const code = await child.exited;

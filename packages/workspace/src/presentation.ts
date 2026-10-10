@@ -1,10 +1,10 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
-import { createKeyedOperationQueue, AgentsInTheCloudCoreError, getAgentsInTheCloudRuntimeContext, isJsonObject, isNotFoundError, writeJsonAtomic, type JsonValue } from "@agents-in-the-cloud/core";
-import { errorMessage, type WorkspaceWorkViewReference } from "@agents-in-the-cloud/shared";
+import { createKeyedOperationQueue, KintsugiCoreError, getKintsugiRuntimeContext, isJsonObject, isNotFoundError, writeJsonAtomic, type JsonValue } from "@kintsugi/core";
+import { errorMessage, type WorkspaceWorkViewReference } from "@kintsugi/shared";
 import { Type } from "typebox";
 import { Value } from "typebox/value";
-export type { WorkspaceWorkViewReference } from "@agents-in-the-cloud/shared";
+export type { WorkspaceWorkViewReference } from "@kintsugi/shared";
 
 /** Resource module contribution and type adapter for one Work view kind. */
 export interface WorkspaceWorkViewContribution<Reference extends WorkspaceWorkViewReference = WorkspaceWorkViewReference> {
@@ -44,30 +44,30 @@ const workViewTypeSchema = Type.String();
 const booleanSchema = Type.Boolean();
 const dismissedWarningsSchema = Type.Record(Type.String(), Type.String());
 
-function presentationError(workspaceId: string, message: string): AgentsInTheCloudCoreError {
-  return new AgentsInTheCloudCoreError("workspace_presentation_invalid", `invalid presentation state for workspace ${workspaceId}: ${message}`);
+function presentationError(workspaceId: string, message: string): KintsugiCoreError {
+  return new KintsugiCoreError("workspace_presentation_invalid", `invalid presentation state for workspace ${workspaceId}: ${message}`);
 }
 
 function assertWorkspaceId(workspaceId: string): void {
-  if (!/^[a-zA-Z0-9][a-zA-Z0-9_.-]*$/.test(workspaceId)) throw new AgentsInTheCloudCoreError("invalid_arguments", `invalid workspace id: ${workspaceId}`);
+  if (!/^[a-zA-Z0-9][a-zA-Z0-9_.-]*$/.test(workspaceId)) throw new KintsugiCoreError("invalid_arguments", `invalid workspace id: ${workspaceId}`);
 }
 
 export function createWorkspacePresentationStore(options: WorkspacePresentationStoreOptions): WorkspacePresentationStore {
-  const dataDir = options.dataDir ?? getAgentsInTheCloudRuntimeContext().agentsInTheCloudDataDir;
+  const dataDir = options.dataDir ?? getKintsugiRuntimeContext().kintsugiDataDir;
   const adapters = new Map(options.workViewContributions.map((adapter) => [adapter.type, adapter]));
   const serialized = createKeyedOperationQueue();
 
-  if (adapters.size !== options.workViewContributions.length) throw new AgentsInTheCloudCoreError("invalid_arguments", "Work view contribution types must be unique");
+  if (adapters.size !== options.workViewContributions.length) throw new KintsugiCoreError("invalid_arguments", "Work view contribution types must be unique");
 
   function pathFor(workspaceId: string): string {
     assertWorkspaceId(workspaceId);
     return join(dataDir, "workspaces", workspaceId, "metadata", presentationFilename);
   }
 
-  function referenceError(workspaceId: string, message: string, stored: boolean): AgentsInTheCloudCoreError {
+  function referenceError(workspaceId: string, message: string, stored: boolean): KintsugiCoreError {
     return stored
       ? presentationError(workspaceId, message)
-      : new AgentsInTheCloudCoreError("work_view_reference_invalid", `invalid Work view reference for workspace ${workspaceId}: ${message}`);
+      : new KintsugiCoreError("work_view_reference_invalid", `invalid Work view reference for workspace ${workspaceId}: ${message}`);
   }
 
   function parseReference(workspaceId: string, value: JsonValue, stored = false): WorkspaceWorkViewReference {
@@ -171,7 +171,7 @@ export function createWorkspacePresentationStore(options: WorkspacePresentationS
         if (openOptions.after) {
           const after = parseReference(workspaceId, openOptions.after);
           const afterIndex = state.workViews.findIndex((view) => identity(view.reference) === identity(after));
-          if (afterIndex < 0) throw new AgentsInTheCloudCoreError("work_view_not_found", `Work view is not open: ${identity(after)}`);
+          if (afterIndex < 0) throw new KintsugiCoreError("work_view_not_found", `Work view is not open: ${identity(after)}`);
           insertAt = afterIndex + 1;
         }
         state.workViews.splice(insertAt, 0, { reference });
@@ -184,11 +184,11 @@ export function createWorkspacePresentationStore(options: WorkspacePresentationS
       await serialized(workspaceId, async () => {
         const state = await requiredState(workspaceId);
         if (!Number.isSafeInteger(index) || index < 0 || index >= state.workViews.length) {
-          throw new AgentsInTheCloudCoreError("invalid_arguments", `invalid Work view index: ${index}`);
+          throw new KintsugiCoreError("invalid_arguments", `invalid Work view index: ${index}`);
         }
         const reference = parseReference(workspaceId, inputReference);
         const currentIndex = state.workViews.findIndex((view) => identity(view.reference) === identity(reference));
-        if (currentIndex < 0) throw new AgentsInTheCloudCoreError("work_view_not_found", `Work view is not open: ${identity(reference)}`);
+        if (currentIndex < 0) throw new KintsugiCoreError("work_view_not_found", `Work view is not open: ${identity(reference)}`);
         if (currentIndex === index) return;
         const [view] = state.workViews.splice(currentIndex, 1);
         state.workViews.splice(index, 0, view!);
@@ -201,7 +201,7 @@ export function createWorkspacePresentationStore(options: WorkspacePresentationS
         const state = await requiredState(workspaceId);
         const reference = parseReference(workspaceId, inputReference);
         const index = state.workViews.findIndex((candidate) => identity(candidate.reference) === identity(reference));
-        if (index < 0) throw new AgentsInTheCloudCoreError("work_view_not_found", `Work view is not open: ${identity(reference)}`);
+        if (index < 0) throw new KintsugiCoreError("work_view_not_found", `Work view is not open: ${identity(reference)}`);
         state.workViews.splice(index, 1);
         await write(workspaceId, state);
       });

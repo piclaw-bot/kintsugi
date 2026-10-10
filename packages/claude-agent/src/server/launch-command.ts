@@ -1,11 +1,11 @@
-import { parseModelRef } from "@agents-in-the-cloud/llm/server";
-import { cliLaunchScript, cliPromptText, turnSignalShell, writeFileScript, type CliAgentSession, type CliModelSettings, type TurnBoundary } from "@agents-in-the-cloud/cli-agent/server";
+import { parseModelRef } from "@kintsugi/llm/server";
+import { cliLaunchScript, cliPromptText, turnSignalShell, writeFileScript, type CliAgentSession, type CliModelSettings, type TurnBoundary } from "@kintsugi/cli-agent/server";
 import { claudeInstructionsPath, claudeMcpConfigPath } from "./session.ts";
-import { shellQuote } from "@agents-in-the-cloud/core";
-import { workspaceRoot } from "@agents-in-the-cloud/workspace";
-import type { WorkspaceAgentInput } from "@agents-in-the-cloud/shared";
-import { readThemeSetting } from "@agents-in-the-cloud/shared/theme";
-import { claudeAgentsInTheCloudTheme, claudeThemeName } from "./theme.ts";
+import { shellQuote } from "@kintsugi/core";
+import { workspaceRoot } from "@kintsugi/workspace";
+import type { WorkspaceAgentInput } from "@kintsugi/shared";
+import { readThemeSetting } from "@kintsugi/shared/theme";
+import { claudeKintsugiTheme, claudeThemeName } from "./theme.ts";
 
 function turnBoundaryHooks(turnSignalCommand: string) {
   const hook = (boundary: TurnBoundary) => [{ hooks: [{ type: "command", command: turnSignalShell(turnSignalCommand, boundary) }] }];
@@ -26,7 +26,7 @@ export function claudeLaunchScript(input: WorkspaceAgentInput, imagePaths: strin
     resume ? "--resume" : "--session-id", session.id,
     ...(settings.model ? ["--model", parseModelRef(settings.model)!.id] : []),
     ...(settings.thinkingLevel ? ["--effort", settings.thinkingLevel] : []), ...(prompt ? ["--", prompt] : [])];
-  // The subscription is already connected in AgentsInTheCloud. Preserve other CLI preferences.
+  // The subscription is already connected in Kintsugi. Preserve other CLI preferences.
   const configure = `const fs = require("node:fs");
 const path = require("node:path").join(require("node:os").homedir(), ".claude.json");
 const config = fs.existsSync(path) ? JSON.parse(fs.readFileSync(path, "utf8")) : {};
@@ -35,7 +35,7 @@ config.autoUpdates = true;
 config.hasCompletedOnboarding = true;
 config.projects ??= {};
 config.projects[${JSON.stringify(workspaceRoot)}] = { ...config.projects[${JSON.stringify(workspaceRoot)}], hasTrustDialogAccepted: true };
-const temporary = path + ".agents-in-the-cloud-" + process.pid;
+const temporary = path + ".kintsugi-" + process.pid;
 fs.writeFileSync(temporary, JSON.stringify(config), { mode: 0o600 });
 fs.renameSync(temporary, path);`;
   return cliLaunchScript({
@@ -47,6 +47,6 @@ fs.renameSync(temporary, path);`;
   flock 8
   node -e ${shellQuote(configure)}
 ) 8> "$HOME/.claude-config-setup.lock"
-${writeFileScript(`"$HOME/.claude/themes/${claudeThemeName}.json"`, JSON.stringify(claudeAgentsInTheCloudTheme(readThemeSetting()), null, 2))}`,
+${writeFileScript(`"$HOME/.claude/themes/${claudeThemeName}.json"`, JSON.stringify(claudeKintsugiTheme(readThemeSetting()), null, 2))}`,
   });
 }

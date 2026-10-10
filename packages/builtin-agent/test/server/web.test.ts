@@ -2,14 +2,14 @@ import { afterEach, describe, expect, test } from "bun:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { createAgentsInTheCloudEventBus } from "@agents-in-the-cloud/core";
+import { createKintsugiEventBus } from "@kintsugi/core";
 import { createNextWorkspaceAgent, ensureDefaultWorkspaceAgent, listWorkspaceAgents } from "../../src/server/agent-store.ts";
 import { builtinAgentWorkspaceModule, createWorkspaceAgentTabProvider, workspaceAgentTabProvider } from "../../src/server/web.ts";
 import { handleAgentRequest } from "../../src/server/routes.ts";
-import { agentAttachmentDraftId, findStagedAttachment, stageAttachment } from "@agents-in-the-cloud/prompt/server";
+import { agentAttachmentDraftId, findStagedAttachment, stageAttachment } from "@kintsugi/prompt/server";
 import { readInitialPromptDraft, stageInitialPrompt } from "../../src/server/initial-prompt-draft.ts";
-import { publishWorkspaceAgentBusy } from "@agents-in-the-cloud/agent/server";
-import { agentWorkspaceModule } from "@agents-in-the-cloud/agent/server";
+import { publishWorkspaceAgentBusy } from "@kintsugi/agent/server";
+import { agentWorkspaceModule } from "@kintsugi/agent/server";
 
 function deferred() {
   let resolve!: () => void;
@@ -22,7 +22,7 @@ function deferred() {
 let dir: string | undefined;
 
 async function dataDir(): Promise<void> {
-  dir = await mkdtemp(join(tmpdir(), "agents-in-the-cloud-agent-tabs-"));
+  dir = await mkdtemp(join(tmpdir(), "kintsugi-agent-tabs-"));
   process.env.ATELIER_DATA_DIR = dir;
 }
 
@@ -36,7 +36,7 @@ test("a Subagent finishing while its parent works does not request workspace att
   await dataDir();
   const root = await ensureDefaultWorkspaceAgent("workspace-1");
   const childId = crypto.randomUUID();
-  const events = createAgentsInTheCloudEventBus();
+  const events = createKintsugiEventBus();
   const surfaceRequests: string[] = [];
   const workspaceRequests: string[] = [];
   const busyAgents = new Set<string>();
@@ -185,7 +185,7 @@ describe("Workspace Agent-tab provider", () => {
   test("Agent file completions reject a display label in place of the immutable conversation id", async () => {
     await dataDir();
     const conversation = await ensureDefaultWorkspaceAgent("workspace-1");
-    const request = new Request(`http://agents-in-the-cloud.test/workspaces/workspace-1/agents/${encodeURIComponent(conversation.label)}/completions?q=src`);
+    const request = new Request(`http://kintsugi.test/workspaces/workspace-1/agents/${encodeURIComponent(conversation.label)}/completions?q=src`);
 
     expect(handleAgentRequest(request, new URL(request.url))).rejects.toMatchObject({ code: "agent_not_found" });
   });
@@ -193,7 +193,7 @@ describe("Workspace Agent-tab provider", () => {
   test("Agent prompt-template expansion resolves the immutable conversation id, not its label", async () => {
     await dataDir();
     const conversation = await ensureDefaultWorkspaceAgent("workspace-1");
-    const request = (identity: string) => new Request(`http://agents-in-the-cloud.test/workspaces/workspace-1/agents/${encodeURIComponent(identity)}/completions/slash-command-expand`, {
+    const request = (identity: string) => new Request(`http://kintsugi.test/workspaces/workspace-1/agents/${encodeURIComponent(identity)}/completions/slash-command-expand`, {
       method: "POST",
       body: new URLSearchParams({ text: "Keep this prompt" }),
     });
@@ -211,7 +211,7 @@ describe("Workspace Agent-tab provider", () => {
   test("rejects an empty Agent submission without accepting or clearing the composer", async () => {
     await dataDir();
     const conversation = await ensureDefaultWorkspaceAgent("workspace-1");
-    const request = new Request(`http://agents-in-the-cloud.test/workspaces/workspace-1/agents/${conversation.agentId}/messages`, {
+    const request = new Request(`http://kintsugi.test/workspaces/workspace-1/agents/${conversation.agentId}/messages`, {
       method: "POST",
       headers: { accept: "text/vnd.turbo-stream.html" },
       body: new URLSearchParams({ text: "   ", attachmentDraft: agentAttachmentDraftId("workspace-1", conversation.agentId) }),
@@ -220,13 +220,13 @@ describe("Workspace Agent-tab provider", () => {
     const response = await handleAgentRequest(request, new URL(request.url));
 
     expect(response?.status).toBe(422);
-    expect(response?.headers.get("x-agents-in-the-cloud-attachment-draft-consumed")).toBeNull();
+    expect(response?.headers.get("x-kintsugi-attachment-draft-consumed")).toBeNull();
   });
 
   test("requests parking the current Workspace when /park is submitted", async () => {
     await dataDir();
     const conversation = await ensureDefaultWorkspaceAgent("workspace-1");
-    const request = new Request(`http://agents-in-the-cloud.test/workspaces/workspace-1/agents/${conversation.agentId}/messages`, {
+    const request = new Request(`http://kintsugi.test/workspaces/workspace-1/agents/${conversation.agentId}/messages`, {
       method: "POST",
       headers: { accept: "application/json", "content-type": "application/json" },
       body: JSON.stringify({ text: "/park" }),
@@ -241,10 +241,10 @@ describe("Workspace Agent-tab provider", () => {
   test("renames the current Agent when /name has a title", async () => {
     await dataDir();
     const conversation = await ensureDefaultWorkspaceAgent("workspace-1");
-    const events = createAgentsInTheCloudEventBus();
+    const events = createKintsugiEventBus();
     const renamed: string[] = [];
     events.on("workspace_agent_title_changed", ({ title }) => { renamed.push(title); });
-    const request = new Request(`http://agents-in-the-cloud.test/workspaces/workspace-1/agents/${conversation.agentId}/messages`, {
+    const request = new Request(`http://kintsugi.test/workspaces/workspace-1/agents/${conversation.agentId}/messages`, {
       method: "POST",
       headers: { accept: "application/json", "content-type": "application/json" },
       body: JSON.stringify({ text: "/name investigate-name-command" }),
@@ -272,7 +272,7 @@ describe("Workspace Agent-tab provider", () => {
       userMessages: () => [],
       settings: async () => ({}),
     };
-    const request = new Request(`http://agents-in-the-cloud.test/workspaces/workspace-1/agents/${conversation.agentId}/messages`, {
+    const request = new Request(`http://kintsugi.test/workspaces/workspace-1/agents/${conversation.agentId}/messages`, {
       method: "POST",
       headers: { accept: "text/vnd.turbo-stream.html" },
       body: new URLSearchParams({ attachmentDraft: draftId, attachment: attachment.id, requestId: "image-request" }),
@@ -285,7 +285,7 @@ describe("Workspace Agent-tab provider", () => {
     const html = await response?.text();
 
     expect(response?.status).toBe(200);
-    expect(response?.headers.get("x-agents-in-the-cloud-attachment-draft-consumed")).toBe("true");
+    expect(response?.headers.get("x-kintsugi-attachment-draft-consumed")).toBe("true");
     expect(html).toBe("");
     expect(submissions).toEqual([{ text: "", imageCount: 1, requestId: "image-request" }]);
     expect(await readInitialPromptDraft("workspace-1", conversation.agentId)).toBeUndefined();
@@ -306,7 +306,7 @@ describe("Workspace Agent-tab provider", () => {
       userMessages: () => [],
       settings: async () => ({}),
     };
-    const request = new Request(`http://agents-in-the-cloud.test/workspaces/workspace-1/agents/${conversation.agentId}/messages`, {
+    const request = new Request(`http://kintsugi.test/workspaces/workspace-1/agents/${conversation.agentId}/messages`, {
       method: "POST",
       headers: { accept: "text/vnd.turbo-stream.html" },
       body: new URLSearchParams({ text: "Keep this text", attachmentDraft: draftId, attachment: attachment.id }),
@@ -335,7 +335,7 @@ describe("Workspace Agent-tab provider", () => {
 
     for (const [index, draftId] of foreignDrafts.entries()) {
       const attachment = await stageAttachment(draftId, new File([`image-${index}`], `foreign-${index}.png`, { type: "image/png" }));
-      const request = new Request(`http://agents-in-the-cloud.test/workspaces/workspace-1/agents/${conversation.agentId}/messages`, {
+      const request = new Request(`http://kintsugi.test/workspaces/workspace-1/agents/${conversation.agentId}/messages`, {
         method: "POST",
         headers: { accept: "text/vnd.turbo-stream.html" },
         body: new URLSearchParams({ attachmentDraft: draftId, attachment: attachment.id }),
@@ -344,7 +344,7 @@ describe("Workspace Agent-tab provider", () => {
       const response = await handleAgentRequest(request, new URL(request.url));
 
       expect(response?.status).toBe(422);
-      expect(response?.headers.get("x-agents-in-the-cloud-attachment-draft-consumed")).toBeNull();
+      expect(response?.headers.get("x-kintsugi-attachment-draft-consumed")).toBeNull();
       expect(await findStagedAttachment(draftId, attachment.id)).toBeDefined();
     }
   });
@@ -360,7 +360,7 @@ describe("Workspace Agent-tab provider", () => {
       userMessages: () => [],
       settings: async () => ({}),
     };
-    const request = new Request(`http://agents-in-the-cloud.test/workspaces/workspace-1/agents/${conversation.agentId}/messages`, {
+    const request = new Request(`http://kintsugi.test/workspaces/workspace-1/agents/${conversation.agentId}/messages`, {
       method: "POST",
       headers: { accept: "application/json", "content-type": "application/json" },
       body: JSON.stringify({ text: "Keep going" }),
@@ -386,7 +386,7 @@ describe("Workspace Agent-tab provider", () => {
       settings: async () => ({}),
     };
     for (const requestId of ["browser_retry-123", "browser_retry-123", "", "has spaces", "x".repeat(129), 42]) {
-      const request = new Request(`http://agents-in-the-cloud.test/workspaces/workspace-1/agents/${conversation.agentId}/messages`, {
+      const request = new Request(`http://kintsugi.test/workspaces/workspace-1/agents/${conversation.agentId}/messages`, {
         method: "POST", headers: { accept: "application/json", "content-type": "application/json" },
         body: JSON.stringify({ text: "Hello", requestId }),
       });

@@ -1,5 +1,5 @@
 {
-  "name": "@agents-in-the-cloud/vscode",
+  "name": "@kintsugi/vscode",
   "private": true,
   "type": "module",
   "exports": {
@@ -8,12 +8,12 @@
     ".": "./src/server/index.ts"
   },
   "dependencies": {
-    "@agents-in-the-cloud/core": "workspace:*",
-    "@agents-in-the-cloud/design-system": "workspace:*",
-    "@agents-in-the-cloud/observable-terminal": "workspace:*",
-    "@agents-in-the-cloud/proxy-ingress": "workspace:*",
-    "@agents-in-the-cloud/shared": "workspace:*",
-    "@agents-in-the-cloud/workspace": "workspace:*",
+    "@kintsugi/core": "workspace:*",
+    "@kintsugi/design-system": "workspace:*",
+    "@kintsugi/observable-terminal": "workspace:*",
+    "@kintsugi/proxy-ingress": "workspace:*",
+    "@kintsugi/shared": "workspace:*",
+    "@kintsugi/workspace": "workspace:*",
     "typebox": "^1.0.57"
   }
 }

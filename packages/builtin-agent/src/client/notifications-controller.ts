@@ -1,6 +1,6 @@
 import { Type } from "typebox";
 import { Value } from "typebox/value";
-import type { WorkspaceClientControllerConstructor } from "@agents-in-the-cloud/shared";
+import type { WorkspaceClientControllerConstructor } from "@kintsugi/shared";
 
 const publicKeySchema = Type.Object({ publicKey: Type.String() });
 
@@ -19,11 +19,11 @@ export function createAgentNotificationsController(Controller: WorkspaceClientCo
 
     private async subscribe(): Promise<PushSubscription> {
       if (!window.isSecureContext || !("serviceWorker" in navigator) || !("PushManager" in window) || !("Notification" in window)) {
-        throw new Error("Notifications require HTTPS and a supported browser. On iOS 16.4 or later, add AgentsInTheCloud to your Home Screen and open it from there.");
+        throw new Error("Notifications require HTTPS and a supported browser. On iOS 16.4 or later, add Kintsugi to your Home Screen and open it from there.");
       }
       // Keep this in the user's click gesture, before any network or service-worker awaits.
       const permission = await Notification.requestPermission();
-      if (permission !== "granted") throw new Error("Notifications are not allowed. Enable them for AgentsInTheCloud in your device settings, then try again.");
+      if (permission !== "granted") throw new Error("Notifications are not allowed. Enable them for Kintsugi in your device settings, then try again.");
       const registration = await navigator.serviceWorker.ready;
       const subscription = await registration.pushManager.getSubscription();
       if (subscription) return subscription;

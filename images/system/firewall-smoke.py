@@ -5,7 +5,7 @@ are test routes confined to that uplink, not traffic to the real address owners.
 """
 import json,pathlib,subprocess,sys,tempfile,time
 image,archive=sys.argv[1:]
-name='agents-in-the-cloud-firewall-test';uplink=name+'-uplink';endpoint=name+'-endpoint'
+name='kintsugi-firewall-test';uplink=name+'-uplink';endpoint=name+'-endpoint'
 workers=[]
 def run(*args,check=True,**kwargs):
  p=subprocess.run(args,stdout=subprocess.PIPE,stderr=subprocess.PIPE,**kwargs)
@@ -28,9 +28,9 @@ def query(worker,url,allowed=True):
  assert (p.returncode==0)==allowed,(worker,url,p.stdout.decode(),p.stderr.decode())
  return p.stdout.decode().strip()
 def sysquery(url):return system('bun','-e',jsfetch(url)).stdout.decode().strip()
-def policy():return system('nft','-s','list','table','inet','agents-in-the-cloud_workspaces').stdout.decode()
+def policy():return system('nft','-s','list','table','inet','kintsugi_workspaces').stdout.decode()
 def drops():
- entries=json.loads(system('nft','-j','list','table','inet','agents-in-the-cloud_workspaces').stdout)['nftables'];total=0
+ entries=json.loads(system('nft','-j','list','table','inet','kintsugi_workspaces').stdout)['nftables'];total=0
  for entry in entries:
   rule=entry.get('rule',{});expressions=rule.get('expr',[])
   if any('drop' in e for e in expressions):total+=sum(e.get('counter',{}).get('packets',0) for e in expressions)
@@ -42,18 +42,18 @@ def create_worker(number,kind="workspace"):
  else:
   options=[] if kind=='generated' else ['--opt',f'com.docker.network.bridge.name={"atw-test" if kind=="workspace" else "untrusted"}{number}']
   inner('network','create','--ipv6','--subnet',f'172.28.{number}.0/24','--subnet',f'fd12:3456:{number}::/64',*options,net)
- inner('run','-d','--name',worker,'--network',net,'--entrypoint','bun','--mount','type=bind,src=/data/firewall-uds,dst=/run/agents-in-the-cloud-parent,readonly',image,'-e',serve_script(worker));workers.append(worker)
+ inner('run','-d','--name',worker,'--network',net,'--entrypoint','bun','--mount','type=bind,src=/data/firewall-uds,dst=/run/kintsugi-parent,readonly',image,'-e',serve_script(worker));workers.append(worker)
  info=json.loads(inner('inspect',worker).stdout)[0]['NetworkSettings']['Networks'][net]
  until(lambda:sysquery(f'http://{info["IPAddress"]}:8080')==worker)
  return worker,info
 try:
  # A firewall-install failure must leave System inert: the failure is reported,
  # and no Docker daemon ever starts, so no workspace can be restored without the firewall.
- with tempfile.TemporaryDirectory(prefix='agents-in-the-cloud-firewall-') as directory:
+ with tempfile.TemporaryDirectory(prefix='kintsugi-firewall-') as directory:
   executable=pathlib.Path(directory)/'nft'
   executable.write_text('#!/bin/sh\necho simulated-nft-failure >&2\nexit 23\n');executable.chmod(0o755)
   failed_name=name+'-firewall-failure'
-  docker('run','-d','--privileged','--cgroupns=host','--tmpfs','/run','--mount',f'type=bind,src={executable},dst=/usr/sbin/nft,readonly','--name',failed_name,image,'--app-image','agents-in-the-cloud-test:v2')
+  docker('run','-d','--privileged','--cgroupns=host','--tmpfs','/run','--mount',f'type=bind,src={executable},dst=/usr/sbin/nft,readonly','--name',failed_name,image,'--app-image','kintsugi-test:v2')
   def failure_reported():
    logs=run('docker','logs',failed_name,check=False)
    return b'Could not install workspace firewall: simulated-nft-failure' in logs.stdout+logs.stderr
@@ -66,7 +66,7 @@ try:
  docker('run','-d','--name',endpoint,'--network',uplink,'--ip','11.200.0.2','--ip6','2001:4860:ffff:dead::2','--cap-add','NET_ADMIN','--entrypoint','bun',image,'-e',serve_script('external'))
  for address in ('10.200.0.2/32','100.64.0.2/32','169.254.169.254/32','fd99::2/128','fd7a:115c:a1e0::2/128'):
   docker('exec',endpoint,'ip','addr','add',address,'dev','eth0')
- docker('run','-d','--name',name,'--privileged','--cgroupns=host','--restart','unless-stopped','--network',uplink,'--ip','11.200.0.3','--ip6','2001:4860:ffff:dead::3','--tmpfs','/run','--mount',f'source={name},target=/data',image,'--app-image','agents-in-the-cloud-test:v2')
+ docker('run','-d','--name',name,'--privileged','--cgroupns=host','--restart','unless-stopped','--network',uplink,'--ip','11.200.0.3','--ip6','2001:4860:ffff:dead::3','--tmpfs','/run','--mount',f'source={name},target=/data',image,'--app-image','kintsugi-test:v2')
  until(lambda:inner('info',check=False).returncode==0)
  # Default Docker pools used to exhaust after roughly 30 workspaces. Exercise
  # automatic allocation beyond that limit, not explicit test-only subnets.
@@ -82,7 +82,7 @@ try:
  docker('exec','-i',name,'docker','load',stdin=source.stdout);assert source.wait()==0
  with open(archive,'rb') as file:docker('exec','-i',name,'docker','load',stdin=file)
  until(lambda:not json.loads(sysquery('http://127.0.0.1:3001/status'))['busy'])
- system('bun','-e','await fetch("http://127.0.0.1:3001/update",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({image:"agents-in-the-cloud-test:v2"})})')
+ system('bun','-e','await fetch("http://127.0.0.1:3001/update",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({image:"kintsugi-test:v2"})})')
  until(lambda:json.loads(sysquery('http://127.0.0.1:3001/status'))['healthy'])
  system('mkdir','-p','/data/firewall-uds')
  def setup_routes_and_socket():
@@ -111,7 +111,7 @@ try:
    assert sysquery(url)=='external';query(worker,url,False)
   assert sysquery(f'http://{info["IPAddress"]}:8080')==worker
   if info['GlobalIPv6Address']:assert sysquery(f'http://[{info["GlobalIPv6Address"]}]:8080')==worker
-  result=inner('exec',worker,'bun','-e','console.log(await(await fetch("http://parent",{unix:"/run/agents-in-the-cloud-parent/parent.sock"})).text())').stdout.decode().strip()
+  result=inner('exec',worker,'bun','-e','console.log(await(await fetch("http://parent",{unix:"/run/kintsugi-parent/parent.sock"})).text())').stdout.decode().strip()
   assert result=='parent-socket'
   # Local delivery is denied even when the System's destination IP is public.
   query(worker,'http://11.200.0.3:8080',False)
@@ -120,7 +120,7 @@ try:
   assert sysquery(origin+'/state')=='management-fixture'
   probe='try { await fetch('+json.dumps(origin+'/state')+',{method:"POST",headers:{Origin:'+json.dumps(origin)+'},signal:AbortSignal.timeout(1200)}); process.exit(1) } catch { console.log("blocked") }'
   assert inner('exec',worker,'bun','-e',probe).stdout.decode().strip()=='blocked'
-  assert drops()>start,'denials must hit AgentsInTheCloud rules, not merely Docker bridge isolation'
+  assert drops()>start,'denials must hit Kintsugi rules, not merely Docker bridge isolation'
  checks(a,ai,bi);checks(b,bi,ai)
  c,ci=create_worker(3);checks(c,ci,ai);assert policy()==before
  d,di=create_worker(4,'default');checks(d,di,ai)

@@ -1,7 +1,7 @@
 import type { HostMetricId } from "./diagnostics.ts";
 import { Type, type Static } from "typebox";
 import { Value } from "typebox/value";
-export const hostSocketPath = "/run/agents-in-the-cloud-host/control.sock";
+export const hostSocketPath = "/run/kintsugi-host/control.sock";
 export interface HostTerminal { id: string; title: string }
 export interface HostMetric { id: HostMetricId; value: string; warning?: boolean }
 export interface HostSection { title: string; text: string; error?: boolean }

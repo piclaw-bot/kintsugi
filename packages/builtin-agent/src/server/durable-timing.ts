@@ -1,6 +1,6 @@
 import type { Context } from "@earendil-works/chord";
 import { defineEntry, defineExtension, GenerationTask, hook, type ConversationId, type TypedEntryDraft } from "@earendil-works/pi-durable";
-import type { TurnTimingSummary } from "@agents-in-the-cloud/agent/server/turn-timing";
+import type { TurnTimingSummary } from "@kintsugi/agent/server/turn-timing";
 
 /** Bookkeeping entries have no model payload, and travel with native branch history. */
 type Measurement = { phase: "inference-start" | "tools-end"; at: number } | {
@@ -10,11 +10,11 @@ type Measurement = { phase: "inference-start" | "tools-end"; at: number } | {
   usageComplete: boolean;
   tools?: boolean;
 };
-export const durableTimingEntry = defineEntry<Measurement>("agents-in-the-cloud.timing");
+export const durableTimingEntry = defineEntry<Measurement>("kintsugi.timing");
 export type WriteDurableTiming = (conversationId: ConversationId, entry: TypedEntryDraft<Measurement>, context: Context) => Promise<void>;
 
 export function durableTiming(write: WriteDurableTiming, now = Date.now) {
-  return defineExtension({ name: "agents-in-the-cloud.timing", hooks: [hook(GenerationTask, {
+  return defineExtension({ name: "kintsugi.timing", hooks: [hook(GenerationTask, {
     async beforeRequest(_request, api, context) {
       await write(api.conversationId, { data: { phase: "inference-start", at: now() } }, context);
     },

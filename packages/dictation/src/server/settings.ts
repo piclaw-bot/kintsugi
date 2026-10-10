@@ -1,4 +1,4 @@
-import { escapeHtml, turboStream, turboStreamResponse, type SettingsContribution } from "@agents-in-the-cloud/shared";
+import { escapeHtml, turboStream, turboStreamResponse, type SettingsContribution } from "@kintsugi/shared";
 import { isDictationModelId, readDictationModel, dictationModels, writeDictationModel } from "./models.ts";
 import { stopTranscriptionServer } from "./realtime.ts";
 

@@ -49,7 +49,7 @@ describe("embedded code literals", () => {
   });
 
   test("formats and highlights a JSON heredoc without another formatter dependency", () => {
-    const compact = '{"name":"AgentsInTheCloud","languages":["js","ts","py"]}';
+    const compact = '{"name":"Kintsugi","languages":["js","ts","py"]}';
     const html = renderEmbedded(`cat > /tmp/demo.json <<'JSON'\n${compact}\nJSON`);
     expect(html).toContain('class="language-json"');
     expect(renderedText(html)).toContain('"languages": [');
@@ -119,8 +119,8 @@ rg ready /tmp/status |
       },
       {
         name: "pipeline in command substitution",
-        command: `docker image inspect $(docker images -q 'agents-in-the-cloud:*' | head -1) | jq .`,
-        expected: `docker image inspect $(docker images -q 'agents-in-the-cloud:*' |\n  head -1) |\n  jq .`,
+        command: `docker image inspect $(docker images -q 'kintsugi:*' | head -1) | jq .`,
+        expected: `docker image inspect $(docker images -q 'kintsugi:*' |\n  head -1) |\n  jq .`,
       },
       {
         name: "pipeline in process substitution",

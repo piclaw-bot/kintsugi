@@ -1,4 +1,4 @@
-module github.com/lucasmeijer/atelier/images/patched-docker/image-transfer
+module github.com/rcarmo/kintsugi/images/patched-docker/image-transfer
 
 go 1.26.3
 

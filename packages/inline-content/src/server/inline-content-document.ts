@@ -1,4 +1,4 @@
-import { inlineDesignSystemCss } from "@agents-in-the-cloud/design-system/styles/server";
+import { inlineDesignSystemCss } from "@kintsugi/design-system/styles/server";
 
 let runtime: Promise<string> | undefined;
 async function runtimeModule(): Promise<string> {
@@ -30,5 +30,5 @@ export async function inlineContentDocument(fragment: string): Promise<string> {
     .on("[data-ic-tooltip]", { element(element) { element.setAttribute("data-controller", `${element.getAttribute("data-controller") ?? ""} ic-tooltip`); } })
     .transform(new Response(fragment)).text();
   const csp = "default-src 'none'; script-src 'unsafe-inline' data:; style-src 'unsafe-inline'; img-src data:; font-src data:; connect-src 'none'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'";
-  return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta http-equiv="Content-Security-Policy" content="${csp}"><style>${design}\n${styles}</style><script type="importmap">${JSON.stringify({ imports: { "@agents-in-the-cloud/inline-content": module } })}</script><script type="module" src="${module}"></script></head><body class="markdown" data-controller="ic-runtime"><main id="ic-content">${enhanced}</main></body></html>`;
+  return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta http-equiv="Content-Security-Policy" content="${csp}"><style>${design}\n${styles}</style><script type="importmap">${JSON.stringify({ imports: { "@kintsugi/inline-content": module } })}</script><script type="module" src="${module}"></script></head><body class="markdown" data-controller="ic-runtime"><main id="ic-content">${enhanced}</main></body></html>`;
 }

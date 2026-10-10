@@ -125,8 +125,8 @@ test("registry blob redirects to foreign hosts are rejected", async () => {
 test("Stable and Latest explicitly select upstream while preserving the custom source", () => {
   const releaseSource = { appRepository: "docker.io/example/app", systemRepository: "ghcr.io/example/system", appVersion: "v2" };
   expect(releaseReference({ releaseSource, releaseMode: "custom", releaseChannel: "stable" }, "app")).toBe("docker.io/example/app:v2");
-  expect(releaseReference({ releaseSource, releaseMode: "upstream", releaseChannel: "stable" }, "app")).toBe("ghcr.io/lucasmeijer/agents-in-the-cloud:stable");
-  expect(releaseReference({ releaseSource, releaseMode: "upstream", releaseChannel: "latest" }, "system")).toBe("ghcr.io/lucasmeijer/agents-in-the-cloud-system:latest");
+  expect(releaseReference({ releaseSource, releaseMode: "upstream", releaseChannel: "stable" }, "app")).toBe("ghcr.io/rcarmo/kintsugi:stable");
+  expect(releaseReference({ releaseSource, releaseMode: "upstream", releaseChannel: "latest" }, "system")).toBe("ghcr.io/rcarmo/kintsugi-system:latest");
   expect(releaseSourceFromReferences({}, "docker.io/example/app:v1").appRepository).toBe("docker.io/example/app");
 });
 

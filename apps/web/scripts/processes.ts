@@ -3,39 +3,39 @@ import { promisify } from "node:util";
 
 const execFileAsync = promisify(execFile);
 
-export interface AgentsInTheCloudProcessInfo {
+export interface KintsugiProcessInfo {
   pid: number;
   ppid: number;
   command: string;
   kind: "dev" | "server";
 }
 
-export async function listAgentsInTheCloudProcesses(options: { excludePid?: number } = {}): Promise<AgentsInTheCloudProcessInfo[]> {
+export async function listKintsugiProcesses(options: { excludePid?: number } = {}): Promise<KintsugiProcessInfo[]> {
   const { stdout } = await execFileAsync("ps", ["-axo", "pid=,ppid=,command="]);
   return stdout
     .split("\n")
     .map((line) => line.trim())
     .filter(Boolean)
-    .flatMap((line): AgentsInTheCloudProcessInfo[] => {
+    .flatMap((line): KintsugiProcessInfo[] => {
       const match = /^(\d+)\s+(\d+)\s+(.+)$/.exec(line);
       if (!match) return [];
       const pid = Number(match[1]);
       const ppid = Number(match[2]);
       const command = match[3];
-      const kind = agentsInTheCloudProcessKind(command);
+      const kind = kintsugiProcessKind(command);
       if (!kind || pid === options.excludePid) return [];
       return [{ pid, ppid, command, kind }];
     });
 }
 
-export function sortAgentsInTheCloudProcesses(processes: AgentsInTheCloudProcessInfo[]): AgentsInTheCloudProcessInfo[] {
+export function sortKintsugiProcesses(processes: KintsugiProcessInfo[]): KintsugiProcessInfo[] {
   return [...processes].sort((a, b) => {
     if (a.kind !== b.kind) return a.kind === "dev" ? -1 : 1;
     return a.pid - b.pid;
   });
 }
 
-function agentsInTheCloudProcessKind(command: string): AgentsInTheCloudProcessInfo["kind"] | undefined {
+function kintsugiProcessKind(command: string): KintsugiProcessInfo["kind"] | undefined {
   if (!/\bbun\b/.test(command)) return undefined;
 
   if (

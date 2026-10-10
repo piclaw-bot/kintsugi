@@ -1,5 +1,5 @@
 {
-  "name": "@agents-in-the-cloud/syntax",
+  "name": "@kintsugi/syntax",
   "private": true,
   "type": "module",
   "exports": {
@@ -11,7 +11,7 @@
     "./shader-languages": "./src/shader-languages.ts"
   },
   "dependencies": {
-    "@agents-in-the-cloud/shared": "workspace:*",
+    "@kintsugi/shared": "workspace:*",
     "@lezer/common": "1.5.2",
     "@lezer/css": "1.3.4",
     "@lezer/highlight": "1.2.3",

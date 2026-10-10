@@ -1,10 +1,10 @@
 import { afterEach, beforeEach, expect, test } from "bun:test";
-import { addWorkspaceTemplate, createWorkspaceTemplateEnvironmentVariable, createWorkspaceTemplateSecret, deleteWorkspaceTemplateEnvironmentVariable, deleteWorkspaceTemplateSecret, getWorkspaceTemplateConfiguration, isGitWorkspaceTemplateInit, listWorkspaceTemplates, updateWorkspaceTemplate, workspaceInitFromTemplate, setWorkspaceTemplateDockerfile, updateWorkspaceTemplateSecret } from "@agents-in-the-cloud/workspace-templates";
+import { addWorkspaceTemplate, createWorkspaceTemplateEnvironmentVariable, createWorkspaceTemplateSecret, deleteWorkspaceTemplateEnvironmentVariable, deleteWorkspaceTemplateSecret, getWorkspaceTemplateConfiguration, isGitWorkspaceTemplateInit, listWorkspaceTemplates, updateWorkspaceTemplate, workspaceInitFromTemplate, setWorkspaceTemplateDockerfile, updateWorkspaceTemplateSecret } from "@kintsugi/workspace-templates";
 import { workspaceWarnings } from "../src/server/workspace-warnings.ts";
 import type { WorkspaceEntry } from "../src/server/workspace-registry.ts";
-import { temporaryAgentsInTheCloudDataDir } from "./support/test-web-app.ts";
+import { temporaryKintsugiDataDir } from "./support/test-web-app.ts";
 
-const dataDir = temporaryAgentsInTheCloudDataDir();
+const dataDir = temporaryKintsugiDataDir();
 beforeEach(dataDir.setUp);
 afterEach(dataDir.tearDown);
 
@@ -27,7 +27,7 @@ test("setup changes are compared to creation, survive reconstruction, and revert
   expect(await warningsFor(entry(workspaceInitFromTemplate((await listWorkspaceTemplates()).workspaceTemplates[0]!)))).toEqual([]);
   await deleteWorkspaceTemplateEnvironmentVariable(workspaceTemplate.id, variable.id);
   expect(await warningsFor(workspace)).toEqual([]);
-  await setWorkspaceTemplateDockerfile(workspaceTemplate.id, "FROM agents-in-the-cloud-workspace\nRUN echo ready");
+  await setWorkspaceTemplateDockerfile(workspaceTemplate.id, "FROM kintsugi-workspace\nRUN echo ready");
   expect((await warningsFor(workspace))[0]!.state).not.toBe(changed[0]!.state);
 });
 

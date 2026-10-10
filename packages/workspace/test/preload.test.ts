@@ -11,7 +11,7 @@ const redis = "docker.io/library/redis:8";
 const directories: string[] = [];
 afterEach(async () => { await Promise.all(directories.splice(0).map((directory) => rm(directory, { recursive: true, force: true }))); });
 async function directory() {
-  const path = await mkdtemp(join(tmpdir(), "agents-in-the-cloud-preloads-"));
+  const path = await mkdtemp(join(tmpdir(), "kintsugi-preloads-"));
   directories.push(path);
   return path;
 }
@@ -47,7 +47,7 @@ function fixture(cacheDirectory?: string) {
       } else if (!(kind === "images" && action === "build-erofs-cache")) {
         throw new Error(`Unexpected command: ${args.join(" ")}`);
       }
-    } else if (args[0] === "agents-in-the-cloud-image-transfer" && args[1] === "export") {
+    } else if (args[0] === "kintsugi-image-transfer" && args[1] === "export") {
       return { stdout: Buffer.from([0, 255, 127, 42]), stderr: "" };
     } else throw new Error(`Unexpected command: ${args.join(" ")}`);
     return { stdout: Buffer.from(stdout), stderr: "" };
@@ -264,11 +264,11 @@ test("ordinary preloads do not resolve or expose the default workspace", async (
   const preloader = createImagePreloader(f.run, f.docker, await directory(), async () => { throw new Error("must not resolve default"); }, f.build);
   const path = await directory();
   expect(await preloader.snapshot(["postgres:17"], path)).toBeUndefined();
-  await expect(readFile(join(path, "agents-in-the-cloud", "default-workspace-image"))).rejects.toThrow();
+  await expect(readFile(join(path, "kintsugi", "default-workspace-image"))).rejects.toThrow();
 });
 
 test("cancelling one cache waiter leaves shared preparation available to other workspaces", async () => {
-  const { withCommandSignal } = await import("@agents-in-the-cloud/core");
+  const { withCommandSignal } = await import("@kintsugi/core");
   const f = fixture();
   const started = deferred();
   const release = deferred();
@@ -289,12 +289,12 @@ test("cancelling one cache waiter leaves shared preparation available to other w
 });
 
 test("cache waiters receive shared progress and cancellation detaches their reporter", async () => {
-  const { withCommandSignal } = await import("@agents-in-the-cloud/core");
+  const { withCommandSignal } = await import("@kintsugi/core");
   const f = fixture();
   const started = deferred();
   const release = deferred();
   const preloader = createImagePreloader(f.run, f.docker, await directory(), undefined, async (_args, report) => {
-    report({ terminalSession: "agents-in-the-cloud-provision-image-cache-shared", output: undefined });
+    report({ terminalSession: "kintsugi-provision-image-cache-shared", output: undefined });
     started.resolve();
     await release.promise;
     report({ terminalSession: undefined, output: "Built 1 layer" });
@@ -308,7 +308,7 @@ test("cache waiters receive shared progress and cancellation detaches their repo
   await started.promise;
   const second = preloader.install(images, "two", () => {}, progress => secondProgress.push(progress));
   await new Promise<void>(resolve => setImmediate(resolve));
-  expect(secondProgress).toContainEqual({ terminalSession: "agents-in-the-cloud-provision-image-cache-shared", output: undefined });
+  expect(secondProgress).toContainEqual({ terminalSession: "kintsugi-provision-image-cache-shared", output: undefined });
   controller.abort(new Error("cancelled"));
   expect(await first).toMatchObject({ message: "cancelled" });
   const count = firstProgress.length;

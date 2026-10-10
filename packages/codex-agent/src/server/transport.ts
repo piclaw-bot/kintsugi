@@ -1,6 +1,6 @@
 import { createInterface } from "node:readline";
 import { Readable } from "node:stream";
-import { resolveWorkspace, workspaceContainerName, workspaceRoot } from "@agents-in-the-cloud/workspace";
+import { resolveWorkspace, workspaceContainerName, workspaceRoot } from "@kintsugi/workspace";
 import type { CodexNotification } from "./protocol.ts";
 import { CodexRpc } from "./rpc.ts";
 import { codexVersion } from "./protocol.ts";
@@ -8,9 +8,9 @@ import { codexVersion } from "./protocol.ts";
 /** Stdio stays private: no listening port or raw provider credential in a workspace. */
 export async function openCodexTransport(workspaceId: string, home: string, notification: (notification: CodexNotification) => void, failed: (error: Error) => void, mcp: { url: string; token: string }) {
   await resolveWorkspace(workspaceId);
-  const executable = `/home/agents-in-the-cloud/.codex-cli/${codexVersion}/node_modules/.bin/codex`;
-  const connectionOverride = `mcp_servers.agents-in-the-cloud={url=${JSON.stringify(mcp.url)},required=true,tool_timeout_sec=3600,http_headers={Authorization=${JSON.stringify("Bearer " + mcp.token)}}}`;
-  const process = Bun.spawn(["docker", "exec", "-i", "--user", "agents-in-the-cloud", "--workdir", workspaceRoot, "--env", `CODEX_HOME=${home}`, workspaceContainerName(workspaceId), executable, "-c", 'cli_auth_credentials_store="file"', "-c", connectionOverride, "app-server", "--listen", "stdio://"], { stdin: "pipe", stdout: "pipe", stderr: "pipe" });
+  const executable = `/home/agent/.codex-cli/${codexVersion}/node_modules/.bin/codex`;
+  const connectionOverride = `mcp_servers.kintsugi={url=${JSON.stringify(mcp.url)},required=true,tool_timeout_sec=3600,http_headers={Authorization=${JSON.stringify("Bearer " + mcp.token)}}}`;
+  const process = Bun.spawn(["docker", "exec", "-i", "--user", "agent", "--workdir", workspaceRoot, "--env", `CODEX_HOME=${home}`, workspaceContainerName(workspaceId), executable, "-c", 'cli_auth_credentials_store="file"', "-c", connectionOverride, "app-server", "--listen", "stdio://"], { stdin: "pipe", stdout: "pipe", stderr: "pipe" });
   let closing: Promise<void> | undefined;
   const rpc = new CodexRpc(line => { process.stdin.write(line); process.stdin.flush(); }, notification);
   let stderr = "";

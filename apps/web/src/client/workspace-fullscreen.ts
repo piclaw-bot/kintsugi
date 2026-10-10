@@ -1,15 +1,15 @@
 import { Controller } from "@hotwired/stimulus";
-import { workspaceProxyUrl } from "@agents-in-the-cloud/shared";
-import { buttonElement } from "@agents-in-the-cloud/design-system/button";
-import { Icons } from "@agents-in-the-cloud/design-system/icons";
+import { workspaceProxyUrl } from "@kintsugi/shared";
+import { buttonElement } from "@kintsugi/design-system/button";
+import { Icons } from "@kintsugi/design-system/icons";
 import { registerWorkspaceControllers } from "./workspace-controller-registry.ts";
 
 type FullscreenMode = "view" | "template" | "media";
 type FullscreenMediaElement = HTMLIFrameElement | HTMLImageElement | HTMLVideoElement;
 type FullscreenViewer = { element: HTMLElement; disconnect?: () => void };
-type FullscreenSession = { owner: AgentsInTheCloudFullscreenController; close(): void };
+type FullscreenSession = { owner: KintsugiFullscreenController; close(): void };
 
-let hoveredFullscreenControllers: AgentsInTheCloudFullscreenController[] = [];
+let hoveredFullscreenControllers: KintsugiFullscreenController[] = [];
 let fullscreenControllerCount = 0;
 let activeFullscreenSession: FullscreenSession | undefined;
 
@@ -36,16 +36,16 @@ function documentFullscreenKeydown(event: KeyboardEvent): void {
   else hoveredFullscreenControllers.at(-1)!.open();
 }
 
-function pushFullscreenHover(controller: AgentsInTheCloudFullscreenController): void {
+function pushFullscreenHover(controller: KintsugiFullscreenController): void {
   hoveredFullscreenControllers = hoveredFullscreenControllers.filter((candidate) => candidate !== controller);
   hoveredFullscreenControllers.push(controller);
 }
 
-function removeFullscreenHover(controller: AgentsInTheCloudFullscreenController): void {
+function removeFullscreenHover(controller: KintsugiFullscreenController): void {
   hoveredFullscreenControllers = hoveredFullscreenControllers.filter((candidate) => candidate !== controller);
 }
 
-class AgentsInTheCloudFullscreenController extends Controller<HTMLElement> {
+class KintsugiFullscreenController extends Controller<HTMLElement> {
   static values = { mode: String, viewKey: String, title: String, paneHeader: Boolean };
   declare readonly modeValue: FullscreenMode;
   declare readonly viewKeyValue: string;
@@ -105,26 +105,26 @@ class AgentsInTheCloudFullscreenController extends Controller<HTMLElement> {
       if (!(newElement instanceof HTMLElement)) { close(); return; }
       // Fullscreen belongs to this browser session. Merge only its two attributes
       // into incoming markup; all server-owned panel state still updates normally.
-      newElement.classList.add("agents-in-the-cloud-fullscreen-live");
-      newElement.dataset.agentsInTheCloudFullscreenActive = "true";
+      newElement.classList.add("kintsugi-fullscreen-live");
+      newElement.dataset.kintsugiFullscreenActive = "true";
     };
     const close = (): void => {
       target.removeEventListener("turbo:before-morph-element", preserveFullscreen);
       this.detachIframeShortcuts();
-      target.classList.remove("agents-in-the-cloud-fullscreen-live");
-      target.removeAttribute("data-agents-in-the-cloud-fullscreen-active");
-      document.body.classList.remove("agents-in-the-cloud-fullscreen-open");
+      target.classList.remove("kintsugi-fullscreen-live");
+      target.removeAttribute("data-kintsugi-fullscreen-active");
+      document.body.classList.remove("kintsugi-fullscreen-open");
       bar.remove();
       this.fullscreenTitle = undefined;
       if (activeFullscreenSession === session) activeFullscreenSession = undefined;
       previousFocus?.focus({ preventScroll: true });
     };
     bar = this.createBar(close);
-    bar.classList.add("agents-in-the-cloud-fullscreen-live-bar");
+    bar.classList.add("kintsugi-fullscreen-live-bar");
     document.body.append(bar);
-    document.body.classList.add("agents-in-the-cloud-fullscreen-open");
-    target.classList.add("agents-in-the-cloud-fullscreen-live");
-    target.dataset.agentsInTheCloudFullscreenActive = "true";
+    document.body.classList.add("kintsugi-fullscreen-open");
+    target.classList.add("kintsugi-fullscreen-live");
+    target.dataset.kintsugiFullscreenActive = "true";
     session = { owner: this, close };
     activeFullscreenSession = session;
     target.addEventListener("turbo:before-morph-element", preserveFullscreen);
@@ -135,10 +135,10 @@ class AgentsInTheCloudFullscreenController extends Controller<HTMLElement> {
   private openViewer(): void {
     const viewer = this.createViewer();
     const dialog = document.createElement("dialog");
-    dialog.className = "agents-in-the-cloud-fullscreen-dialog";
+    dialog.className = "kintsugi-fullscreen-dialog";
     dialog.setAttribute("aria-label", this.titleValue || "Media preview");
     const surface = document.createElement("div");
-    surface.className = "agents-in-the-cloud-fullscreen-surface";
+    surface.className = "kintsugi-fullscreen-surface";
     let session: FullscreenSession;
     const close = (): void => dialog.close();
     surface.append(this.createBar(close), viewer.element);
@@ -159,12 +159,12 @@ class AgentsInTheCloudFullscreenController extends Controller<HTMLElement> {
 
   private createBar(closeFullscreen: () => void): HTMLElement {
     const bar = document.createElement("div");
-    bar.className = "agents-in-the-cloud-fullscreen-bar work-view-toolbar";
+    bar.className = "kintsugi-fullscreen-bar work-view-toolbar";
     bar.setAttribute("role", "toolbar");
     bar.setAttribute("aria-label", "Fullscreen controls");
 
     const title = document.createElement("strong");
-    title.className = "agents-in-the-cloud-fullscreen-title";
+    title.className = "kintsugi-fullscreen-title";
     title.textContent = this.titleValue;
     this.fullscreenTitle = title;
     const close = buttonElement({ type: "button", variant: "secondary", content: { kind: "icon-only", iconHtml: Icons.Close, label: "Exit full screen" } });
@@ -174,7 +174,7 @@ class AgentsInTheCloudFullscreenController extends Controller<HTMLElement> {
   }
 
   private liveViewTarget(): HTMLElement {
-    return this.element.closest<HTMLElement>(".fixed-workspace-presentation")!.querySelector<HTMLElement>(`[data-agents-in-the-cloud-fullscreen-view-key="${CSS.escape(this.viewKeyValue)}"]`)!;
+    return this.element.closest<HTMLElement>(".fixed-workspace-presentation")!.querySelector<HTMLElement>(`[data-kintsugi-fullscreen-view-key="${CSS.escape(this.viewKeyValue)}"]`)!;
   }
 
   private showView(): void {
@@ -184,9 +184,9 @@ class AgentsInTheCloudFullscreenController extends Controller<HTMLElement> {
 
   private createViewer(): FullscreenViewer {
     if (this.modeValue === "template") {
-      const template = this.element.querySelector<HTMLTemplateElement>("template[data-agents-in-the-cloud-fullscreen-target='content']")!;
+      const template = this.element.querySelector<HTMLTemplateElement>("template[data-kintsugi-fullscreen-target='content']")!;
       const container = document.createElement("div");
-      container.className = "agents-in-the-cloud-fullscreen-html";
+      container.className = "kintsugi-fullscreen-html";
       container.append(template.content.cloneNode(true));
       return { element: container };
     }
@@ -202,7 +202,7 @@ class AgentsInTheCloudFullscreenController extends Controller<HTMLElement> {
   private createMediaViewer(source: FullscreenMediaElement, src: string): FullscreenViewer {
     if (source instanceof HTMLIFrameElement) {
       const frame = document.createElement("iframe");
-      frame.className = "agents-in-the-cloud-fullscreen-frame";
+      frame.className = "kintsugi-fullscreen-frame";
       frame.src = src;
       for (const attr of ["sandbox", "allow", "referrerpolicy"] as const) {
         const value = source.getAttribute(attr);
@@ -213,7 +213,7 @@ class AgentsInTheCloudFullscreenController extends Controller<HTMLElement> {
 
     if (source instanceof HTMLVideoElement) {
       const video = document.createElement("video");
-      video.className = "agents-in-the-cloud-fullscreen-video";
+      video.className = "kintsugi-fullscreen-video";
       video.src = src;
       video.controls = true;
       video.autoplay = !source.paused;
@@ -230,7 +230,7 @@ class AgentsInTheCloudFullscreenController extends Controller<HTMLElement> {
     }
 
     const image = document.createElement("img");
-    image.className = "agents-in-the-cloud-fullscreen-image";
+    image.className = "kintsugi-fullscreen-image";
     image.src = src;
     image.alt = source.alt;
     return { element: image };
@@ -269,6 +269,6 @@ class AgentsInTheCloudFullscreenController extends Controller<HTMLElement> {
 
 export function registerWorkspaceFullscreenController(): void {
   registerWorkspaceControllers({
-    "agents-in-the-cloud-fullscreen": AgentsInTheCloudFullscreenController,
+    "kintsugi-fullscreen": KintsugiFullscreenController,
   });
 }

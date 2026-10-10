@@ -2,16 +2,16 @@ import { codexSubagentOutputSchemas } from "./codex-subagent-output-schemas.ts";
 import { randomUUID } from "node:crypto";
 import { Type } from "typebox";
 import { Value } from "typebox/value";
-import { isJsonObject, type JsonObject } from "@agents-in-the-cloud/core";
+import { isJsonObject, type JsonObject } from "@kintsugi/core";
 import type { AgentMessageInput } from "./subagent-protocol.ts";
 
 /** Bridge Pi's standard-message pipeline to Codex's native Responses input item.
  * Per-conversion opaque placeholders prevent user text from masquerading as agent traffic.
- * They are removed before the request leaves AgentsInTheCloud; no IDs enter the textual envelope. */
+ * They are removed before the request leaves Kintsugi; no IDs enter the textual envelope. */
 export class SubagentModelInput {
   private readonly messages = new Map<string, AgentMessageInput>();
   private placeholder(message: AgentMessageInput): string {
-    const token = `agents-in-the-cloud-agent-message:${randomUUID()}`;
+    const token = `kintsugi-agent-message:${randomUUID()}`;
     this.messages.set(token, message);
     return token;
   }

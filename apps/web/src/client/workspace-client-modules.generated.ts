@@ -1,21 +1,21 @@
-import { agentsInTheCloudClientModule as clientModule0 } from "@agents-in-the-cloud/agent/client";
-import { agentsInTheCloudClientModule as clientModule1 } from "@agents-in-the-cloud/artifact-preview/client";
-import { agentsInTheCloudClientModule as clientModule2 } from "@agents-in-the-cloud/browser/client";
-import { agentsInTheCloudClientModule as clientModule3 } from "@agents-in-the-cloud/builtin-agent/client";
-import { agentsInTheCloudClientModule as clientModule4 } from "@agents-in-the-cloud/changes/client";
-import { agentsInTheCloudClientModule as clientModule5 } from "@agents-in-the-cloud/cli-agent/client";
-import { agentsInTheCloudClientModule as clientModule6 } from "@agents-in-the-cloud/desktop/client";
-import { agentsInTheCloudClientModule as clientModule7 } from "@agents-in-the-cloud/dictation/client";
-import { agentsInTheCloudClientModule as clientModule8 } from "@agents-in-the-cloud/files/client";
-import { agentsInTheCloudClientModule as clientModule9 } from "@agents-in-the-cloud/host/client";
-import { agentsInTheCloudClientModule as clientModule10 } from "@agents-in-the-cloud/inline-content/client";
-import { agentsInTheCloudClientModule as clientModule11 } from "@agents-in-the-cloud/llm/client";
-import { agentsInTheCloudClientModule as clientModule12 } from "@agents-in-the-cloud/prompt/client";
-import { agentsInTheCloudClientModule as clientModule13 } from "@agents-in-the-cloud/subagents/client";
-import { agentsInTheCloudClientModule as clientModule14 } from "@agents-in-the-cloud/update/client";
-import { agentsInTheCloudClientModule as clientModule15 } from "@agents-in-the-cloud/vscode/client";
-import { agentsInTheCloudClientModule as clientModule16 } from "@agents-in-the-cloud/workspace-terminal/client";
-import type { WorkspaceClientModule } from "@agents-in-the-cloud/shared";
+import { kintsugiClientModule as clientModule0 } from "@kintsugi/agent/client";
+import { kintsugiClientModule as clientModule1 } from "@kintsugi/artifact-preview/client";
+import { kintsugiClientModule as clientModule2 } from "@kintsugi/browser/client";
+import { kintsugiClientModule as clientModule3 } from "@kintsugi/builtin-agent/client";
+import { kintsugiClientModule as clientModule4 } from "@kintsugi/changes/client";
+import { kintsugiClientModule as clientModule5 } from "@kintsugi/cli-agent/client";
+import { kintsugiClientModule as clientModule6 } from "@kintsugi/desktop/client";
+import { kintsugiClientModule as clientModule7 } from "@kintsugi/dictation/client";
+import { kintsugiClientModule as clientModule8 } from "@kintsugi/files/client";
+import { kintsugiClientModule as clientModule9 } from "@kintsugi/host/client";
+import { kintsugiClientModule as clientModule10 } from "@kintsugi/inline-content/client";
+import { kintsugiClientModule as clientModule11 } from "@kintsugi/llm/client";
+import { kintsugiClientModule as clientModule12 } from "@kintsugi/prompt/client";
+import { kintsugiClientModule as clientModule13 } from "@kintsugi/subagents/client";
+import { kintsugiClientModule as clientModule14 } from "@kintsugi/update/client";
+import { kintsugiClientModule as clientModule15 } from "@kintsugi/vscode/client";
+import { kintsugiClientModule as clientModule16 } from "@kintsugi/workspace-terminal/client";
+import type { WorkspaceClientModule } from "@kintsugi/shared";
 
 export const workspaceClientModules: WorkspaceClientModule[] = [
   clientModule0,

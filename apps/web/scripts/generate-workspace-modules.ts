@@ -14,7 +14,7 @@ type PackageJson = Static<typeof packageJsonSchema>;
 
 interface DiscoveredModule {
   packageName: string;
-  exportName: "agentsInTheCloudClientModule" | "agentsInTheCloudServerModule";
+  exportName: "kintsugiClientModule" | "kintsugiServerModule";
 }
 
 const root = new URL("../../../", import.meta.url);
@@ -73,11 +73,11 @@ function renderGeneratedModules(options: {
     .join("\n");
   const list = options.modules.map((_, index) => `  ${options.subpath}Module${index},`).join("\n");
   const prefix = imports ? `${imports}\n` : "";
-  return `${prefix}import type { ${options.typeName} } from "@agents-in-the-cloud/shared";\n\nexport const ${options.constName}: ${options.typeName}[] = [\n${list}\n];\n`;
+  return `${prefix}import type { ${options.typeName} } from "@kintsugi/shared";\n\nexport const ${options.constName}: ${options.typeName}[] = [\n${list}\n];\n`;
 }
 
-const clientModules = await discoverModules("client", "agentsInTheCloudClientModule");
-const serverModules = await discoverModules("server", "agentsInTheCloudServerModule");
+const clientModules = await discoverModules("client", "kintsugiClientModule");
+const serverModules = await discoverModules("server", "kintsugiServerModule");
 
 await writeFile(clientOutputUrl, renderGeneratedModules({
   modules: clientModules,

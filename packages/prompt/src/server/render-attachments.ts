@@ -1,6 +1,6 @@
-import { buttonHtml } from "@agents-in-the-cloud/design-system/button";
-import { Icons } from "@agents-in-the-cloud/design-system/icons";
-import { escapeHtml, domId, formatBytes } from "@agents-in-the-cloud/shared";
+import { buttonHtml } from "@kintsugi/design-system/button";
+import { Icons } from "@kintsugi/design-system/icons";
+import { escapeHtml, domId, formatBytes } from "@kintsugi/shared";
 
 export function renderAttachmentChip(attachment: { id: string; name: string; size: number; isImage: boolean }, draftId: string): string {
   const chipId = domId("agent_draft_chip", draftId, attachment.id);
@@ -9,7 +9,7 @@ export function renderAttachmentChip(attachment: { id: string; name: string; siz
     ? buttonHtml({
       type: "button", variant: "secondary",
       content: { kind: "caption", caption: attachment.name, iconHtml: `<img class="agent-chip-thumbnail" src="${escapeHtml(previewUrl)}" alt="${escapeHtml(attachment.name)}">` },
-      attributesHtml: `data-draft-image-preview aria-description="Open image preview" aria-haspopup="dialog" data-controller="agents-in-the-cloud-fullscreen" data-agents-in-the-cloud-fullscreen-mode-value="media" data-agents-in-the-cloud-fullscreen-title-value="${escapeHtml(attachment.name)}" data-action="agents-in-the-cloud-fullscreen#open"`,
+      attributesHtml: `data-draft-image-preview aria-description="Open image preview" aria-haspopup="dialog" data-controller="kintsugi-fullscreen" data-kintsugi-fullscreen-mode-value="media" data-kintsugi-fullscreen-title-value="${escapeHtml(attachment.name)}" data-action="kintsugi-fullscreen#open"`,
     })
     : `<span class="agent-chip-ico">📄</span><span class="agent-chip-name">${escapeHtml(attachment.name)}</span>`;
   return `<span class="agent-chip" id="${chipId}">

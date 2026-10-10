@@ -1,12 +1,12 @@
-import { disclosureHtml } from "@agents-in-the-cloud/design-system/disclosure";
-import { response } from "@agents-in-the-cloud/shared/http";
-import { requestAcceptsJson } from "@agents-in-the-cloud/core";
-import { providerUsageFrameId, providersInLastInferenceWindow, selectSubscriptionLimit, estimatedTimeToHitLimitSeconds, type PacedUsageWindow, connectedUsageProviders, getProviderUsageOverview, supportedUsageProviders, type ProviderUsageOverview } from "@agents-in-the-cloud/llm/server";
-import { actionLinkHtml } from "@agents-in-the-cloud/design-system/action-link";
-import { comparisonRingHtml } from "@agents-in-the-cloud/design-system/comparison-ring";
-import { helpTipHtml } from "@agents-in-the-cloud/design-system/help-tip";
-import { Icons } from "@agents-in-the-cloud/design-system/icons";
-import { escapeHtml, turboStream, turboStreamResponse } from "@agents-in-the-cloud/shared";
+import { disclosureHtml } from "@kintsugi/design-system/disclosure";
+import { response } from "@kintsugi/shared/http";
+import { requestAcceptsJson } from "@kintsugi/core";
+import { providerUsageFrameId, providersInLastInferenceWindow, selectSubscriptionLimit, estimatedTimeToHitLimitSeconds, type PacedUsageWindow, connectedUsageProviders, getProviderUsageOverview, supportedUsageProviders, type ProviderUsageOverview } from "@kintsugi/llm/server";
+import { actionLinkHtml } from "@kintsugi/design-system/action-link";
+import { comparisonRingHtml } from "@kintsugi/design-system/comparison-ring";
+import { helpTipHtml } from "@kintsugi/design-system/help-tip";
+import { Icons } from "@kintsugi/design-system/icons";
+import { escapeHtml, turboStream, turboStreamResponse } from "@kintsugi/shared";
 
 function jsonResponse<Body extends object>(body: Body, status = 200): Response {
   return Response.json(body, { status, headers: { "cache-control": "no-store" } });
@@ -15,7 +15,7 @@ function jsonResponse<Body extends object>(body: Body, status = 200): Response {
 export function renderUsagePaneAction(): string {
   const button = usageButtonHtml();
   const actions = [
-    "agents-in-the-cloud:usage:refreshed@document->usage-button#refresh",
+    "kintsugi:usage:refreshed@document->usage-button#refresh",
     "visibilitychange@document->usage-button#refresh",
     "focus@window->usage-button#refresh",
   ].join(" ");

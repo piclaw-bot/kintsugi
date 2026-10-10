@@ -1,8 +1,8 @@
-import { Icons } from "@agents-in-the-cloud/design-system/icons";
-import { actionLinkHtml } from "@agents-in-the-cloud/design-system/action-link";
-import { buttonHtml } from "@agents-in-the-cloud/design-system/button";
-import { qrCodeButtonHtml, qrCodeDialogHtml } from "@agents-in-the-cloud/design-system/qr-code";
-import { domId, escapeHtml, isWorkspaceLoopbackHost, type WorkspaceWorkViewPresentation } from "@agents-in-the-cloud/shared";
+import { Icons } from "@kintsugi/design-system/icons";
+import { actionLinkHtml } from "@kintsugi/design-system/action-link";
+import { buttonHtml } from "@kintsugi/design-system/button";
+import { qrCodeButtonHtml, qrCodeDialogHtml } from "@kintsugi/design-system/qr-code";
+import { domId, escapeHtml, isWorkspaceLoopbackHost, type WorkspaceWorkViewPresentation } from "@kintsugi/shared";
 import { browserFrameId, browserNavigationCount, type WorkspaceBrowserView } from "./state.ts";
 
 export function browserWorkViewPresentation(view: WorkspaceBrowserView): WorkspaceWorkViewPresentation {

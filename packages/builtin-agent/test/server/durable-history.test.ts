@@ -20,7 +20,7 @@ afterEach(async () => {
 });
 
 async function setup() {
-  directory = await mkdtemp(join(tmpdir(), "agents-in-the-cloud-history-"));
+  directory = await mkdtemp(join(tmpdir(), "kintsugi-history-"));
   process.env.ATELIER_DATA_DIR = directory;
   const models = createModels();
   const faux = fauxProvider({ tokensPerSecond: 100_000 });

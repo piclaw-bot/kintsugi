@@ -1,19 +1,19 @@
 #!/usr/bin/env bun
 
-import { workloadCgroupArgs } from "@agents-in-the-cloud/core";
+import { workloadCgroupArgs } from "@kintsugi/core";
 import { rmSync } from "node:fs";
 import { arch } from "node:os";
 import { imageHasPlatforms } from "../packages/workspace-image/src/local-images.ts";
 import { registryImageHasPlatforms } from "./image-platforms.ts";
-import { prepareDefaultWorkspaceImage, ensureGeneratedDefaultWorkspaceImage } from "@agents-in-the-cloud/workspace-image";
+import { prepareDefaultWorkspaceImage, ensureGeneratedDefaultWorkspaceImage } from "@kintsugi/workspace-image";
 
-const usage = `Build the AgentsInTheCloud Docker image.
+const usage = `Build the Kintsugi Docker image.
 
 Usage:
-  bun run scripts/build-agents-in-the-cloud-image.ts [options]
+  bun run scripts/build-kintsugi-image.ts [options]
 
 Options:
-  --image <name>        Image repository/name (default: ghcr.io/lucasmeijer/agents-in-the-cloud)
+  --image <name>        Image repository/name (default: ghcr.io/rcarmo/kintsugi)
   --tag <tag>           Tag to apply. May be passed more than once (default: git describe/short sha)
   --latest             Tag the image as <image>:latest (default)
   --no-latest          Do not update latest (release staging)
@@ -26,7 +26,7 @@ Options:
   --no-cache           Build without Docker cache
   --workspace          Force building the default workspace image even when the deterministic tag already exists
   --progress <value>   Docker progress mode (auto, plain, tty, quiet, rawjson)
-  --build-arg K=V      Extra AgentsInTheCloud app Docker build argument. May be passed more than once
+  --build-arg K=V      Extra Kintsugi app Docker build argument. May be passed more than once
   --help               Show this help
 
 Examples:
@@ -65,7 +65,7 @@ function takeValue(args: string[], index: number, flag: string): string {
 
 function parseArgs(args: string[]): Options {
   const options: Options = {
-    image: "ghcr.io/lucasmeijer/agents-in-the-cloud",
+    image: "ghcr.io/rcarmo/kintsugi",
     tags: [],
     latest: true,
     stable: false,
@@ -161,7 +161,7 @@ function authenticateGhcr(options: Options): void {
   if (!token) throw new Error("GH_PACKAGE_TOKEN is required to publish images to ghcr.io");
 
   const result = Bun.spawnSync(
-    ["docker", "login", "ghcr.io", "--username", "lucasmeijer", "--password-stdin"],
+    ["docker", "login", "ghcr.io", "--username", "rcarmo", "--password-stdin"],
     { stdin: new TextEncoder().encode(token), stdout: "inherit", stderr: "inherit" },
   );
   if (result.exitCode !== 0) throw new Error(`docker login ghcr.io failed with exit code ${result.exitCode}`);
@@ -204,12 +204,12 @@ function gitCommitId(): string {
 }
 
 function workspaceImageRepository(appImage: string): string {
-  if (appImage === "ghcr.io/lucasmeijer/agents-in-the-cloud") return "ghcr.io/lucasmeijer/agents-in-the-cloud-workspace";
+  if (appImage === "ghcr.io/rcarmo/kintsugi") return "ghcr.io/rcarmo/kintsugi-workspace";
   return `${appImage}-workspace`;
 }
 
 function workspaceHashTag(metadataTag: string): string {
-  const marker = "agents-in-the-cloud-workspace:";
+  const marker = "kintsugi-workspace:";
   if (!metadataTag.startsWith(marker)) throw new Error(`unexpected workspace image metadata tag: ${metadataTag}`);
   return metadataTag.slice(marker.length);
 }
@@ -275,7 +275,7 @@ const defaultWorkspaceImageRef = `${workspaceRepo}:${workspaceTag}`;
 let shouldBuildWorkspace = false;
 
 console.log();
-console.log(`${options.push ? "Publishing" : "Building"} AgentsInTheCloud image:`);
+console.log(`${options.push ? "Publishing" : "Building"} Kintsugi image:`);
 for (const ref of imageRefs) console.log(`  ${ref}`);
 console.log(`  default workspace image: ${defaultWorkspaceImageRef}`);
 console.log();

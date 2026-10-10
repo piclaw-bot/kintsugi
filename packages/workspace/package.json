@@ -1,5 +1,5 @@
 {
-  "name": "@agents-in-the-cloud/workspace",
+  "name": "@kintsugi/workspace",
   "private": true,
   "type": "module",
   "exports": {
@@ -10,11 +10,11 @@
     "./git": "./src/git.ts"
   },
   "dependencies": {
-    "@agents-in-the-cloud/core": "workspace:*",
-    "@agents-in-the-cloud/observable-terminal": "workspace:*",
-    "@agents-in-the-cloud/shared": "workspace:*",
-    "@agents-in-the-cloud/workspace-image": "workspace:*",
+    "@kintsugi/core": "workspace:*",
+    "@kintsugi/observable-terminal": "workspace:*",
+    "@kintsugi/shared": "workspace:*",
+    "@kintsugi/workspace-image": "workspace:*",
     "typebox": "^1.0.57",
-    "@agents-in-the-cloud/design-system": "workspace:*"
+    "@kintsugi/design-system": "workspace:*"
   }
 }

@@ -10,11 +10,11 @@ test("project Dockerfile persists, survives repository edits, validates and clea
     const file = join(dir, "projects.json");
     const { workspaceTemplate } = await addWorkspaceTemplate("/tmp/example", file);
     expect(workspaceTemplate.dockerfile).toBeUndefined();
-    const dockerfile = "FROM agents-in-the-cloud-workspace\nRUN echo custom\n";
+    const dockerfile = "FROM kintsugi-workspace\nRUN echo custom\n";
     await setWorkspaceTemplateDockerfile(workspaceTemplate.id, dockerfile, file);
     await updateWorkspaceTemplate(workspaceTemplate.id, { name: "Renamed", spec: "/tmp/example" }, file);
     expect((await listWorkspaceTemplates(file)).workspaceTemplates[0]!.dockerfile).toBe(dockerfile);
-    await expect(setWorkspaceTemplateDockerfile(workspaceTemplate.id, "FROM ubuntu", file)).rejects.toThrow("FROM agents-in-the-cloud-workspace");
+    await expect(setWorkspaceTemplateDockerfile(workspaceTemplate.id, "FROM ubuntu", file)).rejects.toThrow("FROM kintsugi-workspace");
     expect((await listWorkspaceTemplates(file)).workspaceTemplates[0]!.dockerfile).toBe(dockerfile);
     await setWorkspaceTemplateDockerfile(workspaceTemplate.id, " \n", file);
     expect((await listWorkspaceTemplates(file)).workspaceTemplates[0]!.dockerfile).toBeUndefined();

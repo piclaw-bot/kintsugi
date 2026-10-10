@@ -7,7 +7,7 @@ import { readJsonSettings, updateJsonSettings } from "../src/json-settings.ts";
 let directory: string;
 let path: string;
 beforeEach(async () => {
-  directory = await mkdtemp(join(tmpdir(), "agents-in-the-cloud-json-settings-"));
+  directory = await mkdtemp(join(tmpdir(), "kintsugi-json-settings-"));
   path = join(directory, "settings.json");
 });
 afterEach(async () => { await rm(directory, { recursive: true, force: true }); });

@@ -1,10 +1,10 @@
-import type { StaticFileContribution } from "@agents-in-the-cloud/shared";
+import type { StaticFileContribution } from "@kintsugi/shared";
 
 /** Mount these logical URLs; the host may fingerprint them and rewrite CSS imports. */
 export const designSystemStaticFiles = {
   "/scrollbar.css": { url: new URL("./scrollbar/scrollbar.css", import.meta.url), contentType: "text/css; charset=utf-8" },
-  "/builtin-agent.png": { url: new URL("./icons/builtin-agent.png", import.meta.url), contentType: "image/png" },
-  "/agents-in-the-cloud-brand.png": { url: new URL("./icons/agents-in-the-cloud-brand.png", import.meta.url), contentType: "image/png" },
+  "/builtin-agent.svg": { url: new URL("./icons/builtin-agent.svg", import.meta.url), contentType: "image/svg+xml" },
+  "/kintsugi-brand.svg": { url: new URL("./icons/kintsugi-brand.svg", import.meta.url), contentType: "image/svg+xml" },
   "/tab-strip.css": { url: new URL("./tab-strip/tab-strip.css", import.meta.url), contentType: "text/css; charset=utf-8" },
   "/warning-banner.css": { url: new URL("./warning-banner/warning-banner.css", import.meta.url), contentType: "text/css; charset=utf-8" },
   "/text-entry.css": {

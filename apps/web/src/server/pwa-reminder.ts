@@ -1,9 +1,9 @@
-import { activityButtonHtml } from "@agents-in-the-cloud/design-system/activity-button";
-import { buttonHtml } from "@agents-in-the-cloud/design-system/button";
-import { buttonGroupHtml } from "@agents-in-the-cloud/design-system/button-group";
-import { dialogHtml } from "@agents-in-the-cloud/design-system/dialog";
-import { agentsInTheCloudBrandIconHtml, Icons } from "@agents-in-the-cloud/design-system/icons";
-import { escapeHtml } from "@agents-in-the-cloud/shared";
+import { activityButtonHtml } from "@kintsugi/design-system/activity-button";
+import { buttonHtml } from "@kintsugi/design-system/button";
+import { buttonGroupHtml } from "@kintsugi/design-system/button-group";
+import { dialogHtml } from "@kintsugi/design-system/dialog";
+import { kintsugiBrandIconHtml, Icons } from "@kintsugi/design-system/icons";
+import { escapeHtml } from "@kintsugi/shared";
 
 // Menu paths checked against the linked vendor documentation on 2026-09-08.
 const guides = [
@@ -35,7 +35,7 @@ const guides = [
     source: "https://support.google.com/chrome/answer/9658361?hl=en&co=GENIE.Platform%3DAndroid",
     steps: [
       "Tap ⋮ → Install and create shortcut → Install.",
-      "Follow the prompts, then open AgentsInTheCloud from your apps.",
+      "Follow the prompts, then open Kintsugi from your apps.",
     ],
   },
   {
@@ -45,7 +45,7 @@ const guides = [
     source: "https://support.apple.com/en-us/104996",
     steps: [
       "Choose File → Add to Dock → Add.",
-      "Open AgentsInTheCloud from the Dock. Requires macOS Sonoma 14 or newer.",
+      "Open Kintsugi from the Dock. Requires macOS Sonoma 14 or newer.",
     ],
   },
   {
@@ -65,13 +65,13 @@ const guides = [
     source: "https://support.google.com/chrome/answer/9658361?hl=en&co=GENIE.Platform%3DDesktop",
     steps: [
       "Choose ⋮ → Cast, save, and share → Install page as app…",
-      "Follow the prompts, then open AgentsInTheCloud from your apps.",
+      "Follow the prompts, then open Kintsugi from your apps.",
     ],
   },
   {
     id: "other",
     menu: "Supported browser",
-    item: "Open AgentsInTheCloud → Install",
+    item: "Open Kintsugi → Install",
     steps: [
       "For the verified steps, open this address in Chrome or Edge on desktop, Chrome on Android, or Safari on iPhone/iPad.",
       "Use the browser’s Install app option (Safari: Share → Add to Home Screen).",
@@ -88,8 +88,8 @@ export function renderPwaReminder(): string {
     variant: "secondary",
     state: "initial",
     iconOnly: true,
-    initialLabel: "Install AgentsInTheCloud as an app",
-    activeLabel: "Install AgentsInTheCloud as an app",
+    initialLabel: "Install Kintsugi as an app",
+    activeLabel: "Install Kintsugi as an app",
     initialContent: { kind: "html", html: Icons.Exclamation },
     activeContent: { kind: "html", html: Icons.Exclamation },
     attributesHtml: 'data-pwa-reminder-target="button"',
@@ -116,9 +116,9 @@ export function renderPwaReminder(): string {
   </section>`).join("");
   const dialog = dialogHtml({
     element: { attributesHtml: 'data-pwa-reminder-target="dialog"' },
-    iconHtml: agentsInTheCloudBrandIconHtml,
-    titleCaption: "Install AgentsInTheCloud as an app",
-    bodyHtml: `<div class="pwa-reminder-body"><p>Open AgentsInTheCloud in its own window and launch it from your home screen or apps.</p>${body}</div>`,
+    iconHtml: kintsugiBrandIconHtml,
+    titleCaption: "Install Kintsugi as an app",
+    bodyHtml: `<div class="pwa-reminder-body"><p>Open Kintsugi in its own window and launch it from your home screen or apps.</p>${body}</div>`,
     footerHtml: footer,
   });
   return `<div data-controller="pwa-reminder" data-action="storage@window->pwa-reminder#refresh focus@window->pwa-reminder#refresh" hidden>${button}${dialog}</div>`;

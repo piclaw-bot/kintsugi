@@ -3,7 +3,7 @@ import net from "node:net";
 import { chmod, mkdir, mkdtemp, rename, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { spawn } from "node:child_process";
-import { acquireFileLock, agentsInTheCloudDataPath, getAgentsInTheCloudRuntimeContext, type AgentsInTheCloudRuntimeContext } from "@agents-in-the-cloud/core";
+import { acquireFileLock, kintsugiDataPath, getKintsugiRuntimeContext, type KintsugiRuntimeContext } from "@kintsugi/core";
 
 export type MitmCa = { dir: string; certPath: string; keyPath: string; leafDir: string };
 type LeafCertificate = { certPath: string; keyPath: string; renewAt: number };
@@ -11,17 +11,17 @@ type LeafCertificate = { certPath: string; keyPath: string; renewAt: number };
 const leafCertificateRenewalWindowMs = 24 * 60 * 60 * 1000;
 const leafCertificateLifetimeDays = 7;
 
-export async function ensureMitmCa(context?: AgentsInTheCloudRuntimeContext): Promise<MitmCa> {
-  const runtime = context ?? getAgentsInTheCloudRuntimeContext();
-  const dir = agentsInTheCloudDataPath(runtime, "proxy-ca");
-  const certPath = join(dir, "agents-in-the-cloud-mitm-ca.pem");
-  const keyPath = join(dir, "agents-in-the-cloud-mitm-ca-key.pem");
+export async function ensureMitmCa(context?: KintsugiRuntimeContext): Promise<MitmCa> {
+  const runtime = context ?? getKintsugiRuntimeContext();
+  const dir = kintsugiDataPath(runtime, "proxy-ca");
+  const certPath = join(dir, "kintsugi-mitm-ca.pem");
+  const keyPath = join(dir, "kintsugi-mitm-ca-key.pem");
   const leafDir = join(dir, "leaf");
   await mkdir(leafDir, { recursive: true, mode: 0o700 });
   if (!existsSync(certPath) || !existsSync(keyPath)) {
     await runOpenSsl([
       "req", "-x509", "-newkey", "rsa:2048", "-sha256", "-days", "1825", "-nodes",
-      "-subj", "/CN=AgentsInTheCloud Local Workspace MITM CA",
+      "-subj", "/CN=Kintsugi Local Workspace MITM CA",
       "-addext", "basicConstraints=critical,CA:TRUE",
       "-addext", "keyUsage=critical,keyCertSign,cRLSign",
       "-keyout", keyPath, "-out", certPath,
@@ -46,7 +46,7 @@ export async function ensureLeafCertificate(ca: MitmCa, hostnames: string | read
       if (Date.now() < renewAt) return { certPath, keyPath, renewAt };
     }
 
-    tmp = await mkdtemp(join(ca.leafDir, ".agents-in-the-cloud-leaf-"));
+    tmp = await mkdtemp(join(ca.leafDir, ".kintsugi-leaf-"));
     const csr = join(tmp, "leaf.csr");
     const ext = join(tmp, "leaf.ext");
     const temporaryCertPath = join(tmp, "leaf.pem");

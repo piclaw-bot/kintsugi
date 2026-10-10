@@ -1,11 +1,11 @@
 import { createHash } from "node:crypto";
-import { createKeyedOperationQueue, invalidArguments, type AgentsInTheCloudEventBus } from "@agents-in-the-cloud/core";
-import { workspaceRoot } from "@agents-in-the-cloud/workspace";
-import { createLivePresentation, type WorkspaceAgentInput } from "@agents-in-the-cloud/shared";
-import { parseModelRef, setAgentModelPreference } from "@agents-in-the-cloud/llm/server";
-import { publishWorkspaceAgentBusy } from "@agents-in-the-cloud/agent/server";
-import { revokeAgentMcp } from "@agents-in-the-cloud/agent/server";
-import { renderWorkspaceCompletionCatalog } from "@agents-in-the-cloud/agent/server/completion-catalog";
+import { createKeyedOperationQueue, invalidArguments, type KintsugiEventBus } from "@kintsugi/core";
+import { workspaceRoot } from "@kintsugi/workspace";
+import { createLivePresentation, type WorkspaceAgentInput } from "@kintsugi/shared";
+import { parseModelRef, setAgentModelPreference } from "@kintsugi/llm/server";
+import { publishWorkspaceAgentBusy } from "@kintsugi/agent/server";
+import { revokeAgentMcp } from "@kintsugi/agent/server";
+import { renderWorkspaceCompletionCatalog } from "@kintsugi/agent/server/completion-catalog";
 import type {
   UserInput,
   TurnStartParams,
@@ -43,7 +43,7 @@ export class CodexRuntime {
   private turnPending = false;
   private readonly serialize = createKeyedOperationQueue();
   readonly presentation = createLivePresentation(() => liveRegions(this), 50);
-  private constructor(readonly workspaceId: string, readonly record: CodexAgentRecord, private readonly save: () => void, private readonly events: AgentsInTheCloudEventBus) {}
+  private constructor(readonly workspaceId: string, readonly record: CodexAgentRecord, private readonly save: () => void, private readonly events: KintsugiEventBus) {}
   get agentId() { return this.record.id; }
   get isBusy() { return !this.failure && Boolean(this.state.activeTurn || this.turnPending); }
   private changed() {
@@ -63,7 +63,7 @@ export class CodexRuntime {
     this.completionCatalog = await renderWorkspaceCompletionCatalog(this.workspaceId, "cli", codexSlashCommands);
     this.presentation.invalidate();
   }
-  static async open(workspaceId: string, record: CodexAgentRecord, save: () => void, events: AgentsInTheCloudEventBus) {
+  static async open(workspaceId: string, record: CodexAgentRecord, save: () => void, events: KintsugiEventBus) {
     const runtime = new CodexRuntime(workspaceId, record, save, events);
     try { await runtime.connect(); return runtime; }
     catch (error) { await runtime.dispose(); throw error; }
@@ -91,7 +91,7 @@ export class CodexRuntime {
         }
       }, error => { this.failure = error; this.changed(); }, prepared.mcp);
       const { rpc } = this.transport;
-      await rpc.request("initialize", { clientInfo: { name: "agents_in_the_cloud", title: "AgentsInTheCloud", version: "1.0.0" }, capabilities: { experimentalApi: true, requestAttestation: false } });
+      await rpc.request("initialize", { clientInfo: { name: "kintsugi", title: "Kintsugi", version: "1.0.0" }, capabilities: { experimentalApi: true, requestAttestation: false } });
       rpc.notify("initialized");
       const common = this.threadParameters;
       const resume = Boolean(this.record.threadId);
@@ -444,7 +444,7 @@ export class CodexRuntime {
   }
 }
 
-export function createCodexAgents(getEvents: () => AgentsInTheCloudEventBus) {
+export function createCodexAgents(getEvents: () => KintsugiEventBus) {
   let metadata: ReturnType<typeof createCodexStore> | undefined;
   function store() { return metadata ??= createCodexStore(); }
   const runtimes = new Map<string, Promise<CodexRuntime>>();

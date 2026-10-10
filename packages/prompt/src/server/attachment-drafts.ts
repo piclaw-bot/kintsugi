@@ -1,10 +1,10 @@
-import { extensionOf, imageMimeByExtension } from "@agents-in-the-cloud/shared/file-metadata";
+import { extensionOf, imageMimeByExtension } from "@kintsugi/shared/file-metadata";
 import { createHash } from "node:crypto";
 import { mkdir, readdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { getAgentsInTheCloudRuntimeContext, isNotFoundError, shellQuote } from "@agents-in-the-cloud/core";
-import { execWorkspaceShell } from "@agents-in-the-cloud/workspace";
-import type { WorkspaceAgentInput } from "@agents-in-the-cloud/shared";
+import { getKintsugiRuntimeContext, isNotFoundError, shellQuote } from "@kintsugi/core";
+import { execWorkspaceShell } from "@kintsugi/workspace";
+import type { WorkspaceAgentInput } from "@kintsugi/shared";
 type ImageRef = WorkspaceAgentInput["images"][number];
 
 export interface StagedAttachment {
@@ -21,7 +21,7 @@ export interface DeliveredAttachments {
 }
 
 export function attachmentDraftsDir(): string {
-  return join(getAgentsInTheCloudRuntimeContext().agentsInTheCloudDataDir, "agent-attachment-drafts");
+  return join(getKintsugiRuntimeContext().kintsugiDataDir, "agent-attachment-drafts");
 }
 
 export function attachmentDraftDir(draftId: string): string {
@@ -134,7 +134,7 @@ export async function deliverAttachmentDraft(workspaceId: string, draftId: strin
 }
 
 async function deliverFileAttachment(workspaceId: string, staged: StagedAttachment): Promise<string> {
-  const target = `/tmp/agents-in-the-cloud-attachments/${staged.name}`;
+  const target = `/tmp/kintsugi-attachments/${staged.name}`;
   await copyAttachmentIntoWorkspace(workspaceId, staged, target);
   return `[Attached file copied into the workspace at ${target}]`;
 }

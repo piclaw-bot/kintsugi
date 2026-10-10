@@ -1,19 +1,19 @@
-import { getWorkspaceInit, getWorkspaceTitle } from "@agents-in-the-cloud/workspace";
-import { isGitWorkspaceTemplateInit } from "@agents-in-the-cloud/workspace-templates";
+import { getWorkspaceInit, getWorkspaceTitle } from "@kintsugi/workspace";
+import { isGitWorkspaceTemplateInit } from "@kintsugi/workspace-templates";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { getAgentsInTheCloudRuntimeContext } from "@agents-in-the-cloud/core";
+import { getKintsugiRuntimeContext } from "@kintsugi/core";
 import webPush, { type PushSubscription } from "web-push";
 import { Type } from "typebox";
 import { Value } from "typebox/value";
-import type { AgentRenderContext } from "@agents-in-the-cloud/agent/server/render-context";
+import type { AgentRenderContext } from "@kintsugi/agent/server/render-context";
 
 const vapidSchema = Type.Object({ publicKey: Type.String(), privateKey: Type.String() });
 let keys: Promise<webPush.VapidKeys> | undefined;
 
 function vapidKeys(): Promise<webPush.VapidKeys> {
   return keys ??= (async () => {
-    const directory = getAgentsInTheCloudRuntimeContext().agentsInTheCloudDataDir;
+    const directory = getKintsugiRuntimeContext().kintsugiDataDir;
     const path = join(directory, "web-push-vapid.json");
     if (await Bun.file(path).exists()) return Value.Parse(vapidSchema, JSON.parse(await readFile(path, "utf8")));
     const generated = webPush.generateVAPIDKeys();
@@ -58,7 +58,7 @@ export async function sendTurnNotification(ctx: AgentRenderContext, subscription
       url: `/workspaces/${encodeURIComponent(ctx.workspaceId)}?agent=${encodeURIComponent(ctx.agentId)}`,
       tag: `agent-turn:${ctx.workspaceId}:${ctx.agentId}`,
     }), {
-      vapidDetails: { subject: "https://github.com/lucasmeijer/atelier", ...vapid },
+      vapidDetails: { subject: "https://github.com/rcarmo/kintsugi", ...vapid },
       TTL: 60 * 60,
       urgency: "high",
       timeout: 15_000,

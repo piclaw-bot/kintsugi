@@ -1,7 +1,7 @@
 import { rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { shellQuote, commandSignal, runCommand, killCommandGroup, withCommandSignal, readTextIfExists } from "@agents-in-the-cloud/core";
+import { shellQuote, commandSignal, runCommand, killCommandGroup, withCommandSignal, readTextIfExists } from "@kintsugi/core";
 import { observableTerminalCols, observableTerminalEnvironment, observableTerminalHistoryLimit, observableTerminalRows } from "./constants.ts";
 import { buildKillSessionCommand, buildObservableSessionCommand, buildSetRemainOnExitCommand } from "./tmux.ts";
 

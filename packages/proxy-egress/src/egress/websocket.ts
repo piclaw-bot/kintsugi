@@ -4,10 +4,10 @@ import { request as httpsRequest } from "node:https";
 import type { Duplex } from "node:stream";
 import { HttpsProxyAgent } from "https-proxy-agent";
 import { getProxyForUrl } from "proxy-from-env";
-import { stripHopByHopHeaders } from "@agents-in-the-cloud/shared";
+import { stripHopByHopHeaders } from "@kintsugi/shared";
 import { HttpRequestBlockedError } from "../secrets/errors.ts";
 
-// Match the HTTP fetch path's environment proxy routing, including nested AgentsInTheCloud.
+// Match the HTTP fetch path's environment proxy routing, including nested Kintsugi.
 // An environment proxy is a trusted egress boundary: CONNECT keeps the logical
 // hostname, and that proxy owns destination policy, resolution and pinning.
 export type UpgradeRequest = (url: URL, options: RequestOptions) => ClientRequest;

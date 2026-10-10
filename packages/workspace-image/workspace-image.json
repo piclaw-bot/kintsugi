@@ -67,14 +67,14 @@
   ],
   "files": [
     {
-      "from": "rootfs/opt/agents-in-the-cloud/home-defaults/.claude/settings.json",
-      "to": "/opt/agents-in-the-cloud/home-defaults/.claude/settings.json",
+      "from": "rootfs/opt/kintsugi/home-defaults/.claude/settings.json",
+      "to": "/opt/kintsugi/home-defaults/.claude/settings.json",
       "mode": "0600",
       "afterRun": true
     },
     {
-      "from": "rootfs/usr/local/bin/agents-in-the-cloud-workspace-init",
-      "to": "/usr/local/bin/agents-in-the-cloud-workspace-init",
+      "from": "rootfs/usr/local/bin/kintsugi-workspace-init",
+      "to": "/usr/local/bin/kintsugi-workspace-init",
       "mode": "0755",
       "afterRun": true
     },
@@ -85,8 +85,8 @@
       "afterRun": true
     },
     {
-      "from": "rootfs/etc/profile.d/agents-in-the-cloud-tools.sh",
-      "to": "/etc/profile.d/agents-in-the-cloud-tools.sh",
+      "from": "rootfs/etc/profile.d/kintsugi-tools.sh",
+      "to": "/etc/profile.d/kintsugi-tools.sh",
       "afterRun": true
     }
   ],
@@ -96,18 +96,18 @@
     "set -eux; node_arch=\"$(dpkg --print-architecture)\"; case \"$node_arch\" in amd64) node_arch=\"x64\" ;; arm64) node_arch=\"arm64\" ;; armhf) node_arch=\"armv7l\" ;; ppc64el) node_arch=\"ppc64le\" ;; s390x) node_arch=\"s390x\" ;; *) echo \"unsupported Node.js architecture: $(dpkg --print-architecture)\" >&2; exit 1 ;; esac; node_dist_base=\"https://nodejs.org/dist/latest-v22.x\"; mkdir -p /tmp/node-install; curl -fsSL \"$node_dist_base/SHASUMS256.txt\" -o /tmp/node-install/SHASUMS256.txt; node_file=\"$(awk -v suffix=\"-linux-${node_arch}.tar.xz\" 'index($2, \"node-v\") == 1 && substr($2, length($2) - length(suffix) + 1) == suffix { print $2; exit }' /tmp/node-install/SHASUMS256.txt)\"; test -n \"$node_file\"; curl -fsSL \"$node_dist_base/$node_file\" -o \"/tmp/node-install/$node_file\"; awk -v file=\"$node_file\" '$2 == file { print }' /tmp/node-install/SHASUMS256.txt > /tmp/node-install/SHASUMS256.selected; (cd /tmp/node-install && sha256sum -c SHASUMS256.selected); tar -xJf \"/tmp/node-install/$node_file\" -C /usr/local --strip-components=1; rm -rf /tmp/node-install; node --version; npm --version",
     "set -eux; npm install -g playwright@1.61.0 @playwright/test@1.61.0; PLAYWRIGHT_BROWSERS_PATH=/ms-playwright playwright install --with-deps chromium; chmod -R a+rX /ms-playwright /usr/local/lib/node_modules; for sandbox in /ms-playwright/chromium-*/chrome-linux*/chrome_sandbox; do chown root:root \"$sandbox\"; chmod 4755 \"$sandbox\"; ln -s chrome_sandbox \"${sandbox%/*}/chrome-sandbox\"; done; playwright --version",
     "set -eux; npm install -g hunkdiff@0.22.0; hunk --version",
-    "getent group docker || groupadd docker; id -u agents-in-the-cloud >/dev/null 2>&1 || useradd --create-home --shell /bin/bash agents-in-the-cloud; echo 'agents-in-the-cloud ALL=(ALL) NOPASSWD:ALL' > /etc/sudoers.d/agents-in-the-cloud; chmod 0440 /etc/sudoers.d/agents-in-the-cloud; install -d -o agents-in-the-cloud -g agents-in-the-cloud /.agents-in-the-cloud /work; usermod -aG docker agents-in-the-cloud",
+    "set -eu; getent group docker || groupadd docker; if getent group 1000 >/dev/null; then groupmod --new-name agent \"$(getent group 1000 | cut -d: -f1)\"; else groupadd --gid 1000 agent; fi; if getent passwd 1000 >/dev/null; then usermod --login agent --home /home/agent --move-home \"$(getent passwd 1000 | cut -d: -f1)\"; else useradd --uid 1000 --gid agent --create-home --shell /bin/bash agent; fi; usermod --gid agent agent; echo 'agent ALL=(ALL) NOPASSWD:ALL' > /etc/sudoers.d/agent; chmod 0440 /etc/sudoers.d/agent; install -d -o agent -g agent /.kintsugi /work; usermod -aG docker agent",
     "systemctl mask tmp.mount getty@tty1.service console-getty.service; ln -sf /lib/systemd/system/multi-user.target /etc/systemd/system/default.target",
-    "install -d /usr/local/libexec/agents-in-the-cloud; mv /usr/local/bin/docker /usr/local/libexec/agents-in-the-cloud/docker"
+    "install -d /usr/local/libexec/kintsugi; mv /usr/local/bin/docker /usr/local/libexec/kintsugi/docker"
   ],
   "env": {
     "TERM": "xterm-256color",
     "COLORTERM": "truecolor",
     "LANG": "C.UTF-8",
     "LC_ALL": "C.UTF-8",
-    "XDG_CONFIG_HOME": "/home/agents-in-the-cloud/.config",
+    "XDG_CONFIG_HOME": "/home/agent/.config",
     "NODE_PATH": "/usr/local/lib/node_modules",
     "PLAYWRIGHT_BROWSERS_PATH": "/ms-playwright",
-    "PATH": "/opt/agents-in-the-cloud/bin:${PATH}"
+    "PATH": "/opt/kintsugi/bin:${PATH}"
   }
 }

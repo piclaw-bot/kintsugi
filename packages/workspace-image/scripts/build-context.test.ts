@@ -17,7 +17,7 @@ async function generateContext(fixture: string) {
 }
 
 async function generateInCheckout() {
-  const fixture = await mkdtemp(join(tmpdir(), "agents-in-the-cloud-image-context-"));
+  const fixture = await mkdtemp(join(tmpdir(), "kintsugi-image-context-"));
   temporaryRoots.push(fixture);
   await cp(join(root, "packages"), join(fixture, "packages"), { recursive: true });
   return generateContext(fixture);
@@ -25,16 +25,16 @@ async function generateInCheckout() {
 
 describe("workspace image content identity", () => {
   test("validates generated metadata before consumers use it", () => {
-    expect(parseWorkspaceImageMetadata({ tag: "agents-in-the-cloud-workspace:abc", modules: ["base"] })).toEqual({
-      tag: "agents-in-the-cloud-workspace:abc",
+    expect(parseWorkspaceImageMetadata({ tag: "kintsugi-workspace:abc", modules: ["base"] })).toEqual({
+      tag: "kintsugi-workspace:abc",
       modules: ["base"],
     });
     expect(() => parseWorkspaceImageMetadata({ tag: 42, modules: ["base"] })).toThrow();
-    expect(() => parseWorkspaceImageMetadata({ tag: "agents-in-the-cloud-workspace:abc" })).toThrow();
+    expect(() => parseWorkspaceImageMetadata({ tag: "kintsugi-workspace:abc" })).toThrow();
   });
 
   test.each([
-    ["systemd bootstrap script", "packages/workspace-image/rootfs/usr/local/bin/agents-in-the-cloud-workspace-init", "files/base/rootfs/usr/local/bin/agents-in-the-cloud-workspace-init", "#"],
+    ["systemd bootstrap script", "packages/workspace-image/rootfs/usr/local/bin/kintsugi-workspace-init", "files/base/rootfs/usr/local/bin/kintsugi-workspace-init", "#"],
     ["Docker capability guard", "packages/workspace-image/rootfs/usr/local/bin/docker", "files/base/rootfs/usr/local/bin/docker", "#"],
   ])("%s is packaged and changes the default image identity", async (_name, sourcePath, packagedPath, comment) => {
     const before = await generateInCheckout();
@@ -51,27 +51,27 @@ describe("workspace image content identity", () => {
     await writeFile(generator, (await readFile(generator, "utf8")).replace("WORKDIR /work", "WORKDIR /changed-work"));
     const instructionChange = await generateContext(before.fixture);
     expect(instructionChange.metadata).not.toBe(before.metadata);
-    await chmod(join(before.fixture, "packages/workspace-image/rootfs/usr/local/bin/agents-in-the-cloud-workspace-init"), 0o700);
+    await chmod(join(before.fixture, "packages/workspace-image/rootfs/usr/local/bin/kintsugi-workspace-init"), 0o700);
     const permissionChange = await generateContext(before.fixture);
     expect(permissionChange.metadata).not.toBe(instructionChange.metadata);
   });
 
   test("adds mounted tools to the inherited PATH and restores them for login shells", async () => {
     const { dockerfile, output } = await generateInCheckout();
-    expect(dockerfile).toContain('PATH="/opt/agents-in-the-cloud/bin:${PATH}"');
-    const profile = await readFile(join(output, "files/base/rootfs/etc/profile.d/agents-in-the-cloud-tools.sh"), "utf8");
+    expect(dockerfile).toContain('PATH="/opt/kintsugi/bin:${PATH}"');
+    const profile = await readFile(join(output, "files/base/rootfs/etc/profile.d/kintsugi-tools.sh"), "utf8");
     const result = Bun.spawnSync(["/bin/sh", "-ec", `${profile}\nprintf '%s' "$PATH"`], {
       env: { PATH: "/custom/bin:/usr/bin:/bin" },
     });
     expect(result.exitCode).toBe(0);
-    expect(result.stdout.toString()).toBe("/opt/agents-in-the-cloud/bin:/custom/bin:/usr/bin:/bin");
+    expect(result.stdout.toString()).toBe("/opt/kintsugi/bin:/custom/bin:/usr/bin:/bin");
   });
 
   test("mounted helper changes do not change the image or its identity", async () => {
     const before = await generateInCheckout();
     for (const [packageName, name] of [
-      ["desktop", "agents-in-the-cloud-desktop"],
-      ["vscode", "agents-in-the-cloud-start-vscode"],
+      ["desktop", "kintsugi-desktop"],
+      ["vscode", "kintsugi-start-vscode"],
       ["workspace-terminal", "pbcopy"],
       ["workspace-image", "chromium"],
     ]) {
@@ -150,7 +150,7 @@ describe("workspace image layer ordering", () => {
   });
 
   test.each([
-    ["packages/workspace-image/rootfs/usr/local/bin/agents-in-the-cloud-workspace-init", "files/base/rootfs/usr/local/bin/agents-in-the-cloud-workspace-init"],
+    ["packages/workspace-image/rootfs/usr/local/bin/kintsugi-workspace-init", "files/base/rootfs/usr/local/bin/kintsugi-workspace-init"],
   ])("copies runtime script %s only after module setup", async (sourcePath, packagedPath) => {
     const before = await generateInCheckout();
     const copy = `COPY ${JSON.stringify(packagedPath)}`;
@@ -158,7 +158,7 @@ describe("workspace image layer ordering", () => {
     await appendFile(join(before.fixture, sourcePath), "\n# cache boundary probe\n");
     const after = await generateContext(before.fixture);
     expect(after.metadata).not.toBe(before.metadata);
-    expect(after.dockerfile.split("LABEL com.agents-in-the-cloud.workspace-image.signature=")[0]).toBe(before.dockerfile.split("LABEL com.agents-in-the-cloud.workspace-image.signature=")[0]);
+    expect(after.dockerfile.split("LABEL com.kintsugi.workspace-image.signature=")[0]).toBe(before.dockerfile.split("LABEL com.kintsugi.workspace-image.signature=")[0]);
     expect(await readFile(join(after.output, packagedPath), "utf8")).toContain("# cache boundary probe");
   });
 });

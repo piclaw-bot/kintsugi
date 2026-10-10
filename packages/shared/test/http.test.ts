@@ -17,7 +17,7 @@ test("HTML responses retain caller-provided headers and cache policy", () => {
 });
 
 test("Turbo content negotiation distinguishes stream requests from ordinary navigation", () => {
-  expect(wantsStream(new Request("http://agents-in-the-cloud.test"))).toBe(false);
-  expect(wantsStream(new Request("http://agents-in-the-cloud.test", { headers: { accept: "text/html" } }))).toBe(false);
-  expect(wantsStream(new Request("http://agents-in-the-cloud.test", { headers: { accept: "text/vnd.turbo-stream.html, text/html" } }))).toBe(true);
+  expect(wantsStream(new Request("http://kintsugi.test"))).toBe(false);
+  expect(wantsStream(new Request("http://kintsugi.test", { headers: { accept: "text/html" } }))).toBe(false);
+  expect(wantsStream(new Request("http://kintsugi.test", { headers: { accept: "text/vnd.turbo-stream.html, text/html" } }))).toBe(true);
 });

@@ -1,6 +1,6 @@
 ---
 name: ios-serve-sim
-description: Use a workspace-owned remote iOS simulator to review web/PWA work, interact with apps, and show the live device in AgentsInTheCloud's preview. Use for simulator taps, typing, gestures, rotation, camera, accessibility, and WebKit inspection.
+description: Use a workspace-owned remote iOS simulator to review web/PWA work, interact with apps, and show the live device in Kintsugi's preview. Use for simulator taps, typing, gestures, rotation, camera, accessibility, and WebKit inspection.
 ---
 
 # Remote iOS simulator
@@ -18,11 +18,11 @@ Use `ios-serve-sim` for ownership, SSH tunnels, and cleanup; use upstream `serve
    ```
 
    Startup installs pinned tools and creates an owned device. Watch `tmux capture-pane -pt ios-serve-sim`; wait for upstream's ready URL. Use `--codec mjpeg` only when needed; the default allows upstream's more bandwidth-efficient codec selection.
-3. Present `http://localhost:4101/` with AgentsInTheCloud's browser presentation tool. This is the workspace's tunnel, not localhost on the user's computer. Confirm the device is live and the requested page is visible before saying it's ready.
+3. Present `http://localhost:4101/` with Kintsugi's browser presentation tool. This is the workspace's tunnel, not localhost on the user's computer. Confirm the device is live and the requested page is visible before saying it's ready.
 
 ## Connect a workspace web server
 
-Run the dev server in tmux (`bun run web` for AgentsInTheCloud), then:
+Run the dev server in tmux (`bun run web` for Kintsugi), then:
 
 ```sh
 tmux new-session -d -s ios-serve-sim-forward -c /work \

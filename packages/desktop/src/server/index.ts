@@ -1,9 +1,9 @@
-import { registerWorkspacePresenter } from "@agents-in-the-cloud/agent/server/tools";
-import { buttonHtml } from "@agents-in-the-cloud/design-system/button";
-import { copyButtonHtml } from "@agents-in-the-cloud/design-system/copy-button";
-import { Icons } from "@agents-in-the-cloud/design-system/icons";
-import { domId, escapeHtml, type WorkspaceModule, type WorkspaceWorkViewPresentation } from "@agents-in-the-cloud/shared";
-import { createWorkspaceMetadataState, workspacePortBackend } from "@agents-in-the-cloud/workspace";
+import { registerWorkspacePresenter } from "@kintsugi/agent/server/tools";
+import { buttonHtml } from "@kintsugi/design-system/button";
+import { copyButtonHtml } from "@kintsugi/design-system/copy-button";
+import { Icons } from "@kintsugi/design-system/icons";
+import { domId, escapeHtml, type WorkspaceModule, type WorkspaceWorkViewPresentation } from "@kintsugi/shared";
+import { createWorkspaceMetadataState, workspacePortBackend } from "@kintsugi/workspace";
 import { Type } from "typebox";
 import { Value } from "typebox/value";
 import { createDesktopPresenter } from "./agent-tool.ts";
@@ -19,7 +19,7 @@ const presentation: WorkspaceWorkViewPresentation = {
   availability: { phase: "live" },
 };
 
-export const agentsInTheCloudServerModule: WorkspaceModule = {
+export const kintsugiServerModule: WorkspaceModule = {
   id: "desktop",
   staticFiles: { "/desktop.css": { url: new URL("../client/style.css", import.meta.url), contentType: "text/css; charset=utf-8" } },
   workViews: [{

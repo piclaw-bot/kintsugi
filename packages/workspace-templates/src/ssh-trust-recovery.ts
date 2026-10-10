@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { invalidArguments, runCommand } from "@agents-in-the-cloud/core";
+import { invalidArguments, runCommand } from "@kintsugi/core";
 import { getWorkspaceTemplateSshKnownHosts, setWorkspaceTemplateSshKnownHosts } from "./ssh-host-trust.ts";
 
 export interface SshTrustCandidate { host: string; port: number; records: { line: string; fingerprint: string }[] }

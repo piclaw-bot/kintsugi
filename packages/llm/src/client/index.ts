@@ -1,5 +1,5 @@
 import { createLaunchModelRefreshController, createAgentModelSetupController } from "./model-setup-controllers.ts";
-import type { WorkspaceClientModule, WorkspaceClientControllerConstructor } from "@agents-in-the-cloud/shared";
+import type { WorkspaceClientModule, WorkspaceClientControllerConstructor } from "@kintsugi/shared";
 
 function createOAuthFlowController(Controller: WorkspaceClientControllerConstructor) {
   return class OAuthFlowController extends Controller {
@@ -77,4 +77,4 @@ function createOAuthFlowController(Controller: WorkspaceClientControllerConstruc
   };
 }
 
-export const agentsInTheCloudClientModule: WorkspaceClientModule = { id: "llm", install({ application, Controller }) { application.register("launch-model-refresh", createLaunchModelRefreshController(Controller)); application.register("agent-model-setup", createAgentModelSetupController(Controller)); application.register("oauth-flow", createOAuthFlowController(Controller)); } };
+export const kintsugiClientModule: WorkspaceClientModule = { id: "llm", install({ application, Controller }) { application.register("launch-model-refresh", createLaunchModelRefreshController(Controller)); application.register("agent-model-setup", createAgentModelSetupController(Controller)); application.register("oauth-flow", createOAuthFlowController(Controller)); } };

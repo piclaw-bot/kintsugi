@@ -9,9 +9,9 @@ test("private session writes preserve UTF-8 and empty files, keep contents off c
     const child = Bun.spawn([process.execPath, "-e", `
       import { expect, mock } from "bun:test";
       import { readFile, stat, writeFile } from "node:fs/promises";
-      const workspace = await import("@agents-in-the-cloud/workspace");
+      const workspace = await import("@kintsugi/workspace");
       const commands = [];
-      mock.module("@agents-in-the-cloud/workspace", () => ({ ...workspace, execWorkspaceShell: async (_workspaceId, command, options) => {
+      mock.module("@kintsugi/workspace", () => ({ ...workspace, execWorkspaceShell: async (_workspaceId, command, options) => {
         commands.push(command);
         const shell = Bun.spawn(["bash", "-c", command], { stdin: Buffer.from(options.stdin), stdout: "pipe", stderr: "pipe" });
         const [exitCode, stdout, stderr] = await Promise.all([shell.exited, new Response(shell.stdout).text(), new Response(shell.stderr).text()]);

@@ -3,7 +3,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { enabledModelOptionViews, selectAvailableEnabledModel, type AgentModelOptionView } from "../../src/server/model-state.ts";
-import { modelRefValue, parseModelRef, setEnabledModels, setAgentModelPreference } from "@agents-in-the-cloud/llm/server";
+import { modelRefValue, parseModelRef, setEnabledModels, setAgentModelPreference } from "@kintsugi/llm/server";
 import type { Api, Model } from "@earendil-works/pi-ai";
 
 const model = (provider: string, id: string, options: { selected?: boolean; available?: boolean } = {}): AgentModelOptionView => ({
@@ -52,7 +52,7 @@ describe("model references", () => {
 describe("Anthropic subscription models", () => {
   let dataDir: string;
   beforeEach(async () => {
-    dataDir = await mkdtemp(join(tmpdir(), "agents-in-the-cloud-model-state-"));
+    dataDir = await mkdtemp(join(tmpdir(), "kintsugi-model-state-"));
     process.env.ATELIER_DATA_DIR = dataDir;
     await setEnabledModels([{ provider: "anthropic", id: "claude", label: "Claude" }, { provider: "openai", id: "gpt", label: "GPT" }]);
     await setAgentModelPreference("builtin", { provider: "anthropic", id: "claude" });

@@ -2,7 +2,7 @@ import { afterEach, expect, test } from "bun:test";
 import { mkdtemp, readFile, rm, mkdir, writeFile, utimes } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { shellQuote } from "@agents-in-the-cloud/core";
+import { shellQuote } from "@kintsugi/core";
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
 import { createModels, fauxAssistantMessage, fauxProvider, fauxToolCall } from "@earendil-works/pi-ai";
 import { createRegistry } from "@earendil-works/pi-durable";
@@ -21,7 +21,7 @@ afterEach(async () => {
   }
 });
 async function fixture() {
-  const path = await mkdtemp(join(tmpdir(), "agents-in-the-cloud-bash-"));
+  const path = await mkdtemp(join(tmpdir(), "kintsugi-bash-"));
   const socket = join(path, "tmux.sock");
   await command(["tmux", "-S", socket, "new-session", "-d", "-s", "keeper"]);
   fixtures.push({ path, socket });
@@ -69,7 +69,7 @@ test("a lost tmux supervisor is reported as uncertain rather than relaunched", a
   await f.operations("ensure", input, true);
   for (let i = 0; i < 100 && !await Bun.file(join(f.path, "count")).exists(); i++) await Bun.sleep(10);
   expect(await readFile(join(f.path, "count"), "utf8")).toBe("once\n");
-  await command(["tmux", "-S", f.socket, "kill-session", "-t", `agents-in-the-cloud-agent-${input.id}`]);
+  await command(["tmux", "-S", f.socket, "kill-session", "-t", `kintsugi-agent-${input.id}`]);
   expect(await f.operations("ensure", input, true)).toMatchObject({ status: "uncertain" });
   expect(await readFile(join(f.path, "count"), "utf8")).toBe("once\n");
 });
@@ -202,7 +202,7 @@ def tmux(argv, **kwargs):
 subprocess.run = tmux
 sys.argv = [script, "status", request, "--root", root]
 runpy.run_path(script, run_name="__main__")
-`, join(import.meta.dir, "../../workspace_tools/agents-in-the-cloud-agent-bash"), f.root, JSON.stringify(input)]);
+`, join(import.meta.dir, "../../workspace_tools/kintsugi-agent-bash"), f.root, JSON.stringify(input)]);
   expect(JSON.parse(output)).toEqual({ status: "done", aborted: true });
 });
 

@@ -3,13 +3,13 @@ import { registerLiveSurfaces } from "./live-surface.ts";
 
 import { Application as StimulusApplication, Controller as StimulusController } from "@hotwired/stimulus";
 // Turbo does not publish TypeScript declarations, but Bun resolves and bundles its browser module.
-import { registerDesignSystemControllers } from "@agents-in-the-cloud/design-system/client";
+import { registerDesignSystemControllers } from "@kintsugi/design-system/client";
 import {
   installSoftwareKeyboardTracking,
-  type AgentsInTheCloudCableClient,
+  type KintsugiCableClient,
   type WorkspaceClientControllerConstructor,
-} from "@agents-in-the-cloud/shared";
-import { createProvisionTerminalController } from "@agents-in-the-cloud/workspace/client";
+} from "@kintsugi/shared";
+import { createProvisionTerminalController } from "@kintsugi/workspace/client";
 // @ts-expect-error Turbo ships no TypeScript declarations.
 import * as Turbo from "@hotwired/turbo";
 import { NavigationOriginController } from "./navigation-origin-controller.ts";
@@ -32,7 +32,7 @@ import { registerWorkspaceShortcutsController } from "./workspace-shortcuts.ts";
 declare global {
   interface Window {
     Turbo?: { renderStreamMessage(html: string): void };
-    AgentsInTheCloudCable?: AgentsInTheCloudCableClient;
+    KintsugiCable?: KintsugiCableClient;
   }
 }
 

@@ -1,7 +1,7 @@
 import { execFile } from "node:child_process";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
-import { getAgentsInTheCloudRuntimeContext, invalidArguments, isNotFoundError, shellQuote, writeJsonAtomic, type AgentsInTheCloudEventBus } from "@agents-in-the-cloud/core";
+import { getKintsugiRuntimeContext, invalidArguments, isNotFoundError, shellQuote, writeJsonAtomic, type KintsugiEventBus } from "@kintsugi/core";
 import { Type, type Static } from "typebox";
 import { Value } from "typebox/value";
 
@@ -19,7 +19,7 @@ const storedCommitIdentitySchema = Type.Object({
 
 type CommitIdentityStore = Static<typeof storedCommitIdentitySchema>;
 
-export function commitIdentitySettingsFile(dataDir = getAgentsInTheCloudRuntimeContext().agentsInTheCloudDataDir): string {
+export function commitIdentitySettingsFile(dataDir = getKintsugiRuntimeContext().kintsugiDataDir): string {
   return join(dataDir, "project-settings.json");
 }
 
@@ -100,7 +100,7 @@ export async function clearCommitIdentity(file = commitIdentitySettingsFile()): 
   await writeStore(file, {});
 }
 
-export function registerCommitIdentityWorkspaceEvents(events: AgentsInTheCloudEventBus): void {
+export function registerCommitIdentityWorkspaceEvents(events: KintsugiEventBus): void {
   events.on("workspace_plan_prepare", async ({ plan }) => {
     const identity = await getCommitIdentity();
     if (!identity) return;

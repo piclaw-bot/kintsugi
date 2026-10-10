@@ -49,7 +49,7 @@ const page = await ChromePage.open(args.cdp);
 const builtinUrl = `${setup.atelier}/workspaces/${setup.workspaceId}?agent=${setup.builtinId}`;
 const piUrl = `${setup.atelier}/workspaces/${setup.workspaceId}?agent=${setup.piId}`;
 const terminalUrl = `${setup.atelier}/workspaces/${setup.workspaceId}?workView=${encodeURIComponent(setup.terminalKey)}`;
-const draftKey = `agents-in-the-cloud.agentComposerText:${JSON.stringify([setup.workspaceId, setup.builtinId])}`;
+const draftKey = `kintsugi.agentComposerText:${JSON.stringify([setup.workspaceId, setup.builtinId])}`;
 
 const sel = {
   pane: ".agent-composer-pane",
@@ -156,7 +156,7 @@ function floatingStackChecks(frame: Frame, composerOpen: boolean, surface: Box =
 }
 
 async function stageDraft(text: string | null): Promise<void> {
-  await page.evaluate<boolean>(`(() => { localStorage.removeItem("agents-in-the-cloud:software-keyboard"); ${text === null ? `localStorage.removeItem(${JSON.stringify(draftKey)})` : `localStorage.setItem(${JSON.stringify(draftKey)}, ${JSON.stringify(text)})`}; return true; })()`);
+  await page.evaluate<boolean>(`(() => { localStorage.removeItem("kintsugi:software-keyboard"); ${text === null ? `localStorage.removeItem(${JSON.stringify(draftKey)})` : `localStorage.setItem(${JSON.stringify(draftKey)}, ${JSON.stringify(text)})`}; return true; })()`);
 }
 
 const tinyPng = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAQAAAAECAIAAAAmkwkpAAAAEklEQVR4nGP4z8AARwzEcQAApjAJ+4n1yJ0AAAAASUVORK5CYII=", "base64");

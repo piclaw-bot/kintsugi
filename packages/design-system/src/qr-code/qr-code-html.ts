@@ -1,5 +1,5 @@
 import qrcode from "qrcode-generator";
-import { escapeHtml } from "@agents-in-the-cloud/shared";
+import { escapeHtml } from "@kintsugi/shared";
 import { buttonHtml } from "../button/button-html.ts";
 import { dialogHtml } from "../dialog/dialog-html.ts";
 import { Icons } from "../icons/icons-html.ts";

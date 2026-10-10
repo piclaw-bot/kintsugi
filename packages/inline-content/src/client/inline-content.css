@@ -1,4 +1,4 @@
-/* Public authoring vocabulary. Paint and native controls come from AgentsInTheCloud's design system. */
+/* Public authoring vocabulary. Paint and native controls come from Kintsugi's design system. */
 :root {
   --ic-text: var(--text-bright); --ic-text-muted: var(--text); --ic-surface: var(--panel);
   --ic-border: var(--line-strong); --ic-accent: var(--accent); --ic-on-accent: var(--accent-contrast);

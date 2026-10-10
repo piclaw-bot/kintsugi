@@ -1,6 +1,6 @@
 /// <reference lib="dom" />
 
-import { createObservableTerminalViewer, observableWebSocketUrl, type ObservableTerminalViewer } from "@agents-in-the-cloud/observable-terminal/client";
+import { createObservableTerminalViewer, observableWebSocketUrl, type ObservableTerminalViewer } from "@kintsugi/observable-terminal/client";
 
 export function createProvisionTerminalController(Controller: new (...args: never[]) => { element: Element }) {
   return class ProvisionTerminalController extends Controller {

@@ -1,4 +1,4 @@
-import type { JsonObject } from "@agents-in-the-cloud/core";
+import type { JsonObject } from "@kintsugi/core";
 import { expect, test } from "bun:test";
 import { protectedRepositoryBuildCommand } from "./build-network.ts";
 
@@ -16,10 +16,10 @@ test("CLI migrates before exec, fails on migration error, and preserves argument
   const args = ["docker", "--host", "unix:///control/docker.sock", "build", "path with spaces"];
   const command = protectedRepositoryBuildCommand(protectedResources, args);
   expect(command.slice(0, 2)).toEqual(["sh", "-ec"]);
-  expect(command[2]).toBe('echo $$ > /run/agents-in-the-cloud-system/build-client-processes/cgroup.procs; exec "$@"');
+  expect(command[2]).toBe('echo $$ > /run/kintsugi-system/build-client-processes/cgroup.procs; exec "$@"');
   expect(command.slice(4)).toEqual(args);
   const failing = protectedRepositoryBuildCommand(protectedResources, ["sh", "-c", "echo SHOULD_NOT_RUN"]);
-  failing[2] = failing[2]!.replace("/run/agents-in-the-cloud-system/build-client-processes/cgroup.procs", `/nonexistent-build-client-${crypto.randomUUID()}/cgroup.procs`);
+  failing[2] = failing[2]!.replace("/run/kintsugi-system/build-client-processes/cgroup.procs", `/nonexistent-build-client-${crypto.randomUUID()}/cgroup.procs`);
   const child = Bun.spawn(failing, { stdout: "pipe", stderr: "pipe" });
   const [code, stdout] = await Promise.all([child.exited, new Response(child.stdout).text(), new Response(child.stderr).text()]);
   expect(code).not.toBe(0);

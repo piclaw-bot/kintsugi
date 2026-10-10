@@ -1,4 +1,4 @@
-import { launchComposerCommand, recentWorkspaceTemplateStorageKey, type WorkspaceClientHooks } from "@agents-in-the-cloud/shared";
+import { launchComposerCommand, recentWorkspaceTemplateStorageKey, type WorkspaceClientHooks } from "@kintsugi/shared";
 
 export function registerLaunchComposerCommand(hooks: WorkspaceClientHooks): void {
   hooks.registerCommand({

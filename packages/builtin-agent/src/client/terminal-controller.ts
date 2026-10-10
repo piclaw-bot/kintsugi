@@ -1,6 +1,6 @@
-import { agentsInTheCloudObservableTerminalTheme, createObservableTerminalViewer, observableWebSocketUrl, type ObservableTerminalTheme, type ObservableTerminalViewer } from "@agents-in-the-cloud/observable-terminal/client";
+import { kintsugiObservableTerminalTheme, createObservableTerminalViewer, observableWebSocketUrl, type ObservableTerminalTheme, type ObservableTerminalViewer } from "@kintsugi/observable-terminal/client";
 import { findAgentPaneController } from "./agent-pane.ts";
-import type { WorkspaceClientApplication as StimulusApplication, WorkspaceClientControllerConstructor as StimulusControllerConstructor } from "@agents-in-the-cloud/shared";
+import type { WorkspaceClientApplication as StimulusApplication, WorkspaceClientControllerConstructor as StimulusControllerConstructor } from "@kintsugi/shared";
 
 export function forwardAgentTerminalWheel<T extends Pick<HTMLElement, "scrollTop" | "clientHeight">>(
   terminal: { closest(selectors: string): T | null },
@@ -39,7 +39,7 @@ export function createAgentTermController(Controller: StimulusControllerConstruc
     private theme(): ObservableTerminalTheme {
       const terminalStyle = getComputedStyle(this.element);
       return {
-        ...agentsInTheCloudObservableTerminalTheme(),
+        ...kintsugiObservableTerminalTheme(),
         background: terminalStyle.backgroundColor,
         foreground: terminalStyle.color,
       };
@@ -54,7 +54,7 @@ export function createAgentTermController(Controller: StimulusControllerConstruc
     };
 
     connect(): void {
-      document.addEventListener("agents-in-the-cloud:theme-change", this.themeChanged);
+      document.addEventListener("kintsugi:theme-change", this.themeChanged);
       this.element.addEventListener("wheel", this.wheel, { capture: true, passive: false });
       findAgentPaneController(this.application, this.element)?.terminalConnected(this);
     }
@@ -87,7 +87,7 @@ export function createAgentTermController(Controller: StimulusControllerConstruc
 
     disconnect(): void {
       this.stop();
-      document.removeEventListener("agents-in-the-cloud:theme-change", this.themeChanged);
+      document.removeEventListener("kintsugi:theme-change", this.themeChanged);
       this.element.removeEventListener("wheel", this.wheel, { capture: true });
     }
   };

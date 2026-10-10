@@ -1,4 +1,4 @@
-import { shellQuote } from "@agents-in-the-cloud/core";
+import { shellQuote } from "@kintsugi/core";
 import { parseArgs } from 'node:util';
 const serveSimVersion = '0.1.47';
 const nodeVersion = '22.22.0';

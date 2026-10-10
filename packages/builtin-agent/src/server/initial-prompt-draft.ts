@@ -1,6 +1,6 @@
 import { mkdir, rm, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
-import { agentsInTheCloudDataPath, getAgentsInTheCloudRuntimeContext, readTextIfExists } from "@agents-in-the-cloud/core";
+import { kintsugiDataPath, getKintsugiRuntimeContext, readTextIfExists } from "@kintsugi/core";
 import { Type } from "typebox";
 import { Value } from "typebox/value";
 
@@ -10,7 +10,7 @@ const initialPromptDraftSchema = Type.Object({
 });
 
 function initialPromptDraftWorkspacePath(workspaceId: string): string {
-  return agentsInTheCloudDataPath(getAgentsInTheCloudRuntimeContext(), "agent-initial-prompt-drafts", workspaceId);
+  return kintsugiDataPath(getKintsugiRuntimeContext(), "agent-initial-prompt-drafts", workspaceId);
 }
 
 function initialPromptDraftPath(workspaceId: string, agentId: string): string {

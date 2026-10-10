@@ -42,7 +42,7 @@ test("loads native session files and serves only supported embedded images", asy
       { kind: "user", images: [{ entryId: "u", contentIndex: 1, mimeType: "image/png" }] },
       { kind: "toolResult", images: [] },
     ]);
-    expect(await piResumePath("ws", "tab")).toBe("/home/agents-in-the-cloud/.local/share/pi/sessions/tab/2026_session.jsonl");
+    expect(await piResumePath("ws", "tab")).toBe("/home/agent/.local/share/pi/sessions/tab/2026_session.jsonl");
     expect(await piResumePath("ws", "other-tab")).toBeUndefined();
     const image = await loadPiTranscriptImage("ws", "tab", "u", 1);
     expect(image.status).toBe(200);

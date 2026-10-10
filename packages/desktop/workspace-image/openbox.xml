@@ -3,7 +3,7 @@
   <focus><focusNew>yes</focusNew><followMouse>no</followMouse></focus>
   <desktops><number>1</number></desktops>
   <applications>
-    <application class="AgentsInTheCloudDesktop" type="normal">
+    <application class="KintsugiDesktop" type="normal">
       <decor>no</decor><maximized>yes</maximized>
     </application>
   </applications>

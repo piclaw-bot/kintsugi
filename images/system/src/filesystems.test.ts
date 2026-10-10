@@ -11,5 +11,5 @@ test.each([
   ["erofs, overlay", "\terofs_extra\n"],
 ])("reports missing %s support", (missing, available) => {
   const failure = filesystemFailure(available);
-  expect(failure).toBe(`The Linux kernel that powers your Docker does not have ${missing}, which AgentsInTheCloud requires.`);
+  expect(failure).toBe(`The Linux kernel that powers your Docker does not have ${missing}, which Kintsugi requires.`);
 });

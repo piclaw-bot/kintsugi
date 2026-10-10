@@ -43,7 +43,7 @@ export async function connectedUsageProviders(): Promise<UsageProvider[]> {
   return supportedUsageProviders.filter((provider) => runtime.getProviderAuthStatus(provider.id).configured);
 }
 
-/** `refresh` asks the provider now instead of reusing what AgentsInTheCloud already knows. */
+/** `refresh` asks the provider now instead of reusing what Kintsugi already knows. */
 export async function getProviderUsageOverview(provider: UsageProvider, options: { refresh?: boolean } = {}): Promise<ProviderUsageOverview> {
   let reported: SubscriptionUsage | null = null;
   let error: string | null = null;

@@ -1,5 +1,5 @@
 {
-  "name": "@agents-in-the-cloud/host",
+  "name": "@kintsugi/host",
   "private": true,
   "type": "module",
   "exports": {
@@ -7,12 +7,12 @@
     "./client": "./src/client/index.ts"
   },
   "dependencies": {
-    "@agents-in-the-cloud/core": "workspace:*",
-    "@agents-in-the-cloud/design-system": "workspace:*",
-    "@agents-in-the-cloud/observable-terminal": "workspace:*",
-    "@agents-in-the-cloud/shared": "workspace:*",
+    "@kintsugi/core": "workspace:*",
+    "@kintsugi/design-system": "workspace:*",
+    "@kintsugi/observable-terminal": "workspace:*",
+    "@kintsugi/shared": "workspace:*",
     "@hotwired/stimulus": "github:hotwired/dev-builds#339df548999c34d440e04c24b59ad9dc57ce3eb1",
     "typebox": "^1.0.57",
-    "@agents-in-the-cloud/proxy-ingress": "workspace:*"
+    "@kintsugi/proxy-ingress": "workspace:*"
   }
 }

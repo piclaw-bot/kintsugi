@@ -8,7 +8,7 @@ const directories: string[] = [];
 afterEach(async () => { await Promise.all(directories.splice(0).map((path) => rm(path, { recursive: true }))); });
 
 test.each([128, 1024, 8192, 65536])("raises %i to the minimum without lowering existing limits", async (initial) => {
-  const directory = await mkdtemp(join(tmpdir(), "agents-in-the-cloud-inotify-"));
+  const directory = await mkdtemp(join(tmpdir(), "kintsugi-inotify-"));
   directories.push(directory);
   const file = join(directory, "limit");
   await writeFile(file, `${initial}\n`);
@@ -23,7 +23,7 @@ test("fails if the kernel value cannot be read", async () => {
 });
 
 test("verifies the limit after writing it", async () => {
-  const directory = await mkdtemp(join(tmpdir(), "agents-in-the-cloud-inotify-"));
+  const directory = await mkdtemp(join(tmpdir(), "kintsugi-inotify-"));
   directories.push(directory);
   // Simulate a host that continues reporting the old limit after the write.
   await writeFile(join(directory, "cat"), "#!/bin/sh\necho 128\n", { mode: 0o755 });
@@ -39,7 +39,7 @@ test("runs on the Docker host using the resolved image, without network or pulls
     expect(args).toEqual([
       "run", "--rm", "--pull=never", "--privileged", "--network=none",
       "--user", "root", "--entrypoint", "/bin/sh", "sha256:existing",
-      "-c", inotifyMinimumScript, "agents-in-the-cloud-inotify", "/proc/sys/fs/inotify/max_user_instances",
+      "-c", inotifyMinimumScript, "kintsugi-inotify", "/proc/sys/fs/inotify/max_user_instances",
     ]);
     return { exitCode: 0, stdout: "fs.inotify.max_user_instances=8192\n", stderr: "" };
   });
@@ -47,5 +47,5 @@ test("runs on the Docker host using the resolved image, without network or pulls
 
 test("surfaces permission failures with remediation", async () => {
   await expect(ensureHostInotifyLimit("image", async () => ({ exitCode: 1, stdout: "", stderr: "Read-only file system" })))
-    .rejects.toThrow("set fs.inotify.max_user_instances to at least 8192 on the Docker host, then restart AgentsInTheCloud.\nRead-only file system");
+    .rejects.toThrow("set fs.inotify.max_user_instances to at least 8192 on the Docker host, then restart Kintsugi.\nRead-only file system");
 });

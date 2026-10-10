@@ -1,6 +1,6 @@
-import { syntaxSlot, transcriptSlot } from "@agents-in-the-cloud/cli-agent/server";
+import { syntaxSlot, transcriptSlot } from "@kintsugi/cli-agent/server";
 
-export const codexThemeName = "agents-in-the-cloud";
+export const codexThemeName = "kintsugi";
 
 // bat/syntect encoding that Codex honors: alpha 00 makes red the palette index,
 // alpha 01 means the terminal default. Palette colors follow the viewer's theme.
@@ -20,12 +20,12 @@ const scopes: [scope: string, index: number][] = [
 ];
 
 /** Codex's syntax theme: inline code, table headers and code blocks. */
-export function codexAgentsInTheCloudTmTheme(): string {
+export function codexKintsugiTmTheme(): string {
   const entry = (scope: string, foreground: string) =>
     `<dict><key>scope</key><string>${scope}</string><key>settings</key><dict><key>foreground</key><string>${foreground}</string></dict></dict>`;
   return `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0"><dict><key>name</key><string>AgentsInTheCloud</string><key>settings</key><array>
+<plist version="1.0"><dict><key>name</key><string>Kintsugi</string><key>settings</key><array>
 <dict><key>settings</key><dict><key>foreground</key><string>${terminalDefault}</string><key>background</key><string>${terminalDefault}</string></dict></dict>
 ${scopes.map(([scope, index]) => entry(scope, slot(index))).join("\n")}
 </array></dict></plist>

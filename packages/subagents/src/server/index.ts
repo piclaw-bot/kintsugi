@@ -1,7 +1,7 @@
 import { Type } from "typebox";
 import { Value } from "typebox/value";
-import type { WorkspaceModule } from "@agents-in-the-cloud/shared";
-import { listWorkspaceAgents, configureAgentDelegation, durableWorkspaceOwner } from "@agents-in-the-cloud/builtin-agent/server";
+import type { WorkspaceModule } from "@kintsugi/shared";
+import { listWorkspaceAgents, configureAgentDelegation, durableWorkspaceOwner } from "@kintsugi/builtin-agent/server";
 import { createNativeDelegationExtension } from "./native-runtime.ts";
 import { delegationModels } from "./native-models.ts";
 import { nativeDelegationTranscript } from "./native-transcript.ts";
@@ -11,7 +11,7 @@ import { nativeSnapshot } from "./native-view-state.ts";
 import { renderSubagentsControl, handleSubagentRequest, subscribeSubagentTree } from "./subagent-view.ts";
 import { subagentsOpenApiPaths } from "./openapi.ts";
 
-export const agentsInTheCloudServerModule: WorkspaceModule = {
+export const kintsugiServerModule: WorkspaceModule = {
   id: "subagents",
   initialize() {
     configureAgentDelegation({

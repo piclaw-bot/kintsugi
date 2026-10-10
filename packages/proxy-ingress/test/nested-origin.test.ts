@@ -4,8 +4,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { connect, createServer } from "node:net";
-import { workspaceGatewayPortHeader, workspaceGatewayHostHeader, workspaceGatewayProtocolHeader, workspaceGatewayTokenHeader } from "@agents-in-the-cloud/shared";
-import { createParentAgentsInTheCloudPublisher } from "../src/ingress/index.ts";
+import { workspaceGatewayPortHeader, workspaceGatewayHostHeader, workspaceGatewayProtocolHeader, workspaceGatewayTokenHeader } from "@kintsugi/shared";
+import { createParentKintsugiPublisher } from "../src/ingress/index.ts";
 import { startIngress } from "./fixtures/ingress.ts";
 
 function freePort() { const server = Bun.serve({ hostname: "127.0.0.1", port: 0, fetch: () => new Response() }); const port = server.port!; server.stop(true); return port; }
@@ -70,17 +70,17 @@ test("nested socket publication routes HTTP and WebSocket directly, retains orig
     }, websocket: { message(socket, message) { socket.send(message); } },
   });
   const published: number[] = [];
-  const parent = { kind: "tailscale" as const, async publish(port: number) { published.push(port); return `https://agents-in-the-cloud.example:${port}`; } };
+  const parent = { kind: "tailscale" as const, async publish(port: number) { published.push(port); return `https://kintsugi.example:${port}`; } };
   const outerPort = freePort(), innerPort = freePort();
   let outer = await startIngress(join(directory, "outer"), outerPort, parent, { o1234: outerGateway.url, other: foreignGateway.url });
-  let inner = await startIngress(join(directory, "inner"), innerPort, createParentAgentsInTheCloudPublisher(outer.socket("o1234")), { i4321: innerGateway.url });
+  let inner = await startIngress(join(directory, "inner"), innerPort, createParentKintsugiPublisher(outer.socket("o1234")), { i4321: innerGateway.url });
   try {
     const origins = await Promise.all(Array.from({ length: 12 }, () => inner.ingress.publishPort("i4321", dev.port!)));
     expect(new Set(origins).size).toBe(1);
     const origin = origins[0]!;
     expect(published).toHaveLength(1);
     expect(outer.ingress.inspect()[0]!.workspaceId).toBe("o1234");
-    const actual = origin.replace("https://agents-in-the-cloud.example", "http://127.0.0.1");
+    const actual = origin.replace("https://kintsugi.example", "http://127.0.0.1");
     const headers = { origin };
     const response = await fetch(`${actual}/products?sort=true&x=a%20b`, { method: "POST", headers, body: "payload=one&two=2" });
     expect(await response.text()).toBe("POST /products?sort=true&x=a%20b payload=one&two=2");
@@ -101,7 +101,7 @@ test("nested socket publication routes HTTP and WebSocket directly, retains orig
       socket.onmessage = (event) => { expect(event.data).toBe("reload"); clearTimeout(timer); socket.close(); resolve(); };
     });
     for (const foreign of ["https://evil.example", "null", `http://localhost:${innerPort}`]) {
-      const response = await fetch(actual, { method: "POST", body: "bad", headers: { origin: foreign, "x-agents-in-the-cloud-origin-context": foreign, "x-agents-in-the-cloud-public-origin": foreign } });
+      const response = await fetch(actual, { method: "POST", body: "bad", headers: { origin: foreign, "x-kintsugi-origin-context": foreign, "x-kintsugi-public-origin": foreign } });
       expect(response.status).toBe(403); await response.text();
       expect(observed.at(-1)!.get("origin")).toBe(foreign);
     }
@@ -116,7 +116,7 @@ test("nested socket publication routes HTTP and WebSocket directly, retains orig
     expect(invalid.status).toBe(400); await invalid.text();
     await inner.stop(); await outer.stop();
     outer = await startIngress(join(directory, "outer"), outerPort, parent, { o1234: outerGateway.url, other: foreignGateway.url });
-    inner = await startIngress(join(directory, "inner"), innerPort, createParentAgentsInTheCloudPublisher(outer.socket("o1234")), { i4321: innerGateway.url });
+    inner = await startIngress(join(directory, "inner"), innerPort, createParentKintsugiPublisher(outer.socket("o1234")), { i4321: innerGateway.url });
     // No navigate/publication request: restored listeners immediately serve traffic.
     expect(await (await fetch(`${actual}/restored?x=2`)).text()).toBe("GET /restored?x=2 ");
     expect(await inner.ingress.publishPort("i4321", dev.port!)).toBe(origin);

@@ -2,7 +2,7 @@ import { expect, test } from "bun:test";
 import { chmod, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { managementOriginRejection } from "@agents-in-the-cloud/proxy-ingress/server";
+import { managementOriginRejection } from "@kintsugi/proxy-ingress/server";
 import { preparePreview } from "../../../scripts/run-redesign-preview.ts";
 import { startLightingTuner } from "../scripts/surface-lighting-tuner.ts";
 
@@ -96,7 +96,7 @@ test("lighting proxy translates only same-origin HTTP and WebSocket requests", a
     const response = await fetch(`${tunerOrigin}/workspaces/one/commands/terminal.create`, {
       method: "POST", headers: {
         Origin: tunerOrigin, "content-type": "application/json", "x-forwarded-proto": "https",
-        "x-forwarded-host": "attacker.example", "x-agents-in-the-cloud-origin-context": tunerOrigin,
+        "x-forwarded-host": "attacker.example", "x-kintsugi-origin-context": tunerOrigin,
       }, body: '{"title":"Shell"}',
     });
     expect(response.status).toBe(200);

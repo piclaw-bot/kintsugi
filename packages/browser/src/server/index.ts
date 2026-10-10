@@ -1,1 +1,1 @@
-export { browserWorkspaceModule as agentsInTheCloudServerModule } from "./web.ts";
+export { browserWorkspaceModule as kintsugiServerModule } from "./web.ts";

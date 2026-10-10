@@ -1,12 +1,12 @@
 // Protocol/lifecycle integration checks. Run against a disposable installed System
-// with agents-in-the-cloud-test:{v1,v2,broken,retry} loaded into its inner Docker daemon.
+// with kintsugi-test:{v1,v2,broken,retry} loaded into its inner Docker daemon.
 import { strict as assert } from "node:assert";
 import { parseArgs } from "node:util";
 import { command, sleep } from "./src/process.ts";
 const { values } = parseArgs({
   options: {
     host: { type: "string" },
-    container: { type: "string", default: "agents-in-the-cloud-system" },
+    container: { type: "string", default: "kintsugi-system" },
   },
 });
 const prefix = ["docker", ...(values.host ? ["--host", values.host] : [])];
@@ -51,26 +51,26 @@ async function healthy(version: string) {
   );
 }
 await until(async () => !(await status()).busy, "System idle");
-await update("agents-in-the-cloud-test:v1");
+await update("kintsugi-test:v1");
 await healthy("v1");
 const original = await api("/state", "GET", undefined, 3000);
 const workspace = await docker(
   "run",
   "-d",
   "--name",
-  "agents-in-the-cloud-smoke-workspace",
+  "kintsugi-smoke-workspace",
   "--mount",
-  "source=agents-in-the-cloud-smoke-workspace,target=/data",
+  "source=kintsugi-smoke-workspace,target=/data",
   "--entrypoint",
   "/bin/sh",
-  "agents-in-the-cloud-test:v1",
+  "kintsugi-test:v1",
   "-c",
   "echo preserved > /data/marker; exec sleep infinity",
 );
 const before = JSON.parse(await docker("inspect", workspace))[0];
 // Subscribe to the public protocol, not a browser/DOM. Operation continues once
 // the request that initiated it has finished, independently of this observer.
-await update("agents-in-the-cloud-test:v2");
+await update("kintsugi-test:v2");
 const events = exec(
   "bun",
   "-e",
@@ -99,13 +99,13 @@ const concurrent = JSON.parse(
   await exec(
     "bun",
     "-e",
-    'const send=()=>fetch("http://127.0.0.1:3001/update",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({image:"agents-in-the-cloud-test:v2"})}).then(r=>r.status);console.log(JSON.stringify((await Promise.all([send(),send()])).sort()));',
+    'const send=()=>fetch("http://127.0.0.1:3001/update",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({image:"kintsugi-test:v2"})}).then(r=>r.status);console.log(JSON.stringify((await Promise.all([send(),send()])).sort()));',
   ),
 );
 assert.deepEqual(concurrent, [202, 409]);
 await healthy("v2");
 console.log("PASS: concurrent app updates serialize");
-await update("agents-in-the-cloud-test:broken");
+await update("kintsugi-test:broken");
 await until(
   async () => !!(await status()).failure && !(await status()).busy,
   "broken startup timeout",
@@ -117,7 +117,7 @@ assert(
 );
 console.log("PASS: broken startup timeout and container logs");
 await exec("touch", "/data/app/fail-startup");
-await update("agents-in-the-cloud-test:retry");
+await update("kintsugi-test:retry");
 await until(
   async () => !!(await status()).failure && !(await status()).busy,
   "retry fixture failure",
@@ -134,12 +134,12 @@ assert.equal(
 );
 await healthy("retry");
 console.log("PASS: retry succeeds after correcting startup condition");
-await docker("kill", "agents-in-the-cloud");
+await docker("kill", "kintsugi");
 await until(
   async () => !(await status()).healthy && !!(await status()).failure,
   "running app failure",
 );
-await update("agents-in-the-cloud-test:v2");
+await update("kintsugi-test:v2");
 await healthy("v2");
 console.log("PASS: running app failure visible; restored v2 for manual review");
 const selected = (await status()).currentImage;
@@ -187,7 +187,7 @@ if ((await api("/access")).mode === "localhost") {
   const access = await api("/access");
   assert.equal(access.connectionState, "Stopped");
   assert.equal(access.authUrl, undefined);
-  assert.equal(access.origin, `http://agents-in-the-cloud.localhost:${access.localPort}`, "access URL must return to the installation computer after disconnecting Tailscale");
+  assert.equal(access.origin, `http://kintsugi.localhost:${access.localPort}`, "access URL must return to the installation computer after disconnecting Tailscale");
   assert.equal((await status()).healthy, true, "switching connection mode must not restart the app");
   console.log("PASS: local mode leaves Tailscale stopped; explicit selection starts it; computer-only mode stops it without restarting the app");
 }

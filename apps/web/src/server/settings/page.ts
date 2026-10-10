@@ -1,21 +1,21 @@
 import { connectionModeManaged, renderConnectionModeSettings } from "./connection-mode.ts";
-import { actionLinkHtml } from "@agents-in-the-cloud/design-system/action-link";
-import { panelHtml } from "@agents-in-the-cloud/design-system/panel";
-import { buttonHtml } from "@agents-in-the-cloud/design-system/button";
-import { disclosureHtml } from "@agents-in-the-cloud/design-system/disclosure";
-import { destructiveConfirmationHtml } from "@agents-in-the-cloud/design-system/destructive-confirmation";
-import { Icons } from "@agents-in-the-cloud/design-system/icons";
-import { createPiModelRuntime, modelsDialogId, popularProviderIds, setEnabledModels } from "@agents-in-the-cloud/llm/server";
-import { invalidArguments } from "@agents-in-the-cloud/core";
-import { errorMessage, escapeHtml, providerBadgeHtml } from "@agents-in-the-cloud/shared";
-import { clearGitHubToken } from "@agents-in-the-cloud/proxy-egress";
-import { agentsInTheCloudUrl } from "@agents-in-the-cloud/proxy-ingress";
-import { clearCommitIdentity, getStoredCommitIdentity, setCommitIdentity } from "@agents-in-the-cloud/workspace-templates";
-import { agentsInTheCloudUrlHtml } from "../agents-in-the-cloud-url.ts";
+import { actionLinkHtml } from "@kintsugi/design-system/action-link";
+import { panelHtml } from "@kintsugi/design-system/panel";
+import { buttonHtml } from "@kintsugi/design-system/button";
+import { disclosureHtml } from "@kintsugi/design-system/disclosure";
+import { destructiveConfirmationHtml } from "@kintsugi/design-system/destructive-confirmation";
+import { Icons } from "@kintsugi/design-system/icons";
+import { createPiModelRuntime, modelsDialogId, popularProviderIds, setEnabledModels } from "@kintsugi/llm/server";
+import { invalidArguments } from "@kintsugi/core";
+import { errorMessage, escapeHtml, providerBadgeHtml } from "@kintsugi/shared";
+import { clearGitHubToken } from "@kintsugi/proxy-egress";
+import { kintsugiUrl } from "@kintsugi/proxy-ingress";
+import { clearCommitIdentity, getStoredCommitIdentity, setCommitIdentity } from "@kintsugi/workspace-templates";
+import { kintsugiUrlHtml } from "../kintsugi-url.ts";
 import { resetOnboarding } from "../onboarding/state.ts";
 import { renderOnboardingDialog } from "../onboarding/routes.ts";
 import { workspaceModules } from "../workspace-modules.generated.ts";
-import { remove, replace, response, stream, update, wantsStream } from "@agents-in-the-cloud/shared/http";
+import { remove, replace, response, stream, update, wantsStream } from "@kintsugi/shared/http";
 import { listSettingsContributions, registerSettingsContribution } from "./registry.ts";
 import { renderThemeSettings } from "./theme.ts";
 import { globalWorkspaceSettingsSectionId, renderGlobalWorkspaceSettings } from "../template-settings.ts";
@@ -40,7 +40,7 @@ async function renderCommitIdentitySettings(): Promise<string> {
 function renderBuildIdentity(): string {
   const commit = process.env.ATELIER_COMMIT_ID;
   if (!commit) return `<span class="settings-build-identity">Local development build</span>`;
-  const commitUrl = `https://github.com/lucasmeijer/atelier/commit/${encodeURIComponent(commit)}`;
+  const commitUrl = `https://github.com/rcarmo/kintsugi/commit/${encodeURIComponent(commit)}`;
   return `<a class="settings-build-identity" href="${commitUrl}" target="_blank" rel="noreferrer">${escapeHtml(commit.slice(0, 7))}</a>`;
 }
 
@@ -75,7 +75,7 @@ function renderResetSettings(): string {
   return `<div class="developer-tools-action">
     <div class="developer-tools-copy">
       <div>Stored settings</div>
-      <p>Delete the Commit identity, GitHub token, and model provider credentials stored by AgentsInTheCloud.</p>
+      <p>Delete the Commit identity, GitHub token, and model provider credentials stored by Kintsugi.</p>
     </div>
     <div class="developer-tools-control"><form method="post" action="/settings/reset" data-turbo="true">${confirmation}</form></div>
   </div>`;
@@ -128,7 +128,7 @@ export async function renderSettingsFrame(request: Request, sectionId?: string):
   });
   const content = `<div class="app-settings-overview">
     ${take("theme", "dictation", "commit-identity", "github", "update-channel", "update", "access")}
-    ${connectionModeManaged() ? "" : `<section class="settings-sec settings-sec-url" id="settings-sec-url"><h2>AgentsInTheCloud URL</h2>${agentsInTheCloudUrlHtml(agentsInTheCloudUrl(request), "settings_agents_in_the_cloud_url_qr")}</section>`}
+    ${connectionModeManaged() ? "" : `<section class="settings-sec settings-sec-url" id="settings-sec-url"><h2>Kintsugi URL</h2>${kintsugiUrlHtml(kintsugiUrl(request), "settings_kintsugi_url_qr")}</section>`}
     ${take(...inline.keys())}
     <div class="app-settings-disclosures">${disclosure("models", "Models")}${disclosure(globalWorkspaceSettingsSectionId, "Global workspace settings that apply to all new workspaces")}${disclosure("host", "Host")}${disclosure("developer-tools", "Developer tools")}</div>
   </div>`;

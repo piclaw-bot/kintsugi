@@ -1,5 +1,5 @@
 import { readFile } from "node:fs/promises";
-import { agentsInTheCloudDataPath, createKeyedOperationQueue, getAgentsInTheCloudRuntimeContext, invalidArguments, readTextIfExists, writeFileAtomic } from "@agents-in-the-cloud/core";
+import { kintsugiDataPath, createKeyedOperationQueue, getKintsugiRuntimeContext, invalidArguments, readTextIfExists, writeFileAtomic } from "@kintsugi/core";
 import { scanFingerprint, type SshTrustCandidate } from "./ssh-trust-recovery.ts";
 
 export interface WorkspaceSshTrustRequest extends SshTrustCandidate {
@@ -24,7 +24,7 @@ export function workspaceSshTrustRequests(workspaceId: string): WorkspaceSshTrus
 }
 
 function workspaceTrustPath(workspaceId: string): string {
-  return agentsInTheCloudDataPath(getAgentsInTheCloudRuntimeContext(), "ssh-agents", workspaceId, "workspace_known_hosts");
+  return kintsugiDataPath(getKintsugiRuntimeContext(), "ssh-agents", workspaceId, "workspace_known_hosts");
 }
 
 export async function workspaceKnownHosts(workspaceId: string): Promise<string> {
@@ -41,7 +41,7 @@ export async function requestWorkspaceSshTrust(workspaceId: string, host: string
     return { line: parts.join(" "), fingerprint: scanFingerprint(parts[2]!) };
   });
   if (!records.length || records.length > 20 || input.length > 20_000) throw invalidArguments("No SSH host keys were returned");
-  const trusted = `${await readFile(agentsInTheCloudDataPath(getAgentsInTheCloudRuntimeContext(), "ssh-agents", workspaceId, "known_hosts"), "utf8")}${await workspaceKnownHosts(workspaceId)}`;
+  const trusted = `${await readFile(kintsugiDataPath(getKintsugiRuntimeContext(), "ssh-agents", workspaceId, "known_hosts"), "utf8")}${await workspaceKnownHosts(workspaceId)}`;
   const hostRecords = trusted.split("\n").filter(line => line.split(/\s+/)[0]?.split(",").includes(address));
   // A match among the server's advertised algorithms is enough: servers may add key types over time.
   if (records.some(record => hostRecords.includes(record.line))) return trusted;

@@ -1,7 +1,7 @@
-import { actionLinkHtml } from "@agents-in-the-cloud/design-system/action-link";
-import { contentRowHtml } from "@agents-in-the-cloud/design-system/content-row";
-import { Icons } from "@agents-in-the-cloud/design-system/icons";
-import { escapeHtml } from "@agents-in-the-cloud/shared";
+import { actionLinkHtml } from "@kintsugi/design-system/action-link";
+import { contentRowHtml } from "@kintsugi/design-system/content-row";
+import { Icons } from "@kintsugi/design-system/icons";
+import { escapeHtml } from "@kintsugi/shared";
 
 interface TemplateChoice { id: string; title: string; swatchColor?: string }
 

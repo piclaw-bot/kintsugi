@@ -1,5 +1,5 @@
 #!/usr/bin/python3
-"""Workspace-owned desktop. The supervisor, not AgentsInTheCloud's web process, owns X."""
+"""Workspace-owned desktop. The supervisor, not Kintsugi's web process, owns X."""
 import fcntl
 import json
 import os
@@ -13,7 +13,7 @@ import time
 import urllib.error
 import urllib.request
 
-ROOT = Path.home() / ".local/state/agents-in-the-cloud-desktop"
+ROOT = Path.home() / ".local/state/kintsugi-desktop"
 DISPLAY = ":99"
 CDP_PORT = 9222
 VNC_PORT = 5900
@@ -124,11 +124,11 @@ def supervise(ready_fd):
                 children.append((name, process))
             launch("Xvfb", ["Xvfb", DISPLAY, "-screen", "0", "800x900x24", "-nolisten", "tcp", "-auth", str(auth), "-noreset"])
             wait_ready(lambda: subprocess.run(["xdpyinfo"], env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode == 0, children, "Xvfb")
-            launch("Openbox", ["openbox", "--config-file", "/opt/agents-in-the-cloud/desktop/openbox.xml"])
+            launch("Openbox", ["openbox", "--config-file", "/opt/kintsugi/desktop/openbox.xml"])
             wait_ready(lambda: b"_NET_SUPPORTING_WM_CHECK(WINDOW)" in subprocess.check_output(["xprop", "-root", "_NET_SUPPORTING_WM_CHECK"], env=env), children, "Openbox")
             # Docker blocks Chromium's sandbox namespace setup; the workspace container
             # provides isolation. Suppress the Chrome for Testing banner and flag warnings.
-            launch("Chromium", ["dbus-run-session", "--", "/opt/agents-in-the-cloud/bin/chromium", "--no-sandbox", "--test-type=gpu", "--gtk-version=3", f"--user-data-dir={ROOT / 'profile'}", "--class=AgentsInTheCloudDesktop", "--no-first-run", "--no-default-browser-check", "--disable-dev-shm-usage", "--start-maximized", "--remote-debugging-address=127.0.0.1", f"--remote-debugging-port={CDP_PORT}", "about:blank"])
+            launch("Chromium", ["dbus-run-session", "--", "/opt/kintsugi/bin/chromium", "--no-sandbox", "--test-type=gpu", "--gtk-version=3", f"--user-data-dir={ROOT / 'profile'}", "--class=KintsugiDesktop", "--no-first-run", "--no-default-browser-check", "--disable-dev-shm-usage", "--start-maximized", "--remote-debugging-address=127.0.0.1", f"--remote-debugging-port={CDP_PORT}", "about:blank"])
             wait_ready(cdp_ready, children, "Chromium CDP")
             launch("x11vnc", ["x11vnc", "-display", DISPLAY, "-auth", str(auth), "-listen", "127.0.0.1", "-rfbport", str(VNC_PORT), "-forever", "-shared", "-nopw", "-noxdamage", "-xkb"])
             wait_ready(lambda: port_ready(VNC_PORT), children, "VNC")
@@ -215,7 +215,7 @@ def main():
         supervise(int(sys.argv[2]))
         return
     if command not in ("start", "status", "stop"):
-        raise ValueError("Usage: agents-in-the-cloud-desktop start|status|stop")
+        raise ValueError("Usage: kintsugi-desktop start|status|stop")
     result = {"start": start, "status": request_status, "stop": stop}[command]()
     print(json.dumps(result))
     if result["phase"] == "failed":

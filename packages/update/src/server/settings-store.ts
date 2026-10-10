@@ -1,11 +1,11 @@
-import { agentsInTheCloudDataPath, getAgentsInTheCloudRuntimeContext } from "@agents-in-the-cloud/core";
-import { updateJsonSettings } from "@agents-in-the-cloud/core/json-settings";
-import { readReleaseSettings, selectedReleaseChannel, defaultReleaseSource, releaseSourceSchema, type ReleaseSource } from "@agents-in-the-cloud/shared/release-source";
+import { kintsugiDataPath, getKintsugiRuntimeContext } from "@kintsugi/core";
+import { updateJsonSettings } from "@kintsugi/core/json-settings";
+import { readReleaseSettings, selectedReleaseChannel, defaultReleaseSource, releaseSourceSchema, type ReleaseSource } from "@kintsugi/shared/release-source";
 import { Value } from "typebox/value";
 import { type UpdateChannel } from "./update-channel.ts";
 
 function settingsPath(): string {
-  return agentsInTheCloudDataPath(getAgentsInTheCloudRuntimeContext(), "update.json");
+  return kintsugiDataPath(getKintsugiRuntimeContext(), "update.json");
 }
 
 export async function readStoredUpdateChannel(): Promise<UpdateChannel | undefined> {

@@ -1,19 +1,19 @@
-import type { AgentsInTheCloudEventBus } from "@agents-in-the-cloud/core";
-import type { WorkspaceModule } from "@agents-in-the-cloud/shared";
-import { providerBrandIconHtml } from "@agents-in-the-cloud/shared";
+import type { KintsugiEventBus } from "@kintsugi/core";
+import type { WorkspaceModule } from "@kintsugi/shared";
+import { providerBrandIconHtml } from "@kintsugi/shared";
 import { createCodexAgents } from "./runtime.ts";
 import { codexRoutes } from "./routes.ts";
 import { channelName, paneHtml } from "./render.ts";
 import { agentTypeId, label, requireSetup, settings } from "./setup.ts";
 
 const agentParameters = ["id", "agentId"].map(name => ({ name, in: "path", required: true, schema: { type: "string" } }));
-let events: AgentsInTheCloudEventBus;
+let events: KintsugiEventBus;
 const agents = createCodexAgents(() => events);
-export const agentsInTheCloudServerModule: WorkspaceModule = {
+export const kintsugiServerModule: WorkspaceModule = {
   id: "codex-agent",
   initialize(context) {
     events = context.events;
-    context.events.on("agents_in_the_cloud_host_stopping", () => agents.disposeAll());
+    context.events.on("kintsugi_host_stopping", () => agents.disposeAll());
     context.events.on("workspace_deleting", ({ workspaceId }) => agents.disposeWorkspace(workspaceId));
     context.events.on("workspace_agent_turn_finished", ({ workspaceId, agentId }) => {
       if (agents.list(workspaceId).some(record => record.id === agentId)) context.registry.requestAttention(workspaceId);

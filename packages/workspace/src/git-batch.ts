@@ -57,7 +57,7 @@ async function run(request) {
       // Honor the workspace user's file permissions even when directory replacement is allowed.
       const writable = await open(target, constants.O_WRONLY | constants.O_NOFOLLOW);
       await writable.close();
-      temporary = directory + '/.agents-in-the-cloud-edit-' + randomUUID();
+      temporary = directory + '/.kintsugi-edit-' + randomUUID();
       const output = await open(temporary, 'wx', 0o600);
       try {
         await output.writeFile(request.contents, 'utf8');

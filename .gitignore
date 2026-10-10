@@ -1,6 +1,6 @@
 node_modules/
-.agents-in-the-cloud-data/
-.agents-in-the-cloud-workspace-image-context/
+.kintsugi-data/
+.kintsugi-workspace-image-context/
 /artifacts/
 .DS_Store
 apps/web/public/*.js

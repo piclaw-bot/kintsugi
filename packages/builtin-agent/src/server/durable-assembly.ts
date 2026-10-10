@@ -4,21 +4,21 @@ import { durableSubscriptionActivity } from "./durable-accounting.ts";
 import type { Models } from "@earendil-works/pi-ai";
 import { createRegistry, defineExtension, type AgentChange, type Harness, type HarnessOptions } from "@earendil-works/pi-durable";
 import { formatSkillsForPrompt } from "@earendil-works/pi-coding-agent";
-import { createPiModelRuntime } from "@agents-in-the-cloud/llm/server";
-import { workspaceRoot } from "@agents-in-the-cloud/workspace";
+import { createPiModelRuntime } from "@kintsugi/llm/server";
+import { workspaceRoot } from "@kintsugi/workspace";
 import { createDurableWorkspaceTools } from "./durable-tools.ts";
 import { createDurableBashExtension } from "./durable-bash.ts";
 import { durableJournalInstructions } from "./durable-storage.ts";
 import { loadWorkspaceAgentsFiles } from "./workspace-agents-files.ts";
-import { loadWorkspaceSkills } from "@agents-in-the-cloud/agent/server/skills";
-import { agentsInTheCloudSystemPrompt, prepareAppendedAgentsInTheCloudInstructions } from "@agents-in-the-cloud/agent/server/system-prompt";
-import { launchComposerThinkingSettings, resolveNewWorkspaceAgentModel } from "@agents-in-the-cloud/agent/server/model-state";
-import type { WorkspaceAgentToolOptions } from "@agents-in-the-cloud/agent/server/tools";
+import { loadWorkspaceSkills } from "@kintsugi/agent/server/skills";
+import { kintsugiSystemPrompt, prepareAppendedKintsugiInstructions } from "@kintsugi/agent/server/system-prompt";
+import { launchComposerThinkingSettings, resolveNewWorkspaceAgentModel } from "@kintsugi/agent/server/model-state";
+import type { WorkspaceAgentToolOptions } from "@kintsugi/agent/server/tools";
 
 /** Workspace-scoped code, including the task definitions needed to recover bash. */
 export function createDurableWorkspaceRegistry(workspaceId: string, models: Pick<Models, "getModel">, options: WorkspaceAgentToolOptions = {}) {
   const registry = createRegistry();
-  registry.install(defineExtension({ name: "agents-in-the-cloud.workspace-tools", tools: createDurableWorkspaceTools(workspaceId, models, options) }));
+  registry.install(defineExtension({ name: "kintsugi.workspace-tools", tools: createDurableWorkspaceTools(workspaceId, models, options) }));
   registry.install(createDurableBashExtension(workspaceId));
   return registry;
 }
@@ -62,13 +62,13 @@ export async function prepareDurableAgent(
     load.agents(workspaceId),
     load.skills(workspaceId),
     initial.model !== undefined ? Promise.resolve(undefined) : load.model(),
-    prepareAppendedAgentsInTheCloudInstructions(options.events, workspaceId, agentId),
+    prepareAppendedKintsugiInstructions(options.events, workspaceId, agentId),
   ]);
   const selectedModel = initial.model !== undefined ? initial.model : model ? { provider: model.provider, modelId: model.id } : undefined;
   const thinking = initial.thinkingLevel !== undefined ? initial.thinkingLevel
     : (await load.thinking(selectedModel ? { provider: selectedModel.provider, id: selectedModel.modelId } : undefined)).selected;
   const instructions = [
-    agentsInTheCloudSystemPrompt,
+    kintsugiSystemPrompt,
     durableJournalInstructions(workspaceId, agentId),
     ...appended,
     ...agents.map((file) => `# Project instructions: ${file.path}\n\n${file.content}`),

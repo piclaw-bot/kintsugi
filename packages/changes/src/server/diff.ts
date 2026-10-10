@@ -1,7 +1,7 @@
-import { extensionOf, imageMimeByExtension } from "@agents-in-the-cloud/shared/file-metadata";
+import { extensionOf, imageMimeByExtension } from "@kintsugi/shared/file-metadata";
 import { isUtf8 } from "node:buffer";
 import { parseDiffFromFile, type FileContents, type FileDiffMetadata } from "@pierre/diffs";
-import { git, parseGitStatus, parseGitNumstat, type GitStatusEntry, type GitNumstat, type Repository } from "@agents-in-the-cloud/workspace/git";
+import { git, parseGitStatus, parseGitNumstat, type GitStatusEntry, type GitNumstat, type Repository } from "@kintsugi/workspace/git";
 import { maxChangesTextBytes, maxChangesTextLines } from "../editing.ts";
 
 type ChangesFileKind = "text" | "binary" | "large" | "mode";

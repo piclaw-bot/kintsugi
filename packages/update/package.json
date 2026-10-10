@@ -1,5 +1,5 @@
 {
-  "name": "@agents-in-the-cloud/update",
+  "name": "@kintsugi/update",
   "private": true,
   "type": "module",
   "exports": {
@@ -8,9 +8,9 @@
     "./client": "./src/client/index.ts"
   },
   "dependencies": {
-    "@agents-in-the-cloud/core": "workspace:*",
-    "@agents-in-the-cloud/design-system": "workspace:*",
-    "@agents-in-the-cloud/shared": "workspace:*",
+    "@kintsugi/core": "workspace:*",
+    "@kintsugi/design-system": "workspace:*",
+    "@kintsugi/shared": "workspace:*",
     "typebox": "^1.0.57"
   }
 }

@@ -118,7 +118,7 @@ function expandSkill(command: string): string {
 }
 ```
 
-Use screenshots or video only when the point is actual rendered behavior that an explanatory HTML diagram would misrepresent. Link editable source with an `agents-in-the-cloud://file/...` URL when the user will benefit from inspecting it.
+Use screenshots or video only when the point is actual rendered behavior that an explanatory HTML diagram would misrepresent. Link editable source with an `kintsugi://file/...` URL when the user will benefit from inspecting it.
 
 If the task is to compare several UI directions or validate a state model rather than explain the current topic, use the `prototype` skill instead of turning this artifact into a miniature prototype.
 
@@ -128,4 +128,4 @@ Place each visual next to the short text it supports. Keep only the calls, files
 
 You may use one format or several; it is unlikely you need all of them. Do not overwhelm the user.
 
-<!-- Adapted for AgentsInTheCloud from HumanLayer's show-me skill: https://github.com/humanlayer/skills/tree/main/plugins/show-me -->
+<!-- Adapted for Kintsugi from HumanLayer's show-me skill: https://github.com/humanlayer/skills/tree/main/plugins/show-me -->

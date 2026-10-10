@@ -1,5 +1,5 @@
-import type { AgentRenderContext } from "@agents-in-the-cloud/agent/server/render-context";
-import { escapeHtml } from "@agents-in-the-cloud/shared";
+import type { AgentRenderContext } from "@kintsugi/agent/server/render-context";
+import { escapeHtml } from "@kintsugi/shared";
 
 /** Communication details share the standard tool card, with labelled data rows. */
 export function communicationCardHtml(rows: Array<{ label: string; html: string }>): string {

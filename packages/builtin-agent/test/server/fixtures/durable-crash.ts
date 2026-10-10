@@ -5,7 +5,7 @@ import { createModels, fauxAssistantMessage, fauxProvider, fauxToolCall } from "
 import { createRegistry, defineExtension } from "@earendil-works/pi-durable";
 import { Type } from "typebox";
 import { durableWorkspaceTool } from "../../../src/server/durable-tools.ts";
-import { defineWorkspaceTool } from "@agents-in-the-cloud/agent/server/workspace-tool";
+import { defineWorkspaceTool } from "@kintsugi/agent/server/workspace-tool";
 import { openDurableWorkspace } from "../../../src/server/durable-workspace.ts";
 
 const [directory, replay] = process.argv.slice(2);

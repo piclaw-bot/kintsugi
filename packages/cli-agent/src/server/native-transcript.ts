@@ -1,6 +1,6 @@
 import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
-import { isNotFoundError } from "@agents-in-the-cloud/core";
+import { isNotFoundError } from "@kintsugi/core";
 import type { TSchema, Static } from "typebox";
 import { Value } from "typebox/value";
 

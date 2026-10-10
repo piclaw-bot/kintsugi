@@ -2,7 +2,7 @@ import { afterEach, expect, test } from "bun:test";
 import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { git } from "@agents-in-the-cloud/workspace/git";
+import { git } from "@kintsugi/workspace/git";
 import { localRepository } from "../../workspace/test/support/local-repository.ts";
 import { resolveDiffEndpoints } from "../src/diff-endpoints.ts";
 import { captureChanges, commitHistory, InvalidDiffEndpoints, workingTree as uncommitted, stagedChanges } from "../src/server/snapshot.ts";

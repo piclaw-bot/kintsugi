@@ -1,7 +1,7 @@
 import { Type } from "typebox";
 import { Value } from "typebox/value";
-import { agentsInTheCloudDataPath, getAgentsInTheCloudRuntimeContext, readTextIfExists, writeFileAtomic } from "@agents-in-the-cloud/core";
-import type { WorkspaceAppRef } from "@agents-in-the-cloud/shared";
+import { kintsugiDataPath, getKintsugiRuntimeContext, readTextIfExists, writeFileAtomic } from "@kintsugi/core";
+import type { WorkspaceAppRef } from "@kintsugi/shared";
 import type { PortRange } from "./tailscale-serve.ts";
 
 export interface OriginAssignment { port: number; fresh: boolean }
@@ -61,7 +61,7 @@ function store(read: () => Promise<State>, write: (state: State) => Promise<void
   };
 }
 
-export function createFileOriginIdentityStore(path = agentsInTheCloudDataPath(getAgentsInTheCloudRuntimeContext(), "proxy", "origin-identities.json")): OriginIdentityStore {
+export function createFileOriginIdentityStore(path = kintsugiDataPath(getKintsugiRuntimeContext(), "proxy", "origin-identities.json")): OriginIdentityStore {
   const lock = serialize();
   return store(async () => {
     const text = await readTextIfExists(path);

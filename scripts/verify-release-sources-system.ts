@@ -8,7 +8,7 @@ import { Type } from "typebox";
 import { Value } from "typebox/value";
 import { parseArgs } from "node:util";
 
-const { values } = parseArgs({ options: { app: { type: "string", default: "agents-in-the-cloud-release:local" }, system: { type: "string", default: "agents-in-the-cloud-system:release-local" }, workspace: { type: "string" }, "release-updates": { type: "boolean", default: false }, "installer-system": { type: "string" } } });
+const { values } = parseArgs({ options: { app: { type: "string", default: "kintsugi-release:local" }, system: { type: "string", default: "kintsugi-system:release-local" }, workspace: { type: "string" }, "release-updates": { type: "boolean", default: false }, "installer-system": { type: "string" } } });
 const name = `aitc-release-integration-${crypto.randomUUID().slice(0, 8)}`;
 const volume = name;
 const fixtureApp = `${name}:app`;
@@ -32,7 +32,7 @@ try {
   if (!Value.Check(Type.Array(Type.String({ minLength: 1 }), { minItems: 1 }), preloads)) throw new Error("App image must declare its baked workspace image, or use an image built by this repository");
   const workspaceImage = values.workspace ?? preloads[0]!;
   // Start only dockerd for preloading, as in the existing System bootstrap test.
-  await run(["docker", "run", "-d", "--name", name, "--privileged", "--cgroupns=host", "--tmpfs", "/run", "--mount", `source=${volume},target=/data`, "--entrypoint", "/usr/local/bin/agents-in-the-cloud-dockerd", values.system!, "dockerd"]);
+  await run(["docker", "run", "-d", "--name", name, "--privileged", "--cgroupns=host", "--tmpfs", "/run", "--mount", `source=${volume},target=/data`, "--entrypoint", "/usr/local/bin/kintsugi-dockerd", values.system!, "dockerd"]);
   await until(async () => (await exec("docker", "info").then(() => true, () => false)), "inner Docker daemon");
   const save = Bun.spawn(["docker", "save", values.app!, workspaceImage], { stdout: "pipe", stderr: "pipe" });
   const load = Bun.spawn(["docker", "exec", "-i", name, "docker", "load"], { stdin: save.stdout, stdout: "pipe", stderr: "pipe" });
@@ -86,7 +86,7 @@ try {
     const installerAppId = await exec("docker", "image", "inspect", "--format", "{{.Id}}", installerApp);
     await exec("bun", "-e", 'await Bun.write("/data/app/update.json",JSON.stringify({releaseMode:"custom",releaseSource:{appRepository:"ghcr.io/example/fixture-app",systemRepository:"ghcr.io/example/fixture-system"}}));');
     const script = (await Bun.file(new URL("./install.sh", import.meta.url)).text())
-      .replace("system_name=agents-in-the-cloud-system", `system_name=${name}`)
+      .replace("system_name=kintsugi-system", `system_name=${name}`)
       .replace('{ [ -t 0 ]; } 2>/dev/null <"$prompt_input"', "true")
       .replace('IFS= read -r -t 120 "$1" <"$prompt_input"', 'if [ "$1" = answer ]; then answer=yes; else exit 2; fi')
       .replace("run_root mkdir -p /etc/modules-load.d", "mkdir -p /etc/modules-load.d")

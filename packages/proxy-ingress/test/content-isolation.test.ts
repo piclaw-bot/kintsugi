@@ -59,7 +59,7 @@ test("publication failures and refreshed management-origin collisions fail close
     resolveApp() { reads++; return { kind: "fetch", fetch: () => new Response("untrusted") }; },
   });
   const request = new Request("http://localhost:3000/workspaces/one/files/work/demo.html", {
-    headers: { "x-agents-in-the-cloud-public-origin": "https://management.example" },
+    headers: { "x-kintsugi-public-origin": "https://management.example" },
   });
   try {
     for (published of ["http://localhost:3000", "https://management.example"]) {
@@ -140,7 +140,7 @@ test("two ingress hops preserve artifact-origin denial for terminal HTTP and Web
   });
   const inner = createWorkspaceIngress({
     hostname: "127.0.0.1", originPortRange: { start: innerPort, end: innerPort }, resolveWorkspace() {}, resolveApp() { return undefined; },
-    parentOriginPublisher: { kind: "agents-in-the-cloud", async publish(port) { return await outer.publishPort("nested", port); } },
+    parentOriginPublisher: { kind: "kintsugi", async publish(port) { return await outer.publishPort("nested", port); } },
     resolvePort(_id, port, _protocol, url) { return { kind: "http", target: new URL(`http://127.0.0.1:${port}${url.pathname}${url.search}`) }; },
   });
   const artifacts = createWorkspaceIngress({ hostname: "127.0.0.1", resolveWorkspace() {}, resolveApp() { return { kind: "fetch", fetch: () => new Response("artifact") }; } });
@@ -152,7 +152,7 @@ test("two ingress hops preserve artifact-origin denial for terminal HTTP and Web
     // must not become trusted merely by coinciding with a translated address.
     for (const browserOrigin of [artifactOrigin, `http://localhost:${management.port}`, "null"]) {
       for (const websocket of [false, true]) {
-        const headers = new Headers({ origin: browserOrigin, "x-agents-in-the-cloud-origin-context": origin });
+        const headers = new Headers({ origin: browserOrigin, "x-kintsugi-origin-context": origin });
         if (websocket) {
           headers.set("upgrade", "websocket");
           headers.set("connection", "Upgrade");

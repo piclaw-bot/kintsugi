@@ -3,8 +3,8 @@ import { requireTailscaleHttps, TailscaleHttpsDisabledError } from "./tailscale.
 
 test("HTTPS requires certificate eligibility for this node, not just a DNS name", () => {
   for (const domains of [undefined, null, [], ["other.tailnet.ts.net"]]) {
-    expect(() => requireTailscaleHttps("agents-in-the-cloud.tailnet.ts.net", domains)).toThrow(TailscaleHttpsDisabledError);
-    expect(() => requireTailscaleHttps("agents-in-the-cloud.tailnet.ts.net", domains)).toThrow("https://login.tailscale.com/admin/dns");
+    expect(() => requireTailscaleHttps("kintsugi.tailnet.ts.net", domains)).toThrow(TailscaleHttpsDisabledError);
+    expect(() => requireTailscaleHttps("kintsugi.tailnet.ts.net", domains)).toThrow("https://login.tailscale.com/admin/dns");
   }
-  requireTailscaleHttps("agents-in-the-cloud.tailnet.ts.net.", ["agents-in-the-cloud.tailnet.ts.net"]);
+  requireTailscaleHttps("kintsugi.tailnet.ts.net.", ["kintsugi.tailnet.ts.net"]);
 });

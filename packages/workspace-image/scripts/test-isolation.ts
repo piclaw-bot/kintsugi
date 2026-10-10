@@ -4,13 +4,13 @@ import assert from "node:assert/strict";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { runDocker } from "@agents-in-the-cloud/core";
+import { runDocker } from "@kintsugi/core";
 
 const image = process.argv[2];
 if (!image || process.argv.length !== 3) throw new Error("Pass a local workspace image containing the current runtime and Docker guard");
-const name = `agents-in-the-cloud-isolation-${crypto.randomUUID()}`;
+const name = `kintsugi-isolation-${crypto.randomUUID()}`;
 const sibling = `${name}-sibling`;
-const directory = await mkdtemp(join(tmpdir(), "agents-in-the-cloud-isolation-"));
+const directory = await mkdtemp(join(tmpdir(), "kintsugi-isolation-"));
 async function docker(args: string[], check = true, stdin?: string) {
   const result = await runDocker(args, { stdin });
   if (check) assert.equal(result.exitCode, 0, `${args.join(" ")}\n${result.stdout}\n${result.stderr}`);
@@ -19,7 +19,7 @@ async function docker(args: string[], check = true, stdin?: string) {
 async function exec(...args: string[]) { return (await docker(["exec", name, ...args])).stdout.trim(); }
 async function ready() {
   for (let attempt = 0; attempt < 100; attempt++) {
-    if ((await docker(["exec", name, "test", "-f", "/.agents-in-the-cloud/ready"], false)).exitCode === 0) return;
+    if ((await docker(["exec", name, "test", "-f", "/.kintsugi/ready"], false)).exitCode === 0) return;
     await Bun.sleep(200);
   }
   const logs = await docker(["exec", name, "journalctl", "--no-pager", "-n", "50"], false);
@@ -27,19 +27,19 @@ async function ready() {
 }
 try {
   await writeFile(join(directory, "token"), crypto.randomUUID());
-  await writeFile(join(directory, "docker-support"), "disabled\nhttps://agents-in-the-cloud.example/workspace-templates/test/settings?section=privileged\n");
+  await writeFile(join(directory, "docker-support"), "disabled\nhttps://kintsugi.example/workspace-templates/test/settings?section=privileged\n");
   await docker(["run", "-d", "--name", sibling, "--entrypoint", "/bin/sleep", image, "infinity"]);
   await docker(["create", "--name", name, "--security-opt", "writable-cgroups=true", "--cgroupns=private", "--memory=512m", "--memory-swap=512m", "--tmpfs", "/run", "--stop-signal", "SIGRTMIN+3", image]);
-  await docker(["cp", join(directory, "token"), `${name}:/etc/agents-in-the-cloud-workspace-gateway-token`]);
-  await docker(["cp", join(directory, "docker-support"), `${name}:/etc/agents-in-the-cloud/docker-support`]);
+  await docker(["cp", join(directory, "token"), `${name}:/etc/kintsugi-workspace-gateway-token`]);
+  await docker(["cp", join(directory, "docker-support"), `${name}:/etc/kintsugi/docker-support`]);
   await docker(["start", name]);
   await ready();
   const host = JSON.parse((await docker(["inspect", "--format", "{{json .HostConfig}}", name])).stdout);
   assert.equal(host.Privileged, false);
   assert.deepEqual(host.SecurityOpt, ["writable-cgroups=true"]);
   assert.equal(host.CgroupnsMode, "private");
-  assert.equal(await exec("systemctl", "is-active", "agents-in-the-cloud-tmux.service"), "active");
-  assert.equal(await exec("systemctl", "is-active", "agents-in-the-cloud-gateway.service"), "active");
+  assert.equal(await exec("systemctl", "is-active", "kintsugi-tmux.service"), "active");
+  assert.equal(await exec("systemctl", "is-active", "kintsugi-gateway.service"), "active");
   assert.equal(await exec("cat", "/sys/fs/cgroup/memory.max"), "536870912");
   console.log("PASS: non-privileged workspace boots with tmux, gateway and its resource budget");
 
@@ -64,13 +64,13 @@ else: os.close(fd); raise AssertionError('raw host disk can be opened')
   console.log("PASS: private cgroup delegation, no sibling access, seccomp and denied raw-device reads");
 
   for (const command of ["docker", "sudo docker"]) {
-    const result = await docker(["exec", "--user", "agents-in-the-cloud", name, "bash", "-c", `${command} info`], false);
+    const result = await docker(["exec", "--user", "agent", name, "bash", "-c", `${command} info`], false);
     assert.equal(result.exitCode, 1);
     assert.equal(result.stdout, "");
     assert.match(result.stderr, /Docker support is off/);
-    assert.match(result.stderr, /On — Docker support/);
+    assert.match(result.stderr, /On — privileged/);
     assert.match(result.stderr, /Create a new workspace/);
-    assert.match(result.stderr, /https:\/\/agents-in-the-cloud.example\/workspace-templates\/test\/settings\?section=privileged/);
+    assert.match(result.stderr, /https:\/\/kintsugi.example\/workspace-templates\/test\/settings\?section=privileged/);
   }
   for (const unit of ["docker.socket", "docker.service", "containerd.service"]) {
     assert.equal(await exec("systemctl", "show", "--property=LoadState", "--value", unit), "masked");
@@ -79,9 +79,9 @@ else: os.close(fd); raise AssertionError('raw host disk can be opened')
   await exec("sh", "-ec", "test ! -S /run/docker.sock; test ! -S /run/containerd/containerd.sock");
   console.log("PASS: actionable CLI guidance for users and sudo; Docker/containerd cannot activate when disabled");
 
-  await exec("sh", "-ec", "printf 'disabled\\n\\n' > /etc/agents-in-the-cloud/docker-support");
+  await exec("sh", "-ec", "printf 'disabled\\n\\n' > /etc/kintsugi/docker-support");
   const projectless = await docker(["exec", name, "docker", "info"], false);
-  assert.match(projectless.stderr, /create a workspace for a project/);
+  assert.match(projectless.stderr, /create a workspace from a Workspace template/);
   await docker(["restart", "--time", "20", name]);
   await ready();
   assert.equal(await exec("systemctl", "show", "--property=LoadState", "--value", "docker.socket"), "masked");

@@ -28,7 +28,7 @@ describe("streaming Markdown", () => {
       "| A | B |\n|---|---|\n| 1 | 2 |\n\nnext\n\n",
       "```ts\nconst x = 1;\n\nnext\n\n",
       "![preview](artifact-preview:/work/preview",
-      "[file](agents-in-the-cloud://file/work/a.ts",
+      "[file](kintsugi://file/work/a.ts",
     ]) {
       expect(streamingMarkdownStableBoundary(prefix + tail)).toBe(prefix.length);
     }
@@ -43,7 +43,7 @@ describe("streaming Markdown", () => {
 
   test("completes safe links and degrades unfinished images", () => {
     expect(repairStreamingMarkdownTail("[site](https://example.com/path")).toEndWith(")");
-    expect(repairStreamingMarkdownTail("[file](agents-in-the-cloud://file/work/a.ts")).toEndWith(")");
+    expect(repairStreamingMarkdownTail("[file](kintsugi://file/work/a.ts")).toEndWith(")");
     expect(repairStreamingMarkdownTail("[bad](javascript:alert")).toBe("[bad](javascript:alert");
     const image = renderStreamingMarkdownSnapshot(workspaceId, "![alt](https://example.com/incomplete");
     expect(image.tailHtml).not.toContain("<img");
@@ -54,7 +54,7 @@ describe("streaming Markdown", () => {
     const source = [
       "<script>alert(1)</script>",
       "",
-      "[web](https://example.com) [file](agents-in-the-cloud://file/work/a.ts)",
+      "[web](https://example.com) [file](kintsugi://file/work/a.ts)",
     ].join("\n");
     const snapshot = renderStreamingMarkdownSnapshot(workspaceId, source);
     const html = snapshot.stableHtml + snapshot.tailHtml;

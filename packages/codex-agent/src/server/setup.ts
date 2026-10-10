@@ -1,8 +1,8 @@
-import { agentsInTheCloudSystemPrompt } from "@agents-in-the-cloud/agent/server/system-prompt";
-import { prepareCliAgentConnection } from "@agents-in-the-cloud/agent/server";
-import { checkedWorkspaceShell, cliLaunchScript, createCliModelSettings } from "@agents-in-the-cloud/cli-agent/server";
-import { createPiModelRuntime, installCodexSubscriptionAuth, requireProviderSubscription } from "@agents-in-the-cloud/llm/server";
-import { loadWorkspaceAgentsFiles } from "@agents-in-the-cloud/builtin-agent/server/workspace-agents-files";
+import { kintsugiSystemPrompt } from "@kintsugi/agent/server/system-prompt";
+import { prepareCliAgentConnection } from "@kintsugi/agent/server";
+import { checkedWorkspaceShell, cliLaunchScript, createCliModelSettings } from "@kintsugi/cli-agent/server";
+import { createPiModelRuntime, installCodexSubscriptionAuth, requireProviderSubscription } from "@kintsugi/llm/server";
+import { loadWorkspaceAgentsFiles } from "@kintsugi/builtin-agent/server/workspace-agents-files";
 import { codexVersion } from "./protocol.ts";
 
 export const agentTypeId = "codex";
@@ -11,11 +11,11 @@ export const settings = createCliModelSettings({ agentTypeId, provider: "openai-
 export async function requireSetup() {
   await requireProviderSubscription(await createPiModelRuntime(), "openai-codex", "Codex");
 }
-export function codexHome(agentId: string) { return `/home/agents-in-the-cloud/.local/share/agents-in-the-cloud-agents/${agentId}/codex`; }
+export function codexHome(agentId: string) { return `/home/agent/.local/share/kintsugi-agents/${agentId}/codex`; }
 
 export async function prepareCodex(workspaceId: string, agentId: string): Promise<{ instructions: string; mcp: { url: string; token: string } }> {
   await installCodexSubscriptionAuth(workspaceId, codexHome(agentId), await createPiModelRuntime());
-  const connection = await prepareCliAgentConnection(workspaceId, agentId, agentsInTheCloudSystemPrompt);
+  const connection = await prepareCliAgentConnection(workspaceId, agentId, kintsugiSystemPrompt);
   // Codex keeps its base coding prompt, AGENTS.md discovery and native tools.
   // Only the renderer-aware application guidance and plugin instructions differ.
   const files = await loadWorkspaceAgentsFiles(workspaceId, { includeRoot: false });

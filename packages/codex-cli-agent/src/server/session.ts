@@ -1,12 +1,12 @@
-import { writeCliSessionFiles, type CliAgentConnection, type CliAgentSession } from "@agents-in-the-cloud/cli-agent/server";
-import { shellQuote } from "@agents-in-the-cloud/core";
+import { writeCliSessionFiles, type CliAgentConnection, type CliAgentSession } from "@kintsugi/cli-agent/server";
+import { shellQuote } from "@kintsugi/core";
 
 /** Keep launch config and credentials private, while Codex owns one shared native installation. */
 export async function prepareCodexSession(workspaceId: string, session: CliAgentSession, connection: CliAgentConnection): Promise<Record<string, string>> {
   const directory = `${session.directory}/codex`;
   await writeCliSessionFiles(workspaceId, session, {
     "codex/instructions.override": `developer_instructions=${JSON.stringify(connection.instructions)}`,
-    "codex/mcp.override": `mcp_servers.agents-in-the-cloud={url=${JSON.stringify(connection.url)},required=true,tool_timeout_sec=3600,http_headers_helper=${JSON.stringify(`cat ${shellQuote(`${directory}/http-headers.json`)}`)}}`,
+    "codex/mcp.override": `mcp_servers.kintsugi={url=${JSON.stringify(connection.url)},required=true,tool_timeout_sec=3600,http_headers_helper=${JSON.stringify(`cat ${shellQuote(`${directory}/http-headers.json`)}`)}}`,
     "codex/http-headers.json": JSON.stringify({ Authorization: `Bearer ${connection.token}` }),
     "codex/session-start.cjs": `const fs = require("node:fs");
 const path = require("node:path");

@@ -1,6 +1,6 @@
 import { Value } from "typebox/value";
 import { inlineContentFrameMessage } from "../shared/inline-content-protocol.ts";
-import type { WorkspaceClientControllerConstructor } from "@agents-in-the-cloud/shared";
+import type { WorkspaceClientControllerConstructor } from "@kintsugi/shared";
 
 export function createInlineContentController(Controller: WorkspaceClientControllerConstructor) {
   return class extends Controller {
@@ -51,7 +51,7 @@ export function createInlineContentController(Controller: WorkspaceClientControl
         }
         if (data.type === "error") this.fail(`An interaction failed: ${data.message}`, false);
         if (data.type === "link") {
-          // A sandbox cannot navigate AgentsInTheCloud. External navigation always requires host confirmation.
+          // A sandbox cannot navigate Kintsugi. External navigation always requires host confirmation.
           if (confirm(`Open this external link?\n${data.href}`)) window.open(data.href, "_blank", "noopener,noreferrer");
         }
       };

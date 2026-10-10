@@ -1,4 +1,4 @@
-import { languageFromPath } from "@agents-in-the-cloud/syntax/language";
+import { languageFromPath } from "@kintsugi/syntax/language";
 import { Type, type Static } from "typebox";
 import type { DiffEndpoints } from "./diff-endpoints.ts";
 

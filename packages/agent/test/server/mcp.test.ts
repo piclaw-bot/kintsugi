@@ -12,7 +12,7 @@ import { createAgentMcpServer } from "../../src/server/mcp-server.ts";
 const cleanup: Array<() => Promise<void>> = [];
 afterEach(async () => { for (const close of cleanup.splice(0).reverse()) await close(); });
 async function fixture() {
-  const directory = await mkdtemp(join(tmpdir(), "agents-in-the-cloud-mcp-test-"));
+  const directory = await mkdtemp(join(tmpdir(), "kintsugi-mcp-test-"));
   cleanup.push(() => rm(directory, { recursive: true, force: true }));
   const credentials = createAgentMcpCredentials(directory);
   const identity = { workspaceId: "workspace-a", agentId: crypto.randomUUID() };

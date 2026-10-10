@@ -1,5 +1,5 @@
 import { posix } from "node:path";
-import { execWorkspaceCommand, execWorkspaceCommandBuffer, workspaceRoot } from "@agents-in-the-cloud/workspace";
+import { execWorkspaceCommand, execWorkspaceCommandBuffer, workspaceRoot } from "@kintsugi/workspace";
 
 export interface FileEntry {
   name: string;
@@ -125,7 +125,7 @@ export async function uploadFile(workspaceId: string, inputDirectory: string | n
   if (!name || name === "." || name === ".." || name.includes("/") || name.includes("\\") || name.includes("\0")) throw new FilesPathError("Invalid file name", 422);
 
   const target = posix.join(directory, name);
-  const temporary = posix.join(directory, `.agents-in-the-cloud-upload-${crypto.randomUUID()}`);
+  const temporary = posix.join(directory, `.kintsugi-upload-${crypto.randomUUID()}`);
   const script = `set -e
 umask 022
 trap 'rm -f -- "$1"' EXIT

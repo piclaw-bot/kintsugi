@@ -51,7 +51,7 @@ describe.skip("System terminal lifecycle over private socket", () => {
   let server: Awaited<ReturnType<typeof startHostService>>;
   const call = <Command extends HostCommand>(request: Command) => hostRequest(request, socketPath);
   beforeAll(async () => {
-    directory = await mkdtemp(join(tmpdir(), "agents-in-the-cloud-host-"));
+    directory = await mkdtemp(join(tmpdir(), "kintsugi-host-"));
     socketPath = join(directory, "host.sock");
     server = await startHostService({ socketPath, tmuxSocketName, root: "/unused", effectiveMemory: 0 });
   });

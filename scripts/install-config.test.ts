@@ -36,7 +36,7 @@ test("updates retain saved source, pins and hostname, while explicit upstream se
   await writeFile(join(directory, "app/update.json"), JSON.stringify({ releaseMode: "custom", releaseChannel: "stable", releaseSource: { appRepository: "docker.io/example/app", systemRepository: "ghcr.io/example/system", systemVersion: pinned } }));
   await writeFile(join(directory, "supervisor/state.json"), JSON.stringify({ tailscaleHostname: "saved-name", currentImage: previous }));
   expect(run("plan", "", "", "", "").stdout.split("\n")).toEqual([`ghcr.io/example/system@${pinned}`, "docker.io/example/app:stable", "saved-name"]);
-  expect(run("plan", "ghcr.io/lucasmeijer/agents-in-the-cloud", "", "", "").stdout.split("\n")[0]).toBe("ghcr.io/lucasmeijer/agents-in-the-cloud-system:stable");
+  expect(run("plan", "ghcr.io/rcarmo/kintsugi", "", "", "").stdout.split("\n")[0]).toBe("ghcr.io/rcarmo/kintsugi-system:stable");
 }));
 
 test("registry-qualified overrides persist on existing installations; local overrides remain one-off", () => fixture(async (directory, run) => {
@@ -93,7 +93,7 @@ test("a saved empty registry config does not require host authentication", () =>
 
 test("an app-only override preserves the active upstream System, not an inactive custom System", () => fixture(async (directory, run) => {
   await writeFile(join(directory, "app/update.json"), JSON.stringify({ releaseMode: "upstream", releaseSource: { appRepository: "ghcr.io/example/inactive-app", systemRepository: "ghcr.io/example/inactive-system" } }));
-  expect(run("plan", "", "ghcr.io/example/new-app:v1", "", "").stdout.split("\n")[0]).toBe("ghcr.io/lucasmeijer/agents-in-the-cloud-system:latest");
+  expect(run("plan", "", "ghcr.io/example/new-app:v1", "", "").stdout.split("\n")[0]).toBe("ghcr.io/rcarmo/kintsugi-system:latest");
 }));
 
 test("repository arrays are rejected rather than coerced into references", () => fixture(async (directory, run) => {

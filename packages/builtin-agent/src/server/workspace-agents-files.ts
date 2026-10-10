@@ -1,8 +1,8 @@
-import { shellQuote } from "@agents-in-the-cloud/core";
-import { execWorkspaceCommand, workspaceRoot } from "@agents-in-the-cloud/workspace";
+import { shellQuote } from "@kintsugi/core";
+import { execWorkspaceCommand, workspaceRoot } from "@kintsugi/workspace";
 
 export async function loadWorkspaceAgentsFiles(workspaceId: string, { includeRoot = true }: { includeRoot?: boolean } = {}): Promise<Array<{ path: string; content: string }>> {
-  const agentsPaths = [`${workspaceRoot}/.agents-in-the-cloud/AGENTS.md`];
+  const agentsPaths = [`${workspaceRoot}/.kintsugi/AGENTS.md`];
   if (includeRoot) agentsPaths.unshift(`${workspaceRoot}/AGENTS.md`);
   const agentsFiles: Array<{ path: string; content: string }> = [];
 

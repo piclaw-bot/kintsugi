@@ -1,10 +1,10 @@
-import { createKeyedOperationQueue, type AgentsInTheCloudEventBus } from "@agents-in-the-cloud/core";
-import { errorMessage } from "@agents-in-the-cloud/shared";
-import { getWorkspaceTitle, listWorkspaces, setWorkspaceTitle } from "@agents-in-the-cloud/workspace";
-import { resolveNewWorkspaceAgentModel } from "@agents-in-the-cloud/agent/server/model-state";
-import { cheapestAvailableProviderModel, claudeCodeHeaders, createPiModelRuntime, type ModelRef } from "@agents-in-the-cloud/llm/server";
+import { createKeyedOperationQueue, type KintsugiEventBus } from "@kintsugi/core";
+import { errorMessage } from "@kintsugi/shared";
+import { getWorkspaceTitle, listWorkspaces, setWorkspaceTitle } from "@kintsugi/workspace";
+import { resolveNewWorkspaceAgentModel } from "@kintsugi/agent/server/model-state";
+import { cheapestAvailableProviderModel, claudeCodeHeaders, createPiModelRuntime, type ModelRef } from "@kintsugi/llm/server";
 import { listWorkspaceAgents, setWorkspaceAgentTitle, untitledAgentTitle, type WorkspaceAgentInfo } from "./agent-store.ts";
-import { agentTitleRequestOptions, normalizeSlug, promptFor, textFromResponse } from "@agents-in-the-cloud/agent/server/slug-suggestion";
+import { agentTitleRequestOptions, normalizeSlug, promptFor, textFromResponse } from "@kintsugi/agent/server/slug-suggestion";
 
 export function createAutomaticWorkspaceNamingGate() {
   const active = new Set<string>();
@@ -38,7 +38,7 @@ interface AgentTitleStore {
 }
 
 export function createAgentTitleSetter(store: AgentTitleStore) {
-  return async (agent: WorkspaceAgentInfo, title: string, options: { events?: AgentsInTheCloudEventBus; onlyIfUnnamed?: boolean } = {}): Promise<WorkspaceAgentInfo> => {
+  return async (agent: WorkspaceAgentInfo, title: string, options: { events?: KintsugiEventBus; onlyIfUnnamed?: boolean } = {}): Promise<WorkspaceAgentInfo> => {
     const result = await serializeTitleOperation(agent.workspaceId, async () => {
       const current = (await store.listAgents(agent.workspaceId)).find((candidate) => candidate.agentId === agent.agentId);
       if (!current) throw new Error(`Agent not found: ${agent.agentId}`);
@@ -74,7 +74,7 @@ function logAgentTitleSuggestionError(agent: { workspaceId: string; agentId?: st
 }
 
 interface AgentTitleSuggestionOptions {
-  events?: AgentsInTheCloudEventBus;
+  events?: KintsugiEventBus;
   agentModel?: ModelRef;
   onFailure?: (message: string) => void;
 }
@@ -149,7 +149,7 @@ function suggestAgentTitle(agent: { workspaceId: string; agentId?: string }, use
   }
 }
 
-export function maybeNameAgentFromPrompt(agent: WorkspaceAgentInfo, userMessages: string[], options: { events?: AgentsInTheCloudEventBus; agentModel?: ModelRef } = {}): void {
+export function maybeNameAgentFromPrompt(agent: WorkspaceAgentInfo, userMessages: string[], options: { events?: KintsugiEventBus; agentModel?: ModelRef } = {}): void {
   suggestAgentTitle(agent, userMessages, options);
 }
 

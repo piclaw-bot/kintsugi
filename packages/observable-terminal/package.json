@@ -1,5 +1,5 @@
 {
-  "name": "@agents-in-the-cloud/observable-terminal",
+  "name": "@kintsugi/observable-terminal",
   "private": true,
   "type": "module",
   "exports": {
@@ -9,9 +9,9 @@
     "./shared": "./src/shared/index.ts"
   },
   "dependencies": {
-    "@agents-in-the-cloud/core": "workspace:*",
-    "@agents-in-the-cloud/design-system": "workspace:*",
-    "@agents-in-the-cloud/shared": "workspace:*",
+    "@kintsugi/core": "workspace:*",
+    "@kintsugi/design-system": "workspace:*",
+    "@kintsugi/shared": "workspace:*",
     "@gespenst/core": "catalog:"
   }
 }

@@ -1,6 +1,6 @@
-import type { JsonValue } from "@agents-in-the-cloud/core";
-import { domId } from "@agents-in-the-cloud/shared";
-import { createWorkspaceMetadataState } from "@agents-in-the-cloud/workspace";
+import type { JsonValue } from "@kintsugi/core";
+import { domId } from "@kintsugi/shared";
+import { createWorkspaceMetadataState } from "@kintsugi/workspace";
 import { Type, type Static } from "typebox";
 import { Value } from "typebox/value";
 

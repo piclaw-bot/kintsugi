@@ -1,4 +1,4 @@
-import { readTextIfExists } from "@agents-in-the-cloud/core";
+import { readTextIfExists } from "@kintsugi/core";
 import { join } from "node:path";
 import { Type } from "typebox";
 import { Value } from "typebox/value";
@@ -8,7 +8,7 @@ const sessionSchema = Type.Record(Type.String(), Type.Unknown());
 
 /** Read the workspace's pronunciation hints at the start of each dictation session. */
 export async function readDictationContext(workspaceRoot: string): Promise<string[]> {
-  const directory = join(workspaceRoot, ".agents-in-the-cloud");
+  const directory = join(workspaceRoot, ".kintsugi");
   // Older repositories may still use the original configuration filename.
   const contents = await readTextIfExists(join(directory, "dictation-context"))
     ?? await readTextIfExists(join(directory, "transcription-context")) ?? "";

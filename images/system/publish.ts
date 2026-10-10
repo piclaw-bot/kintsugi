@@ -5,7 +5,7 @@ import { join, resolve } from "node:path";
 import { authenticateRegistry, commandRunner, ensureBuilders, inspectImage, inspectPlatform, platforms, type Run } from "../../scripts/release-support.ts";
 
 const root = resolve(import.meta.dir, "../..");
-const image = "ghcr.io/lucasmeijer/agents-in-the-cloud-system";
+const image = "ghcr.io/rcarmo/kintsugi-system";
 
 export async function publishSystem(run: Run, directory: string, check = false) {
   if (!check && (await run(["git", "status", "--porcelain"])).stdout.trim())
@@ -57,7 +57,7 @@ if (import.meta.main) {
   } else if (args.includes("--help") || args.includes("-h")) {
     console.log("Publish System's commit image using two native Docker daemons and move latest to it.\nRequires ATELIER_RELEASE_HELPER=[user@]hostname and GH_PACKAGE_TOKEN.\n--check validates both native builders without publishing.");
   } else {
-    const directory = mkdtempSync(join(tmpdir(), "agents-in-the-cloud-system-publish-"));
+    const directory = mkdtempSync(join(tmpdir(), "kintsugi-system-publish-"));
     const commands = commandRunner(root, text => process.stdout.write(text));
     let interrupted = false;
     const stop = () => { interrupted = true; commands.stop(); };

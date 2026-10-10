@@ -1,5 +1,5 @@
 export {
-  agentClientModule as agentsInTheCloudClientModule,
+  agentClientModule as kintsugiClientModule,
   createHtmlAutocompleteController,
   PromptHistoryNavigator,
 } from "./agent-controllers.ts";

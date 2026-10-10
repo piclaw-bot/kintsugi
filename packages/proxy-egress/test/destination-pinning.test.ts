@@ -38,8 +38,8 @@ type Recorded = {
 };
 
 async function proxiedWorkspace(hostnames: Record<string, { first: string; later: string }>, options: { mitmHost?: string; stableCalls?: number } = {}) {
-  const directory = await mkdtemp(join(tmpdir(), "agents-in-the-cloud-pin-"));
-  const ca = await ensureMitmCa({ agentsInTheCloudDataDir: directory, dockerHostAgentsInTheCloudDataDir: directory, dockerBridgeHost: "127.0.0.1" });
+  const directory = await mkdtemp(join(tmpdir(), "kintsugi-pin-"));
+  const ca = await ensureMitmCa({ kintsugiDataDir: directory, dockerHostKintsugiDataDir: directory, dockerBridgeHost: "127.0.0.1" });
   const rebind = rebindingLookup(hostnames, options.stableCalls ?? 1);
   const hooks = createHttpHooks(options.mitmHost ? { secrets: { API_KEY: { hosts: [options.mitmHost], value: "mitm-secret", placeholder: "ATELIER_PIN_PLACEHOLDER" } } } : {});
   const recorded: Recorded = { fetches: [], connects: [], lookups: [] };

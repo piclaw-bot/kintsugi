@@ -1,4 +1,4 @@
-import { AgentsInTheCloudCoreError, type AgentsInTheCloudEventBus } from "@agents-in-the-cloud/core";
+import { KintsugiCoreError, type KintsugiEventBus } from "@kintsugi/core";
 import {
   decodeCableClientMessage,
   errorMessage,
@@ -7,7 +7,7 @@ import {
   type CableClientMessage,
   type CableIdentifier,
   type CableServerMessage,
-} from "@agents-in-the-cloud/shared";
+} from "@kintsugi/shared";
 import type { WorkspaceRegistry } from "./workspace-registry.ts";
 
 export interface CableSocketData {
@@ -32,7 +32,7 @@ type SocketSubscriptionAttempt = {
 
 export interface CableServerOptions {
   registry: WorkspaceRegistry;
-  events: AgentsInTheCloudEventBus;
+  events: KintsugiEventBus;
   channels?: CableChannelAdapter[];
   logError?: (message: string) => void;
 }
@@ -80,7 +80,7 @@ export function createCableServer(options: CableServerOptions): CableServer {
   function authorize(identifier: CableIdentifier): void {
     if (identifier.channel === "shell") return;
     if (identifier.channel === "module") {
-      if (!options.registry.get(identifier.workspaceId)) throw new AgentsInTheCloudCoreError("workspace_not_found", `workspace not found: ${identifier.workspaceId}`);
+      if (!options.registry.get(identifier.workspaceId)) throw new KintsugiCoreError("workspace_not_found", `workspace not found: ${identifier.workspaceId}`);
     }
   }
 

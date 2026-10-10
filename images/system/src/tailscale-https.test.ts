@@ -3,7 +3,7 @@ import { access } from "node:fs/promises";
 import { dirname } from "node:path";
 import { TailscaleHttps, TailscaleCertificateError } from "./tailscale-https.ts";
 
-const host = "agents-in-the-cloud.example.ts.net";
+const host = "kintsugi.example.ts.net";
 test("disabled HTTPS blocks provisioning, then recovers and verifies once per host", async () => {
   const calls: string[][] = [];
   const https = new TailscaleHttps(async (args, _output, timeout) => {

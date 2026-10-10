@@ -1,6 +1,6 @@
-import { agentTitleRequestOptions } from "@agents-in-the-cloud/agent/server/slug-suggestion";
+import { agentTitleRequestOptions } from "@kintsugi/agent/server/slug-suggestion";
 import { describe, expect, test } from "bun:test";
-import { createAgentsInTheCloudEventBus } from "@agents-in-the-cloud/core";
+import { createKintsugiEventBus } from "@kintsugi/core";
 import { ModelRuntime } from "@earendil-works/pi-coding-agent";
 import type { WorkspaceAgentInfo } from "../../src/server/agent-store.ts";
 import { createAutomaticWorkspaceNamingGate, createAgentTitleSetter } from "../../src/server/agent-title-suggestion.ts";
@@ -16,7 +16,7 @@ const agent = (title = "Untitled"): WorkspaceAgentInfo => ({
 function titleHarness(workspaceUnnamed: boolean, initialTitle = "Untitled", workspaceFollowsAgentTitle = workspaceUnnamed) {
   let storedAgent = agent(initialTitle);
   const workspaceTitles: string[] = [];
-  const events = createAgentsInTheCloudEventBus();
+  const events = createKintsugiEventBus();
   const emitted: string[] = [];
   events.on("workspace_agent_title_changed", ({ title }) => { emitted.push(`agent:${title}`); });
   events.on("workspace_title_changed", ({ title }) => { emitted.push(`workspace:${title}`); });

@@ -1,6 +1,6 @@
-import { buttonHtml } from "@agents-in-the-cloud/design-system/button";
-import { renderTerminalConnectionStatus, renderTerminalKeyBar } from "@agents-in-the-cloud/observable-terminal/server";
-import { domId, escapeHtml } from "@agents-in-the-cloud/shared";
+import { buttonHtml } from "@kintsugi/design-system/button";
+import { renderTerminalConnectionStatus, renderTerminalKeyBar } from "@kintsugi/observable-terminal/server";
+import { domId, escapeHtml } from "@kintsugi/shared";
 import { terminalViewKey } from "../shared.ts";
 import type { WorkspaceTerminal } from "./workspace-terminals.ts";
 
@@ -15,7 +15,7 @@ export function renderTerminalView(workspaceId: string, terminal: WorkspaceTermi
     </div>
   </div>`;
   return `<section id="${domId("terminal_view", workspaceId, terminal.id)}" data-turbo-permanent class="terminal-work-view" data-work-view-source="${escapeHtml(terminalViewKey(terminal.id))}">
-    <div class="terminal-view" data-controller="terminal-view" data-action="agents-in-the-cloud:theme-change@document->terminal-view#theme" data-terminal-view-workspace-id-value="${escapeHtml(workspaceId)}" data-terminal-view-id-value="${escapeHtml(terminal.id)}" data-terminal-id="${escapeHtml(terminal.id)}">
+    <div class="terminal-view" data-controller="terminal-view" data-action="kintsugi:theme-change@document->terminal-view#theme" data-terminal-view-workspace-id-value="${escapeHtml(workspaceId)}" data-terminal-view-id-value="${escapeHtml(terminal.id)}" data-terminal-id="${escapeHtml(terminal.id)}">
       ${ended}
       <div class="terminal-stage" data-terminal-view-target="stage">
       ${renderTerminalConnectionStatus("terminal-view")}

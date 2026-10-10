@@ -1,16 +1,16 @@
 import { readdir, stat } from "node:fs/promises";
 import { join } from "node:path";
-import { contentRowHtml } from "@agents-in-the-cloud/design-system/content-row";
-import { actionLinkHtml } from "@agents-in-the-cloud/design-system/action-link";
-import { escapeHtml } from "@agents-in-the-cloud/shared";
-import { response } from "@agents-in-the-cloud/shared/http";
-import { AgentsInTheCloudCoreError, getAgentsInTheCloudRuntimeContext, isNotFoundError } from "@agents-in-the-cloud/core";
-import { sessionShareDir, workspaceSessionShareKey } from "@agents-in-the-cloud/agent/server/session-share";
+import { contentRowHtml } from "@kintsugi/design-system/content-row";
+import { actionLinkHtml } from "@kintsugi/design-system/action-link";
+import { escapeHtml } from "@kintsugi/shared";
+import { response } from "@kintsugi/shared/http";
+import { KintsugiCoreError, getKintsugiRuntimeContext, isNotFoundError } from "@kintsugi/core";
+import { sessionShareDir, workspaceSessionShareKey } from "@kintsugi/agent/server/session-share";
 import { durableJournalDirectory } from "./durable-storage.ts";
 import { retainedDurableWorkspaceOwner } from "./runtime.ts";
 import { projectDurableTranscript } from "./durable-transcript.ts";
-import { findTranscriptItem } from "@agents-in-the-cloud/agent/server/transcript";
-import { renderTranscriptItem, renderTranscriptItemDetailFrame } from "@agents-in-the-cloud/agent/server/render-transcript";
+import { findTranscriptItem } from "@kintsugi/agent/server/transcript";
+import { renderTranscriptItem, renderTranscriptItemDetailFrame } from "@kintsugi/agent/server/render-transcript";
 import { type AgentRouteHandler } from "./route-support.ts";
 import type { DurableAgentRuntime } from "./durable-runtime.ts";
 
@@ -21,11 +21,11 @@ export async function retainedDurableHistories(workspaceId: string) {
   // A missing init is valid for an existing projectless workspace, but an
   // arbitrary/missing viewer must not turn into access to the projectless share.
   // Check retained host metadata only: history must work without Docker/readiness.
-  const metadata = await stat(join(getAgentsInTheCloudRuntimeContext().agentsInTheCloudDataDir, "workspaces", workspaceId, "metadata")).catch((error: NodeJS.ErrnoException) => {
+  const metadata = await stat(join(getKintsugiRuntimeContext().kintsugiDataDir, "workspaces", workspaceId, "metadata")).catch((error: NodeJS.ErrnoException) => {
     if (isNotFoundError(error)) return undefined;
     throw error;
   });
-  if (!metadata?.isDirectory()) throw new AgentsInTheCloudCoreError("workspace_not_found", `workspace not found: ${workspaceId}`);
+  if (!metadata?.isDirectory()) throw new KintsugiCoreError("workspace_not_found", `workspace not found: ${workspaceId}`);
   const share = await workspaceSessionShareKey(workspaceId);
   const directory = join(sessionShareDir(share), "builtin-durable");
   const entries = await readdir(directory, { withFileTypes: true }).catch((error: NodeJS.ErrnoException) => {

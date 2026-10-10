@@ -1,7 +1,7 @@
-import { AgentsInTheCloudCoreError, readJsonObject, requestAcceptsJson } from "@agents-in-the-cloud/core";
-import { turboStreamResponse } from "@agents-in-the-cloud/shared";
-import { parseModelRef, setAgentModelThinkingLevel } from "@agents-in-the-cloud/llm/server";
-import { matchRoute } from "@agents-in-the-cloud/shared/http";
+import { KintsugiCoreError, readJsonObject, requestAcceptsJson } from "@kintsugi/core";
+import { turboStreamResponse } from "@kintsugi/shared";
+import { parseModelRef, setAgentModelThinkingLevel } from "@kintsugi/llm/server";
+import { matchRoute } from "@kintsugi/shared/http";
 import { invalidateAgentView, requireAgentController, type AgentRouteHandler } from "./route-support.ts";
 
 export const handleConfigurationRequest: AgentRouteHandler = async (request, url, options) => {
@@ -11,7 +11,7 @@ export const handleConfigurationRequest: AgentRouteHandler = async (request, url
     const value = json ? (await readJsonObject(request)).model : (await request.formData()).get("model");
     const model = parseModelRef(String(value ?? ""));
     if (!model) {
-      if (json) throw new AgentsInTheCloudCoreError("invalid_arguments", "valid model is required");
+      if (json) throw new KintsugiCoreError("invalid_arguments", "valid model is required");
       return turboStreamResponse("");
     }
     const runtime = await requireAgentController(params[0], params[1], options);
@@ -24,7 +24,7 @@ export const handleConfigurationRequest: AgentRouteHandler = async (request, url
     const value = json ? (await readJsonObject(request)).thinkingLevel : (await request.formData()).get("thinkingLevel");
     const thinkingLevel = String(value ?? "");
     if (!thinkingLevel) {
-      if (json) throw new AgentsInTheCloudCoreError("invalid_arguments", "thinkingLevel is required");
+      if (json) throw new KintsugiCoreError("invalid_arguments", "thinkingLevel is required");
       return turboStreamResponse("");
     }
     const runtime = await requireAgentController(params[0], params[1], options);

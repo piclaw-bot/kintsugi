@@ -1,15 +1,15 @@
 #!/usr/bin/env bun
-// Optional dev tool: bun run apps/web/scripts/surface-lighting-tuner.ts <AgentsInTheCloud workspace URL>
+// Optional dev tool: bun run apps/web/scripts/surface-lighting-tuner.ts <Kintsugi workspace URL>
 // Runs outside the app. The JSON snapshot and lighting-role overrides live beside this file.
-import { escapeHtml } from '@agents-in-the-cloud/shared';
-import { managementOriginRejection } from '@agents-in-the-cloud/proxy-ingress/server';
+import { escapeHtml } from '@kintsugi/shared';
+import { managementOriginRejection } from '@kintsugi/proxy-ingress/server';
 import { Type } from 'typebox';
 import { Value } from 'typebox/value';
 import startingSettings from './surface-lighting-tuner/settings.json';
 
 export async function startLightingTuner(destination: string, port = 3100) {
   const workspaceUrl = new URL(destination);
-  if (!/^\/workspaces\/[^/]+$/.test(workspaceUrl.pathname)) throw new Error('Pass a workspace URL, not an AgentsInTheCloud settings or home URL.');
+  if (!/^\/workspaces\/[^/]+$/.test(workspaceUrl.pathname)) throw new Error('Pass a workspace URL, not an Kintsugi settings or home URL.');
   const origin = workspaceUrl.origin;
   const workspaceResponse = await fetch(new URL(workspaceUrl.pathname, origin), { headers: { Accept: 'application/json' } });
   if (!workspaceResponse.ok) throw new Error(`Workspace lookup failed (${workspaceResponse.status}): ${await workspaceResponse.text()}`);
@@ -60,7 +60,7 @@ export async function startLightingTuner(destination: string, port = 3100) {
       }
       const headers = new Headers(request.headers);
       // Translate only requests that passed the tuner's own same-origin gate.
-      for (const name of ['forwarded', 'x-forwarded-host', 'x-forwarded-proto', 'x-forwarded-port', 'x-agents-in-the-cloud-public-origin', 'x-agents-in-the-cloud-origin-context']) headers.delete(name);
+      for (const name of ['forwarded', 'x-forwarded-host', 'x-forwarded-proto', 'x-forwarded-port', 'x-kintsugi-public-origin', 'x-kintsugi-origin-context']) headers.delete(name);
       headers.set('host', upstreamUrl.host);
       headers.set('origin', origin);
       headers.set('accept-encoding', 'identity');

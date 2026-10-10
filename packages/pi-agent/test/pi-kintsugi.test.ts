@@ -3,7 +3,7 @@ import { afterEach, expect, test } from "bun:test";
 import { createMcpExtension, createCodemodeExtension, type ExtensionAPI, type McpServerConfig, type ToolInfo, type ToolDefinition } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
 import { createAgentMcpServer } from "../../agent/src/server/mcp-server.ts";
-import { registerPiAgentsInTheCloud } from "../src/extension/pi-agents-in-the-cloud.ts";
+import { registerPiKintsugi } from "../src/extension/pi-kintsugi.ts";
 
 const cleanup: Array<() => Promise<void> | void> = [];
 afterEach(async () => { for (const close of cleanup.splice(0).reverse()) await close(); });
@@ -23,10 +23,10 @@ function fakePi() {
       return () => { handlers.set(name, handlers.get(name)!.filter((entry) => entry !== handler)); };
     },
     registerMcpServer(name: string, config: McpServerConfig) { servers.set(name, config); },
-    getMcpServers() { return [...servers].map(([name, config]) => ({ name, config, extensionPath: "pi-agents-in-the-cloud" })); },
+    getMcpServers() { return [...servers].map(([name, config]) => ({ name, config, extensionPath: "pi-kintsugi" })); },
     registerCommand() {},
     registerTool(tool: ToolDefinition<any, any>) { tools.set(tool.name, tool); },
-    getAllTools(): ToolInfo[] { return [...tools.values()].map((tool) => ({ ...tool, exposure: tool.exposure ?? "direct", sourceInfo: { source: "extension", path: "pi-agents-in-the-cloud", scope: "temporary", origin: "top-level" } })); },
+    getAllTools(): ToolInfo[] { return [...tools.values()].map((tool) => ({ ...tool, exposure: tool.exposure ?? "direct", sourceInfo: { source: "extension", path: "pi-kintsugi", scope: "temporary", origin: "top-level" } })); },
     getActiveTools() { return active; },
     setActiveTools(names: string[]) { active = names; },
     async exec(...args: unknown[]) { executions.push(args); return { code: 0, stdout: "", stderr: "", killed: false }; },
@@ -69,11 +69,11 @@ function fixture() {
   };
 }
 
-test("pi-agents-in-the-cloud registers a native MCP server, and appends full guidance to the native system prompt", async () => {
+test("pi-kintsugi registers a native MCP server, and appends full guidance to the native system prompt", async () => {
   const config = { url: "http://localhost:2988/mcp", token: "private", turnSignalCommand: "/session/signal.sh", instructions: "Full guidance\n" + "x".repeat(12000) };
   const f = fakePi();
-  registerPiAgentsInTheCloud(f.pi, config);
-  expect(f.servers.get("agents-in-the-cloud")).toEqual({
+  registerPiKintsugi(f.pi, config);
+  expect(f.servers.get("kintsugi")).toEqual({
     url: config.url, headers: { Authorization: "Bearer private" }, exposure: "codemode", timeout: 3600,
   });
   expect(f.tools.size).toBe(0);
@@ -84,10 +84,10 @@ test("pi-agents-in-the-cloud registers a native MCP server, and appends full gui
   expect(f.executions).toEqual([["sh", [config.turnSignalCommand, "started"]], ["sh", [config.turnSignalCommand, "finished"]]]);
 });
 
-test("Pi native MCP discovers AgentsInTheCloud tools and does not duplicate native prompt guidance in their namespace", async () => {
+test("Pi native MCP discovers Kintsugi tools and does not duplicate native prompt guidance in their namespace", async () => {
   const mcp = fixture();
   const f = fakePi();
-  registerPiAgentsInTheCloud(f.pi, mcp);
+  registerPiKintsugi(f.pi, mcp);
   createCodemodeExtension()(f.pi);
   createMcpExtension({ loadConfig: () => ({ servers: [], errors: [] }) })(f.pi);
   cleanup.push(() => f.emit("session_shutdown"));
@@ -97,10 +97,10 @@ test("Pi native MCP discovers AgentsInTheCloud tools and does not duplicate nati
   await f.emit("tool_call", { toolName: "codemode", input: { code: "searchTools('present')" } });
 
   expect(f.notices.filter((message) => message.startsWith("MCP failed"))).toEqual([]);
-  expect([...f.tools.keys()].filter((name) => name.startsWith("mcp__"))).toEqual(["mcp__agents_in_the_cloud__present", "mcp__agents_in_the_cloud__fail"]);
-  const present = f.tools.get("mcp__agents_in_the_cloud__present")!;
+  expect([...f.tools.keys()].filter((name) => name.startsWith("mcp__"))).toEqual(["mcp__kintsugi__present", "mcp__kintsugi__fail"]);
+  const present = f.tools.get("mcp__kintsugi__present")!;
   expect(present.exposure).toBe("deferred");
-  expect(present.namespace).toEqual({ name: "mcp__agents_in_the_cloud", instructions: undefined });
+  expect(present.namespace).toEqual({ name: "mcp__kintsugi", instructions: undefined });
   const updates: string[] = [];
   const result = await present.execute("call", { kind: "browser" }, undefined, (update) => {
     updates.push(update.content[0]!.type === "text" ? update.content[0]!.text : "image");
@@ -108,7 +108,7 @@ test("Pi native MCP discovers AgentsInTheCloud tools and does not duplicate nati
   expect(updates).toEqual(["Opening"]);
   expect(result.content).toEqual([{ type: "text", text: "Presented browser" }]);
   // Native MCP exposes protocol errors as error results, including to codemode scripts.
-  const failed = await f.tools.get("mcp__agents_in_the_cloud__fail")!.execute("call", {}, undefined, undefined, undefined!);
+  const failed = await f.tools.get("mcp__kintsugi__fail")!.execute("call", {}, undefined, undefined, undefined!);
   expect(failed.structuredContent).toMatchObject({ isError: true, content: [{ type: "text", text: "deliberate failure" }] });
 
 });

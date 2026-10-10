@@ -1,4 +1,4 @@
-import type { SettingsContribution } from "@agents-in-the-cloud/shared";
+import type { SettingsContribution } from "@kintsugi/shared";
 
 const contributions: SettingsContribution[] = [];
 

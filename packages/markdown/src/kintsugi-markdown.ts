@@ -1,5 +1,5 @@
 import { posix } from "node:path";
-import { workspaceFileOpenUrl, workspaceProxyUrl, type WorkspaceFileTarget } from "@agents-in-the-cloud/shared";
+import { workspaceFileOpenUrl, workspaceProxyUrl, type WorkspaceFileTarget } from "@kintsugi/shared";
 
 interface MarkdownFileTarget extends WorkspaceFileTarget {
   suffix: string;
@@ -14,7 +14,7 @@ function workspaceFileTarget(rawHref: string, sourcePath?: string): MarkdownFile
   }
   if (url) {
     const isFileUrl = url.protocol === "file:" && (url.hostname === "" || url.hostname === "localhost");
-    if (!isFileUrl && (url.protocol !== "agents-in-the-cloud:" || url.hostname !== "file")) return undefined;
+    if (!isFileUrl && (url.protocol !== "kintsugi:" || url.hostname !== "file")) return undefined;
   }
 
   const suffixStart = rawHref.search(/[?#]/);
@@ -38,7 +38,7 @@ function workspaceFileTarget(rawHref: string, sourcePath?: string): MarkdownFile
   return target;
 }
 
-export function agentsInTheCloudFileHref(workspaceId: string, rawHref: string, sourcePath?: string): string | undefined {
+export function kintsugiFileHref(workspaceId: string, rawHref: string, sourcePath?: string): string | undefined {
   const target = workspaceFileTarget(rawHref, sourcePath);
   return target ? workspaceFileOpenUrl(workspaceId, target.path, target) : undefined;
 }

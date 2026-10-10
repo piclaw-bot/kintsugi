@@ -1,5 +1,5 @@
 import { runCommand, commandSignal, withCommandSignal } from "./command-scope.ts";
-import { AgentsInTheCloudCoreError } from "./errors.ts";
+import { KintsugiCoreError } from "./errors.ts";
 
 export interface CommandResult {
   exitCode: number;
@@ -43,13 +43,13 @@ export async function requireDocker(args: string[], options: CommandOptions = {}
   if (result.exitCode !== 0) {
     const message = result.stderr.trim() || `docker ${args[0] ?? ""} failed`;
     if (message.includes("all predefined address pools have been fully subnetted")) {
-      throw new AgentsInTheCloudCoreError(
+      throw new KintsugiCoreError(
         "docker_network_capacity_exhausted",
         "Docker has run out of network address space. Delete workspaces you no longer need, then try again. Parking a workspace won’t free its network. To keep more workspaces, configure larger default-address-pools in Docker’s daemon settings (Docker Desktop: Settings → Docker Engine). Changing pools requires a Docker restart and applies only to new networks.",
         { stderr: result.stderr, command: args },
       );
     }
-    throw new AgentsInTheCloudCoreError("docker_unavailable", message);
+    throw new KintsugiCoreError("docker_unavailable", message);
   }
   return result;
 }
@@ -60,7 +60,7 @@ function cancellableExec(args: string[]) {
   let index = 1;
   while (args[index]?.startsWith("-")) index += valueOptions.has(args[index]!) ? 2 : 1;
   const container = args[index]!;
-  const pidFile = `/tmp/agents-in-the-cloud-command-${crypto.randomUUID()}.pid`;
+  const pidFile = `/tmp/kintsugi-command-${crypto.randomUUID()}.pid`;
   const script = `echo "$PPID" > ${pidFile}; if test -f ${pidFile}.cancel; then rm -f ${pidFile} ${pidFile}.cancel; exit 125; fi; "$@"; status=$?; rm -f ${pidFile} ${pidFile}.cancel; exit "$status"`;
-  return { container, pidFile, args: [...args.slice(0, index + 1), "timeout", "--signal=KILL", "600", "sh", "-c", script, "agents-in-the-cloud-command", ...args.slice(index + 1)] };
+  return { container, pidFile, args: [...args.slice(0, index + 1), "timeout", "--signal=KILL", "600", "sh", "-c", script, "kintsugi-command", ...args.slice(index + 1)] };
 }

@@ -11,7 +11,7 @@ export const releaseSourceSchema = Type.Object({
   systemVersion: Type.Optional(Type.String({ pattern: releaseVersionPattern })),
 }, { additionalProperties: false });
 export type ReleaseSource = Static<typeof releaseSourceSchema>;
-export const defaultReleaseSource: ReleaseSource = { appRepository: "ghcr.io/lucasmeijer/agents-in-the-cloud", systemRepository: "ghcr.io/lucasmeijer/agents-in-the-cloud-system" };
+export const defaultReleaseSource: ReleaseSource = { appRepository: "ghcr.io/rcarmo/kintsugi", systemRepository: "ghcr.io/rcarmo/kintsugi-system" };
 export const releaseSettingsSchema = Type.Object({
   releaseChannel: Type.Optional(Type.Union([Type.Literal("stable"), Type.Literal("latest")])),
   releaseSource: Type.Optional(releaseSourceSchema),

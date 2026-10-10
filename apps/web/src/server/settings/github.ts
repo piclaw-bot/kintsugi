@@ -1,12 +1,12 @@
-import { buttonHtml } from "@agents-in-the-cloud/design-system/button";
-import { destructiveConfirmationHtml } from "@agents-in-the-cloud/design-system/destructive-confirmation";
-import { clearGitHubToken, hasGitHubToken, setGitHubToken } from "@agents-in-the-cloud/proxy-egress";
-import { getStoredCommitIdentity, setCommitIdentity } from "@agents-in-the-cloud/workspace-templates";
+import { buttonHtml } from "@kintsugi/design-system/button";
+import { destructiveConfirmationHtml } from "@kintsugi/design-system/destructive-confirmation";
+import { clearGitHubToken, hasGitHubToken, setGitHubToken } from "@kintsugi/proxy-egress";
+import { getStoredCommitIdentity, setCommitIdentity } from "@kintsugi/workspace-templates";
 import { validateGitHubToken } from "../github-auth.ts";
 import { renderOnboardingDialog } from "../onboarding/routes.ts";
-import { replace, stream, update } from "@agents-in-the-cloud/shared/http";
+import { replace, stream, update } from "@kintsugi/shared/http";
 import { renderCommitIdentityForm } from "./page.ts";
-import { domId, escapeHtml, providerBadgeHtml } from "@agents-in-the-cloud/shared";
+import { domId, escapeHtml, providerBadgeHtml } from "@kintsugi/shared";
 import { registerSettingsContribution } from "./registry.ts";
 
 type SettingsSurface = "settings" | "onboarding";
@@ -35,7 +35,7 @@ function githubConnectionForm(surface: SettingsSurface, error: string): string {
     <p>Run these commands on your own computer:</p>
     <pre class="settings-command">gh auth login
 gh auth token</pre>
-    <p>Paste the token below. AgentsInTheCloud keeps it outside Agent sandboxes, so Agents can access your GitHub repositories without seeing the token.</p>
+    <p>Paste the token below. Kintsugi keeps it outside Agent sandboxes, so Agents can access your GitHub repositories without seeing the token.</p>
     ${error ? `<p class="settings-error">${escapeHtml(error)}</p>` : ""}
     <div class="github-connect-controls"><input class="settings-input text-field" type="password" data-1p-ignore name="token" placeholder="Paste output from gh auth token" aria-label="GitHub token" autocomplete="off" required>${connectButton}</div>
   </form>`;

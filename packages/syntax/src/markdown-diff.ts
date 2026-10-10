@@ -1,6 +1,6 @@
 import { createStyleElement, createThemeStyleElement, DiffHunksRenderer, parsePatchFiles, preloadHighlighter, wrapThemeCSS, type ParsedPatch } from "@pierre/diffs";
 import { renderHTML } from "@pierre/diffs/ssr";
-import { escapeHtml } from "@agents-in-the-cloud/shared";
+import { escapeHtml } from "@kintsugi/shared";
 import { toolDiffOptions } from "./pierre.ts";
 import { wordDiffCSS } from "./diff-options.ts";
 import { HighlightCache } from "./highlight-cache.ts";
@@ -37,7 +37,7 @@ export function renderMarkdownDiff(code: string, provisional = false): string {
       ]);
       renderer.cleanUp();
       const name = file.prevName && file.prevName !== file.name ? `${file.prevName} → ${file.name}` : file.name;
-      return `<section class="markdown-diff-file agents-in-the-cloud-pierre-host"><div class="markdown-diff-filename">${escapeHtml(name)}</div><diffs-container data-controller="markdown-diff"><template data-markdown-diff-content>${rendered}</template></diffs-container></section>`;
+      return `<section class="markdown-diff-file kintsugi-pierre-host"><div class="markdown-diff-filename">${escapeHtml(name)}</div><diffs-container data-controller="markdown-diff"><template data-markdown-diff-content>${rendered}</template></diffs-container></section>`;
     }).join("");
   }).join("");
   cache.set(code, { html });

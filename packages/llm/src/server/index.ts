@@ -3,7 +3,7 @@ export { getAgentModelPreference, setAgentModelPreference, getAgentModelThinking
 export { popularProviderIds } from "./hardcoded-provider-knowledge.ts";
 export { modelRefValue, parseModelRef, type ModelRef } from "./model-reference.ts";
 export { renderModelsDialog, handleModelsRequest, modelsDialogId } from "./models-panel.ts";
-export { llmWorkspaceModule as agentsInTheCloudServerModule } from "./web.ts";
+export { llmWorkspaceModule as kintsugiServerModule } from "./web.ts";
 export { estimatedTimeToHitLimitSeconds, type PacedUsageWindow } from "./usage-window.ts";
 export { recordSubscriptionInference, providersInLastInferenceWindow, selectSubscriptionLimit } from "./recent-subscription-activity.ts";
 export { connectedUsageProviders, getProviderUsageOverview, providerUsageFrameId, supportedUsageProviders, type ProviderUsageOverview } from "./provider-usage.ts";

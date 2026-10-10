@@ -8,7 +8,7 @@ let directory: string;
 let settingsPath: string;
 
 beforeEach(async () => {
-  directory = await mkdtemp(join(tmpdir(), "agents-in-the-cloud-channel-update-"));
+  directory = await mkdtemp(join(tmpdir(), "kintsugi-channel-update-"));
   settingsPath = join(directory, "update.json");
 });
 
@@ -26,8 +26,8 @@ function imageOperations() {
 test("missing update settings selects latest", async () => {
   const images = imageOperations();
   expect(await prepareChannelUpdate(settingsPath, images)).toBe("sha256:resolved-app");
-  expect(images.pull).toHaveBeenCalledWith("ghcr.io/lucasmeijer/agents-in-the-cloud:latest");
-  expect(images.inspect).toHaveBeenCalledWith("ghcr.io/lucasmeijer/agents-in-the-cloud:latest");
+  expect(images.pull).toHaveBeenCalledWith("ghcr.io/rcarmo/kintsugi:latest");
+  expect(images.inspect).toHaveBeenCalledWith("ghcr.io/rcarmo/kintsugi:latest");
 });
 
 test.each([
@@ -39,8 +39,8 @@ test.each([
   await writeFile(settingsPath, settings);
   const images = imageOperations();
   await prepareChannelUpdate(settingsPath, images);
-  expect(images.pull).toHaveBeenCalledWith(`ghcr.io/lucasmeijer/agents-in-the-cloud:${channel}`);
-  expect(images.inspect).toHaveBeenCalledWith(`ghcr.io/lucasmeijer/agents-in-the-cloud:${channel}`);
+  expect(images.pull).toHaveBeenCalledWith(`ghcr.io/rcarmo/kintsugi:${channel}`);
+  expect(images.inspect).toHaveBeenCalledWith(`ghcr.io/rcarmo/kintsugi:${channel}`);
 });
 
 test("reads channel again for each update", async () => {
@@ -50,8 +50,8 @@ test("reads channel again for each update", async () => {
   await writeFile(settingsPath, '{"releaseChannel":"latest"}');
   await prepareChannelUpdate(settingsPath, images);
   expect(images.pull.mock.calls).toEqual([
-    ["ghcr.io/lucasmeijer/agents-in-the-cloud:stable"],
-    ["ghcr.io/lucasmeijer/agents-in-the-cloud:latest"],
+    ["ghcr.io/rcarmo/kintsugi:stable"],
+    ["ghcr.io/rcarmo/kintsugi:latest"],
   ]);
 });
 
@@ -105,12 +105,12 @@ test("always completes a fresh pull before inspecting and returns the exact imag
   expect(await prepareChannelUpdate(settingsPath, images)).toBe("sha256:revision-1");
   expect(await prepareChannelUpdate(settingsPath, images)).toBe("sha256:revision-2");
   expect(events).toEqual([
-    "pull:ghcr.io/lucasmeijer/agents-in-the-cloud:latest",
+    "pull:ghcr.io/rcarmo/kintsugi:latest",
     "pulled:1",
-    "inspect:ghcr.io/lucasmeijer/agents-in-the-cloud:latest",
-    "pull:ghcr.io/lucasmeijer/agents-in-the-cloud:latest",
+    "inspect:ghcr.io/rcarmo/kintsugi:latest",
+    "pull:ghcr.io/rcarmo/kintsugi:latest",
     "pulled:2",
-    "inspect:ghcr.io/lucasmeijer/agents-in-the-cloud:latest",
+    "inspect:ghcr.io/rcarmo/kintsugi:latest",
   ]);
 });
 

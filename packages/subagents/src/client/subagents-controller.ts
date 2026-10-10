@@ -1,4 +1,4 @@
-import { CableTopics, type CableSubscription, type WorkspaceClientControllerConstructor } from "@agents-in-the-cloud/shared";
+import { CableTopics, type CableSubscription, type WorkspaceClientControllerConstructor } from "@kintsugi/shared";
 import { Type } from "typebox";
 import { Value } from "typebox/value";
 
@@ -37,7 +37,7 @@ export function createSubagentsController(Controller: WorkspaceClientControllerC
       // The control is hidden when empty, but its pane must still listen for new subagents.
       if (document.hidden || !this.element.parentElement!.checkVisibility()) { this.stop(); return; }
       if (!this.tree) {
-        this.tree = window.AgentsInTheCloudCable!.subscribe(CableTopics.module("subagents", this.workspaceIdValue, { agentId: this.agentIdValue }), {
+        this.tree = window.KintsugiCable!.subscribe(CableTopics.module("subagents", this.workspaceIdValue, { agentId: this.agentIdValue }), {
           onReady: () => this.restore(),
           onDisconnected: () => this.stopChildren(),
         });
@@ -75,7 +75,7 @@ export function createSubagentsController(Controller: WorkspaceClientControllerC
         if (!visible) { child?.subscription.unsubscribe(); this.children.delete(id); continue; }
         if (child?.branch === branch) continue;
         child?.subscription.unsubscribe();
-        const subscription = window.AgentsInTheCloudCable!.subscribe(CableTopics.agent(this.workspaceIdValue, id), {
+        const subscription = window.KintsugiCable!.subscribe(CableTopics.agent(this.workspaceIdValue, id), {
           onReady: () => {
             if (this.reveal === id && this.message) void this.revealMessage(branch, id, this.message);
             else this.loaded();

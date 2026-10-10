@@ -1,4 +1,4 @@
-import { escapeHtml } from "@agents-in-the-cloud/shared";
+import { escapeHtml } from "@kintsugi/shared";
 import { classNames } from "../html.ts";
 
 export type ButtonVariant = "primary" | "secondary" | "danger";

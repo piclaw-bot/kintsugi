@@ -1,6 +1,6 @@
 import type { FileDiff, FileDiffMetadata } from "@pierre/diffs";
-import type { WorkspaceClientControllerConstructor } from "@agents-in-the-cloud/shared";
-import { changesDiffOptions } from "@agents-in-the-cloud/syntax/diff-options";
+import type { WorkspaceClientControllerConstructor } from "@kintsugi/shared";
+import { changesDiffOptions } from "@kintsugi/syntax/diff-options";
 
 export function createDeletionReviewController(Controller: WorkspaceClientControllerConstructor) {
   return class DeletionReviewController extends Controller {
@@ -26,7 +26,7 @@ export function createDeletionReviewController(Controller: WorkspaceClientContro
 
     private async hydrateHost(host: HTMLElement): Promise<void> {
       if (this.hydratedHosts.has(host)) return;
-      const [{ FileDiff }] = await Promise.all([import("@pierre/diffs"), import("@agents-in-the-cloud/syntax/pierre")]);
+      const [{ FileDiff }] = await Promise.all([import("@pierre/diffs"), import("@kintsugi/syntax/pierre")]);
       if (!host.isConnected || this.hydratedHosts.has(host)) return;
       this.hydratedHosts.add(host);
       const script = host.querySelector<HTMLScriptElement>("script[data-deletion-model]")!;

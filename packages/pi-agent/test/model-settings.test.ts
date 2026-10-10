@@ -9,7 +9,7 @@ async function scenario(script: string) {
   try {
     const child = Bun.spawn([process.execPath, "-e", `
       import { expect, mock } from "bun:test";
-      const llm = await import("@agents-in-the-cloud/llm/server");
+      const llm = await import("@kintsugi/llm/server");
       let runtimeCreations = 0;
       let runtime;
       let availabilityChecks = 0;
@@ -20,7 +20,7 @@ async function scenario(script: string) {
         { provider: "custom", id: "unavailable", label: "Unavailable" },
         { provider: "amazon-bedrock", id: "ambient", label: "AWS profile" },
       ];
-      mock.module("@agents-in-the-cloud/llm/server", () => ({ ...llm,
+      mock.module("@kintsugi/llm/server", () => ({ ...llm,
         getEnabledModels: async () => enabledModels,
         createPiModelRuntime: async () => {
           runtimeCreations++;
@@ -44,7 +44,7 @@ async function scenario(script: string) {
   }
 }
 
-test("uses AgentsInTheCloud enabled models across providers, including custom providers", () => scenario(`
+test("uses Kintsugi enabled models across providers, including custom providers", () => scenario(`
   expect(await preparePiModelSettings()).toEqual({ model: "anthropic::claude", thinkingLevel: "medium" });
   for (const model of ["anthropic::claude", "openai-codex::gpt", "custom::model"]) {
     expect(await preparePiModelSettings({ model, thinkingLevel: "minimal" })).toEqual({ model, thinkingLevel: "minimal" });

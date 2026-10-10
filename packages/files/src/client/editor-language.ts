@@ -1,5 +1,5 @@
 import type { Extension } from "@codemirror/state";
-import { shaderLanguageFromExtension } from "@agents-in-the-cloud/syntax/shader-languages";
+import { shaderLanguageFromExtension } from "@kintsugi/syntax/shader-languages";
 
 export async function languageExtension(path: string): Promise<Extension> {
   const extension = path.split("/").pop()?.split(".").pop()?.toLowerCase() ?? "";

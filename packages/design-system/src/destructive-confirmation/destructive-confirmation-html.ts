@@ -1,4 +1,4 @@
-import { escapeHtml } from "@agents-in-the-cloud/shared";
+import { escapeHtml } from "@kintsugi/shared";
 import { buttonHtml, type ButtonOptions } from "../button/button-html.ts";
 import { buttonContentHtml, buttonPresentation } from "../button/button-content.ts";
 import { attributesHtml } from "../html.ts";

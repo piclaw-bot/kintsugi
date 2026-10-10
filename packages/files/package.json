@@ -1,5 +1,5 @@
 {
-  "name": "@agents-in-the-cloud/files",
+  "name": "@kintsugi/files",
   "private": true,
   "type": "module",
   "exports": {
@@ -7,12 +7,12 @@
     "./client": "./src/client/index.ts"
   },
   "dependencies": {
-    "@agents-in-the-cloud/core": "workspace:*",
-    "@agents-in-the-cloud/design-system": "workspace:*",
-    "@agents-in-the-cloud/markdown": "workspace:*",
-    "@agents-in-the-cloud/shared": "workspace:*",
-    "@agents-in-the-cloud/syntax": "workspace:*",
-    "@agents-in-the-cloud/workspace": "workspace:*",
+    "@kintsugi/core": "workspace:*",
+    "@kintsugi/design-system": "workspace:*",
+    "@kintsugi/markdown": "workspace:*",
+    "@kintsugi/shared": "workspace:*",
+    "@kintsugi/syntax": "workspace:*",
+    "@kintsugi/workspace": "workspace:*",
     "@codemirror/autocomplete": "6.20.3",
     "@codemirror/commands": "6.10.4",
     "@codemirror/lang-cpp": "6.0.3",

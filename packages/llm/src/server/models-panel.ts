@@ -1,4 +1,4 @@
-import { disclosureHtml } from "@agents-in-the-cloud/design-system/disclosure";
+import { disclosureHtml } from "@kintsugi/design-system/disclosure";
 import { connectCustomOpenAIEndpoint, customOpenAIProtocols, customOpenAIDefaults, CustomEndpointInputError, type CustomOpenAIProtocol, type CustomOpenAIEndpointInput } from "./custom-openai-endpoint.ts";
 import { availableProviderModels } from "./known-model-provider-incorrectness.ts";
 import { anthropicSubscriptionNotice } from "./subscription.ts";
@@ -7,14 +7,14 @@ import { modelUnavailableReason, providerAvailability } from "./provider-availab
 import { providerUsageFrameId, supportedUsageProviders } from "./provider-usage.ts";
 import { getPopularModelRank, getPopularProviderRank, getProviderApiKeyExample, modelDisplayName } from "./hardcoded-provider-knowledge.ts";
 import { modelRefValue as modelKey, parseModelRef, type ModelRef } from "./model-reference.ts";
-import { contentRowHtml } from "@agents-in-the-cloud/design-system/content-row";
-import { actionLinkHtml } from "@agents-in-the-cloud/design-system/action-link";
-import { buttonHtml } from "@agents-in-the-cloud/design-system/button";
-import { copyButtonHtml } from "@agents-in-the-cloud/design-system/copy-button";
-import { destructiveConfirmationHtml } from "@agents-in-the-cloud/design-system/destructive-confirmation";
-import { dialogHtml } from "@agents-in-the-cloud/design-system/dialog";
-import { agentsInTheCloudBrandIconHtml, Icons } from "@agents-in-the-cloud/design-system/icons";
-import { warningBannerHtml } from "@agents-in-the-cloud/design-system/warning-banner";
+import { contentRowHtml } from "@kintsugi/design-system/content-row";
+import { actionLinkHtml } from "@kintsugi/design-system/action-link";
+import { buttonHtml } from "@kintsugi/design-system/button";
+import { copyButtonHtml } from "@kintsugi/design-system/copy-button";
+import { destructiveConfirmationHtml } from "@kintsugi/design-system/destructive-confirmation";
+import { dialogHtml } from "@kintsugi/design-system/dialog";
+import { kintsugiBrandIconHtml, Icons } from "@kintsugi/design-system/icons";
+import { warningBannerHtml } from "@kintsugi/design-system/warning-banner";
 import {
   connectModelProviderApiKey,
   ProviderCatalogueRefreshError,
@@ -29,8 +29,8 @@ import {
   setEnabledModels,
   type PiAuthPrompt,
 } from "./pi-config-models.ts";
-import { domId, errorMessage, escapeHtml, providerBadgeHtml, providerBrandIconHtml } from "@agents-in-the-cloud/shared";
-import { replace, response, stream, update } from "@agents-in-the-cloud/shared/http";
+import { domId, errorMessage, escapeHtml, providerBadgeHtml, providerBrandIconHtml } from "@kintsugi/shared";
+import { replace, response, stream, update } from "@kintsugi/shared/http";
 
 /**
  * One Models panel, shown in three places: the Models dialog (from composers and the
@@ -90,7 +90,7 @@ function usageNote(account: Account): string | undefined {
     : "Sign in again to use this provider.";
   if (account.method !== "subscription") return "API keys don’t have usage limits to show.";
   if (account.provider === "openai") return "Check your subscription usage on ChatGPT.";
-  if (!supportedUsageProviders.some((supported) => supported.id === account.provider)) return `AgentsInTheCloud can’t read ${account.label} usage limits yet.`;
+  if (!supportedUsageProviders.some((supported) => supported.id === account.provider)) return `Kintsugi can’t read ${account.label} usage limits yet.`;
   return undefined;
 }
 
@@ -304,8 +304,8 @@ type DialogHost = Exclude<ModelsHost, "settings">;
 function modelsDialogHtml(host: DialogHost, bodyHtml: string): string {
   return dialogHtml({
     element: { id: ids.dialog(host), attributesHtml: "data-dialog-auto-show" },
-    iconHtml: host === "onboarding" ? agentsInTheCloudBrandIconHtml : Icons.Settings,
-    titleCaption: host === "onboarding" ? "Set up AgentsInTheCloud" : "Models",
+    iconHtml: host === "onboarding" ? kintsugiBrandIconHtml : Icons.Settings,
+    titleCaption: host === "onboarding" ? "Set up Kintsugi" : "Models",
     bodyHtml,
     omitCancelButton: host === "onboarding",
   });

@@ -32,18 +32,18 @@ class DesktopController extends Controller {
 
   receive(event: MessageEvent): void {
     if (event.source !== window.parent || event.origin !== this.params.get("parentOrigin")) return;
-    if (event.data?.type === "agents-in-the-cloud:desktop:status-request") {
+    if (event.data?.type === "kintsugi:desktop:status-request") {
       this.report(this.phase, this.detail);
     } else if (Value.Check(desktopClipboardSetMessage, event.data) && event.data.token === this.params.get("statusToken") && this.phase === "connected") {
       this.rfb!.clipboardPasteFrom(event.data.text);
-      this.postToParent({ type: "agents-in-the-cloud:desktop:clipboard-sent", text: event.data.text });
+      this.postToParent({ type: "kintsugi:desktop:clipboard-sent", text: event.data.text });
     }
   }
 
   private report(phase: DesktopPhase, detail = ""): void {
     this.phase = phase;
     this.detail = detail;
-    this.postToParent({ type: "agents-in-the-cloud:desktop:status", phase, detail });
+    this.postToParent({ type: "kintsugi:desktop:status", phase, detail });
   }
 
   private postToParent(message: DesktopViewerPayload): void {
@@ -71,7 +71,7 @@ class DesktopController extends Controller {
     rfb.addEventListener("clipboard", (event) => {
       // SAFETY: noVNC's clipboard event is a CustomEvent with detail.text containing the remote text.
       const text = (event as CustomEvent<{ text: string }>).detail.text;
-      this.postToParent({ type: "agents-in-the-cloud:desktop:clipboard", text });
+      this.postToParent({ type: "kintsugi:desktop:clipboard", text });
     });
     rfb.addEventListener("connect", () => {
       this.report("connected");

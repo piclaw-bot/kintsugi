@@ -67,20 +67,20 @@
 
 .agent-media-frame.agent-mermaid { width: min(100%, var(--agent-mermaid-card-width, 320px)); margin: 6px 0 14px; }
 .agent-mermaid-diagram {
-  --agents-in-the-cloud-mermaid-bg: var(--bg); --agents-in-the-cloud-mermaid-fg: var(--text-bright); --agents-in-the-cloud-mermaid-line: var(--line-strong);
-  --agents-in-the-cloud-mermaid-accent: var(--accent); --agents-in-the-cloud-mermaid-muted: var(--text-muted); --agents-in-the-cloud-mermaid-surface: var(--panel); --agents-in-the-cloud-mermaid-border: var(--line-strong);
+  --kintsugi-mermaid-bg: var(--bg); --kintsugi-mermaid-fg: var(--text-bright); --kintsugi-mermaid-line: var(--line-strong);
+  --kintsugi-mermaid-accent: var(--accent); --kintsugi-mermaid-muted: var(--text-muted); --kintsugi-mermaid-surface: var(--panel); --kintsugi-mermaid-border: var(--line-strong);
   min-height: 120px; background: color-mix(in srgb, var(--bg) 55%, #000 8%);
 }
 [data-theme="nord"] .agent-mermaid-diagram {
   /* beautiful-mermaid's purpose-built Nord palette is quieter than the app's
      high-contrast text and surface roles. Keep diagrams canonical Nord. */
-  --agents-in-the-cloud-mermaid-bg: #2e3440;
-  --agents-in-the-cloud-mermaid-fg: #d8dee9;
-  --agents-in-the-cloud-mermaid-line: #4c566a;
-  --agents-in-the-cloud-mermaid-accent: #88c0d0;
-  --agents-in-the-cloud-mermaid-muted: #616e88;
-  --agents-in-the-cloud-mermaid-surface: color-mix(in srgb, #d8dee9 3%, #2e3440);
-  --agents-in-the-cloud-mermaid-border: color-mix(in srgb, #d8dee9 20%, #2e3440);
+  --kintsugi-mermaid-bg: #2e3440;
+  --kintsugi-mermaid-fg: #d8dee9;
+  --kintsugi-mermaid-line: #4c566a;
+  --kintsugi-mermaid-accent: #88c0d0;
+  --kintsugi-mermaid-muted: #616e88;
+  --kintsugi-mermaid-surface: color-mix(in srgb, #d8dee9 3%, #2e3440);
+  --kintsugi-mermaid-border: color-mix(in srgb, #d8dee9 20%, #2e3440);
   background: #2e3440;
 }
 .agent-mermaid-canvas { width: 100%; min-height: 120px; overflow: hidden; display: grid; place-items: center; }
@@ -88,7 +88,7 @@
 .agent-mermaid-canvas svg { display: block; width: min(100%, var(--agent-mermaid-natural-width, 100%)); height: auto; margin: auto; }
 .agent-mermaid-canvas svg text { font-family: var(--font-sans); }
 .agent-mermaid-error { width: 100%; margin: 0; padding: 10px; overflow: auto; white-space: pre-wrap; color: var(--danger); font: var(--text-code)/var(--leading-standard) var(--font-mono); }
-.agents-in-the-cloud-fullscreen-html:has(> .agent-mermaid-diagram-fullscreen) { padding: 0; }
+.kintsugi-fullscreen-html:has(> .agent-mermaid-diagram-fullscreen) { padding: 0; }
 .agent-mermaid-diagram-fullscreen, .agent-mermaid-diagram-fullscreen .agent-mermaid-canvas { width: 100%; height: 100%; min-height: 100%; }
 .agent-mermaid-diagram-fullscreen svg { width: 100%; height: 100%; max-height: 100%; }
 .agent-tool-code { font-family: var(--font-mono); font-size: var(--text-code); }
@@ -140,7 +140,7 @@
 .content-row__icon .agent-slash-command-source-icon { display: flex; align-items: center; justify-content: center; width: 20px; height: 20px; }
 .content-row__icon .agent-slash-command-source-icon :is(img, svg) { width: 20px; height: 20px; }
 .agent-slash-command-preview { margin: 0; padding: 12px; white-space: pre-wrap; font-family: var(--font-mono); line-height: var(--leading-standard); color: var(--text-bright); background: var(--panel); }
-.agents-in-the-cloud-fullscreen-html .agent-slash-command-preview { max-width: 980px; margin: 0 auto; background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius-surface); }
+.kintsugi-fullscreen-html .agent-slash-command-preview { max-width: 980px; margin: 0 auto; background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius-surface); }
 .agent-stat { height: 24px; display: inline-flex; align-items: center; gap: 4px; line-height: 24px; white-space: nowrap; }
 .agent-stat b { color: inherit; font: inherit; }
 .agent-ctx-meter { width: 46px; height: 4px; overflow: hidden; border-radius: var(--radius-indicator); background: var(--line); }
@@ -235,8 +235,8 @@
 .agent-edit-pierre + .agent-edit-pierre { border-top: 7px solid var(--panel); }
 .agent-edit-pierre diffs-container { max-height: 360px; overflow: auto; }
 
-.agents-in-the-cloud-fullscreen-html .agent-tool-code, .agents-in-the-cloud-fullscreen-html .agent-tool-result { max-height: none; }
-.agents-in-the-cloud-fullscreen-html .agent-detail-fullscreen { max-width: 1100px; margin: 0 auto; border: 1px solid var(--line); border-radius: var(--radius-control); overflow: hidden; }
+.kintsugi-fullscreen-html .agent-tool-code, .kintsugi-fullscreen-html .agent-tool-result { max-height: none; }
+.kintsugi-fullscreen-html .agent-detail-fullscreen { max-width: 1100px; margin: 0 auto; border: 1px solid var(--line); border-radius: var(--radius-control); overflow: hidden; }
 
 .agent-tool.tool-write.active .agent-tool-code { max-height: none; overflow: visible; white-space: pre-wrap; }
 /* Keep the terminal laid out for rendering while its first printable frame is pending. */

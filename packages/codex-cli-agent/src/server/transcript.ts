@@ -1,8 +1,8 @@
 import { readFile } from "node:fs/promises";
 import { basename, isAbsolute, join } from "node:path";
-import { getAgentsInTheCloudRuntimeContext } from "@agents-in-the-cloud/core";
-import { loadNativeTranscriptFiles, loadNativeTranscriptImage, nativeImageTypes, nativeJsonlRows, nativeSessionFiles, nativeTimestamp } from "@agents-in-the-cloud/cli-agent/server";
-import type { TranscriptRecord } from "@agents-in-the-cloud/agent/server/transcript";
+import { getKintsugiRuntimeContext } from "@kintsugi/core";
+import { loadNativeTranscriptFiles, loadNativeTranscriptImage, nativeImageTypes, nativeJsonlRows, nativeSessionFiles, nativeTimestamp } from "@kintsugi/cli-agent/server";
+import type { TranscriptRecord } from "@kintsugi/agent/server/transcript";
 import { Type, type Static } from "typebox";
 import { Value } from "typebox/value";
 
@@ -100,7 +100,7 @@ export function codexTranscriptRecords(jsonl: string, fallbackPrefix = "codex"):
 }
 
 function sessionDirectory(workspaceId: string, sessionId: string): string {
-  return join(getAgentsInTheCloudRuntimeContext().agentsInTheCloudDataDir, "workspaces", workspaceId, "home-local", ".local", "share", "agents-in-the-cloud-agents", sessionId, "codex", "sessions");
+  return join(getKintsugiRuntimeContext().kintsugiDataDir, "workspaces", workspaceId, "home-local", ".local", "share", "kintsugi-agents", sessionId, "codex", "sessions");
 }
 export async function codexHistoryFiles(workspaceId: string, sessionId: string): Promise<string[]> {
   const directory = sessionDirectory(workspaceId, sessionId);
@@ -110,7 +110,7 @@ export async function codexHistoryFiles(workspaceId: string, sessionId: string):
   const schema = Type.Object({ id: Type.String(), transcript: Type.String(), private: Type.Optional(Type.Boolean()) });
   const session = Value.Parse(schema, await metadata.json());
   if (isAbsolute(session.transcript) || session.transcript.split("/").includes("..")) throw new Error("Invalid Codex transcript path");
-  const root = session.private ? directory : join(getAgentsInTheCloudRuntimeContext().agentsInTheCloudDataDir, "home", ".codex", "sessions");
+  const root = session.private ? directory : join(getKintsugiRuntimeContext().kintsugiDataDir, "home", ".codex", "sessions");
   const file = join(root, session.transcript);
   return await Bun.file(file).exists() ? [file] : [];
 }

@@ -21,7 +21,7 @@ test("custom model hosts cannot authorize private destinations through workspace
   const upstreamCalls: string[] = [];
   const proxy = await startWorkspaceEgressProxy({
     socketPath,
-    ca: await ensureMitmCa({ agentsInTheCloudDataDir: directory, dockerHostAgentsInTheCloudDataDir: directory, dockerBridgeHost: "127.0.0.1" }),
+    ca: await ensureMitmCa({ kintsugiDataDir: directory, dockerHostKintsugiDataDir: directory, dockerBridgeHost: "127.0.0.1" }),
     getContext: () => createWorkspaceSecretContext(workspaceId),
     upstreamDnsLookup: async hostname => [{ address: destinations.get(hostname)!, family: 4 }],
     upstreamProxyForUrl: () => "",

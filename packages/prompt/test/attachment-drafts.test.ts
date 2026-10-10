@@ -10,14 +10,14 @@ import {
   removeStagedAttachments,
   stageAttachment,
   validDraftId,
-} from "@agents-in-the-cloud/prompt/server";
+} from "@kintsugi/prompt/server";
 
 import { handleAttachmentRequest } from "../src/server/attachment-routes.ts";
 
 let dir: string | undefined;
 
 async function dataDir(): Promise<void> {
-  dir = await mkdtemp(join(tmpdir(), "agents-in-the-cloud-agent-attachments-"));
+  dir = await mkdtemp(join(tmpdir(), "kintsugi-agent-attachments-"));
   process.env.ATELIER_DATA_DIR = dir;
 }
 
@@ -52,24 +52,24 @@ describe("Agent attachment drafts", () => {
     await dataDir();
     const child = Bun.spawn([process.execPath, "-e", `
       import { expect, mock } from "bun:test";
-      const workspace = await import("@agents-in-the-cloud/workspace");
+      const workspace = await import("@kintsugi/workspace");
       const calls = [];
-      mock.module("@agents-in-the-cloud/workspace", () => ({
+      mock.module("@kintsugi/workspace", () => ({
         ...workspace,
         execWorkspaceShell: async (...args) => {
           calls.push(args);
           return { exitCode: 0, stdout: "", stderr: "" };
         },
       }));
-      const { stageAttachment, deliverAttachmentDraft } = await import("@agents-in-the-cloud/prompt/server");
+      const { stageAttachment, deliverAttachmentDraft } = await import("@kintsugi/prompt/server");
       const draftId = crypto.randomUUID();
       const staged = await stageAttachment(draftId, new File(["contents"], "my file.txt"));
       const delivered = await deliverAttachmentDraft("workspace-1", draftId, [staged.id]);
       expect(delivered).toEqual({ images: [], attachmentNotes: [
-        "[Attached file copied into the workspace at /tmp/agents-in-the-cloud-attachments/my file.txt]",
+        "[Attached file copied into the workspace at /tmp/kintsugi-attachments/my file.txt]",
       ] });
       expect(calls).toEqual([["workspace-1",
-        "mkdir -p '/tmp/agents-in-the-cloud-attachments' && base64 -d > '/tmp/agents-in-the-cloud-attachments/my file.txt'",
+        "mkdir -p '/tmp/kintsugi-attachments' && base64 -d > '/tmp/kintsugi-attachments/my file.txt'",
         { stdin: Buffer.from("contents").toString("base64") },
       ]]);
     `], { cwd: join(import.meta.dir, ".."), env: process.env, stdout: "pipe", stderr: "pipe" });

@@ -3,10 +3,10 @@ import { createServer } from "node:http";
 import { mkdtemp, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { detectSelfUpdateRuntime, prepareUpdate, pruneUnusedAgentsInTheCloudImages, pullImageReference, type DockerImage, type PullProgress, type PullLayerProgress } from "../../src/server/docker.ts";
+import { detectSelfUpdateRuntime, prepareUpdate, pruneUnusedKintsugiImages, pullImageReference, type DockerImage, type PullProgress, type PullLayerProgress } from "../../src/server/docker.ts";
 
-const app = `ghcr.io/lucasmeijer/agents-in-the-cloud@sha256:${"a".repeat(64)}`;
-const workspace = `ghcr.io/lucasmeijer/workspace@sha256:${"b".repeat(64)}`;
+const app = `ghcr.io/rcarmo/kintsugi@sha256:${"a".repeat(64)}`;
+const workspace = `ghcr.io/rcarmo/workspace@sha256:${"b".repeat(64)}`;
 const appImage: DockerImage = { Id: "sha256:app" };
 
 const layerA = `sha256:${"c".repeat(64)}`;
@@ -77,14 +77,14 @@ test("verification failure never reports ready", async () => {
 test("runtime detection only enables System's app container", async () => {
   for (const managed of [false, true]) {
     const runtime = await detectSelfUpdateRuntime(async (args) => ({ code: 0, stderr: "", stdout: JSON.stringify(args[0] === "inspect"
-      ? [{ Image: "sha256:app", Config: { Labels: { "agents-in-the-cloud.role": managed ? "app" : "workspace" } } }]
+      ? [{ Image: "sha256:app", Config: { Labels: { "kintsugi.role": managed ? "app" : "workspace" } } }]
       : [{ Id: "sha256:app", RepoDigests: [app], Config: { Labels: { "org.opencontainers.image.revision": "revision" } } }]) }), async () => "container");
     if (managed) expect(runtime).toEqual({ currentRevision: "revision", currentDigest: app.split("@")[1] });
     else expect(runtime).toBeUndefined();
   }
 });
 test("Docker pull stream handles progress, exact references and embedded errors without uncaught exceptions", async () => {
-  const directory = await mkdtemp(join(tmpdir(), "agents-in-the-cloud-pull-"));
+  const directory = await mkdtemp(join(tmpdir(), "kintsugi-pull-"));
   const socket = join(directory, "docker.sock");
   let error = false;
   const server = createServer((request, response) => {
@@ -110,7 +110,7 @@ test("Docker pull stream handles progress, exact references and embedded errors 
 });
 
 test("deduplicates dependency cycles and restores mutable names only after verification", async () => {
-  const alias = "ghcr.io/lucasmeijer/workspace:stable";
+  const alias = "ghcr.io/rcarmo/workspace:stable";
   const calls: string[] = [];
   const percentages: (number | undefined)[] = [];
   let tagFails = false;
@@ -138,15 +138,15 @@ test("deduplicates dependency cycles and restores mutable names only after verif
   expect(percentages).not.toContain(100);
 });
 
-test("prunes only AgentsInTheCloud app and workspace images using Docker's unused-image protection", async () => {
+test("prunes only Kintsugi app and workspace images using Docker's unused-image protection", async () => {
   const calls: string[][] = [];
-  await pruneUnusedAgentsInTheCloudImages(async (args) => {
+  await pruneUnusedKintsugiImages(async (args) => {
     calls.push(args);
     return { code: 0, stdout: "", stderr: "" };
   });
   expect(calls).toEqual([
-    ["image", "prune", "--all", "--force", "--filter", "label=org.opencontainers.image.source=https://github.com/lucasmeijer/atelier", "--filter", "label=eagerly-preload"],
-    ["image", "prune", "--all", "--force", "--filter", "label=com.agents-in-the-cloud.workspace-image.signature"],
+    ["image", "prune", "--all", "--force", "--filter", "label=org.opencontainers.image.source=https://github.com/rcarmo/kintsugi", "--filter", "label=eagerly-preload"],
+    ["image", "prune", "--all", "--force", "--filter", "label=com.kintsugi.workspace-image.signature"],
   ]);
 });
 
@@ -165,6 +165,6 @@ test("preparation stops before downloading when either prune fails", async () =>
 });
 
 test("prune failure without stderr still explains the failed operation", async () => {
-  await expect(pruneUnusedAgentsInTheCloudImages(async () => ({ code: 1, stdout: "", stderr: "" })))
-    .rejects.toThrow("Could not prune unused AgentsInTheCloud images");
+  await expect(pruneUnusedKintsugiImages(async () => ({ code: 1, stdout: "", stderr: "" })))
+    .rejects.toThrow("Could not prune unused Kintsugi images");
 });

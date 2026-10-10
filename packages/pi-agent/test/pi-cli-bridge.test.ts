@@ -130,7 +130,7 @@ test("rejects foreign hosts, changed endpoints, disconnected providers and malfo
   await expect(transform(request("https://custom.example/v1"))).rejects.toThrow("not allowed");
   delete runtime.auth.custom;
   await expect(transform(request("https://changed.example/v1"))).rejects.toThrow("no longer connected");
-  await expect(transform(new Request("https://custom.example/", { headers: { authorization: "agents-in-the-cloud-pi-e30-end" } }))).rejects.toThrow("Invalid Pi credential placeholder");
+  await expect(transform(new Request("https://custom.example/", { headers: { authorization: "kintsugi-pi-e30-end" } }))).rejects.toThrow("Invalid Pi credential placeholder");
 });
 
 test("supports query API keys without changing unrelated query semantics", async () => {

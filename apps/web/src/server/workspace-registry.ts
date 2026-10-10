@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
-import { isNotFoundError, writeFileAtomic } from "@agents-in-the-cloud/core";
-import type { WorkspaceVisibilityReport } from "@agents-in-the-cloud/shared";
-import type { WorkspaceInitInstruction } from "@agents-in-the-cloud/workspace";
+import { isNotFoundError, writeFileAtomic } from "@kintsugi/core";
+import type { WorkspaceVisibilityReport } from "@kintsugi/shared";
+import type { WorkspaceInitInstruction } from "@kintsugi/workspace";
 import { Type, type Static, type TSchema } from "typebox";
 import { Value } from "typebox/value";
 
@@ -237,7 +237,7 @@ export function createWorkspaceRegistry(options: WorkspaceRegistryOptions = {}):
     setDeletion(id, deletion) {
       const entry = requireEntry(id);
       const provisioningError = entry.phase.kind === "provisioningPhase"
-        ? entry.phase.error ?? "Workspace preparation was cancelled. Delete this workspace or restart AgentsInTheCloud to retry startup."
+        ? entry.phase.error ?? "Workspace preparation was cancelled. Delete this workspace or restart Kintsugi to retry startup."
         : entry.phase.deletion?.provisioningError;
       deletion = { ...deletion, provisioningError };
       deletions[id] = deletion;

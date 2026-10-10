@@ -23,11 +23,11 @@ import (
 
 // Keep in sync with packages/shared/src/workspace-gateway.ts.
 const gatewayPort = 2999
-const hostHeader = "X-Agents-In-The-Cloud-Gateway-Host"
-const tokenHeader = "X-Agents-In-The-Cloud-Gateway-Token"
-const portHeader = "X-Agents-In-The-Cloud-Gateway-Port"
-const protocolHeader = "X-Agents-In-The-Cloud-Gateway-Protocol"
-const errorHeader = "X-Agents-In-The-Cloud-Gateway-Error"
+const hostHeader = "X-Kintsugi-Gateway-Host"
+const tokenHeader = "X-Kintsugi-Gateway-Token"
+const portHeader = "X-Kintsugi-Gateway-Port"
+const protocolHeader = "X-Kintsugi-Gateway-Protocol"
+const errorHeader = "X-Kintsugi-Gateway-Error"
 
 func targetPort(value string) (int, error) {
 	for _, c := range value {
@@ -118,8 +118,8 @@ func newGateway(token string, transport http.RoundTripper) http.Handler {
 
 func main() {
 	listen := flag.String("listen", fmt.Sprintf("0.0.0.0:%d", gatewayPort), "gateway listener (port 0 for protocol tests)")
-	tokenFile := flag.String("token-file", "/etc/agents-in-the-cloud-workspace-gateway-token", "workspace credential file")
-	readyFile := flag.String("ready-file", "/.agents-in-the-cloud/ready", "startup readiness marker")
+	tokenFile := flag.String("token-file", "/etc/kintsugi-workspace-gateway-token", "workspace credential file")
+	readyFile := flag.String("ready-file", "/.kintsugi/ready", "startup readiness marker")
 	flag.Parse()
 	if flag.NArg() != 0 {
 		log.Fatal("unexpected gateway arguments")

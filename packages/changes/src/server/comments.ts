@@ -1,4 +1,4 @@
-import { createWorkspaceMetadataState, type WorkspaceMetadataState } from "@agents-in-the-cloud/workspace";
+import { createWorkspaceMetadataState, type WorkspaceMetadataState } from "@kintsugi/workspace";
 import { Type } from "typebox";
 import { Value } from "typebox/value";
 import { captureCommentAnchor, locateCommentAnchor, textLines, reviewCommentSchema, reviewComparisonKey, sortedComments, type CommentPlacement, type ReviewComment } from "../comments.ts";

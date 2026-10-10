@@ -1,16 +1,16 @@
-import { suggestAgentSlug } from "@agents-in-the-cloud/agent/server/slug-suggestion";
+import { suggestAgentSlug } from "@kintsugi/agent/server/slug-suggestion";
 import { knownWorkspaceAgentRequest } from "./runtime.ts";
 import { Type } from "typebox";
 import { Value } from "typebox/value";
-import { readJsonObject, requestAcceptsJson } from "@agents-in-the-cloud/core";
-import { agentAttachmentDraftId, deliverAttachmentDraft, removeStagedAttachments } from "@agents-in-the-cloud/prompt/server";
+import { readJsonObject, requestAcceptsJson } from "@kintsugi/core";
+import { agentAttachmentDraftId, deliverAttachmentDraft, removeStagedAttachments } from "@kintsugi/prompt/server";
 import { maybeNameAgentFromPrompt, setAgentTitle } from "./agent-title-suggestion.ts";
-import { turboStreamResponse } from "@agents-in-the-cloud/shared";
+import { turboStreamResponse } from "@kintsugi/shared";
 import { removeInitialPromptDraft } from "./initial-prompt-draft.ts";
-import { expandSlashCommand } from "@agents-in-the-cloud/agent/server/slash-command-input";
-import { parseCompactCommand } from "@agents-in-the-cloud/agent/server/builtin-slash-commands";
-import { runAgentNameCommand } from "@agents-in-the-cloud/agent/server/agent-name-command";
-import { matchRoute } from "@agents-in-the-cloud/shared/http";
+import { expandSlashCommand } from "@kintsugi/agent/server/slash-command-input";
+import { parseCompactCommand } from "@kintsugi/agent/server/builtin-slash-commands";
+import { runAgentNameCommand } from "@kintsugi/agent/server/agent-name-command";
+import { matchRoute } from "@kintsugi/shared/http";
 import { resolveAgentController, type AgentRouteHandler, type AgentRouteOptions } from "./route-support.ts";
 import { resolveAgent } from "./delegation.ts";
 
@@ -67,7 +67,7 @@ async function submitMessage(workspaceId: string, agentId: string, request: Requ
   if (form && String(form.get("attachmentDraft") ?? "") !== attachmentDraft) return turboStreamResponse("", { status: 422 });
   // Admission wins even if the previous response was lost after attachment cleanup.
   if (await (options.knownRequest ?? knownWorkspaceAgentRequest)(agent, requestId, { events: options.events })) {
-    const headers = { "x-agents-in-the-cloud-attachment-draft-consumed": "true" };
+    const headers = { "x-kintsugi-attachment-draft-consumed": "true" };
     return json ? Response.json({ agent: { agentId, state: "accepted" } }, { status: 202, headers }) : turboStreamResponse("", { headers });
   }
   const attachmentIds = form?.getAll("attachment").map(String) ?? [];
@@ -90,7 +90,7 @@ async function submitMessage(workspaceId: string, agentId: string, request: Requ
   }
   await removeStagedAttachments(attachmentDraft, attachmentIds);
   await removeInitialPromptDraft(workspaceId, agentId);
-  const acceptedHeaders = { "x-agents-in-the-cloud-attachment-draft-consumed": "true" };
+  const acceptedHeaders = { "x-kintsugi-attachment-draft-consumed": "true" };
   return json
     ? Response.json({ agent: { agentId, state: "running" } }, { status: 202, headers: acceptedHeaders })
     : turboStreamResponse("", { headers: acceptedHeaders });

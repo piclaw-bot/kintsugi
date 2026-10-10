@@ -1,4 +1,4 @@
-import { domId, escapeHtml } from "@agents-in-the-cloud/shared";
+import { domId, escapeHtml } from "@kintsugi/shared";
 import { branchColor, historyGraph, rowHeight, comparisonGraph, type HistoryModel } from "../history.ts";
 
 /** Server-rendered history rows and their shared graph. */

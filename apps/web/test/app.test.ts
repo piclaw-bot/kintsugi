@@ -1,5 +1,5 @@
-import { AgentsInTheCloudCoreError, createAgentsInTheCloudEventBus, type AgentsInTheCloudEventBus } from "@agents-in-the-cloud/core";
-import { type WorkspaceAgentTabProvider, type WorkspaceModule } from "@agents-in-the-cloud/shared";
+import { KintsugiCoreError, createKintsugiEventBus, type KintsugiEventBus } from "@kintsugi/core";
+import { type WorkspaceAgentTabProvider, type WorkspaceModule } from "@kintsugi/shared";
 import { describe, expect, test } from "bun:test";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -25,7 +25,7 @@ interface TestAgentModule {
 
 interface TestAppContext {
   app: WebApp;
-  events: AgentsInTheCloudEventBus;
+  events: KintsugiEventBus;
   registry: WorkspaceRegistry;
   agent: TestAgentModule;
   workspaceId: string;
@@ -45,13 +45,13 @@ function createTestAgentModule(initial: TestConversation[], created: TestConvers
     },
     async render(context) {
       const conversation = conversations.find((candidate) => candidate.id === context.agentId);
-      if (!conversation) throw new AgentsInTheCloudCoreError("agent_not_found", `Agent not found: ${context.agentId}`);
+      if (!conversation) throw new KintsugiCoreError("agent_not_found", `Agent not found: ${context.agentId}`);
       rendered.push(context);
       return `<article data-rendered-conversation="${conversation.id}">${conversation.title} body</article>`;
     },
     async close(context) {
       const index = conversations.findIndex((candidate) => candidate.id === context.agentId);
-      if (index < 0) throw new AgentsInTheCloudCoreError("agent_not_found", `Agent not found: ${context.agentId}`);
+      if (index < 0) throw new KintsugiCoreError("agent_not_found", `Agent not found: ${context.agentId}`);
       conversations.splice(index, 1);
       closed.push(context);
     },
@@ -81,14 +81,14 @@ async function withTestApp(
   additionalModules: WorkspaceModule[] = [],
 ): Promise<void> {
   const previousDataDir = process.env.ATELIER_DATA_DIR;
-  const dataDir = await mkdtemp(join(tmpdir(), "agents-in-the-cloud-app-agent-routes-"));
+  const dataDir = await mkdtemp(join(tmpdir(), "kintsugi-app-agent-routes-"));
   const originalModules = workspaceModules.splice(0, workspaceModules.length);
   const agent = createTestAgentModule(initial, created);
   process.env.ATELIER_DATA_DIR = dataDir;
   workspaceModules.push(agent.module, ...additionalModules);
   try {
     const registry = createWorkspaceRegistry();
-    const events = createAgentsInTheCloudEventBus();
+    const events = createKintsugiEventBus();
     const app = createWebApp({
       registry,
       events,
@@ -203,7 +203,7 @@ test("the theme is a server setting pushed to every open page", async () => {
     }));
     expect(response.status).toBe(200);
     await Bun.sleep(10);
-    expect(pushed.join("")).toContain('data-agents-in-the-cloud-theme-name-value="tokyo-night"');
+    expect(pushed.join("")).toContain('data-kintsugi-theme-name-value="tokyo-night"');
     expect(JSON.parse(await readFile(join(process.env.ATELIER_DATA_DIR!, "theme.json"), "utf8"))).toEqual({ theme: "tokyo-night" });
     const settings = await (await app.fetch(new Request("http://test.local/settings"))).text();
     expect(settings).toContain('<option value="tokyo-night" selected>');

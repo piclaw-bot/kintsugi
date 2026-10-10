@@ -1,8 +1,8 @@
 import { describe, expect, test } from "bun:test";
 import { renderAgentPane, renderPromptActions } from "../../src/server/render-composer.ts";
-import { renderTranscript, renderTranscriptItem, renderTranscriptItemDetailFrame } from "@agents-in-the-cloud/agent/server/render-transcript";
-import type { AgentRenderContext } from "@agents-in-the-cloud/agent/server/render-context";
-import type { ToolView, TranscriptItem } from "@agents-in-the-cloud/agent/server/transcript";
+import { renderTranscript, renderTranscriptItem, renderTranscriptItemDetailFrame } from "@kintsugi/agent/server/render-transcript";
+import type { AgentRenderContext } from "@kintsugi/agent/server/render-context";
+import type { ToolView, TranscriptItem } from "@kintsugi/agent/server/transcript";
 
 const ctx: AgentRenderContext = { workspaceId: "ws", agentId: "00000000-0000-4000-8000-000000000001" };
 const agent = { workspaceId: "ws", agentId: "00000000-0000-4000-8000-000000000001", label: "agent", title: "Agent", path: "/tmp/agent.jsonl" };
@@ -91,7 +91,7 @@ describe("transcript rendering", () => {
     expect(html).not.toContain("const x");
     const detail = renderTranscriptItemDetailFrame(ctx, item);
     expect(detail.replace(/<[^>]+>/g, "")).toContain("const x = 1;");
-    expect(detail).toContain('data-controller="agents-in-the-cloud-fullscreen"');
+    expect(detail).toContain('data-controller="kintsugi-fullscreen"');
   });
 
   test("live write pagination targets its detail frame", () => {
@@ -266,12 +266,12 @@ describe("transcript rendering", () => {
     expect(transcript).toContain("320×200 · image/png");
     const detail = renderTranscriptItemDetailFrame(ctx, item);
     expect(detail).toContain('/session-images/entry/2');
-    expect(detail).toContain('data-agents-in-the-cloud-fullscreen-mode-value="media"');
+    expect(detail).toContain('data-kintsugi-fullscreen-mode-value="media"');
   });
 
   test("user attachments remain fullscreenable", () => {
     const html = renderTranscript(ctx, [{ type: "user", key: "user", text: "look", images: [{ entryId: "user", contentIndex: 1 }] }], { systemPrompt: "", tools: [] });
     expect(html).toContain('/session-images/user/1');
-    expect(html).toContain('data-agents-in-the-cloud-fullscreen-mode-value="media"');
+    expect(html).toContain('data-kintsugi-fullscreen-mode-value="media"');
   });
 });

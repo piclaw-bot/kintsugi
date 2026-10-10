@@ -1,8 +1,8 @@
-import { expandSlashCommand } from "@agents-in-the-cloud/agent/server/slash-command-input";
-import { listFileCompletions, renderFileCompletionMenu } from "@agents-in-the-cloud/agent/server/file-completions";
-import { runAgentNameCommand } from "@agents-in-the-cloud/agent/server/agent-name-command";
-import { agentAttachmentDraftId, copyAttachmentIntoWorkspace, findStagedAttachment, removeStagedAttachments } from "@agents-in-the-cloud/prompt/server";
-import { response, textResponse } from "@agents-in-the-cloud/shared/http";
+import { expandSlashCommand } from "@kintsugi/agent/server/slash-command-input";
+import { listFileCompletions, renderFileCompletionMenu } from "@kintsugi/agent/server/file-completions";
+import { runAgentNameCommand } from "@kintsugi/agent/server/agent-name-command";
+import { agentAttachmentDraftId, copyAttachmentIntoWorkspace, findStagedAttachment, removeStagedAttachments } from "@kintsugi/prompt/server";
+import { response, textResponse } from "@kintsugi/shared/http";
 import type { CliAgents } from "./agents.ts";
 
 export function cliComposerRoutes(providerId: string, agents: CliAgents) {
@@ -50,7 +50,7 @@ export function cliComposerRoutes(providerId: string, agents: CliAgents) {
     if (!text.trim() && !attachments.length) return new Response("Enter a prompt or attach a file", { status: 422 });
     const notes: string[] = [];
     for (const attachment of attachments) {
-      const path = `/tmp/agents-in-the-cloud-attachments/${providerId}-${agentId}/${attachment.id}/${attachment.name}`;
+      const path = `/tmp/kintsugi-attachments/${providerId}-${agentId}/${attachment.id}/${attachment.name}`;
       await copyAttachmentIntoWorkspace(workspaceId, attachment, path);
       notes.push(`[Attached ${attachment.isImage ? "image" : "file"} available at ${path}]`);
     }

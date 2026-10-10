@@ -1,4 +1,4 @@
-import { createAgentsInTheCloudEventBus } from "@agents-in-the-cloud/core";
+import { createKintsugiEventBus } from "@kintsugi/core";
 import { expect, test } from "bun:test";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -14,9 +14,9 @@ function context() {
     sidebar,
     broadcasts,
     ctx: {
-      events: createAgentsInTheCloudEventBus(),
+      events: createKintsugiEventBus(),
       registry: { setAgentBusy: () => {}, requestSurfaceAttention: () => undefined, requestAttention: () => undefined },
-      globalSidebarContributions: { set: (_id: string, html?: string, regions?: readonly import("@agents-in-the-cloud/shared").LiveRegion[]) => {
+      globalSidebarContributions: { set: (_id: string, html?: string, regions?: readonly import("@kintsugi/shared").LiveRegion[]) => {
         sidebar.push(html ?? "");
         broadcasts.push(regions?.map(region => region.html).join("") ?? "");
       } },
@@ -45,7 +45,7 @@ function deferred<T = void>() {
 const oldDigest = `sha256:${"a".repeat(64)}`;
 const newDigest = `sha256:${"b".repeat(64)}`;
 const newerDigest = `sha256:${"c".repeat(64)}`;
-const exact = `ghcr.io/lucasmeijer/agents-in-the-cloud@${newDigest}`;
+const exact = `ghcr.io/rcarmo/kintsugi@${newDigest}`;
 function manager(extra: UpdateManagerDeps = {}) {
   return new UpdateManager({
     detectRuntime: async () => ({ currentDigest: oldDigest }),
@@ -114,13 +114,13 @@ test("restart route acknowledges same-origin reload only after supervisor accept
   const instance = manager({ requestUpdate: async () => accepted.promise });
   await instance.initialize(context().ctx); await instance.startPull();
   const route = createUpdateRouteHandler(instance);
-  const url = new URL("https://agents-in-the-cloud.example/update/restart?surface=settings");
+  const url = new URL("https://kintsugi.example/update/restart?surface=settings");
   const pending = route(new Request(url, { method: "POST" }), url);
   expect(instance.snapshot().state).toBe("restarting");
   accepted.resolve();
   const response = (await pending)!;
   expect(response.status).toBe(204);
-  expect(response.headers.get("x-agents-in-the-cloud-reload")).toBe("true");
+  expect(response.headers.get("x-kintsugi-reload")).toBe("true");
   expect(response.headers.has("location")).toBe(false);
 });
 test("background checks cannot replace a pinned download or prepared target", async () => {
@@ -139,7 +139,7 @@ test("background checks cannot replace a pinned download or prepared target", as
 });
 test("channel changes persist, discard prior prepared images, and survive manager restart", async () => {
   const previous = process.env.ATELIER_DATA_DIR;
-  const directory = await mkdtemp(join(tmpdir(), "agents-in-the-cloud-update-settings-"));
+  const directory = await mkdtemp(join(tmpdir(), "kintsugi-update-settings-"));
   process.env.ATELIER_DATA_DIR = directory;
   try {
     await writeStoredUpdateChannel("stable");
@@ -212,7 +212,7 @@ test.each(["stable", "latest"] as const)("stored %s channel overrides the latest
 
 test("switching from stable to latest persists the channel and refreshes the target", async () => {
   const previous = process.env.ATELIER_DATA_DIR;
-  const directory = await mkdtemp(join(tmpdir(), "agents-in-the-cloud-latest-settings-"));
+  const directory = await mkdtemp(join(tmpdir(), "kintsugi-latest-settings-"));
   process.env.ATELIER_DATA_DIR = directory;
   try {
     await writeStoredUpdateChannel("stable");

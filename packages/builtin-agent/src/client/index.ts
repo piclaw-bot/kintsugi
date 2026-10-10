@@ -1,4 +1,4 @@
-import type { WorkspaceClientModule } from "@agents-in-the-cloud/shared";
+import type { WorkspaceClientModule } from "@kintsugi/shared";
 import { createAgentNotificationsController } from "./notifications-controller.ts";
 import { createAgentPaneController, registerAgentPaneVisibilityHooks } from "./agent-pane.ts";
 import { createAgentTurnController } from "./turn-controller.ts";
@@ -14,4 +14,4 @@ const builtinAgentClientModule: WorkspaceClientModule = {
     registerAgentPaneVisibilityHooks(application, hooks);
   },
 };
-export { builtinAgentClientModule as agentsInTheCloudClientModule };
+export { builtinAgentClientModule as kintsugiClientModule };

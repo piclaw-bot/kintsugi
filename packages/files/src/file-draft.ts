@@ -1,4 +1,4 @@
-import { errorMessage } from "@agents-in-the-cloud/shared";
+import { errorMessage } from "@kintsugi/shared";
 import type { EditableFileResponse, FileSaveRequest } from "./protocol.ts";
 
 export type SaveResult = { revision: string } | { conflict: EditableFileResponse };

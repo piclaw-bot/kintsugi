@@ -11,8 +11,8 @@ test("provisioning supplies setup and PID 1 requirements without replacing image
     const plan: WorkspaceDockerPlan = { labels: {}, env: {}, mounts: [], preloadImages: [], extraArgs: [], initScripts: [], containerFiles: [], cleanup: [] };
     await prepareWorkspaceSystemd(plan, directory, "echo setup");
     expect(plan.extraArgs).toEqual(["--security-opt", "writable-cgroups=true", "--cgroupns=private", "--tmpfs", "/run", "--stop-signal", "SIGRTMIN+3"]);
-    expect(plan.containerFiles).toEqual([{ source: join(directory, "init.sh"), target: "/.agents-in-the-cloud/init.sh" }, { source: join(directory, "agents-in-the-cloud"), target: "/etc" }]);
-    expect(await readFile(join(directory, "agents-in-the-cloud", "docker-support"), "utf8")).toBe("disabled\n\n");
+    expect(plan.containerFiles).toEqual([{ source: join(directory, "init.sh"), target: "/.kintsugi/init.sh" }, { source: join(directory, "kintsugi"), target: "/etc" }]);
+    expect(await readFile(join(directory, "kintsugi", "docker-support"), "utf8")).toBe("disabled\n\n");
     expect(await readFile(join(directory, "init.sh"), "utf8")).toBe("echo setup");
   } finally { await rm(directory, { recursive: true, force: true }); }
 });
@@ -20,10 +20,10 @@ test("provisioning supplies setup and PID 1 requirements without replacing image
 test("Docker opt-in keeps the ordinary privileged runtime and snapshots the settings link", async () => {
   const directory = await mkdtemp(join(tmpdir(), "workspace-systemd-"));
   try {
-    const plan: WorkspaceDockerPlan = { labels: {}, env: {}, mounts: [], preloadImages: [], extraArgs: [], privileged: true, initScripts: [], containerFiles: [], cleanup: [], dockerSupportSettingsUrl: "https://agents-in-the-cloud.example/workspace-templates/app/settings?section=privileged" };
+    const plan: WorkspaceDockerPlan = { labels: {}, env: {}, mounts: [], preloadImages: [], extraArgs: [], privileged: true, initScripts: [], containerFiles: [], cleanup: [], dockerSupportSettingsUrl: "https://kintsugi.example/workspace-templates/app/settings?section=privileged" };
     await prepareWorkspaceSystemd(plan, directory, "echo setup");
     expect(plan.extraArgs).not.toContain("writable-cgroups=true");
     expect(plan.extraArgs).toContain("--privileged");
-    expect(await readFile(join(directory, "agents-in-the-cloud", "docker-support"), "utf8")).toBe("enabled\nhttps://agents-in-the-cloud.example/workspace-templates/app/settings?section=privileged\n");
+    expect(await readFile(join(directory, "kintsugi", "docker-support"), "utf8")).toBe("enabled\nhttps://kintsugi.example/workspace-templates/app/settings?section=privileged\n");
   } finally { await rm(directory, { recursive: true, force: true }); }
 });

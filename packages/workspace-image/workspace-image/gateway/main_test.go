@@ -44,7 +44,7 @@ func appRequest(t *testing.T, method, path, port string, body io.Reader) *http.R
 // but word separators must match the TypeScript transport protocol exactly.
 func TestIngressHeaderWireNames(t *testing.T) {
 	app := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		for _, name := range []string{"x-agents-in-the-cloud-gateway-host", "x-agents-in-the-cloud-gateway-token", "x-agents-in-the-cloud-gateway-port", "x-agents-in-the-cloud-gateway-protocol"} {
+		for _, name := range []string{"x-kintsugi-gateway-host", "x-kintsugi-gateway-token", "x-kintsugi-gateway-port", "x-kintsugi-gateway-protocol"} {
 			if r.Header.Get(name) != "" {
 				t.Errorf("gateway metadata leaked: %s", name)
 			}
@@ -53,20 +53,20 @@ func TestIngressHeaderWireNames(t *testing.T) {
 	}))
 	defer app.Close()
 	r := httptest.NewRequest("GET", "/", nil)
-	r.Header.Set("x-agents-in-the-cloud-gateway-host", "preview.example")
-	r.Header.Set("x-agents-in-the-cloud-gateway-token", testToken)
-	r.Header.Set("x-agents-in-the-cloud-gateway-port", appPort(t, app.URL))
-	r.Header.Set("x-agents-in-the-cloud-gateway-protocol", "http")
+	r.Header.Set("x-kintsugi-gateway-host", "preview.example")
+	r.Header.Set("x-kintsugi-gateway-token", testToken)
+	r.Header.Set("x-kintsugi-gateway-port", appPort(t, app.URL))
+	r.Header.Set("x-kintsugi-gateway-protocol", "http")
 	w := httptest.NewRecorder()
 	gateway := newGateway(testToken, http.DefaultTransport)
 	gateway.ServeHTTP(w, r)
 	if w.Code != http.StatusOK || w.Body.String() != "ingress authenticated" {
 		t.Fatalf("ingress headers rejected: %d %s", w.Code, w.Body.String())
 	}
-	r.Header.Del("x-agents-in-the-cloud-gateway-token")
+	r.Header.Del("x-kintsugi-gateway-token")
 	w = httptest.NewRecorder()
 	gateway.ServeHTTP(w, r)
-	if w.Code != http.StatusUnauthorized || w.Header().Get("x-agents-in-the-cloud-gateway-error") != "authentication" {
+	if w.Code != http.StatusUnauthorized || w.Header().Get("x-kintsugi-gateway-error") != "authentication" {
 		t.Fatalf("ingress error header missing: %d %v", w.Code, w.Header())
 	}
 }
@@ -141,7 +141,7 @@ func TestForwarding(t *testing.T) {
 		if r.Header.Get("X-Forwarded-Host") != r.Host || r.Header.Get("X-Forwarded-Proto") != "https" {
 			t.Error("forwarded metadata lost")
 		}
-		if r.Header.Get("X-Agents-In-The-Cloud-Parent-Origin") != "https://outer.example" {
+		if r.Header.Get("X-Kintsugi-Parent-Origin") != "https://outer.example" {
 			t.Error("nested metadata lost")
 		}
 		body, err := io.ReadAll(r.Body)
@@ -164,7 +164,7 @@ func TestForwarding(t *testing.T) {
 	r.Header.Set("Cookie", "session=app")
 	r.Header.Set("X-Forwarded-Host", r.Host)
 	r.Header.Set("X-Forwarded-Proto", "https")
-	r.Header.Set("X-Agents-In-The-Cloud-Parent-Origin", "https://outer.example")
+	r.Header.Set("X-Kintsugi-Parent-Origin", "https://outer.example")
 	r.Header.Set("Connection", "X-Hop")
 	r.Header.Set("X-Hop", "remove")
 	w := httptest.NewRecorder()

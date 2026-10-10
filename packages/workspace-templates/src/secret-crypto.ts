@@ -1,18 +1,18 @@
 import { createCipheriv, createDecipheriv, randomBytes } from "node:crypto";
 import { chmod, mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
-import { AgentsInTheCloudCoreError, getAgentsInTheCloudRuntimeContext, isNotFoundError } from "@agents-in-the-cloud/core";
+import { KintsugiCoreError, getKintsugiRuntimeContext, isNotFoundError } from "@kintsugi/core";
 
 const keyBytes = 32;
 const ivBytes = 12;
 
-function workspaceTemplateSecretsKeyFile(dataDir = getAgentsInTheCloudRuntimeContext().agentsInTheCloudDataDir): string {
+function workspaceTemplateSecretsKeyFile(dataDir = getKintsugiRuntimeContext().kintsugiDataDir): string {
   return join(dataDir, "project-secrets.key");
 }
 
 async function readMasterKey(file: string): Promise<Buffer> {
   const key = Buffer.from((await readFile(file, "utf8")).trim(), "base64url");
-  if (key.byteLength !== keyBytes) throw new AgentsInTheCloudCoreError("invalid_workspace_template_secret_key", `template secrets key must be ${keyBytes} bytes`);
+  if (key.byteLength !== keyBytes) throw new KintsugiCoreError("invalid_workspace_template_secret_key", `template secrets key must be ${keyBytes} bytes`);
   return key;
 }
 
@@ -44,15 +44,15 @@ export async function encryptWorkspaceTemplateValue(workspaceTemplateId: string,
 
 export async function decryptWorkspaceTemplateValue(workspaceTemplateId: string, secretId: string, encryptedValue: string, keyFile = workspaceTemplateSecretsKeyFile()): Promise<string> {
   const [version, encodedIv, encodedPayload] = encryptedValue.split(":");
-  if (version !== "v1" || !encodedIv || !encodedPayload) throw new AgentsInTheCloudCoreError("invalid_workspace_template_secret_ciphertext", `invalid template secret ciphertext: ${secretId}`);
+  if (version !== "v1" || !encodedIv || !encodedPayload) throw new KintsugiCoreError("invalid_workspace_template_secret_ciphertext", `invalid template secret ciphertext: ${secretId}`);
   const payload = Buffer.from(encodedPayload, "base64url");
-  if (payload.byteLength < 16) throw new AgentsInTheCloudCoreError("invalid_workspace_template_secret_ciphertext", `invalid template secret ciphertext: ${secretId}`);
+  if (payload.byteLength < 16) throw new KintsugiCoreError("invalid_workspace_template_secret_ciphertext", `invalid template secret ciphertext: ${secretId}`);
   let key: Buffer;
   try {
     key = await readMasterKey(keyFile);
   } catch (error) {
     if (!isNotFoundError(error)) throw error;
-    throw new AgentsInTheCloudCoreError("workspace_template_secret_key_missing", `Cannot decrypt secrets or SSH keys for template ${workspaceTemplateId}: ${keyFile} is missing. Restore the original key alongside projects.json; generating a new key won’t unlock saved values.`);
+    throw new KintsugiCoreError("workspace_template_secret_key_missing", `Cannot decrypt secrets or SSH keys for template ${workspaceTemplateId}: ${keyFile} is missing. Restore the original key alongside projects.json; generating a new key won’t unlock saved values.`);
   }
   const decipher = createDecipheriv("aes-256-gcm", key, Buffer.from(encodedIv, "base64url"));
   decipher.setAAD(aad(workspaceTemplateId, secretId));
@@ -60,6 +60,6 @@ export async function decryptWorkspaceTemplateValue(workspaceTemplateId: string,
   try {
     return Buffer.concat([decipher.update(payload.subarray(0, -16)), decipher.final()]).toString("utf8");
   } catch {
-    throw new AgentsInTheCloudCoreError("workspace_template_secret_decryption_failed", `Cannot decrypt saved value ${secretId} for template ${workspaceTemplateId}. The key in ${keyFile} does not match the saved data, or the data is damaged. Restore projects.json and project-secrets.key from the same source.`);
+    throw new KintsugiCoreError("workspace_template_secret_decryption_failed", `Cannot decrypt saved value ${secretId} for template ${workspaceTemplateId}. The key in ${keyFile} does not match the saved data, or the data is damaged. Restore projects.json and project-secrets.key from the same source.`);
   }
 }

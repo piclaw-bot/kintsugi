@@ -1,8 +1,8 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { expect, spyOn, test } from "bun:test";
-import { workspaceWorkHostPath } from "@agents-in-the-cloud/workspace";
-import { createAgentsInTheCloudEventBus } from "@agents-in-the-cloud/core";
+import { workspaceWorkHostPath } from "@kintsugi/workspace";
+import { createKintsugiEventBus } from "@kintsugi/core";
 import { publishWorkspaceAgentBusy } from "../../agent/src/server/workspace-agent-busy.ts";
 import type { CliAgentAdapter } from "../src/server/adapter.ts";
 import type { CliAgents } from "../src/server/agents.ts";
@@ -46,7 +46,7 @@ test("a failed incremental history read is reported and queued publications cont
   const subscription = await f.channel.subscribe(f.identifier, () => {
     publications++;
     if (publications === 2) recovered.resolve();
-  }, createAgentsInTheCloudEventBus());
+  }, createKintsugiEventBus());
   try {
     f.finishTurn();
     f.finishTurn();
@@ -66,7 +66,7 @@ test("an initial history read failure still rejects channel subscription", async
   const failure = new Error("initial history read failed");
   let reads = 0;
   const f = fixture(async () => { reads++; throw failure; });
-  await expect(f.channel.subscribe(f.identifier, () => {}, createAgentsInTheCloudEventBus())).rejects.toBe(failure);
+  await expect(f.channel.subscribe(f.identifier, () => {}, createKintsugiEventBus())).rejects.toBe(failure);
   f.finishTurn();
   await Promise.resolve();
   expect(reads).toBe(1);
@@ -80,10 +80,10 @@ test("a finished turn refreshes the composer catalog with prompt templates it ad
   const subscription = await f.channel.subscribe(f.identifier, (html) => {
     published.push(html);
     if (published.length === 2) refreshed.resolve();
-  }, createAgentsInTheCloudEventBus());
+  }, createKintsugiEventBus());
   try {
     expect(published[0]).not.toContain("/ship");
-    const prompts = join(workspaceWorkHostPath(workspaceId), ".agents-in-the-cloud/prompts");
+    const prompts = join(workspaceWorkHostPath(workspaceId), ".kintsugi/prompts");
     await mkdir(prompts, { recursive: true });
     await writeFile(join(prompts, "ship.md"), "---\ncomposer-button: true\nshortcut: s\n---\nShip it");
     f.finishTurn();

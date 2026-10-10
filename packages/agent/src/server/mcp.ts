@@ -1,24 +1,24 @@
-import type { AgentsInTheCloudEventBus } from "@agents-in-the-cloud/core";
-import { execWorkspaceShell } from "@agents-in-the-cloud/workspace";
+import type { KintsugiEventBus } from "@kintsugi/core";
+import { execWorkspaceShell } from "@kintsugi/workspace";
 import { authenticateAgentRequest, createAgentMcpCredentials } from "./mcp-credentials.ts";
 import { createAgentMcpServer } from "./mcp-server.ts";
-import { createAgentsInTheCloudControlTools } from "./tools.ts";
+import { createKintsugiControlTools } from "./tools.ts";
 import { abandonSettlingTurn, handleAgentTurnBoundary, type AgentTurnFinishReason } from "./turn-lifecycle.ts";
-import { prepareAppendedAgentsInTheCloudInstructions, sharedAgentsInTheCloudInstructions } from "./system-prompt.ts";
+import { prepareAppendedKintsugiInstructions, sharedKintsugiInstructions } from "./system-prompt.ts";
 
-async function agentInstructions(workspaceId: string, agentId: string, applicationInstructions = sharedAgentsInTheCloudInstructions): Promise<string> {
-  return [applicationInstructions, ...await prepareAppendedAgentsInTheCloudInstructions(events, workspaceId, agentId)].join("\n\n");
+async function agentInstructions(workspaceId: string, agentId: string, applicationInstructions = sharedKintsugiInstructions): Promise<string> {
+  return [applicationInstructions, ...await prepareAppendedKintsugiInstructions(events, workspaceId, agentId)].join("\n\n");
 }
 
 let credentials: ReturnType<typeof createAgentMcpCredentials> | undefined;
 function credentialStore() { return credentials ??= createAgentMcpCredentials(); }
-let events: AgentsInTheCloudEventBus | undefined;
+let events: KintsugiEventBus | undefined;
 const mcp = createAgentMcpServer({
   authenticate: (token) => credentialStore().authenticate(token),
-  tools: ({ workspaceId }) => createAgentsInTheCloudControlTools(workspaceId, { events }),
+  tools: ({ workspaceId }) => createKintsugiControlTools(workspaceId, { events }),
   instructions: ({ workspaceId, agentId }) => agentInstructions(workspaceId, agentId),
 });
-export function configureAgentMcp(eventBus: AgentsInTheCloudEventBus): void {
+export function configureAgentMcp(eventBus: KintsugiEventBus): void {
   events = eventBus;
   eventBus.on("workspace_deleting", async ({ workspaceId }) => {
     credentialStore().revokeWorkspace(workspaceId);
@@ -53,21 +53,21 @@ export async function prepareCliAgentConnection(workspaceId: string, agentId: st
 (
   flock 9
   if ! curl --noproxy '*' --max-time 2 --silent http://127.0.0.1:2988/health | grep -qx ok; then
-    nohup socat TCP4-LISTEN:2988,bind=127.0.0.1,reuseaddr,fork UNIX-CONNECT:/run/agents-in-the-cloud-parent/ingress.sock > /tmp/agents-in-the-cloud-mcp.log 2>&1 < /dev/null 9>&- &
+    nohup socat TCP4-LISTEN:2988,bind=127.0.0.1,reuseaddr,fork UNIX-CONNECT:/run/kintsugi-parent/ingress.sock > /tmp/kintsugi-mcp.log 2>&1 < /dev/null 9>&- &
   fi
-) 9>/tmp/agents-in-the-cloud-mcp.lock
+) 9>/tmp/kintsugi-mcp.lock
 for attempt in $(seq 1 50); do
   if curl --noproxy '*' --max-time 2 --silent http://127.0.0.1:2988/health | grep -qx ok; then exit 0; fi
   sleep .1
 done
-cat /tmp/agents-in-the-cloud-mcp.log >&2
+cat /tmp/kintsugi-mcp.log >&2
 exit 1`);
   if (result.exitCode !== 0) throw new Error(result.stderr.trim() || "Could not start workspace MCP relay");
   const instructions = await agentInstructions(workspaceId, agentId, applicationInstructions);
   return { url: "http://127.0.0.1:2988/mcp", token: credentialStore().issue({ workspaceId, agentId, instructionDelivery: "system-prompt" }), instructions };
 }
 
-/** CLI agents run outside AgentsInTheCloud's runtime, so their turn boundaries arrive as authenticated loopback requests. */
+/** CLI agents run outside Kintsugi's runtime, so their turn boundaries arrive as authenticated loopback requests. */
 async function handleTurnBoundary(request: Request, workspaceId: string | undefined, started: boolean, reason: AgentTurnFinishReason = "stop"): Promise<Response> {
   const identity = authenticateAgentRequest(request, credentialStore().authenticate, workspaceId);
   if (identity instanceof Response) return identity;

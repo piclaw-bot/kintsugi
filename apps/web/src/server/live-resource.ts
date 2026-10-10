@@ -1,4 +1,4 @@
-import { createLivePresentation, createPublishedRefresh, type LiveRegion } from "@agents-in-the-cloud/shared";
+import { createLivePresentation, createPublishedRefresh, type LiveRegion } from "@kintsugi/shared";
 
 /** I/O publishes a committed value shared by HTTP rendering and Cable snapshots. */
 export function createLiveResource<T>(load: () => Promise<T>, render: (state: T) => readonly LiveRegion[], onError: (error: Error) => void) {

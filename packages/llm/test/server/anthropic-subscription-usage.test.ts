@@ -1,4 +1,4 @@
-import type { JsonObject } from "@agents-in-the-cloud/core";
+import type { JsonObject } from "@kintsugi/core";
 import { expect, test } from "bun:test";
 import { anthropicUsageFromHeaders, createAnthropicUsageSource, fetchAnthropicAccountUsage, probeAnthropicSubscriptionUsage } from "../../src/server/anthropic-subscription-usage.ts";
 

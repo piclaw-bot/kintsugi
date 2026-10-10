@@ -1,5 +1,5 @@
 {
-  "name": "@agents-in-the-cloud/markdown",
+  "name": "@kintsugi/markdown",
   "private": true,
   "type": "module",
   "exports": {
@@ -7,9 +7,9 @@
     "./assets": "./src/assets.ts"
   },
   "dependencies": {
-    "@agents-in-the-cloud/design-system": "workspace:*",
-    "@agents-in-the-cloud/shared": "workspace:*",
-    "@agents-in-the-cloud/syntax": "workspace:*",
+    "@kintsugi/design-system": "workspace:*",
+    "@kintsugi/shared": "workspace:*",
+    "@kintsugi/syntax": "workspace:*",
     "@mdit/plugin-tex": "1.0.0",
     "katex": "0.19.0",
     "markdown-it": "14.3.0"

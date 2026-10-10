@@ -99,7 +99,7 @@ export async function stage(options: { atelier: string; workspaceId?: string; mo
 /** A prompt template with its composer button enabled, so composers show their Prompt template button row. */
 async function stagePromptTemplateButton(workspaceId: string): Promise<void> {
   const template = "---\ndescription: Reply with OK\ncomposer-button: true\n---\nReply with just the word OK.\n";
-  await workspaceExec(workspaceId, ["sh", "-c", "mkdir -p /work/.agents-in-the-cloud/prompts && cat > /work/.agents-in-the-cloud/prompts/ok.md"], template);
+  await workspaceExec(workspaceId, ["sh", "-c", "mkdir -p /work/.kintsugi/prompts && cat > /work/.kintsugi/prompts/ok.md"], template);
 }
 
 /** tmux window sizes inside the workspace container, by session name. Read-only: no hooks are installed. */
@@ -113,7 +113,7 @@ export async function tmuxSizes(workspaceId: string): Promise<Record<string, str
 
 /** Runs a command in the workspace container as its user and returns its output. */
 async function workspaceExec(workspaceId: string, command: string[], stdin?: string): Promise<string> {
-  const process = Bun.spawn(["docker", "exec", "-i", "-u", "agents-in-the-cloud", `agents-in-the-cloud-${workspaceId}`, ...command], { stdin: stdin === undefined ? "ignore" : new TextEncoder().encode(stdin), stdout: "pipe", stderr: "pipe" });
+  const process = Bun.spawn(["docker", "exec", "-i", "-u", "kintsugi", `kintsugi-${workspaceId}`, ...command], { stdin: stdin === undefined ? "ignore" : new TextEncoder().encode(stdin), stdout: "pipe", stderr: "pipe" });
   const output = await new Response(process.stdout).text();
   if (await process.exited !== 0) throw new Error(`${command.join(" ")} failed: ${await new Response(process.stderr).text()}`);
   return output;

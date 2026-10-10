@@ -1,5 +1,5 @@
 import { Icons } from "../icons/icons-html.ts";
-import { escapeHtml } from "@agents-in-the-cloud/shared";
+import { escapeHtml } from "@kintsugi/shared";
 import { buttonConfirmationMarkup } from "../button-confirmation/button-confirmation-markup.ts";
 
 interface CopyButtonOptions {

@@ -1,5 +1,5 @@
-import { AgentsInTheCloudCoreError } from "@agents-in-the-cloud/core";
-import { resolveNewWorkspaceAgentModel } from "@agents-in-the-cloud/agent/server/model-state";
+import { KintsugiCoreError } from "@kintsugi/core";
+import { resolveNewWorkspaceAgentModel } from "@kintsugi/agent/server/model-state";
 import { AgentPresentation } from "./agent-presentation.ts";
 import { openDurableAgentRuntime, type DurableAgentRuntime, type DurableAgentController } from "./durable-runtime.ts";
 import { existsSync } from "node:fs";
@@ -10,7 +10,7 @@ import type { WorkspaceAgentOptions } from "./runtime-types.ts";
 import type { WorkspaceAgentInfo } from "./agent-store.ts";
 
 export type { AgentLivePresentationSubscription } from "./runtime-types.ts";
-export { subscribeWorkspaceAgentBusy } from "@agents-in-the-cloud/agent/server";
+export { subscribeWorkspaceAgentBusy } from "@kintsugi/agent/server";
 
 const presentations = new Map<string, Promise<AgentPresentation>>();
 // First attachment can prepare a root before it exists in the catalog. Lifecycle
@@ -155,8 +155,8 @@ export async function stopWorkspaceAgentRuntimes(): Promise<void> {
 
 function assertWorkspaceAgentAvailable(agent: WorkspaceAgentInfo): void {
   if (stopping || suspendedWorkspaceIds.has(agent.workspaceId)) throw new Error("Workspace agent execution is suspended");
-  if (removedWorkspaceIds.has(agent.workspaceId)) throw new AgentsInTheCloudCoreError("workspace_not_found", `workspace not found: ${agent.workspaceId}`);
-  if (closedAgentKeys.has(runtimeKey(agent.workspaceId, agent.agentId))) throw new AgentsInTheCloudCoreError("agent_not_found", `Agent not found: ${agent.agentId}`);
+  if (removedWorkspaceIds.has(agent.workspaceId)) throw new KintsugiCoreError("workspace_not_found", `workspace not found: ${agent.workspaceId}`);
+  if (closedAgentKeys.has(runtimeKey(agent.workspaceId, agent.agentId))) throw new KintsugiCoreError("agent_not_found", `Agent not found: ${agent.agentId}`);
 }
 
 /** Execution does not require a mounted transcript or composer. */

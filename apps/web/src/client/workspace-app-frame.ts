@@ -1,5 +1,5 @@
 import { Controller } from "@hotwired/stimulus";
-import { isWorkspacePaneVisible } from "@agents-in-the-cloud/shared";
+import { isWorkspacePaneVisible } from "@kintsugi/shared";
 import { registerWorkspaceControllers } from "./workspace-controller-registry.ts";
 import { clientHooks } from "./workspace-client-hooks.ts";
 
@@ -13,12 +13,12 @@ class WorkspaceAppFrameController extends Controller<HTMLIFrameElement> {
   private pendingLoad?: { url: string; promise: Promise<void> };
 
   connect(): void {
-    document.addEventListener("agents-in-the-cloud:theme-change", this.themeChanged);
+    document.addEventListener("kintsugi:theme-change", this.themeChanged);
     if (isWorkspacePaneVisible(this.element)) this.load();
   }
 
   disconnect(): void {
-    document.removeEventListener("agents-in-the-cloud:theme-change", this.themeChanged);
+    document.removeEventListener("kintsugi:theme-change", this.themeChanged);
   }
 
   initialPathValueChanged(): void {

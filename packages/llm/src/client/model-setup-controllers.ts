@@ -1,4 +1,4 @@
-import type { WorkspaceClientControllerConstructor } from "@agents-in-the-cloud/shared";
+import type { WorkspaceClientControllerConstructor } from "@kintsugi/shared";
 
 export function createLaunchModelRefreshController(Controller: WorkspaceClientControllerConstructor) {
   return class LaunchModelRefreshController extends Controller {

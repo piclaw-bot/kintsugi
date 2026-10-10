@@ -1,12 +1,12 @@
 import { afterAll, afterEach, beforeAll, describe, expect, test } from "bun:test";
-import { shellQuote } from "@agents-in-the-cloud/core";
-import { resolveWorkspaceImage } from "@agents-in-the-cloud/workspace-image";
+import { shellQuote } from "@kintsugi/core";
+import { resolveWorkspaceImage } from "@kintsugi/workspace-image";
 import { attachHostObservableTerminal, buildObservableSessionCommand, type ObservableTerminalConnection } from "../../src/server/index.ts";
 import { attachObservableTerminal } from "../../src/server/attach.ts";
 
 for (const remote of [false, true]) {
   describe.skip(`${remote ? "Docker" : "host"} terminal lifecycle`, () => {
-    const container = `agents-in-the-cloud-terminal-test-${crypto.randomUUID()}`;
+    const container = `kintsugi-terminal-test-${crypto.randomUUID()}`;
     const sessions: string[] = [];
     const connections: ObservableTerminalConnection[] = [];
 
@@ -17,7 +17,7 @@ for (const remote of [false, true]) {
       return stdout.trim();
     }
     const run = (script: string) => command(remote
-      ? ["docker", "exec", "--user", "agents-in-the-cloud", container, "sh", "-lc", script]
+      ? ["docker", "exec", "--user", "agent", container, "sh", "-lc", script]
       : ["sh", "-lc", script]);
     async function until(read: () => Promise<string>, expected: string): Promise<void> {
       let actual = "";

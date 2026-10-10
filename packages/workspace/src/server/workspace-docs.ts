@@ -1,6 +1,6 @@
 import { mkdir, readdir, readFile, rm } from "node:fs/promises";
 import { join } from "node:path";
-import { writeFileAtomic } from "@agents-in-the-cloud/core";
+import { writeFileAtomic } from "@kintsugi/core";
 
 /** Merge shared and package-owned documentation into the existing read-only bind mount. */
 export async function syncWorkspaceDocs(repositoryRoot: string, destination: string, buildCommit = process.env.ATELIER_COMMIT_ID): Promise<void> {
@@ -46,11 +46,11 @@ export async function syncWorkspaceDocs(repositoryRoot: string, destination: str
   }
   await prune();
   for (const directory of directories) await mkdir(join(destination, directory), { recursive: true });
-  const repositoryUrl = "https://github.com/lucasmeijer/agentsinthecloud";
+  const repositoryUrl = "https://github.com/rcarmo/kintsugi";
   const build = buildCommit
     ? `[${buildCommit.slice(0, 7)}](${repositoryUrl}/commit/${encodeURIComponent(buildCommit)})`
     : "local development build";
-  const sourceLine = `\n\nIf you cannot find the answer to your question here, you can find the source code of this version of AgentsInTheCloud here: [GitHub](${repositoryUrl}) · ${build}\n`;
+  const sourceLine = `\n\nIf you cannot find the answer to your question here, you can find the source code of this version of Kintsugi here: [GitHub](${repositoryUrl}) · ${build}\n`;
   for (const [path, source] of files) {
     const content = await readFile(source);
     const deployed = path.endsWith(".md") ? Buffer.concat([content, Buffer.from(sourceLine)]) : content;

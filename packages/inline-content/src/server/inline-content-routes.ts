@@ -1,6 +1,6 @@
 import { readInlineContent } from "./inline-content.ts";
 import { inlineContentDocument } from "./inline-content-document.ts";
-import type { WorkspaceModuleRouteHandler } from "@agents-in-the-cloud/shared";
+import type { WorkspaceModuleRouteHandler } from "@kintsugi/shared";
 
 export const handleInlineContentRequest: WorkspaceModuleRouteHandler["handle"] = async (request, url) => {
   const params = url.pathname.match(/^\/workspaces\/([a-zA-Z0-9_-]+)\/inline-content$/);

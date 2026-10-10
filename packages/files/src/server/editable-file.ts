@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { posix } from "node:path";
-import { execWorkspaceCommand, execWorkspaceCommandBuffer, workspaceRoot } from "@agents-in-the-cloud/workspace";
+import { execWorkspaceCommand, execWorkspaceCommandBuffer, workspaceRoot } from "@kintsugi/workspace";
 import type { EditableFileResponse } from "../protocol.ts";
 
 export const maxEditableFileBytes = 2_000_000;
@@ -61,7 +61,7 @@ export async function writeEditableFile(workspaceId: string, inputPath: string |
   if (bytes.byteLength > maxEditableFileBytes) throw new EditableFileError("Files larger than 2 MB cannot be edited", 413);
   if (content.includes("\0")) throw new EditableFileError("Only text files can be edited", 415);
   const path = await editableTarget(workspaceId, inputPath);
-  const temporary = posix.join(posix.dirname(path), `.agents-in-the-cloud-edit-${crypto.randomUUID()}`);
+  const temporary = posix.join(posix.dirname(path), `.kintsugi-edit-${crypto.randomUUID()}`);
   const script = `if ! test -e "$1"; then exit 44; fi
 if test -L "$1" || ! test -f "$1"; then exit 45; fi
 if ! test -w "$1"; then exit 47; fi

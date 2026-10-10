@@ -1,10 +1,10 @@
-import { readJsonSettings, updateJsonSettings } from "@agents-in-the-cloud/core/json-settings";
+import { readJsonSettings, updateJsonSettings } from "@kintsugi/core/json-settings";
 import { Type } from "typebox";
 import { Value } from "typebox/value";
-import { agentsInTheCloudDataPath, getAgentsInTheCloudRuntimeContext, isJsonObject, type JsonObject, type JsonValue } from "@agents-in-the-cloud/core";
+import { kintsugiDataPath, getKintsugiRuntimeContext, isJsonObject, type JsonObject, type JsonValue } from "@kintsugi/core";
 import { modelRefValue, type ModelRef } from "./model-reference.ts";
 
-function settingsPath(): string { return agentsInTheCloudDataPath(getAgentsInTheCloudRuntimeContext(), "pi-config", "models.json"); }
+function settingsPath(): string { return kintsugiDataPath(getKintsugiRuntimeContext(), "pi-config", "models.json"); }
 const stringSchema = Type.String();
 function object(value: JsonValue | undefined): JsonObject { return isJsonObject(value) ? value : {}; }
 

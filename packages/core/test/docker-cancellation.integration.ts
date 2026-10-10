@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { runDocker, requireDocker } from "../src/docker.ts";
 import { withCommandSignal } from "../src/command-scope.ts";
 
-const container = `agents-in-the-cloud-command-check-${crypto.randomUUID().slice(0, 8)}`;
+const container = `kintsugi-command-check-${crypto.randomUUID().slice(0, 8)}`;
 await requireDocker(["run", "--init", "-d", "--name", container, "ubuntu:24.04", "sleep", "infinity"]);
 try {
   const signal = AbortSignal.timeout(10_000);

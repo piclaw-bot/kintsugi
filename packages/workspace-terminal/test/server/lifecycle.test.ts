@@ -8,11 +8,11 @@ async function scenario(script: string): Promise<void> {
   try {
     const child = Bun.spawn([process.execPath, "-e", `
       import { expect, mock } from "bun:test";
-      const workspace = await import("@agents-in-the-cloud/workspace");
-      const observable = await import("@agents-in-the-cloud/observable-terminal/server");
+      const workspace = await import("@kintsugi/workspace");
+      const observable = await import("@kintsugi/observable-terminal/server");
       const sessions = new Map();
       let failCreation = false, callbacks;
-      mock.module("@agents-in-the-cloud/workspace", () => ({ ...workspace, execWorkspaceShell: async (id, command) => {
+      mock.module("@kintsugi/workspace", () => ({ ...workspace, execWorkspaceShell: async (id, command) => {
         await Bun.sleep(5);
         if (!sessions.has(id)) sessions.set(id, new Set());
         const names = sessions.get(id);
@@ -26,7 +26,7 @@ async function scenario(script: string): Promise<void> {
         if (command.includes("kill-session")) names.delete(command.match(/kill-session -t '([^']+)'/)[1]);
         return result;
       } }));
-      mock.module(import.meta.resolve("@agents-in-the-cloud/observable-terminal/server").replace("/index.ts", "/attach.ts"), () => ({ ...observable, attachObservableTerminal: (_options, events) => {
+      mock.module(import.meta.resolve("@kintsugi/observable-terminal/server").replace("/index.ts", "/attach.ts"), () => ({ ...observable, attachObservableTerminal: (_options, events) => {
         callbacks = events;
         return { write() {}, resize() {}, close() {} };
       } }));

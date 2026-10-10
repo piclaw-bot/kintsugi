@@ -15,12 +15,12 @@ import { createHttpHooks } from "../src/secrets/placeholder-hooks.ts";
 // Only the parent's final destination is replaced by a local protocol fixture.
 test("nested HTTP, HTTPS and WebSocket egress preserve inherited credentials and delegate pinning to the parent", async () => {
   const cleanup: Array<() => void | Promise<void>> = [];
-  const directory = await mkdtemp("/tmp/agents-in-the-cloud-nested-egress-");
+  const directory = await mkdtemp("/tmp/kintsugi-nested-egress-");
   cleanup.push(() => rm(directory, { recursive: true, force: true }));
   const envNames = ["http_proxy", "https_proxy", "no_proxy"] as const;
   const oldEnv = Object.fromEntries(envNames.map(name => [name, process.env[name]]));
   try {
-    const ca = await ensureMitmCa({ agentsInTheCloudDataDir: directory, dockerHostAgentsInTheCloudDataDir: directory, dockerBridgeHost: "127.0.0.1" });
+    const ca = await ensureMitmCa({ kintsugiDataDir: directory, dockerHostKintsugiDataDir: directory, dockerBridgeHost: "127.0.0.1" });
     const caPem = await readFile(ca.certPath, "utf8");
     const hostname = "nested-egress.test";
     const placeholder = "ATELIER_NESTED_PLACEHOLDER";

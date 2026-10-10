@@ -1,5 +1,5 @@
-import { createWorkspaceMetadataState } from "@agents-in-the-cloud/workspace";
-import { AgentsInTheCloudCoreError } from "@agents-in-the-cloud/core";
+import { createWorkspaceMetadataState } from "@kintsugi/workspace";
+import { KintsugiCoreError } from "@kintsugi/core";
 import { Type, type Static } from "typebox";
 import { Value } from "typebox/value";
 
@@ -17,7 +17,7 @@ export function createCodexStore() {
     list,
     get(workspaceId: string, id: string) {
       const record = list(workspaceId).find(record => record.id === id);
-      if (!record) throw new AgentsInTheCloudCoreError("agent_not_found", `Codex Agent not found: ${id}`);
+      if (!record) throw new KintsugiCoreError("agent_not_found", `Codex Agent not found: ${id}`);
       return record;
     },
     save(workspaceId: string) { metadata.write(workspaceId, { agents: list(workspaceId) }); },

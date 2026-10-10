@@ -2,7 +2,7 @@ import { type UpdateChannel } from "./update-channel.ts";
 import { Type, type Static } from "typebox";
 import { Value } from "typebox/value";
 
-export const repository = "lucasmeijer/agents-in-the-cloud";
+export const repository = "rcarmo/kintsugi";
 
 export type HttpFetcher = (input: string | URL, init?: RequestInit) => Promise<Response>;
 

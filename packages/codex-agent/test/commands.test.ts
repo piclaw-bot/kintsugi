@@ -53,12 +53,12 @@ test("inventory settings preserve explicit native actions", () => {
 test("command sources reflect execution machinery, not the selected agent", () => {
   const template = { name: "land", trigger: "/land", description: "Land changes", prompt: "Finish these changes" };
   const native = slashCommands([template], [], "cli", codexSlashCommands);
-  expect(native.find(command => command.trigger === "/land")?.source).toBe("agents-in-the-cloud");
-  expect(native.find(command => command.trigger === "/name")?.source).toBe("agents-in-the-cloud");
+  expect(native.find(command => command.trigger === "/land")?.source).toBe("kintsugi");
+  expect(native.find(command => command.trigger === "/name")?.source).toBe("kintsugi");
   expect(native.find(command => command.trigger === "/new")?.source).toBe("codex");
-  expect(native.find(command => command.trigger === "/park")?.source).toBe("agents-in-the-cloud");
+  expect(native.find(command => command.trigger === "/park")?.source).toBe("kintsugi");
   expect(native.find(command => command.trigger === "/compact")?.source).toBe("codex");
   expect(native.find(command => command.trigger === "/skills")?.source).toBe("codex");
   for (const command of codexSlashCommands) expect(command.source).toBe("codex");
-  expect(slashCommands([], [], "builtin").find(command => command.trigger === "/compact")?.source).toBe("agents-in-the-cloud");
+  expect(slashCommands([], [], "builtin").find(command => command.trigger === "/compact")?.source).toBe("kintsugi");
 });

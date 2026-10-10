@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import type { WorkspaceAgentType, WorkspaceAgentTabSummary } from "@agents-in-the-cloud/shared";
+import type { WorkspaceAgentType, WorkspaceAgentTabSummary } from "@kintsugi/shared";
 import { createAgentPaneHost } from "../src/server/agent-pane-host.ts";
 
 function occupant(id: string, initial: WorkspaceAgentTabSummary[]) {

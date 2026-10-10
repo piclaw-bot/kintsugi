@@ -1,5 +1,5 @@
-import { buttonHtml } from "@agents-in-the-cloud/design-system/button";
-import { escapeHtml } from "@agents-in-the-cloud/shared";
+import { buttonHtml } from "@kintsugi/design-system/button";
+import { escapeHtml } from "@kintsugi/shared";
 
 const terminalAccessoryButtons = [
   { key: "up", label: "↑", ariaLabel: "Up arrow" },

@@ -1,6 +1,6 @@
 import { dirname, posix } from "node:path";
-import { shellQuote } from "@agents-in-the-cloud/core";
-import { execWorkspaceCommand, execWorkspaceCommandBuffer, execWorkspaceShell, workspaceRoot } from "@agents-in-the-cloud/workspace";
+import { shellQuote } from "@kintsugi/core";
+import { execWorkspaceCommand, execWorkspaceCommandBuffer, execWorkspaceShell, workspaceRoot } from "@kintsugi/workspace";
 import type { ReadToolOptions, WriteToolOptions, EditToolOptions } from "@earendil-works/pi-coding-agent";
 
 export function normalizeWorkspacePath(path: string): string {

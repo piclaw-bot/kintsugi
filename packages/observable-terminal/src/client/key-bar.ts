@@ -1,4 +1,4 @@
-import type { WorkspaceClientControllerConstructor } from "@agents-in-the-cloud/shared";
+import type { WorkspaceClientControllerConstructor } from "@kintsugi/shared";
 import type { ObservableTerminalViewer } from "./index.ts";
 
 const terminalAccessoryInput = new Map([

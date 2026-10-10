@@ -2,9 +2,9 @@ import { afterEach, beforeEach, expect, test } from "bun:test";
 import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { CliAgentSession, CliModelSettings } from "@agents-in-the-cloud/cli-agent/server";
-import type { WorkspaceAgentInput } from "@agents-in-the-cloud/shared";
-import { shellQuote } from "@agents-in-the-cloud/core";
+import type { CliAgentSession, CliModelSettings } from "@kintsugi/cli-agent/server";
+import type { WorkspaceAgentInput } from "@kintsugi/shared";
+import { shellQuote } from "@kintsugi/core";
 import { codexLaunchScript } from "../src/server/launch-command.ts";
 
 let home: string;
@@ -15,7 +15,7 @@ beforeEach(async () => {
   defaultSession = { id: sessionId, directory: `${home}/session`, turnSignalCommand: `${home}/turn-signal.sh` };
   await mkdir(`${home}/session/codex`, { recursive: true });
   await writeFile(`${home}/session/codex/instructions.override`, 'developer_instructions="guidance"');
-  await writeFile(`${home}/session/codex/mcp.override`, 'mcp_servers.agents-in-the-cloud={url="http://localhost/mcp"}');
+  await writeFile(`${home}/session/codex/mcp.override`, 'mcp_servers.kintsugi={url="http://localhost/mcp"}');
   baseArgs = expectedBaseArgs(defaultSession);
   await writeFile(`${home}/.codex-cli-update-check`, String(Math.floor(Date.now() / 1000)));
 });
@@ -37,17 +37,17 @@ function run(script: string) {
 const empty = { text: "", images: [], attachmentNotes: [] };
 const sessionId = "1f2e3d4c-0000-4000-8000-000000000001";
 function expectedBaseArgs(session: CliAgentSession): string[] {
-  return ["-c", 'developer_instructions="guidance"', "-c", 'mcp_servers.agents-in-the-cloud={url="http://localhost/mcp"}', "--dangerously-bypass-approvals-and-sandbox", "--dangerously-bypass-hook-trust", "--no-alt-screen", "--cd", "/work", "-c", `sqlite_home=${JSON.stringify(`${session.directory}/codex`)}`, "-c", 'projects={"/work"={trust_level="trusted"}}',
+  return ["-c", 'developer_instructions="guidance"', "-c", 'mcp_servers.kintsugi={url="http://localhost/mcp"}', "--dangerously-bypass-approvals-and-sandbox", "--dangerously-bypass-hook-trust", "--no-alt-screen", "--cd", "/work", "-c", `sqlite_home=${JSON.stringify(`${session.directory}/codex`)}`, "-c", 'projects={"/work"={trust_level="trusted"}}',
     "-c", `notify=${JSON.stringify(["sh", session.turnSignalCommand, "finished"])}`,
     "-c", `hooks={SessionStart=[{hooks=[{type="command",command=${JSON.stringify(`node ${shellQuote(`${session.directory}/codex/session-start.cjs`)}`)}}]}],UserPromptSubmit=[{hooks=[{type="command",command=${JSON.stringify(`sh ${shellQuote(session.turnSignalCommand)} started`)}}]}]}`,
-    "-c", 'tui.theme="agents-in-the-cloud"', "-c", "notice.hide_full_access_warning=true", "-c", 'cli_auth_credentials_store="file"'];
+    "-c", 'tui.theme="kintsugi"', "-c", "notice.hide_full_access_warning=true", "-c", 'cli_auth_credentials_store="file"'];
 }
 
 test("reuses home Codex and passes initial prompt, image paths and file notes as literal arguments", async () => {
   await executable(`${home}/.codex/packages/standalone/current/bin/codex`, 'printf "%s\\0" "$@"');
   const text = `--help 'quoted' $(touch ${home}/injected)\nsecond line`;
-  const notes = "[Attached file copied into the workspace at /tmp/agents-in-the-cloud-attachments/my file.txt]";
-  const image = "/tmp/agents-in-the-cloud-attachments/image 1.png";
+  const notes = "[Attached file copied into the workspace at /tmp/kintsugi-attachments/my file.txt]";
+  const image = "/tmp/kintsugi-attachments/image 1.png";
   const [code, output] = await run(launch({ ...empty, text, attachmentNotes: [notes] }, [image]));
   expect(code).toBe(0);
   expect(output.split("\0").slice(0, -1)).toEqual([...baseArgs, "--image", image, "--", `${text}\n\n${notes}`]);
@@ -113,12 +113,12 @@ test("registers session-local turn boundary notifications", async () => {
   expect(args).toContain(`hooks={SessionStart=[{hooks=[{type="command",command=${JSON.stringify(`node ${shellQuote(`${home}/session/codex/session-start.cjs`)}`)}}]}],UserPromptSubmit=[{hooks=[{type="command",command=${JSON.stringify(`sh ${shellQuote(command)} started`)}}]}]}`);
 });
 
-test("installs the AgentsInTheCloud syntax theme in the shared home with terminal palette colors", async () => {
+test("installs the Kintsugi syntax theme in the shared home with terminal palette colors", async () => {
   await executable(`${home}/.codex/packages/standalone/current/bin/codex`, 'printf "%s\\0" "$@"');
   const [code] = await run(`CODEX_HOME=${shellQuote(`${home}/session-codex`)}\n${launch(empty, [])}`);
   expect(code).toBe(0);
-  const theme = await readFile(`${home}/.codex/themes/agents-in-the-cloud.tmTheme`, "utf8");
-  // Inline code uses palette slot 12 (bright blue), AgentsInTheCloud's accent.
+  const theme = await readFile(`${home}/.codex/themes/kintsugi.tmTheme`, "utf8");
+  // Inline code uses palette slot 12 (bright blue), Kintsugi's accent.
   expect(theme).toContain("<string>markup.inline.raw.string.markdown, markup.raw.inline.markdown</string><key>settings</key><dict><key>foreground</key><string>#0c000000</string>");
 });
 

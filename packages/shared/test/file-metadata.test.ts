@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { extensionOf, imageMimeByExtension } from "@agents-in-the-cloud/shared/file-metadata";
+import { extensionOf, imageMimeByExtension } from "@kintsugi/shared/file-metadata";
 
 test("file extensions are case-insensitive and use the final suffix", () => {
   expect(extensionOf("/work/photo.JPEG")).toBe("jpeg");

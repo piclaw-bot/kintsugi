@@ -2,10 +2,10 @@ import { describe, expect, test } from "bun:test";
 import { mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { addWorkspaceTemplate, createWorkspaceTemplateEnvironmentVariable, createWorkspaceTemplateSecret, createWorkspaceTemplateSshKey, effectiveEnvironment, getConfiguration, globalWorkspaceConfiguration, listWorkspaceTemplates, revealEffectiveSecrets, revealEffectiveSshKeys } from "@agents-in-the-cloud/workspace-templates";
+import { addWorkspaceTemplate, createWorkspaceTemplateEnvironmentVariable, createWorkspaceTemplateSecret, createWorkspaceTemplateSshKey, effectiveEnvironment, getConfiguration, globalWorkspaceConfiguration, listWorkspaceTemplates, revealEffectiveSecrets, revealEffectiveSshKeys } from "@kintsugi/workspace-templates";
 
 async function store() {
-  const dir = await mkdtemp(join(tmpdir(), "agents-in-the-cloud-global-configuration-"));
+  const dir = await mkdtemp(join(tmpdir(), "kintsugi-global-configuration-"));
   return { dir, file: join(dir, "projects.json"), keyFile: join(dir, "key") };
 }
 

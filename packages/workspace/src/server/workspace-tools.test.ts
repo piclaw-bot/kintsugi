@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { prepareWorkspaceToolsMount } from "./workspace-tools.ts";
 
 test("combines package tools into one read-only executable directory and synchronizes changes", async () => {
-  const root = await mkdtemp(join(tmpdir(), "agents-in-the-cloud-tools-mount-"));
+  const root = await mkdtemp(join(tmpdir(), "kintsugi-tools-mount-"));
   try {
     const source = join(root, "packages");
     const firstPackage = join(source, "first-package/workspace_tools");
@@ -16,15 +16,15 @@ test("combines package tools into one read-only executable directory and synchro
     await writeFile(join(source, "not-a-package"), "ignored");
     await writeFile(join(firstPackage, "first"), "#!/bin/sh\necho first\n");
     await writeFile(join(secondPackage, "second"), "#!/bin/sh\necho second\n");
-    const runtime = { agentsInTheCloudDataDir: join(root, "data"), dockerHostAgentsInTheCloudDataDir: "/host/agents-in-the-cloud", dockerBridgeHost: "unused" };
+    const runtime = { kintsugiDataDir: join(root, "data"), dockerHostKintsugiDataDir: "/host/kintsugi", dockerBridgeHost: "unused" };
     const mount = await prepareWorkspaceToolsMount(runtime, source);
     expect(mount).toEqual({
       type: "bind",
-      source: "/host/agents-in-the-cloud/workspace-tools",
-      target: "/opt/agents-in-the-cloud/bin",
+      source: "/host/kintsugi/workspace-tools",
+      target: "/opt/kintsugi/bin",
       readonly: true,
     });
-    const published = join(runtime.agentsInTheCloudDataDir, "workspace-tools");
+    const published = join(runtime.kintsugiDataDir, "workspace-tools");
     const inode = (await stat(published)).ino;
     for (const name of ["first", "second"]) {
       expect(await readFile(join(published, name), "utf8")).toBe(await readFile(join(name === "first" ? firstPackage : secondPackage, name), "utf8"));
@@ -44,13 +44,13 @@ test("combines package tools into one read-only executable directory and synchro
 });
 
 test("publishes package-owned workspace helpers as executable tools", async () => {
-  const root = await mkdtemp(join(tmpdir(), "agents-in-the-cloud-tools-mount-"));
+  const root = await mkdtemp(join(tmpdir(), "kintsugi-tools-mount-"));
   try {
-    await prepareWorkspaceToolsMount({ agentsInTheCloudDataDir: root, dockerHostAgentsInTheCloudDataDir: root, dockerBridgeHost: "unused" });
+    await prepareWorkspaceToolsMount({ kintsugiDataDir: root, dockerHostKintsugiDataDir: root, dockerBridgeHost: "unused" });
     for (const [packageName, name] of [
-      ["builtin-agent", "agents-in-the-cloud-agent-bash"],
-      ["desktop", "agents-in-the-cloud-desktop"],
-      ["vscode", "agents-in-the-cloud-start-vscode"],
+      ["builtin-agent", "kintsugi-agent-bash"],
+      ["desktop", "kintsugi-desktop"],
+      ["vscode", "kintsugi-start-vscode"],
       ["workspace-terminal", "pbcopy"],
       ["workspace-image", "chromium"],
     ]) {
@@ -69,7 +69,7 @@ test("publishes package-owned workspace helpers as executable tools", async () =
 
 
 test("rejects duplicate tool names before changing the published directory", async () => {
-  const root = await mkdtemp(join(tmpdir(), "agents-in-the-cloud-tools-conflict-"));
+  const root = await mkdtemp(join(tmpdir(), "kintsugi-tools-conflict-"));
   try {
     const packages = join(root, "packages");
     const first = join(packages, "one/workspace_tools/shared");
@@ -78,14 +78,14 @@ test("rejects duplicate tool names before changing the published directory", asy
       await mkdir(join(packages, name, "workspace_tools"), { recursive: true });
     }
     await writeFile(first, "first");
-    const runtime = { agentsInTheCloudDataDir: join(root, "data"), dockerHostAgentsInTheCloudDataDir: "/host/agents-in-the-cloud", dockerBridgeHost: "unused" };
+    const runtime = { kintsugiDataDir: join(root, "data"), dockerHostKintsugiDataDir: "/host/kintsugi", dockerBridgeHost: "unused" };
     await prepareWorkspaceToolsMount(runtime, packages);
     await writeFile(first, "updated");
     await writeFile(second, "conflict");
     await expect(prepareWorkspaceToolsMount(runtime, packages)).rejects.toThrow(
       `Conflicting workspace tool "shared": ${first} and ${second}`,
     );
-    expect(await readFile(join(runtime.agentsInTheCloudDataDir, "workspace-tools/shared"), "utf8")).toBe("first");
+    expect(await readFile(join(runtime.kintsugiDataDir, "workspace-tools/shared"), "utf8")).toBe("first");
   } finally {
     await rm(root, { recursive: true, force: true });
   }

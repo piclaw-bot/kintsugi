@@ -1,6 +1,6 @@
 #!/bin/bash
 set -euo pipefail
-# Authenticate first: gh auth token | docker login ghcr.io -u lucasmeijer --password-stdin
+# Authenticate first: gh auth token | docker login ghcr.io -u rcarmo --password-stdin
 # Publish: images/patched-docker/publish.sh [--builder NAME] [--progress plain]
 # Derived images should use the resulting multi-platform digest in FROM.
 context=$(cd "$(dirname "$0")" && pwd)
@@ -9,7 +9,7 @@ if [[ -n $(git -C "$context" status --porcelain -- .) ]]; then
     exit 1
 fi
 revision=$(git -C "$context" rev-parse HEAD)
-image="ghcr.io/lucasmeijer/agents-in-the-cloud-docker:sha-${revision}"
+image="ghcr.io/rcarmo/kintsugi-docker:sha-${revision}"
 "$context/build.sh" "$image" --push \
     --label "org.opencontainers.image.revision=${revision}" "$@"
 docker buildx imagetools inspect "$image"

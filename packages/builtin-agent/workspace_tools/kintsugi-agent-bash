@@ -39,7 +39,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("action", choices=["ensure", "status", "stop", "run"])
     parser.add_argument("request", help="Immutable operation identity, command and deadline as JSON")
-    parser.add_argument("--root", default="/home/agents-in-the-cloud/.local/state/agents-in-the-cloud/agent-bash")
+    parser.add_argument("--root", default="/home/agent/.local/state/kintsugi/agent-bash")
     parser.add_argument("--socket", help="tmux socket path (for isolated execution)")
     parser.add_argument("--create", action="store_true")
     args = parser.parse_args()
@@ -51,7 +51,7 @@ def main():
     root = Path(args.root)
     root.mkdir(parents=True, exist_ok=True, mode=0o700)
     operation = root / request["id"]
-    session = "agents-in-the-cloud-agent-" + request["id"]
+    session = "kintsugi-agent-" + request["id"]
     tmux = ["tmux", "-N"] + (["-S", args.socket] if args.socket else [])
 
     def tmux_call(*command, check=True):

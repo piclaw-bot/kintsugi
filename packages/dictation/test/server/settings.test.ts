@@ -8,7 +8,7 @@ import { dictationSettingsContribution } from "../../src/server/settings.ts";
 let directory: string | undefined;
 
 async function useTemporaryDataDirectory(): Promise<string> {
-  directory = await mkdtemp(join(tmpdir(), "agents-in-the-cloud-transcription-settings-"));
+  directory = await mkdtemp(join(tmpdir(), "kintsugi-transcription-settings-"));
   process.env.ATELIER_DATA_DIR = directory;
   return directory;
 }
@@ -52,8 +52,8 @@ describe("Dictation settings", () => {
     const form = new FormData();
     form.set("model", "nemotron-3.5");
     const response = await dictationSettingsContribution.handleAction!({
-      request: new Request("http://agents-in-the-cloud/settings/dictation-model", { method: "POST", body: form }),
-      url: new URL("http://agents-in-the-cloud/settings/dictation-model"),
+      request: new Request("http://kintsugi/settings/dictation-model", { method: "POST", body: form }),
+      url: new URL("http://kintsugi/settings/dictation-model"),
     });
     expect(response?.headers.get("content-type")).toContain("text/vnd.turbo-stream.html");
     expect(await readDictationModel()).toBe("nemotron-3.5");

@@ -1,5 +1,5 @@
-import { contentRowHtml } from "@agents-in-the-cloud/design-system/content-row";
-import { escapeHtml, providerBrandIconHtml } from "@agents-in-the-cloud/shared";
+import { contentRowHtml } from "@kintsugi/design-system/content-row";
+import { escapeHtml, providerBrandIconHtml } from "@kintsugi/shared";
 
 interface AgentTypeChoice { id: string; label: string; iconHtml: string }
 

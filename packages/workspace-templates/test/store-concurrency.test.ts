@@ -2,14 +2,14 @@ import { afterEach, beforeEach, expect, test } from "bun:test";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { addWorkspaceTemplate, createWorkspaceTemplateEnvironmentVariable, createWorkspaceTemplateSecret, listWorkspaceTemplates, revealWorkspaceTemplateSecrets, updateWorkspaceTemplate, updateWorkspaceTemplateSecret, getConfiguration } from "@agents-in-the-cloud/workspace-templates";
+import { addWorkspaceTemplate, createWorkspaceTemplateEnvironmentVariable, createWorkspaceTemplateSecret, listWorkspaceTemplates, revealWorkspaceTemplateSecrets, updateWorkspaceTemplate, updateWorkspaceTemplateSecret, getConfiguration } from "@kintsugi/workspace-templates";
 
 let directory: string;
 let file: string;
 let keyFile: string;
 
 beforeEach(async () => {
-  directory = await mkdtemp(join(tmpdir(), "agents-in-the-cloud-workspace-template-transactions-"));
+  directory = await mkdtemp(join(tmpdir(), "kintsugi-workspace-template-transactions-"));
   file = join(directory, "projects.json");
   keyFile = join(directory, "workspace-template-secrets.key");
 });

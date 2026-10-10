@@ -6,7 +6,7 @@ import { awaitWithContext, BACKGROUND_CONTEXT as context } from "@earendil-works
 import { createModels, fauxAssistantMessage, fauxProvider, fauxToolCall, type FauxResponseFactory } from "@earendil-works/pi-ai";
 import type { Context } from "@earendil-works/chord";
 import { createRegistry, defineExtension, LiveDoc, type Harness, type Extension } from "@earendil-works/pi-durable";
-import { openDurableAgentRuntime, type DurableAgentRuntime } from "@agents-in-the-cloud/builtin-agent/server/durable-runtime";
+import { openDurableAgentRuntime, type DurableAgentRuntime } from "@kintsugi/builtin-agent/server/durable-runtime";
 import { createNativeDelegationExtension } from "../../src/server/native-runtime.ts";
 import { Delegation, Mailbox } from "../../src/server/native-state.ts";
 
@@ -39,7 +39,7 @@ async function setup(pauseSpawn?: (context: Context) => Promise<void>) {
 async function completedDeliveries(owner: DurableAgentRuntime) {
   // Join the useful work, never the persistent background identity anchors.
   for (let round = 0; round < 5; round++) {
-    const tasks = (await owner.harness.inspect(context)).tasks.filter(item => item.record.kind !== "agents-in-the-cloud.delegation-anchor");
+    const tasks = (await owner.harness.inspect(context)).tasks.filter(item => item.record.kind !== "kintsugi.delegation-anchor");
     if (!tasks.length) return;
     await Promise.all(tasks.map(item => owner.harness.waitForTask(item.record.id, context)));
   }
@@ -116,7 +116,7 @@ test("root Stop cancels descendants without retiring their identities", async ()
   await work(false); // Idle identity anchors must not keep Stop available.
   expect((await owner.catalog()).find(record => record.agentId === child.agentId)).toBeDefined();
   expect(Object.values((await owner.harness.snapshot(Delegation, context))!.assignments)[0]?.status).toBe("interrupted");
-  expect((await owner.harness.inspect(context)).tasks.every(item => item.record.kind === "agents-in-the-cloud.delegation-anchor")).toBe(true);
+  expect((await owner.harness.inspect(context)).tasks.every(item => item.record.kind === "kintsugi.delegation-anchor")).toBe(true);
   release.resolve();
   const childController = await owner.agent(child);
   faux.setResponses([fauxAssistantMessage("New work succeeds")]);
@@ -291,8 +291,8 @@ test("interrupt_agent retains the child for a later follow-up and returns its pr
 test("Stop also fences a native input admitted by an already-stopped dispatcher", async () => {
   const { owner, root, faux } = await setup();
   const { defineTask } = await import("@earendil-works/pi-durable");
-  const { DurableTaskAdmissions, WorkspaceStops, commitDurableStop } = await import("@agents-in-the-cloud/builtin-agent/server");
-  const { markGatedDurableWork, settleStoppedDurableWork } = await import("@agents-in-the-cloud/builtin-agent/server/durable-lifecycle");
+  const { DurableTaskAdmissions, WorkspaceStops, commitDurableStop } = await import("@kintsugi/builtin-agent/server");
+  const { markGatedDurableWork, settleStoppedDurableWork } = await import("@kintsugi/builtin-agent/server/durable-lifecycle");
   // A not-yet-installed dispatcher models the persisted outbox before execution.
   const dispatcher = defineTask<Record<string, never>, { phase: "send" }, null>({
     name: "test.late-dispatcher", version: 1, initial: () => ({ phase: "send" }),

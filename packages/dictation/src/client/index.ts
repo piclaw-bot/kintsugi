@@ -1,4 +1,4 @@
-import type { WorkspaceClientModule } from "@agents-in-the-cloud/shared";
+import type { WorkspaceClientModule } from "@kintsugi/shared";
 import { createDictationComposerController } from "./dictation-controller.ts";
 import { SharedMicrophone } from "./microphone.ts";
 
@@ -14,7 +14,7 @@ function activeDictationButton(): HTMLButtonElement | null {
     .find((button) => button.getClientRects().length > 0) ?? null;
 }
 
-export const agentsInTheCloudClientModule: WorkspaceClientModule = {
+export const kintsugiClientModule: WorkspaceClientModule = {
   id: "dictation",
   install({ application, Controller, hooks }) {
     application.register("dictation-composer", createDictationComposerController(Controller, sharedMicrophone));

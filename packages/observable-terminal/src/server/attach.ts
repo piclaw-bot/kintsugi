@@ -1,10 +1,10 @@
-import { shellQuote } from "@agents-in-the-cloud/core";
+import { shellQuote } from "@kintsugi/core";
 import { observableTerminalEnvironment } from "./constants.ts";
 
 const terminalBridgeSource = String.raw`
 // Runs under Bun inside the workspace. Docker transports pipes, not a PTY:
 // stdin is newline-delimited input/resize commands; stdout is raw PTY output.
-// Owning the PTY here makes stdin EOF detach tmux even if AgentsInTheCloud disappears.
+// Owning the PTY here makes stdin EOF detach tmux even if Kintsugi disappears.
 import { createInterface } from "node:readline";
 const { args, cols, rows } = JSON.parse(process.argv[1]);
 const terminal = new Bun.Terminal({
@@ -106,7 +106,7 @@ function tmuxAttachArgs(options: HostObservableTerminalAttachOptions): string[] 
 
 export function buildAttachArgs(options: ObservableTerminalAttachOptions): string[] {
   const env = { ...observableTerminalEnvironment, ...options.env };
-  const args = ["exec", "-i", "--user", options.user ?? "agents-in-the-cloud"];
+  const args = ["exec", "-i", "--user", options.user ?? "agent"];
   if (options.workdir) args.push("--workdir", options.workdir);
   for (const [key, value] of Object.entries(env)) args.push("-e", `${key}=${value}`);
   args.push(options.containerName, "bun", "-e", terminalBridgeSource, JSON.stringify({

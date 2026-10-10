@@ -44,7 +44,7 @@ The argument is a URL or pasted text, possibly with screenshots.
    - **Feature, not in spirit**: no prototype. Explain why, citing the product. If a smaller, in-spirit variant would solve the goal, describe it (and optionally prototype that one).
    - **Docs gap**: the experiment is the docs change, if one is warranted.
    - More than one experiment is fine when there are genuinely different approaches worth comparing. Don't pad.
-6. **Show it**: UI changes need screenshots or a short video. Run AgentsInTheCloud (`bun run web`), stage it via `docs/automation.md`, and capture with Playwright. If the real environment can't be reproduced (e.g. LAN networking from a nested instance), demonstrate the closest real thing (a real request through the real proxy, a script), and say plainly what you couldn't show.
+6. **Show it**: UI changes need screenshots or a short video. Run Kintsugi (`bun run web`), stage it via `docs/automation.md`, and capture with Playwright. If the real environment can't be reproduced (e.g. LAN networking from a nested instance), demonstrate the closest real thing (a real request through the real proxy, a script), and say plainly what you couldn't show.
 7. **Recommend**: commit to one recommendation with a confidence level (`high` / `medium` / `low`) and the one reason that drives it.
 8. **Draft replies**: one per realistic decision (usually 2–3), in the maintainer's voice: friendly, informal, lighthearted, brief (see the copy guidelines in `AGENTS.md`). Never post anything yourself.
 

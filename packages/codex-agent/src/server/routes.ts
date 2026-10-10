@@ -1,17 +1,17 @@
 import { Type } from "typebox";
 import { Value } from "typebox/value";
-import { parseModelRef } from "@agents-in-the-cloud/llm/server";
-import { invalidArguments, readJsonObject, requestAcceptsJson } from "@agents-in-the-cloud/core";
-import { expandSlashCommand } from "@agents-in-the-cloud/agent/server/slash-command-input";
-import { listFileCompletions, renderFileCompletionMenu } from "@agents-in-the-cloud/agent/server/file-completions";
-import { runAgentNameCommand } from "@agents-in-the-cloud/agent/server/agent-name-command";
-import { suggestAgentSlug } from "@agents-in-the-cloud/agent/server/slug-suggestion";
-import { agentAttachmentDraftId, deliverAttachmentDraft, removeStagedAttachments } from "@agents-in-the-cloud/prompt/server";
-import { findTranscriptItem } from "@agents-in-the-cloud/agent/server/transcript";
-import { renderModelContextDetailFrame, renderTranscriptItemDetailFrame } from "@agents-in-the-cloud/agent/server/render-transcript";
-import { response, textResponse } from "@agents-in-the-cloud/shared/http";
-import { turboStream, workspaceModuleModalFrameId, turboStreamResponse } from "@agents-in-the-cloud/shared";
-import { nativeImageResponse } from "@agents-in-the-cloud/cli-agent/server";
+import { parseModelRef } from "@kintsugi/llm/server";
+import { invalidArguments, readJsonObject, requestAcceptsJson } from "@kintsugi/core";
+import { expandSlashCommand } from "@kintsugi/agent/server/slash-command-input";
+import { listFileCompletions, renderFileCompletionMenu } from "@kintsugi/agent/server/file-completions";
+import { runAgentNameCommand } from "@kintsugi/agent/server/agent-name-command";
+import { suggestAgentSlug } from "@kintsugi/agent/server/slug-suggestion";
+import { agentAttachmentDraftId, deliverAttachmentDraft, removeStagedAttachments } from "@kintsugi/prompt/server";
+import { findTranscriptItem } from "@kintsugi/agent/server/transcript";
+import { renderModelContextDetailFrame, renderTranscriptItemDetailFrame } from "@kintsugi/agent/server/render-transcript";
+import { response, textResponse } from "@kintsugi/shared/http";
+import { turboStream, workspaceModuleModalFrameId, turboStreamResponse } from "@kintsugi/shared";
+import { nativeImageResponse } from "@kintsugi/cli-agent/server";
 import type { CodexAgents } from "./runtime.ts";
 import { parseCodexCommand } from "./commands.ts";
 import { renderCommandDialog } from "./render-command.ts";
@@ -67,7 +67,7 @@ export function codexRoutes(agents: CodexAgents) {
       if (!Value.Check(Type.String({ pattern: "^[a-zA-Z0-9_-]{1,128}$" }), requestId)) throw invalidArguments("Invalid request ID");
       const draft = agentAttachmentDraftId(workspaceId, agentId);
       if (form && value("attachmentDraft") !== draft) throw invalidArguments("Invalid attachment draft");
-      const consumedHeaders = { "x-agents-in-the-cloud-attachment-draft-consumed": "true" };
+      const consumedHeaders = { "x-kintsugi-attachment-draft-consumed": "true" };
       // A lost response after attachment removal must not cause a second delivery.
       if (form && runtime.record.submissions.some(item => item.id === requestId && item.accepted)) return success(true, consumedHeaders);
       const attachmentIds = form?.getAll("attachment").map(String) ?? [];

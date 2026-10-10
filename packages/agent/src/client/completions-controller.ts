@@ -1,6 +1,6 @@
-import { setContentRowLabel } from "@agents-in-the-cloud/design-system/content-row/client";
-import { autocompleteHtml } from "@agents-in-the-cloud/design-system/autocomplete";
-import { agentComposerSendPromptEvent, changeLayout, composerSubmitKey, type AgentComposerSendPromptDetail, focusLikelyOpensSoftwareKeyboard, isApplePlatform, setTextInputValue, type WorkspaceClientCommand, type WorkspaceClientControllerConstructor as StimulusControllerConstructor, type WorkspaceClientHooks } from "@agents-in-the-cloud/shared";
+import { setContentRowLabel } from "@kintsugi/design-system/content-row/client";
+import { autocompleteHtml } from "@kintsugi/design-system/autocomplete";
+import { agentComposerSendPromptEvent, changeLayout, composerSubmitKey, type AgentComposerSendPromptDetail, focusLikelyOpensSoftwareKeyboard, isApplePlatform, setTextInputValue, type WorkspaceClientCommand, type WorkspaceClientControllerConstructor as StimulusControllerConstructor, type WorkspaceClientHooks } from "@kintsugi/shared";
 import { agentCompletionRequest, insertFileCompletion, insertSlashCommand } from "./completion-input.ts";
 import { createHtmlAutocompleteController } from "./html-autocomplete-controller.ts";
 import { handleAgentTreeKeydown, handleAgentTreeMenuEvent, selectAgentTreeOption } from "./session-tree.ts";
@@ -154,7 +154,7 @@ export function createAgentCompletionsController(Controller: StimulusControllerC
     optionSelector: '[role="option"]:not([hidden]):not(:disabled)',
     loadingHtml: autocompleteHtml({ kind: "message", role: "status", content: { kind: "html", html: '<span class="agent-completion-spinner" aria-hidden="true"></span>Loading completions…' } }),
     triggerKeysWhenClosed: ["/", "@"],
-    fullscreenShortcut: (option) => option.hasAttribute("data-agents-in-the-cloud-fullscreen-title"),
+    fullscreenShortcut: (option) => option.hasAttribute("data-kintsugi-fullscreen-title"),
     menuEvent: handleAgentTreeMenuEvent,
     request(input, force) {
       if (composerIsDictating(input)) return undefined;

@@ -1,5 +1,5 @@
-import { recentWorkspaceTemplateStorageKey } from "@agents-in-the-cloud/shared";
-import { slidePageChange } from "@agents-in-the-cloud/design-system/page-slide/client";
+import { recentWorkspaceTemplateStorageKey } from "@kintsugi/shared";
+import { slidePageChange } from "@kintsugi/design-system/page-slide/client";
 import { Controller } from "@hotwired/stimulus";
 import { registerWorkspaceControllers, residencyController } from "./workspace-controller-registry.ts";
 import { markActiveWorkspaceRow } from "./workspace-presentation.ts";
@@ -101,11 +101,11 @@ class WorkspacePaneController extends Controller<HTMLElement> {
     // Live updates may morph existing options in place, so watch the options rather than target connections.
     this.optionsObserver = new MutationObserver(this.optionsChanged);
     this.optionsObserver.observe(this.pickerTarget, { subtree: true, childList: true, attributes: true, attributeFilter: ["data-workspace-template-id", "aria-checked"] });
-    document.addEventListener("agents-in-the-cloud:mobile-workspace-pane-changed", this.mobileWorkspacePaneChanged);
+    document.addEventListener("kintsugi:mobile-workspace-pane-changed", this.mobileWorkspacePaneChanged);
   }
 
   disconnect(): void {
-    document.removeEventListener("agents-in-the-cloud:mobile-workspace-pane-changed", this.mobileWorkspacePaneChanged);
+    document.removeEventListener("kintsugi:mobile-workspace-pane-changed", this.mobileWorkspacePaneChanged);
     this.optionsObserver?.disconnect();
   }
 
@@ -209,18 +209,18 @@ class WorkspaceNavigationController extends Controller<HTMLElement> {
 
   connect(): void {
     this.scrollTarget.addEventListener("scroll", this.scrolled, { passive: true });
-    this.element.addEventListener("agents-in-the-cloud:mobile-resident-destination-selected", this.mobileResidentDestinationSelected);
-    document.addEventListener("agents-in-the-cloud:workspace-pane-changed", this.workspacePaneChanged);
-    const scroll = Number(localStorage.getItem("agents-in-the-cloud:workspace-pane-scroll"));
+    this.element.addEventListener("kintsugi:mobile-resident-destination-selected", this.mobileResidentDestinationSelected);
+    document.addEventListener("kintsugi:workspace-pane-changed", this.workspacePaneChanged);
+    const scroll = Number(localStorage.getItem("kintsugi:workspace-pane-scroll"));
     if (Number.isFinite(scroll)) this.scrollTarget.scrollTop = scroll;
     this.setWorkspacePaneOpen(!this.element.querySelector(".workspace-detail-resident.visible"));
-    this.setWorkspacePaneCollapsed(sessionStorage.getItem("agents-in-the-cloud:workspace-pane-collapsed") === "true" && Boolean(this.visibleWorkspacePaneToggle()));
+    this.setWorkspacePaneCollapsed(sessionStorage.getItem("kintsugi:workspace-pane-collapsed") === "true" && Boolean(this.visibleWorkspacePaneToggle()));
   }
 
   disconnect(): void {
     this.scrollTarget.removeEventListener("scroll", this.scrolled);
-    this.element.removeEventListener("agents-in-the-cloud:mobile-resident-destination-selected", this.mobileResidentDestinationSelected);
-    document.removeEventListener("agents-in-the-cloud:workspace-pane-changed", this.workspacePaneChanged);
+    this.element.removeEventListener("kintsugi:mobile-resident-destination-selected", this.mobileResidentDestinationSelected);
+    document.removeEventListener("kintsugi:workspace-pane-changed", this.workspacePaneChanged);
     if (this.scrollTimer) clearTimeout(this.scrollTimer);
   }
 
@@ -245,7 +245,7 @@ class WorkspaceNavigationController extends Controller<HTMLElement> {
 
   private setWorkspacePaneCollapsed(collapsed: boolean): void {
     this.element.classList.toggle("is-workspace-pane-collapsed", collapsed);
-    sessionStorage.setItem("agents-in-the-cloud:workspace-pane-collapsed", String(collapsed));
+    sessionStorage.setItem("kintsugi:workspace-pane-collapsed", String(collapsed));
   }
 
   private visibleWorkspacePaneToggle(): HTMLButtonElement | null {
@@ -254,7 +254,7 @@ class WorkspaceNavigationController extends Controller<HTMLElement> {
 
   private setWorkspacePaneOpen(open: boolean): void {
     this.element.classList.toggle("is-mobile-workspace-pane-open", open);
-    document.dispatchEvent(new CustomEvent("agents-in-the-cloud:mobile-workspace-pane-changed"));
+    document.dispatchEvent(new CustomEvent("kintsugi:mobile-workspace-pane-changed"));
   }
 
   private readonly mobileResidentDestinationSelected = (): void => this.setWorkspacePaneOpen(false);
@@ -345,7 +345,7 @@ class WorkspaceNavigationController extends Controller<HTMLElement> {
 
   private scrolled = (): void => {
     if (this.scrollTimer) clearTimeout(this.scrollTimer);
-    this.scrollTimer = setTimeout(() => localStorage.setItem("agents-in-the-cloud:workspace-pane-scroll", String(this.scrollTarget.scrollTop)), 80);
+    this.scrollTimer = setTimeout(() => localStorage.setItem("kintsugi:workspace-pane-scroll", String(this.scrollTarget.scrollTop)), 80);
   };
 }
 

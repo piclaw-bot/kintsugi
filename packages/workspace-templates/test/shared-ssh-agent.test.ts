@@ -79,7 +79,7 @@ describe("shared workspace-aware SSH agent", () => {
     const result = new Client(path); clients.push(result); return result;
   }
   beforeEach(async () => {
-    directory = await mkdtemp(join(tmpdir(), "agents-in-the-cloud-agent-"));
+    directory = await mkdtemp(join(tmpdir(), "kintsugi-agent-"));
     keys = new Map();
     agent = new SharedSshAgent(join(directory, "backend"), async (scope) => keys.get(scope) ?? []);
   });
@@ -205,7 +205,7 @@ describe("shared workspace-aware SSH agent", () => {
     } finally { log.mockRestore(); }
   });
 
-  test("termination of AgentsInTheCloud terminates its shared signing backend", async () => {
+  test("termination of Kintsugi terminates its shared signing backend", async () => {
     const script = join(directory, "parent.ts");
     const backend = join(directory, "child-backend");
     const socket = join(directory, "child.sock");

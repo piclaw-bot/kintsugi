@@ -1,5 +1,5 @@
-import { invalidArguments } from "@agents-in-the-cloud/core";
-import type { BuiltinSlashCommand } from "@agents-in-the-cloud/agent/server/builtin-slash-commands";
+import { invalidArguments } from "@kintsugi/core";
+import type { BuiltinSlashCommand } from "@kintsugi/agent/server/builtin-slash-commands";
 import type { AppsListResponse, HooksListResponse, ListMcpServerStatusResponse, PluginListResponse, ReviewTarget, SkillsListResponse, ThreadGoal, ThreadGoalStatus, ThreadListResponse } from "../protocol.ts";
 
 export const codexSlashCommands = [

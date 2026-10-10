@@ -1,9 +1,9 @@
 import { randomUUID } from "node:crypto";
 import { join } from "node:path";
-import { createKeyedOperationQueue, getAgentsInTheCloudRuntimeContext, isJsonObject, readTextIfExists, writeJsonAtomic } from "@agents-in-the-cloud/core";
+import { createKeyedOperationQueue, getKintsugiRuntimeContext, isJsonObject, readTextIfExists, writeJsonAtomic } from "@kintsugi/core";
 import { Type } from "typebox";
 import { Value } from "typebox/value";
-import { sessionShareDir, workspaceSessionShareKey } from "@agents-in-the-cloud/agent/server/session-share";
+import { sessionShareDir, workspaceSessionShareKey } from "@kintsugi/agent/server/session-share";
 
 export interface WorkspaceAgentInfo {
   workspaceId: string;
@@ -22,7 +22,7 @@ interface AgentRecord { agentId: string; label: string; title: string; storage: 
 const agentsSchema = Type.Object({ version: Type.Literal(2), agents: Type.Array(Type.Object({ agentId: Type.String(), label: Type.String(), title: Type.String(), storage: Type.Literal("durable") })) });
 const previousAgentsSchema = Type.Object({ version: Type.Literal(1), conversations: Type.Array(Type.Object({ conversationId: Type.String(), label: Type.String(), title: Type.String(), storage: Type.Literal("durable") })) });
 function agentMetadataPath(workspaceId: string): string {
-  return join(getAgentsInTheCloudRuntimeContext().agentsInTheCloudDataDir, "workspaces", workspaceId, "metadata", "agents.json");
+  return join(getKintsugiRuntimeContext().kintsugiDataDir, "workspaces", workspaceId, "metadata", "agents.json");
 }
 async function agentRecords(workspaceId: string): Promise<AgentRecord[]> {
   const content = await readTextIfExists(agentMetadataPath(workspaceId));
@@ -32,7 +32,7 @@ async function agentRecords(workspaceId: string): Promise<AgentRecord[]> {
     return value.agents;
   }
   // Read the actual previous format once; all subsequent writes use Agent names.
-  const previousContent = await readTextIfExists(join(getAgentsInTheCloudRuntimeContext().agentsInTheCloudDataDir, "workspaces", workspaceId, "metadata", "agent-conversations.json"));
+  const previousContent = await readTextIfExists(join(getKintsugiRuntimeContext().kintsugiDataDir, "workspaces", workspaceId, "metadata", "agent-conversations.json"));
   const previous: unknown = previousContent === undefined ? undefined : JSON.parse(previousContent);
   if (isJsonObject(previous) && previous.version !== undefined) {
     Value.Assert(previousAgentsSchema, previous);
@@ -40,10 +40,10 @@ async function agentRecords(workspaceId: string): Promise<AgentRecord[]> {
     await saveAgentRecords(workspaceId, records);
     return records;
   }
-  const { convertLegacyAgents } = await import("@agents-in-the-cloud/legacy-converter");
+  const { convertLegacyAgents } = await import("@kintsugi/legacy-converter");
   const records = await convertLegacyAgents({
     workspaceId,
-    workspaceDirectory: join(getAgentsInTheCloudRuntimeContext().agentsInTheCloudDataDir, "workspaces", workspaceId),
+    workspaceDirectory: join(getKintsugiRuntimeContext().kintsugiDataDir, "workspaces", workspaceId),
     shareDirectory: sessionShareDir(await workspaceSessionShareKey(workspaceId)),
     metadata: previousContent,
     destination: async () => {

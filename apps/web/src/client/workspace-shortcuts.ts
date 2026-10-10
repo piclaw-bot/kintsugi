@@ -1,7 +1,7 @@
-import { contentRowElement, contentRowHtml } from "@agents-in-the-cloud/design-system/content-row";
-import { dialogHtml } from "@agents-in-the-cloud/design-system/dialog";
-import { Icons } from "@agents-in-the-cloud/design-system/icons";
-import { escapeHtml, isApplePlatform, type WorkspaceClientCommand, type WorkspacePaletteItem } from "@agents-in-the-cloud/shared";
+import { contentRowElement, contentRowHtml } from "@kintsugi/design-system/content-row";
+import { dialogHtml } from "@kintsugi/design-system/dialog";
+import { Icons } from "@kintsugi/design-system/icons";
+import { escapeHtml, isApplePlatform, type WorkspaceClientCommand, type WorkspacePaletteItem } from "@kintsugi/shared";
 import { Controller } from "@hotwired/stimulus";
 import { formatShortcutBinding } from "../shortcut-binding.ts";
 import { submitFormWithFirstButton } from "./form-submission.ts";
@@ -10,7 +10,7 @@ import { registerWorkspaceControllers, residencyController, workspaceNavigationC
 
 type WorkspaceCommandRegistration = Omit<WorkspaceClientCommand, "run">;
 
-class AgentsInTheCloudShortcutsController extends Controller<HTMLElement> {
+class KintsugiShortcutsController extends Controller<HTMLElement> {
   private shortcutOverlayTimer: ReturnType<typeof setTimeout> | undefined;
   private shortcutOverlay: HTMLElement | undefined;
   private shortcutOverlayPointerInside = false;
@@ -25,9 +25,9 @@ class AgentsInTheCloudShortcutsController extends Controller<HTMLElement> {
   connect(): void {
     this.registerBuiltinCommands();
     clientHooks.registerPaletteProvider({
-      id: "agents-in-the-cloud.commands",
+      id: "kintsugi.commands",
       search: () => this.currentCommands()
-        .filter((command) => command.id !== "agents-in-the-cloud.open-palette")
+        .filter((command) => command.id !== "kintsugi.open-palette")
         .map((command) => ({
           id: `command:${command.id}`,
           title: command.label,
@@ -38,15 +38,15 @@ class AgentsInTheCloudShortcutsController extends Controller<HTMLElement> {
         })),
     });
     clientHooks.registerPaletteProvider({
-      id: "agents-in-the-cloud.workspaces",
+      id: "kintsugi.workspaces",
       search: ({ fuzzyScore }) => this.workspacePaletteItems(fuzzyScore),
     });
     clientHooks.registerPaletteProvider({
-      id: "agents-in-the-cloud.destinations",
+      id: "kintsugi.destinations",
       search: ({ fuzzyScore }) => this.workspaceDestinationPaletteItems(fuzzyScore),
     });
     // Listen at window capture so we get first chance at shortcuts that focused
-    // AgentsInTheCloud-owned widgets (not iframes) might otherwise consume.
+    // Kintsugi-owned widgets (not iframes) might otherwise consume.
     window.addEventListener("keydown", this.keydown, true);
     window.addEventListener("keyup", this.keyup, true);
     window.addEventListener("blur", this.shortcutBlur);
@@ -132,14 +132,14 @@ class AgentsInTheCloudShortcutsController extends Controller<HTMLElement> {
       run: () => this.openAdjacentWorkView(1),
     });
     clientHooks.registerCommand({
-      id: "agents-in-the-cloud.open-palette",
+      id: "kintsugi.open-palette",
       label: "Open palette",
       scope: "global",
       binding: "Meta+Alt+KeyK",
       run: () => this.openPalette(),
     });
     clientHooks.registerCommand({
-      id: "agents-in-the-cloud.open-settings",
+      id: "kintsugi.open-settings",
       label: "Open settings",
       scope: "global",
       run: () => this.openSettingsDialog(),
@@ -363,8 +363,8 @@ class AgentsInTheCloudShortcutsController extends Controller<HTMLElement> {
       iconHtml: Icons.Search,
       titleCaption: "Command palette",
       bodyHtml: `<label>Search commands, workspaces, and destinations
-        <input class="text-field palette-input" id="agents-in-the-cloud-palette-input" type="search" role="combobox" spellcheck="false" autocomplete="off" aria-label="Search command palette" aria-autocomplete="list" aria-controls="agents-in-the-cloud-palette-results" aria-expanded="true">
-      </label><div class="palette-results action-list" id="agents-in-the-cloud-palette-results" role="listbox" aria-label="Command palette results"></div>`,
+        <input class="text-field palette-input" id="kintsugi-palette-input" type="search" role="combobox" spellcheck="false" autocomplete="off" aria-label="Search command palette" aria-autocomplete="list" aria-controls="kintsugi-palette-results" aria-expanded="true">
+      </label><div class="palette-results action-list" id="kintsugi-palette-results" role="listbox" aria-label="Command palette results"></div>`,
     });
     // SAFETY: dialogHtml always renders a native dialog as its root.
     const dialog = template.content.firstElementChild as HTMLDialogElement;
@@ -432,9 +432,9 @@ class AgentsInTheCloudShortcutsController extends Controller<HTMLElement> {
       kind: "compact",
       label: { kind: "text", text: item.title },
       trailingHtml: item.badge ? `<kbd class="palette-item-meta">${escapeHtml(item.badge)}</kbd>` : "",
-      element: { tag: "button", attributesHtml: `id="agents-in-the-cloud-palette-option-${index}" type="button" data-palette-index="${index}" role="option" aria-selected="${index === this.paletteIndex ? "true" : "false"}"` },
+      element: { tag: "button", attributesHtml: `id="kintsugi-palette-option-${index}" type="button" data-palette-index="${index}" role="option" aria-selected="${index === this.paletteIndex ? "true" : "false"}"` },
     })).join("");
-    const activeId = `agents-in-the-cloud-palette-option-${this.paletteIndex}`;
+    const activeId = `kintsugi-palette-option-${this.paletteIndex}`;
     this.paletteInput!.setAttribute("aria-activedescendant", activeId);
     results.querySelector<HTMLElement>(`#${activeId}`)?.scrollIntoView({ block: "nearest" });
   }
@@ -578,6 +578,6 @@ class AgentsInTheCloudShortcutsController extends Controller<HTMLElement> {
 
 export function registerWorkspaceShortcutsController(): void {
   registerWorkspaceControllers({
-    "agents-in-the-cloud-shortcuts": AgentsInTheCloudShortcutsController,
+    "kintsugi-shortcuts": KintsugiShortcutsController,
   });
 }

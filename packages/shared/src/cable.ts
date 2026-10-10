@@ -1,4 +1,4 @@
-import type { JsonValue } from "@agents-in-the-cloud/core";
+import type { JsonValue } from "@kintsugi/core";
 import { Type, type Static } from "typebox";
 import { Value } from "typebox/value";
 
@@ -74,7 +74,7 @@ export interface CableSubscription {
   unsubscribe(): void;
 }
 
-export interface AgentsInTheCloudCableClient {
+export interface KintsugiCableClient {
   reportVisibility(visibility: WorkspaceVisibilityReport): void;
   subscribe(identifier: CableIdentifier, options?: CableSubscriptionOptions): CableSubscription;
   ready(): boolean;
@@ -137,5 +137,5 @@ export interface CableChannelSubscription {
  * Cable owns confirmation, cancellation races, incremental delivery and error reporting. */
 export interface CableChannelAdapter {
   name: string;
-  subscribe(identifier: CableIdentifier, listener: (html: string) => void, events: import("@agents-in-the-cloud/core").AgentsInTheCloudEventBus): CableChannelSubscription | Promise<CableChannelSubscription>;
+  subscribe(identifier: CableIdentifier, listener: (html: string) => void, events: import("@kintsugi/core").KintsugiEventBus): CableChannelSubscription | Promise<CableChannelSubscription>;
 }

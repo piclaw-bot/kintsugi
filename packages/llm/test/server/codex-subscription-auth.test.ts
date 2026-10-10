@@ -1,5 +1,5 @@
 import { expect, spyOn, test } from "bun:test";
-import * as workspace from "@agents-in-the-cloud/workspace";
+import * as workspace from "@kintsugi/workspace";
 import { installCodexSubscriptionAuth } from "../../src/server/subscription-cli.ts";
 
 test("an app-owned Codex home receives only llm's OAuth placeholders", async () => {
@@ -10,8 +10,8 @@ test("an app-owned Codex home receives only llm's OAuth placeholders", async () 
     expect(exec.mock.calls[0]![1].join(" ")).toContain("/private/codex/auth.json");
     const auth = JSON.parse(String(exec.mock.calls[0]![2]!.stdin));
     expect(auth.auth_mode).toBe("chatgpt");
-    expect(auth.tokens.access_token).toBe("agents-in-the-cloud-subscription-codex-access");
-    expect(auth.tokens.account_id).toBe("agents-in-the-cloud-subscription-codex-account");
+    expect(auth.tokens.access_token).toBe("kintsugi-subscription-codex-access");
+    expect(auth.tokens.account_id).toBe("kintsugi-subscription-codex-account");
     expect(auth.tokens.refresh_token).toBe("");
     expect(auth.OPENAI_API_KEY).toBeNull();
   } finally { exec.mockRestore(); }

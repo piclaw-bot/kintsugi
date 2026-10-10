@@ -1,9 +1,9 @@
-import { buttonHtml } from "@agents-in-the-cloud/design-system/button";
-import { buttonConfirmationHtml } from "@agents-in-the-cloud/design-system/button-confirmation";
-import { destructiveConfirmationHtml } from "@agents-in-the-cloud/design-system/destructive-confirmation";
-import { contentRowHtml } from "@agents-in-the-cloud/design-system/content-row";
-import { Icons } from "@agents-in-the-cloud/design-system/icons";
-import { domId, escapeHtml } from "@agents-in-the-cloud/shared";
+import { buttonHtml } from "@kintsugi/design-system/button";
+import { buttonConfirmationHtml } from "@kintsugi/design-system/button-confirmation";
+import { destructiveConfirmationHtml } from "@kintsugi/design-system/destructive-confirmation";
+import { contentRowHtml } from "@kintsugi/design-system/content-row";
+import { Icons } from "@kintsugi/design-system/icons";
+import { domId, escapeHtml } from "@kintsugi/shared";
 import { exportReviewComments, type ReviewComment, type CommentPlacement } from "../comments.ts";
 
 export const commentsModelId = (snapshotId: string) => domId("changes", snapshotId, "comments_model");

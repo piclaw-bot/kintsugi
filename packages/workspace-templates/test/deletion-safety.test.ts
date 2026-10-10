@@ -2,7 +2,7 @@ import { afterEach, expect, test } from "bun:test";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { git, type Repository } from "@agents-in-the-cloud/workspace/git";
+import { git, type Repository } from "@kintsugi/workspace/git";
 import { localRepository } from "../../workspace/test/support/local-repository.ts";
 import { inspectWorkspaceDeleteSafety } from "../src/deletion-safety.ts";
 

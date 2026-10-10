@@ -233,12 +233,12 @@ await navigate(builtinPath, sel.transcript);
 
 await scenario("ios-D12-first-focus", "D12: focusing the composer for the first time on this device (nothing remembered): the keyboard is detected and the page arranged; one correction is allowed.", async (recorder) => {
   // Nothing remembered: the module reads its memory when the page loads.
-  await page.evaluate<boolean>('(localStorage.removeItem("agents-in-the-cloud:software-keyboard"), true)');
+  await page.evaluate<boolean>('(localStorage.removeItem("kintsugi:software-keyboard"), true)');
   await navigate(builtinPath, sel.transcript);
   await openComposer();
   const { after } = await transition(recorder, "first focus", () => tap(sel.input), { correctionAllowed: true });
   recorder.add(check("Keyboard detected and arranged", after.keyboard, `software-keyboard-visible: ${after.keyboard}`), ...typingModeChecks(after, "first focus"));
-  recorder.add(check("Keyboard height remembered", Boolean(await page.evaluate<string | null>('localStorage.getItem("agents-in-the-cloud:software-keyboard")')), String(await page.evaluate<string | null>('localStorage.getItem("agents-in-the-cloud:software-keyboard")'))));
+  recorder.add(check("Keyboard height remembered", Boolean(await page.evaluate<string | null>('localStorage.getItem("kintsugi:software-keyboard")')), String(await page.evaluate<string | null>('localStorage.getItem("kintsugi:software-keyboard")'))));
   await recorder.file("typing.png", await sim.screenshot());
   await blur();
 });
@@ -454,7 +454,7 @@ await navigate(terminalPath, ".terminal-view .observable-terminal-host");
 
 async function terminalLines(): Promise<string[]> {
   const session = Object.keys(await tmuxSizes(setup.workspaceId)).find((name) => !name.startsWith("pi-"))!;
-  const process = Bun.spawn(["docker", "exec", "-u", "agents-in-the-cloud", `agents-in-the-cloud-${setup.workspaceId}`, "tmux", "capture-pane", "-p", "-t", session], { stdout: "pipe" });
+  const process = Bun.spawn(["docker", "exec", "-u", "kintsugi", `kintsugi-${setup.workspaceId}`, "tmux", "capture-pane", "-p", "-t", session], { stdout: "pipe" });
   return (await new Response(process.stdout).text()).split("\n").filter((line) => line.trim());
 }
 
@@ -531,7 +531,7 @@ await scenario("ios-D20-rotation", "D20: rotating with the keyboard down resizes
 });
 
 await scenario("ios-launch-keyboard", "Launch starts ready for dictation, fills the space above the keyboard, and restores settings after dismissal.", async (recorder) => {
-  await page.evaluate<boolean>('(localStorage.removeItem("agents-in-the-cloud:software-keyboard"), true)');
+  await page.evaluate<boolean>('(localStorage.removeItem("kintsugi:software-keyboard"), true)');
   await navigate("/workspaces/new", ".launch-composer .composer-input");
   recorder.add(check("Opening launch leaves keyboard down", await page.evaluate<boolean>("!document.documentElement.classList.contains('software-keyboard-visible') && document.activeElement.tagName !== 'TEXTAREA'"), "no textarea focus on open"), check("Dictation available", await visible(".launch-composer .composer-dictation button"), "dictation visible"));
   await tap(".launch-composer .composer-input");

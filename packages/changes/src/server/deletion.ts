@@ -1,13 +1,13 @@
 import { reviewComments, type ReviewCommentStore } from "./comments.ts";
 import { renderDeletionComments } from "./comment-render.ts";
 import type { ReviewComment } from "../comments.ts";
-import { disclosureHtml } from "@agents-in-the-cloud/design-system/disclosure";
+import { disclosureHtml } from "@kintsugi/design-system/disclosure";
 import { createHash } from "node:crypto";
-import { collectUnpushedCommits, type UnpushedCommit } from "@agents-in-the-cloud/core";
-import { domId, escapeHtml, type WorkspaceDeletionAssessment, type WorkspaceDeletionReview } from "@agents-in-the-cloud/shared";
-import { response, textResponse } from "@agents-in-the-cloud/shared/http";
+import { collectUnpushedCommits, type UnpushedCommit } from "@kintsugi/core";
+import { domId, escapeHtml, type WorkspaceDeletionAssessment, type WorkspaceDeletionReview } from "@kintsugi/shared";
+import { response, textResponse } from "@kintsugi/shared/http";
 import { collectCommitChangesFile, collectCommitChangesStats, collectChangesFile, collectChangesIndex, collectChangesStats, type ChangesFileStats } from "./diff.ts";
-import { repositoryPaths, workspaceRepository, type Repository, git } from "@agents-in-the-cloud/workspace/git";
+import { repositoryPaths, workspaceRepository, type Repository, git } from "@kintsugi/workspace/git";
 import { renderFileStats, deletionFileSummary, renderDeletionFile } from "./deletion-render.ts";
 
 type DeletionRepository = {

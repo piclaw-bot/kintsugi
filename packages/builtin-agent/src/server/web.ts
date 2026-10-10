@@ -1,20 +1,20 @@
-import { AgentsInTheCloudCoreError, createKeyedOperationQueue, type AgentsInTheCloudEventBus } from "@agents-in-the-cloud/core";
-import { builtinAgentIconHtml } from "@agents-in-the-cloud/design-system/icons";
-import { launchComposerCommand, type WorkspaceAgentTabProvider, type WorkspaceCommandContribution, type WorkspaceModule } from "@agents-in-the-cloud/shared";
+import { KintsugiCoreError, createKeyedOperationQueue, type KintsugiEventBus } from "@kintsugi/core";
+import { builtinAgentIconHtml } from "@kintsugi/design-system/icons";
+import { launchComposerCommand, type WorkspaceAgentTabProvider, type WorkspaceCommandContribution, type WorkspaceModule } from "@kintsugi/shared";
 import { registerAgentEvents } from "./agent-events.ts";
 import { resolveAgent } from "./delegation.ts";
 import { removeWorkspaceInitialPromptDrafts } from "./initial-prompt-draft.ts";
 import { nativeAgentLaunch } from "./launch.ts";
-import { resolveNewWorkspaceAgentModel } from "@agents-in-the-cloud/agent/server/model-state";
+import { resolveNewWorkspaceAgentModel } from "@kintsugi/agent/server/model-state";
 import { renderAgentPane } from "./render-composer.ts";
-import { agentKey } from "@agents-in-the-cloud/agent/server/render-context";
+import { agentKey } from "@kintsugi/agent/server/render-context";
 import { handleAgentRequest } from "./routes.ts";
 import { refreshWorkspaceCompletionCatalogs, closeWorkspaceAgent, getWorkspaceAgentController, getWorkspaceAgentPresentation, restoreWorkspaceAgentRuntime } from "./runtime.ts";
 import { removeClosedWorkspaceAgent, createNextWorkspaceAgent, listWorkspaceAgents, untitledAgentTitle, type WorkspaceAgentInfo } from "./agent-store.ts";
 
 const toolAbortRequestSchema = { type: "object", properties: { note: { type: "string", description: "Optional user note returned in the tool result" } } };
 
-let agentEvents: AgentsInTheCloudEventBus | undefined;
+let agentEvents: KintsugiEventBus | undefined;
 
 export function createWorkspaceAgentTabProvider(dependencies: {
   list(workspaceId: string): Promise<readonly WorkspaceAgentInfo[]>;
@@ -32,7 +32,7 @@ export function createWorkspaceAgentTabProvider(dependencies: {
 
     async render({ workspaceId, agentId }) {
       const conversation = (await dependencies.list(workspaceId)).find((candidate) => candidate.agentId === agentId);
-      if (!conversation) throw new AgentsInTheCloudCoreError("agent_not_found", `Agent not found: ${agentId}`);
+      if (!conversation) throw new KintsugiCoreError("agent_not_found", `Agent not found: ${agentId}`);
       return await dependencies.render(conversation);
     },
 
@@ -40,7 +40,7 @@ export function createWorkspaceAgentTabProvider(dependencies: {
       await serializedClose(workspaceId, async () => {
         const conversations = await dependencies.list(workspaceId);
         const conversation = conversations.find((candidate) => candidate.agentId === agentId);
-        if (!conversation) throw new AgentsInTheCloudCoreError("agent_not_found", `Agent not found: ${agentId}`);
+        if (!conversation) throw new KintsugiCoreError("agent_not_found", `Agent not found: ${agentId}`);
         try {
           await dependencies.dispose(workspaceId, agentId);
           await dependencies.removeClosedAgent(conversation);
@@ -81,7 +81,7 @@ const launchComposerCommandContribution: WorkspaceCommandContribution = {
   surfaces: { shortcut: { defaultBinding: launchComposerCommand.binding } },
 };
 
-async function applyNewAgentSettings(agent: WorkspaceAgentInfo, source: WorkspaceAgentInfo | undefined, events?: AgentsInTheCloudEventBus): Promise<void> {
+async function applyNewAgentSettings(agent: WorkspaceAgentInfo, source: WorkspaceAgentInfo | undefined, events?: KintsugiEventBus): Promise<void> {
   const runtimeOptions = { events };
   const sourceController = source ? await getWorkspaceAgentController(source, runtimeOptions) : undefined;
   const sourceSettings = await sourceController?.settings();
@@ -113,7 +113,7 @@ export const builtinAgentWorkspaceModule: WorkspaceModule = {
   }],
   openApiPaths: {
     "/agent-notifications/public-key": { get: {
-      summary: "Get this AgentsInTheCloud installation's VAPID public key for browser PushManager subscription",
+      summary: "Get this Kintsugi installation's VAPID public key for browser PushManager subscription",
       responses: { "200": { description: "Public application-server key", content: { "application/json": { schema: { type: "object", properties: { publicKey: { type: "string" } } } } } } },
     } },
     "/workspaces/{id}/agents/{agentId}/notification": {
@@ -156,7 +156,7 @@ export const builtinAgentWorkspaceModule: WorkspaceModule = {
   routes: [{
     async handle(request, url, context) {
       // SAFETY: The module boundary validates or constructs this value with the asserted domain shape.
-      return handleAgentRequest(request, url, { events: context.events as AgentsInTheCloudEventBus | undefined, renderPage: context.renderPage });
+      return handleAgentRequest(request, url, { events: context.events as KintsugiEventBus | undefined, renderPage: context.renderPage });
     },
   }],
   agentType: {
@@ -167,7 +167,7 @@ export const builtinAgentWorkspaceModule: WorkspaceModule = {
   },
   initialize(context) {
     // SAFETY: The module boundary validates or constructs this value with the asserted domain shape.
-    const events = context.events as AgentsInTheCloudEventBus;
+    const events = context.events as KintsugiEventBus;
     agentEvents = events;
     registerAgentEvents(events);
     events.on("workspace_agent_turn_finished", async ({ workspaceId, agentId }) => {
@@ -186,7 +186,7 @@ export const builtinAgentWorkspaceModule: WorkspaceModule = {
   },
 };
 
-async function createBuiltinAgent({ workspaceId, events }: { workspaceId: string; events?: AgentsInTheCloudEventBus }): Promise<string> {
+async function createBuiltinAgent({ workspaceId, events }: { workspaceId: string; events?: KintsugiEventBus }): Promise<string> {
   const sourceConversation = (await listWorkspaceAgents(workspaceId))[0];
   const conversation = await createNextWorkspaceAgent(workspaceId);
   const applySettingsTimer = setTimeout(() => {

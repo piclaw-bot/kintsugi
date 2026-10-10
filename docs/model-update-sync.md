@@ -1,6 +1,6 @@
 # Model update sync
 
-A **model update sync** is an explicit review of AgentsInTheCloud's popular-model recommendations and a reset of its known-model baseline. It is not an automatic provider catalogue refresh.
+A **model update sync** is an explicit review of Kintsugi's popular-model recommendations and a reset of its known-model baseline. It is not an automatic provider catalogue refresh.
 
 ## Before changing code
 

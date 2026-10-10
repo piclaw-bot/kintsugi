@@ -1,4 +1,4 @@
-import type { WorkspacePresenterDefinition } from "@agents-in-the-cloud/agent/server/tools";
+import type { WorkspacePresenterDefinition } from "@kintsugi/agent/server/tools";
 import type { RunningDesktop } from "./runtime.ts";
 
 export function createDesktopPresenter(deps: {

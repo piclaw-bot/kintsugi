@@ -1,7 +1,7 @@
-import { CableTopics, type CableSubscription } from "@agents-in-the-cloud/shared";
+import { CableTopics, type CableSubscription } from "@kintsugi/shared";
 import { Controller } from "@hotwired/stimulus";
 import { renderCableStreams } from "./cable-stream-renderer.ts";
-import { createAgentsInTheCloudCableClient } from "./cable.ts";
+import { createKintsugiCableClient } from "./cable.ts";
 import { registerWorkspaceControllers } from "./workspace-controller-registry.ts";
 
 class CableShellController extends Controller<HTMLElement> {
@@ -10,7 +10,7 @@ class CableShellController extends Controller<HTMLElement> {
     document.addEventListener("live:connection", this.changed);
     document.addEventListener("submit", this.guard, true);
     document.addEventListener("turbo:before-morph-attribute", this.preserveDisclosure);
-    this.subscription = window.AgentsInTheCloudCable!.subscribe(CableTopics.shell());
+    this.subscription = window.KintsugiCable!.subscribe(CableTopics.shell());
     this.changed();
   }
   disconnect(): void {
@@ -20,13 +20,13 @@ class CableShellController extends Controller<HTMLElement> {
     document.removeEventListener("turbo:before-morph-attribute", this.preserveDisclosure);
   }
   private readonly changed = (): void => {
-    const ready = window.AgentsInTheCloudCable!.ready();
+    const ready = window.KintsugiCable!.ready();
     this.element.dataset.liveReady = String(ready);
     const status = document.getElementById("live-connection-status");
     if (status) status.hidden = ready;
   };
   private readonly guard = (event: Event): void => {
-    if (!window.AgentsInTheCloudCable!.ready()) {
+    if (!window.KintsugiCable!.ready()) {
       event.preventDefault();
       event.stopImmediatePropagation();
     }
@@ -38,6 +38,6 @@ class CableShellController extends Controller<HTMLElement> {
   };
 }
 export function installWorkspaceCable(): void {
-  window.AgentsInTheCloudCable ??= createAgentsInTheCloudCableClient(renderCableStreams);
+  window.KintsugiCable ??= createKintsugiCableClient(renderCableStreams);
   registerWorkspaceControllers({ "cable-shell": CableShellController });
 }

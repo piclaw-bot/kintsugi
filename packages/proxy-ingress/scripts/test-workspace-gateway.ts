@@ -19,15 +19,15 @@ async function exerciseIngress(gatewayUrl: string, token: string) {
     hostname: "127.0.0.1", port: 0,
     async fetch(request, server): Promise<Response | undefined> {
       appRequests += 1;
-      for (const name of ["x-agents-in-the-cloud-gateway-host", "x-agents-in-the-cloud-gateway-token", "x-agents-in-the-cloud-gateway-port", "x-agents-in-the-cloud-gateway-protocol", "proxy-authorization"]) assert.equal(request.headers.get(name), null, `credential/metadata leaked: ${name}`);
+      for (const name of ["x-kintsugi-gateway-host", "x-kintsugi-gateway-token", "x-kintsugi-gateway-port", "x-kintsugi-gateway-protocol", "proxy-authorization"]) assert.equal(request.headers.get(name), null, `credential/metadata leaked: ${name}`);
       assert.equal(request.headers.get("host"), `localhost:${app.port}`);
       assert.equal(request.headers.get("x-forwarded-host"), request.headers.get("host"));
       assert.equal(request.headers.get("x-forwarded-proto"), "http");
       assert.equal(request.headers.get("x-forwarded-port"), String(app.port));
       assert.equal(request.headers.get("forwarded"), null);
-      assert.equal(request.headers.get("x-agents-in-the-cloud-parent-workspace"), null);
-      assert.equal(request.headers.get("x-agents-in-the-cloud-parent-origin"), null);
-      assert.ok(request.headers.get("x-agents-in-the-cloud-public-origin"));
+      assert.equal(request.headers.get("x-kintsugi-parent-workspace"), null);
+      assert.equal(request.headers.get("x-kintsugi-parent-origin"), null);
+      assert.ok(request.headers.get("x-kintsugi-public-origin"));
       const url = new URL(request.url);
       if (url.pathname === "/origin-check") {
         // Match both styles used by real frameworks: direct Host (Webpack)
@@ -52,7 +52,7 @@ async function exerciseIngress(gatewayUrl: string, token: string) {
         start(controller) { controller.enqueue(new TextEncoder().encode("data: ready\n\n")); },
         cancel() { streamCancelled(); },
       }), { headers: { "content-type": "text/event-stream" } });
-      if (url.pathname === "/app-error") return new Response("application failure", { status: 502, headers: { "x-agents-in-the-cloud-gateway-error": "upstream" } });
+      if (url.pathname === "/app-error") return new Response("application failure", { status: 502, headers: { "x-kintsugi-gateway-error": "upstream" } });
       if (url.pathname === "/redirect") return new Response(null, { status: 302, headers: { location: `http://localhost:${app.port}/next`, "set-cookie": "session=ok; Domain=localhost; HttpOnly" } });
       if (request.method === "POST") return new Response(await request.text());
       return new Response(`${url.pathname}${url.search}`);
@@ -86,7 +86,7 @@ async function exerciseIngress(gatewayUrl: string, token: string) {
       controller.enqueue(encoder.encode(payload.slice(1000)));
       controller.close();
     }});
-    assert.equal(await (await request(`${origin}/echo`, { method: "POST", body: upload, headers: { "x-agents-in-the-cloud-gateway-token": "forged", "x-agents-in-the-cloud-gateway-port": "22" } })).text(), payload);
+    assert.equal(await (await request(`${origin}/echo`, { method: "POST", body: upload, headers: { "x-kintsugi-gateway-token": "forged", "x-kintsugi-gateway-port": "22" } })).text(), payload);
     const redirect = await request(`${origin}/redirect`, { redirect: "manual" });
     assert.equal(redirect.status, 302);
     assert.equal(redirect.headers.get("location"), `${origin}/next`);
@@ -131,7 +131,7 @@ async function exerciseIngress(gatewayUrl: string, token: string) {
     });
     console.log(`PASS: five 800×900 RGBA binary frames round-tripped through ingress + gateway in ${Math.round(performance.now() - binaryStartedAt)} ms`);
     assert.equal(appRequests, 5);
-    const denied = await request(gatewayUrl, { headers: { "x-agents-in-the-cloud-gateway-port": String(app.port), "x-agents-in-the-cloud-gateway-protocol": "http" } });
+    const denied = await request(gatewayUrl, { headers: { "x-kintsugi-gateway-port": String(app.port), "x-kintsugi-gateway-protocol": "http" } });
     assert.equal(denied.status, 401);
     await denied.text();
     assert.equal(appRequests, 5, "unauthenticated caller reached the app");
@@ -141,7 +141,7 @@ async function exerciseIngress(gatewayUrl: string, token: string) {
     const appError = await request(`${origin}/app-error`);
     assert.equal(appError.status, 502);
     assert.equal(await appError.text(), "application failure");
-    assert.equal(appError.headers.get("x-agents-in-the-cloud-gateway-error"), null);
+    assert.equal(appError.headers.get("x-kintsugi-gateway-error"), null);
     assert.equal(appRequests, beforeAppError + 1, "ordinary app 502 was retried");
 
     for (const method of ["POST", "OPTIONS"]) {
@@ -155,7 +155,7 @@ async function exerciseIngress(gatewayUrl: string, token: string) {
     }
     for (const foreign of ["https://attacker.example", "null"]) {
       const before: number = appRequests;
-      const response = await request(`${origin}/origin-check`, { method: "POST", headers: { origin: foreign, "x-forwarded-host": "attacker.example", "x-forwarded-proto": "https", "x-agents-in-the-cloud-origin-context": foreign }, body: "foreign" });
+      const response = await request(`${origin}/origin-check`, { method: "POST", headers: { origin: foreign, "x-forwarded-host": "attacker.example", "x-forwarded-proto": "https", "x-kintsugi-origin-context": foreign }, body: "foreign" });
       assert.equal(response.status, 403);
       assert.equal(await response.text(), "foreign origin");
       assert.equal(appRequests, before + 1, "origin rejection must not be retried");
@@ -168,7 +168,7 @@ async function exerciseIngress(gatewayUrl: string, token: string) {
     const unavailable = await request(origin);
     assert.equal(unavailable.status, 503);
     assert.match(await unavailable.text(), /connection refused/i);
-    assert.equal(unavailable.headers.get("x-agents-in-the-cloud-gateway-error"), null);
+    assert.equal(unavailable.headers.get("x-kintsugi-gateway-error"), null);
     assert.equal(ingress.inspect()[0]!.targetState, "failed");
     assert.equal(ingress.inspect()[0]!.failureCategory, "connection_refused");
 
@@ -194,7 +194,7 @@ if (process.argv[2] === "--client") {
   await exerciseIngress(process.argv[3]!, process.argv[4]!);
 } else {
   const source = resolve(import.meta.dir, "../../workspace-image/workspace-image/gateway");
-  const directory = await mkdtemp(join(tmpdir(), "agents-in-the-cloud-gateway-test-"));
+  const directory = await mkdtemp(join(tmpdir(), "kintsugi-gateway-test-"));
   const binary = join(directory, "gateway");
   const token = crypto.randomUUID() + crypto.randomUUID();
   const tokenFile = join(directory, "token");

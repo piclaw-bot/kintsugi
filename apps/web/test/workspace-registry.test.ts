@@ -192,7 +192,7 @@ describe("independent attention and visibility", () => {
 });
 
 test("attention file writes capture nested state at invocation and preserve write order", async () => {
-  const directory = await mkdtemp(join(tmpdir(), "agents-in-the-cloud-attention-"));
+  const directory = await mkdtemp(join(tmpdir(), "kintsugi-attention-"));
   try {
     const store = createFileWorkspaceAttentionStore(join(directory, "attention.json"));
     const state: WorkspaceAttentionSnapshot = { nextSequence: 2, workspaces: { a: 100 }, surfaces: { a: { "agent:one": { sequence: 1 } } } };
@@ -213,7 +213,7 @@ test("cancelling deletion of interrupted provisioning returns to a non-busy prov
   registry.startProvisioning("a");
   registry.setDeletion("a", { status: "blocked", fingerprint: "changes" });
   registry.cancelDeletion("a");
-  expect(registry.get("a")!.phase).toEqual({ kind: "provisioningPhase", status: "failed", busy: false, error: "Workspace preparation was cancelled. Delete this workspace or restart AgentsInTheCloud to retry startup." });
+  expect(registry.get("a")!.phase).toEqual({ kind: "provisioningPhase", status: "failed", busy: false, error: "Workspace preparation was cancelled. Delete this workspace or restart Kintsugi to retry startup." });
 });
 
 
@@ -234,7 +234,7 @@ test("deletion retries and restart preserve the provisioning failure to restore 
 
 
 test("deletion persistence retains the interrupted provisioning failure", async () => {
-  const directory = await mkdtemp(join(tmpdir(), "agents-in-the-cloud-deletion-"));
+  const directory = await mkdtemp(join(tmpdir(), "kintsugi-deletion-"));
   try {
     const store = createFileWorkspaceDeletionStore(join(directory, "deletion.json"));
     await store.save({ broken: { status: "failed", operation: "deleting", forced: true, error: "Cannot delete", provisioningError: "Container unavailable" } });

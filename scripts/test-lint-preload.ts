@@ -7,7 +7,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 const repoRoot = join(import.meta.dir, "..");
-const lockDir = join(tmpdir(), "agents-in-the-cloud-test-lint");
+const lockDir = join(tmpdir(), "kintsugi-test-lint");
 const staleLockMs = 10 * 60_000;
 const runId = process.env.BUN_TEST_WORKER_ID ? process.ppid : process.pid;
 

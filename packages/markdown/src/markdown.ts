@@ -1,12 +1,12 @@
 import { renderMarkdownEmbed } from "./embeds.ts";
-import { copyButtonHtml } from "@agents-in-the-cloud/design-system/copy-button";
-import { buttonHtml } from "@agents-in-the-cloud/design-system/button";
+import { copyButtonHtml } from "@kintsugi/design-system/copy-button";
+import { buttonHtml } from "@kintsugi/design-system/button";
 import MarkdownIt from "markdown-it";
 import { installMath } from "./math.ts";
-import { agentsInTheCloudFileHref, workspaceFileImageSrc } from "./agents-in-the-cloud-markdown.ts";
-import { escapeHtml, isWorkspaceAppPort, isWorkspaceLoopbackHost, workspacePortAppKey, workspaceProxyUrl } from "@agents-in-the-cloud/shared";
-import { renderMarkdownDiff } from "@agents-in-the-cloud/syntax/markdown-diff";
-import { highlightCodeHtml } from "@agents-in-the-cloud/syntax";
+import { kintsugiFileHref, workspaceFileImageSrc } from "./kintsugi-markdown.ts";
+import { escapeHtml, isWorkspaceAppPort, isWorkspaceLoopbackHost, workspacePortAppKey, workspaceProxyUrl } from "@kintsugi/shared";
+import { renderMarkdownDiff } from "@kintsugi/syntax/markdown-diff";
+import { highlightCodeHtml } from "@kintsugi/syntax";
 
 export interface MarkdownRenderOptions {
   sourcePath?: string;
@@ -26,7 +26,7 @@ const markdown = new MarkdownIt({
 installMath(markdown);
 const defaultValidateLink = markdown.validateLink.bind(markdown);
 markdown.validateLink = (url) => /^file:\/\//i.test(url)
-  ? agentsInTheCloudFileHref("", url) !== undefined
+  ? kintsugiFileHref("", url) !== undefined
   : defaultValidateLink(url);
 
 // Only explicit http(s) URLs: fuzzy matching would link file names like README.md.
@@ -53,7 +53,7 @@ markdown.renderer.rules.fence = (tokens, index, _options, environment: MarkdownE
   const header = filename ? `<div class="${headerClass}" title="${escapeHtml(filename)}">${escapeHtml(filename)}</div>` : "";
   const classes = `agent-code-block copy-region${isDiff ? " markdown-diff" : ""}`;
   const content = `${copyButtonHtml({ label, copyText: isDiff ? token.content : undefined })}${header}${code}`;
-  return `<div class="${classes}" data-controller="agents-in-the-cloud-fullscreen" data-agents-in-the-cloud-fullscreen-mode-value="template" data-agents-in-the-cloud-fullscreen-title-value="${escapeHtml(title)}">${content}<template data-agents-in-the-cloud-fullscreen-target="content"><div class="${classes}">${content}</div></template></div>`;
+  return `<div class="${classes}" data-controller="kintsugi-fullscreen" data-kintsugi-fullscreen-mode-value="template" data-kintsugi-fullscreen-title-value="${escapeHtml(title)}">${content}<template data-kintsugi-fullscreen-target="content"><div class="${classes}">${content}</div></template></div>`;
 };
 
 function renderHighlightedFence(code: string, language?: string): string {
@@ -71,8 +71,8 @@ function mermaidDiagram(source: string, fullscreen = false): string {
 
 function renderMermaid(source: string, filename?: string): string {
   const title = filename ?? "Mermaid diagram";
-  const header = filename ? `<div class="agent-media-frame-bar"><span>${escapeHtml(filename)}</span>${buttonHtml({ type: "button", variant: "secondary", content: { kind: "caption", caption: "Fullscreen" }, attributesHtml: 'data-action="agents-in-the-cloud-fullscreen#open"' })}</div>` : "";
-  return `<div class="agent-media-frame agent-mermaid" data-controller="agents-in-the-cloud-fullscreen" data-agents-in-the-cloud-fullscreen-mode-value="template" data-agents-in-the-cloud-fullscreen-title-value="${escapeHtml(title)}">${header}${mermaidDiagram(source)}<template data-agents-in-the-cloud-fullscreen-target="content">${mermaidDiagram(source, true)}</template></div>`;
+  const header = filename ? `<div class="agent-media-frame-bar"><span>${escapeHtml(filename)}</span>${buttonHtml({ type: "button", variant: "secondary", content: { kind: "caption", caption: "Fullscreen" }, attributesHtml: 'data-action="kintsugi-fullscreen#open"' })}</div>` : "";
+  return `<div class="agent-media-frame agent-mermaid" data-controller="kintsugi-fullscreen" data-kintsugi-fullscreen-mode-value="template" data-kintsugi-fullscreen-title-value="${escapeHtml(title)}">${header}${mermaidDiagram(source)}<template data-kintsugi-fullscreen-target="content">${mermaidDiagram(source, true)}</template></div>`;
 }
 
 function renderPendingMermaid(filename?: string): string {
@@ -84,7 +84,7 @@ const defaultLinkOpen = markdown.renderer.rules.link_open ?? ((tokens, index, op
 markdown.renderer.rules.link_open = (tokens, index, options, environment: MarkdownEnvironment, renderer) => {
   const token = tokens[index]!;
   const href = token.attrGet("href") ?? "";
-  const fileHref = agentsInTheCloudFileHref(environment.workspaceId, href, environment.sourcePath);
+  const fileHref = kintsugiFileHref(environment.workspaceId, href, environment.sourcePath);
   if (fileHref) {
     token.attrSet("href", fileHref);
     token.attrSet("data-turbo-stream", "true");

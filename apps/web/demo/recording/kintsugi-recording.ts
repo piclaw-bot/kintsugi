@@ -10,7 +10,7 @@ export const DEFAULT_VIEWPORT = { width: 1440, height: 900 } as const;
 export const DEFAULT_FRAME_RATE = 25;
 export const CHROMIUM_PATH = process.platform === "darwin"
 	? "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
-	: "/opt/agents-in-the-cloud/bin/chromium";
+	: chromium.executablePath();
 export const FFMPEG_PATH = "/usr/bin/ffmpeg";
 export const FFPROBE_PATH = "/usr/bin/ffprobe";
 export const DEFAULT_ARTIFACT_ROOT = "/work/artifacts";
@@ -40,7 +40,7 @@ export interface RecordingPaths {
 	failureScreenshotPath: string;
 }
 
-export interface AgentsInTheCloudRecordingOptions {
+export interface KintsugiRecordingOptions {
 	name: string;
 	viewport?: { width: number; height: number };
 	frameRate?: number;
@@ -79,7 +79,7 @@ const ffprobeReportSchema = Type.Object({
 	format: Type.Object({ duration: Type.String() }),
 });
 
-export interface AgentsInTheCloudRecording {
+export interface KintsugiRecording {
 	readonly page: Page;
 	readonly paths: RecordingPaths;
 	readonly timings: HumanTimingOptions;
@@ -136,9 +136,9 @@ export function buildFfmpegArgs(inputPath: string, outputPath: string, frameRate
 function installRecordingPointer(): void {
 	if (window !== window.top) return;
 	const mount = () => {
-		if (document.querySelector("[data-agents-in-the-cloud-recording-pointer]")) return;
+		if (document.querySelector("[data-kintsugi-recording-pointer]")) return;
 		const host = document.createElement("div");
-		host.setAttribute("data-agents-in-the-cloud-recording-pointer", "");
+		host.setAttribute("data-kintsugi-recording-pointer", "");
 		host.setAttribute("aria-hidden", "true");
 		host.setAttribute("popover", "manual");
 		host.style.cssText = "all:initial;position:fixed;inset:0;width:100vw;height:100vh;margin:0;padding:0;border:0;background:transparent;pointer-events:none;overflow:visible;z-index:2147483647";
@@ -192,7 +192,7 @@ async function movePointerTo(locator: Locator): Promise<void> {
 	if (!box) throw new Error("Recording click target has no visible bounding box");
 	const page = locator.page();
 	const from = await page.evaluate(() => {
-		const pointer = document.querySelector<HTMLElement>("[data-agents-in-the-cloud-recording-pointer]")!;
+		const pointer = document.querySelector<HTMLElement>("[data-kintsugi-recording-pointer]")!;
 		return { x: Number(pointer.dataset.x), y: Number(pointer.dataset.y) };
 	});
 	const to = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
@@ -204,7 +204,7 @@ async function movePointerTo(locator: Locator): Promise<void> {
 	}
 }
 
-export async function createAgentsInTheCloudRecording(options: AgentsInTheCloudRecordingOptions): Promise<AgentsInTheCloudRecording> {
+export async function createKintsugiRecording(options: KintsugiRecordingOptions): Promise<KintsugiRecording> {
 	const paths = recordingPaths(options.name, options.artifactRoot);
 	const viewport = normalizeViewport(options.viewport);
 	const frameRate = options.frameRate ?? DEFAULT_FRAME_RATE;
@@ -293,12 +293,12 @@ export async function createAgentsInTheCloudRecording(options: AgentsInTheCloudR
 	};
 }
 
-export async function recordAgentsInTheCloudDemo(
-	options: AgentsInTheCloudRecordingOptions & { outputPath?: string },
-	scenario: (recording: AgentsInTheCloudRecording) => Promise<void>,
+export async function recordKintsugiDemo(
+	options: KintsugiRecordingOptions & { outputPath?: string },
+	scenario: (recording: KintsugiRecording) => Promise<void>,
 ): Promise<VideoReport> {
 	if (options.outputPath !== undefined) assertOutputPath(options.outputPath);
-	const recording = await createAgentsInTheCloudRecording(options);
+	const recording = await createKintsugiRecording(options);
 	try {
 		await scenario(recording);
 		return await recording.finish(options.outputPath);
@@ -385,7 +385,7 @@ interface NormalizedViewport {
 	height: number;
 }
 
-function normalizeViewport(viewport: AgentsInTheCloudRecordingOptions["viewport"]): NormalizedViewport {
+function normalizeViewport(viewport: KintsugiRecordingOptions["viewport"]): NormalizedViewport {
 	const value = viewport ?? DEFAULT_VIEWPORT;
 	assertPositiveNumber(value.width, "viewport.width");
 	assertPositiveNumber(value.height, "viewport.height");

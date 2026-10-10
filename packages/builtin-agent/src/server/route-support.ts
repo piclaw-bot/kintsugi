@@ -1,4 +1,4 @@
-import { type AgentsInTheCloudEventBus } from "@agents-in-the-cloud/core";
+import { type KintsugiEventBus } from "@kintsugi/core";
 import type { maybeNameAgentFromPrompt } from "./agent-title-suggestion.ts";
 import { resolveAgent } from "./delegation.ts";
 import { getWorkspaceAgentPresentation, getWorkspaceAgentController } from "./runtime.ts";
@@ -6,7 +6,7 @@ import { type WorkspaceAgentInfo } from "./agent-store.ts";
 
 export interface AgentRouteOptions {
   renderPage?: (body: string) => Response;
-  events?: AgentsInTheCloudEventBus;
+  events?: KintsugiEventBus;
   getController?: typeof getWorkspaceAgentController;
   getPresentation?: typeof getWorkspaceAgentPresentation;
   knownRequest?: typeof import("./runtime.ts").knownWorkspaceAgentRequest;

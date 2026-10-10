@@ -5,12 +5,12 @@ import { dirname, join } from "node:path";
 import { syncWorkspaceDocs } from "../src/server/workspace-docs.ts";
 
 const buildCommit = "0123456789abcdef0123456789abcdef01234567";
-const sourceLine = `\n\nIf you cannot find the answer to your question here, you can find the source code of this version of AgentsInTheCloud here: [GitHub](https://github.com/lucasmeijer/agentsinthecloud) · [0123456](https://github.com/lucasmeijer/agentsinthecloud/commit/${buildCommit})\n`;
+const sourceLine = `\n\nIf you cannot find the answer to your question here, you can find the source code of this version of Kintsugi here: [GitHub](https://github.com/rcarmo/kintsugi) · [0123456](https://github.com/rcarmo/kintsugi/commit/${buildCommit})\n`;
 
 let root: string;
 let destination: string;
 beforeEach(async () => {
-  root = await mkdtemp(join(tmpdir(), "agents-in-the-cloud-docs-"));
+  root = await mkdtemp(join(tmpdir(), "kintsugi-docs-"));
   destination = join(root, "installed");
   await mkdir(join(root, "docs/deploy-in-workspace"), { recursive: true });
   await mkdir(join(root, "packages/without-docs"), { recursive: true });
@@ -24,11 +24,11 @@ async function source(path: string, content: string): Promise<void> {
 }
 
 test("deploys shared and package documentation with relative paths and read-only files", async () => {
-  await source("docs/deploy-in-workspace/agents-in-the-cloud.md", "Shared guide");
+  await source("docs/deploy-in-workspace/kintsugi.md", "Shared guide");
   await source("packages/inline-content/deploy-in-workspace/inline-content.md", "Rich guide");
   await source("packages/example/deploy-in-workspace/examples/usage.md", "Nested guide");
   await syncWorkspaceDocs(root, destination, buildCommit);
-  expect(await readFile(join(destination, "agents-in-the-cloud.md"), "utf8")).toBe("Shared guide" + sourceLine);
+  expect(await readFile(join(destination, "kintsugi.md"), "utf8")).toBe("Shared guide" + sourceLine);
   expect(await readFile(join(destination, "inline-content.md"), "utf8")).toBe("Rich guide" + sourceLine);
   expect(await readFile(join(destination, "examples/usage.md"), "utf8")).toBe("Nested guide" + sourceLine);
   expect((await stat(join(destination, "inline-content.md"))).mode & 0o777).toBe(0o444);
@@ -69,7 +69,7 @@ test("labels local development builds and leaves non-Markdown assets unchanged",
   await source("packages/example/deploy-in-workspace/example.txt", "Example");
   await syncWorkspaceDocs(root, destination, "");
   expect(await readFile(join(destination, "guide.md"), "utf8")).toBe(
-    "# Guide\n\n\nIf you cannot find the answer to your question here, you can find the source code of this version of AgentsInTheCloud here: [GitHub](https://github.com/lucasmeijer/agentsinthecloud) · local development build\n",
+    "# Guide\n\n\nIf you cannot find the answer to your question here, you can find the source code of this version of Kintsugi here: [GitHub](https://github.com/rcarmo/kintsugi) · local development build\n",
   );
   expect(await readFile(join(destination, "example.txt"), "utf8")).toBe("Example");
 });

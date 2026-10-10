@@ -1,6 +1,6 @@
-import { buttonHtml } from "@agents-in-the-cloud/design-system/button";
-import { dialogHtml } from "@agents-in-the-cloud/design-system/dialog";
-import { Icons } from "@agents-in-the-cloud/design-system/icons";
+import { buttonHtml } from "@kintsugi/design-system/button";
+import { dialogHtml } from "@kintsugi/design-system/dialog";
+import { Icons } from "@kintsugi/design-system/icons";
 
 const action = (caption: string, method: string, variant: "primary" | "secondary" = "secondary") => buttonHtml({ type: "button", variant, content: { kind: "caption", caption }, attributesHtml: `data-action="changes-edit#${method}"` });
 export function renderEditFeedback(): string {

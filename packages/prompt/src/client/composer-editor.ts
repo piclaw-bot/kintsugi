@@ -1,4 +1,4 @@
-import { changeLayout } from "@agents-in-the-cloud/shared";
+import { changeLayout } from "@kintsugi/shared";
 
 /** Height available above the arranged keyboard, or the full window when it is down. */
 export function composerViewportHeight(): number {

@@ -1,4 +1,4 @@
-import type { AgentsInTheCloudEventBus } from "@agents-in-the-cloud/core";
+import type { KintsugiEventBus } from "@kintsugi/core";
 import { agentKey } from "./render-context.ts";
 import { publishWorkspaceAgentBusy } from "./workspace-agent-busy.ts";
 
@@ -21,7 +21,7 @@ export function abandonSettlingTurn(agentId: string): void {
 }
 
 /** Start settlement without waiting, so the CLI hook can return and flush its history. */
-export function handleAgentTurnBoundary(identity: AgentTurnIdentity, started: boolean, reason: AgentTurnFinishReason, events: AgentsInTheCloudEventBus): void {
+export function handleAgentTurnBoundary(identity: AgentTurnIdentity, started: boolean, reason: AgentTurnFinishReason, events: KintsugiEventBus): void {
   abandonSettlingTurn(identity.agentId);
   if (started) {
     publishWorkspaceAgentBusy({ workspaceId: identity.workspaceId, agentKey: agentKey(identity.agentId), busy: true });
@@ -36,7 +36,7 @@ export function handleAgentTurnBoundary(identity: AgentTurnIdentity, started: bo
   }
 }
 
-async function finishTurn({ workspaceId, agentId }: AgentTurnIdentity, signal: AbortSignal, reason: AgentTurnFinishReason, events: AgentsInTheCloudEventBus): Promise<void> {
+async function finishTurn({ workspaceId, agentId }: AgentTurnIdentity, signal: AbortSignal, reason: AgentTurnFinishReason, events: KintsugiEventBus): Promise<void> {
   await Promise.all([...turnSettlers].map((settle) => settle(workspaceId, agentId, signal, reason)));
   // A newer turn boundary or revocation owns the busy state now.
   if (signal.aborted) return;

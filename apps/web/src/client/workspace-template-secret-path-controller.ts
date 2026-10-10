@@ -1,6 +1,6 @@
 import { Controller } from "@hotwired/stimulus";
-import { setToggleValue } from "@agents-in-the-cloud/design-system/toggle/client";
-import { workspaceTemplateSecretAllowsPath } from "@agents-in-the-cloud/workspace-templates/secret-path-policy";
+import { setToggleValue } from "@kintsugi/design-system/toggle/client";
+import { workspaceTemplateSecretAllowsPath } from "@kintsugi/workspace-templates/secret-path-policy";
 
 /** New-secret defaults follow the host until the user explicitly picks a permission. */
 export class WorkspaceTemplateSecretPathController extends Controller<HTMLFormElement> {

@@ -2,13 +2,13 @@ import { afterEach, beforeEach, expect, test } from "bun:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { addWorkspaceTemplate, listWorkspaceTemplates, updateWorkspaceTemplate } from "@agents-in-the-cloud/workspace-templates";
+import { addWorkspaceTemplate, listWorkspaceTemplates, updateWorkspaceTemplate } from "@kintsugi/workspace-templates";
 import { recordWorkspaceCreation } from "../src/workspace-template.ts";
 
 let directory: string;
 let file: string;
 beforeEach(async () => {
-  directory = await mkdtemp(join(tmpdir(), "agents-in-the-cloud-workspace-template-recency-"));
+  directory = await mkdtemp(join(tmpdir(), "kintsugi-workspace-template-recency-"));
   file = join(directory, "projects.json");
 });
 afterEach(async () => { await rm(directory, { recursive: true, force: true }); });

@@ -1,12 +1,12 @@
 /** Installed in the workspace image; provisioning and standalone tests share these. */
 export function workspaceRuntimeUnits() {
   return {
-    "agents-in-the-cloud-tmux.service": `[Unit]
-Description=AgentsInTheCloud workspace terminal workloads
+    "kintsugi-tmux.service": `[Unit]
+Description=Kintsugi workspace terminal workloads
 [Service]
 Type=exec
-User=agents-in-the-cloud
-EnvironmentFile=/.agents-in-the-cloud/environment
+User=agent
+EnvironmentFile=/.kintsugi/environment
 WorkingDirectory=/work
 # -D keeps the server in the foreground and disables exit-empty. Use the
 # default socket so ordinary tmux commands share this managed server.
@@ -24,27 +24,27 @@ Restart=always
 RestartSec=1s
 TimeoutStopSec=10s
 `,
-    "agents-in-the-cloud-init.service": `[Unit]
-Description=AgentsInTheCloud workspace initialization
+    "kintsugi-init.service": `[Unit]
+Description=Kintsugi workspace initialization
 [Service]
 Type=oneshot
-EnvironmentFile=/.agents-in-the-cloud/environment
+EnvironmentFile=/.kintsugi/environment
 WorkingDirectory=/work
-ExecStart=/bin/sh /.agents-in-the-cloud/init.sh
+ExecStart=/bin/sh /.kintsugi/init.sh
 RemainAfterExit=yes
 TimeoutStartSec=infinity
 `,
-    "agents-in-the-cloud-gateway.service": `[Unit]
-Description=AgentsInTheCloud workspace gateway
-Requires=agents-in-the-cloud-init.service
-After=agents-in-the-cloud-init.service
+    "kintsugi-gateway.service": `[Unit]
+Description=Kintsugi workspace gateway
+Requires=kintsugi-init.service
+After=kintsugi-init.service
 StartLimitIntervalSec=60s
 StartLimitBurst=5
 [Service]
-EnvironmentFile=/.agents-in-the-cloud/environment
+EnvironmentFile=/.kintsugi/environment
 WorkingDirectory=/work
-ExecStart=/usr/local/bin/agents-in-the-cloud-workspace-gateway
-ExecStopPost=/usr/bin/rm -f /.agents-in-the-cloud/ready
+ExecStart=/usr/local/bin/kintsugi-workspace-gateway
+ExecStopPost=/usr/bin/rm -f /.kintsugi/ready
 Restart=on-failure
 RestartSec=2s
 KillMode=mixed
@@ -53,7 +53,7 @@ TimeoutStopSec=30s
 WantedBy=multi-user.target
 `,
     "docker.socket": `[Unit]
-Description=AgentsInTheCloud Docker API socket
+Description=Kintsugi Docker API socket
 [Socket]
 ListenStream=/run/docker.sock
 SocketMode=0660
@@ -64,7 +64,7 @@ RemoveOnStop=yes
 WantedBy=sockets.target
 `,
     "docker.service": `[Unit]
-Description=AgentsInTheCloud workspace Docker daemon
+Description=Kintsugi workspace Docker daemon
 Requires=docker.socket containerd.service
 After=docker.socket containerd.service
 StartLimitIntervalSec=60s
@@ -72,7 +72,7 @@ StartLimitBurst=5
 [Service]
 Type=notify
 # System services do not inherit the workspace shell's proxy environment.
-EnvironmentFile=/.agents-in-the-cloud/environment
+EnvironmentFile=/.kintsugi/environment
 ExecStart=/usr/local/bin/dockerd --live-restore
 Restart=on-failure
 RestartSec=2s
@@ -84,7 +84,7 @@ TasksMax=infinity
 LimitNOFILE=infinity
 `,
     "containerd.service": `[Unit]
-Description=AgentsInTheCloud workspace containerd
+Description=Kintsugi workspace containerd
 [Service]
 Type=notify
 ExecStart=/usr/local/bin/containerd --config /etc/containerd/config.toml

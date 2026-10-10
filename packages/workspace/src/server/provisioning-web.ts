@@ -1,11 +1,11 @@
-import { Icons } from "@agents-in-the-cloud/design-system/icons";
-import { disclosureHtml } from "@agents-in-the-cloud/design-system/disclosure";
-import { panelHtml } from "@agents-in-the-cloud/design-system/panel";
-import { copyButtonHtml } from "@agents-in-the-cloud/design-system/copy-button";
-import { buttonGroupHtml } from "@agents-in-the-cloud/design-system/button-group";
-import { buttonHtml } from "@agents-in-the-cloud/design-system/button";
-import { observableTerminalStaticFiles } from "@agents-in-the-cloud/observable-terminal/server";
-import { domId, escapeHtml } from "@agents-in-the-cloud/shared";
+import { Icons } from "@kintsugi/design-system/icons";
+import { disclosureHtml } from "@kintsugi/design-system/disclosure";
+import { panelHtml } from "@kintsugi/design-system/panel";
+import { copyButtonHtml } from "@kintsugi/design-system/copy-button";
+import { buttonGroupHtml } from "@kintsugi/design-system/button-group";
+import { buttonHtml } from "@kintsugi/design-system/button";
+import { observableTerminalStaticFiles } from "@kintsugi/observable-terminal/server";
+import { domId, escapeHtml } from "@kintsugi/shared";
 import type { WorkspaceProvisionStep, WorkspaceProvisionSnapshot, WorkspaceProvisionStepStatus } from "../provisioning.ts";
 
 export const workspaceProvisioningStaticFiles = {

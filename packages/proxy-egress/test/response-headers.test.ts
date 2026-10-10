@@ -8,9 +8,9 @@ import { ensureMitmCa } from "../src/egress/mitm-ca.ts";
 import { createHttpHooks } from "../src/secrets/placeholder-hooks.ts";
 
 test("HTTP redirect reflection is scrubbed at the wire boundary, after response transforms, with the body unchanged", async () => {
-  const directory = await mkdtemp(join(tmpdir(), "agents-in-the-cloud-header-test-"));
+  const directory = await mkdtemp(join(tmpdir(), "kintsugi-header-test-"));
   const secret = "fake-github-credential";
-  const placeholder = "AGENTSINTHECLOUD_PROXY_READY_GH_TOKEN";
+  const placeholder = "KINTSUGI_PROXY_READY_GH_TOKEN";
   const hooks = createHttpHooks({
     allowedInternalHosts: ["localhost"],
     secrets: { GH_TOKEN: { allowInPath: true, value: secret, hosts: ["localhost"], placeholder } },
@@ -20,7 +20,7 @@ test("HTTP redirect reflection is scrubbed at the wire boundary, after response 
     },
   });
   const socketPath = join(directory, "egress.sock");
-  const ca = await ensureMitmCa({ agentsInTheCloudDataDir: directory, dockerHostAgentsInTheCloudDataDir: directory, dockerBridgeHost: "127.0.0.1" });
+  const ca = await ensureMitmCa({ kintsugiDataDir: directory, dockerHostKintsugiDataDir: directory, dockerBridgeHost: "127.0.0.1" });
   let calls = 0;
   const proxy = await startWorkspaceEgressProxy({ socketPath, ca,
     getContext: async () => ({ workspaceId: "test", hooks: hooks.httpHooks, env: hooks.env, secrets: hooks.secrets }),

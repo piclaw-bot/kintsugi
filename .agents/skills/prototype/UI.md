@@ -2,23 +2,23 @@
 
 Build **one throwaway HTML file containing several meaningfully different UI directions**. The user should be able to move through the design space in the browser, compare options in realistic context, and identify which parts to combine.
 
-If the question is about logic or state transitions rather than visual and interaction design, use [LOGIC.md](LOGIC.md). It still produces HTML and follows the same AgentsInTheCloud design-system rules.
+If the question is about logic or state transitions rather than visual and interaction design, use [LOGIC.md](LOGIC.md). It still produces HTML and follows the same Kintsugi design-system rules.
 
-## Non-negotiable: extend AgentsInTheCloud, do not invent a parallel visual language
+## Non-negotiable: extend Kintsugi, do not invent a parallel visual language
 
-A prototype for this repository is not a stand-alone microsite. It is an exploratory AgentsInTheCloud surface.
+A prototype for this repository is not a stand-alone microsite. It is an exploratory Kintsugi surface.
 
 Before writing the prototype:
 
 1. Read `packages/design-system/README.md` and `packages/design-system/src/design-system.css`, then inspect `/design-system-catalogue.html` in the browser.
-2. Inspect the real AgentsInTheCloud page or nearby feature that will host the eventual design. Reuse its information density, shell, terminology, and representative data.
+2. Inspect the real Kintsugi page or nearby feature that will host the eventual design. Reuse its information density, shell, terminology, and representative data.
 3. Inventory the existing design-system elements that fit the prototype. Prefer those elements over custom equivalents.
 
-The HTML must load the repository's actual `/design-system.css` (owned by `packages/design-system`) with a `<link>`; **never copy, inline, fork, or approximately recreate it**. Place prototypes under `apps/web/public/prototypes/` by default so they can use `../design-system.css` and be served by AgentsInTheCloud. Directly use the shipped classes (`button`, `button-group`, `toggle`, `text-field`, `textarea`, `action-item`, `popup-menu`, status elements, and others shown in the catalogue) wherever they match the intended semantics.
+The HTML must load the repository's actual `/design-system.css` (owned by `packages/design-system`) with a `<link>`; **never copy, inline, fork, or approximately recreate it**. Place prototypes under `apps/web/public/prototypes/` by default so they can use `../design-system.css` and be served by Kintsugi. Directly use the shipped classes (`button`, `button-group`, `toggle`, `text-field`, `textarea`, `action-item`, `popup-menu`, status elements, and others shown in the catalogue) wherever they match the intended semantics.
 
-Custom CSS is allowed only for prototype-specific composition and layout that the design system does not provide. It must use AgentsInTheCloud tokens for typography, spacing, radii, color, and elevation. Do not introduce arbitrary hex colors, shadow recipes, font stacks, button styles, form styles, or a second token layer. If an existing element is close but not perfect, use it unchanged and note the gap; discovering a missing design-system element is useful prototype output.
+Custom CSS is allowed only for prototype-specific composition and layout that the design system does not provide. It must use Kintsugi tokens for typography, spacing, radii, color, and elevation. Do not introduce arbitrary hex colors, shadow recipes, font stacks, button styles, form styles, or a second token layer. If an existing element is close but not perfect, use it unchanged and note the gap; discovering a missing design-system element is useful prototype output.
 
-These constraints are the stable foundation, not one of the design variables. Explore hierarchy, grouping, navigation, disclosure, density, and workflow while keeping AgentsInTheCloud's visual language constant across variants.
+These constraints are the stable foundation, not one of the design variables. Explore hierarchy, grouping, navigation, disclosure, density, and workflow while keeping Kintsugi's visual language constant across variants.
 
 ## When this is the right shape
 
@@ -35,9 +35,9 @@ Default to **3 variants**; never exceed 5. At the top of the file, visibly state
 
 - the question the prototype answers;
 - which dimensions are intentionally changing between variants;
-- which AgentsInTheCloud context and existing design-system elements are held constant.
+- which Kintsugi context and existing design-system elements are held constant.
 
-For example: “Three ways to organize workspace filters: persistent sidebar, inline disclosure, and command-style popup. All use AgentsInTheCloud's existing action items, buttons, fields, spacing, and Nord theme.”
+For example: “Three ways to organize workspace filters: persistent sidebar, inline disclosure, and command-style popup. All use Kintsugi's existing action items, buttons, fields, spacing, and Nord theme.”
 
 ### 2. Make the HTML a useful design-space explorer
 
@@ -52,7 +52,7 @@ Use one HTML file with small inline JavaScript only for interaction. Give it an 
 
 Support left/right arrow keys, except while an input, textarea, select, or editable region has focus. Make the explorer responsive enough to evaluate both narrow and wide layouts when the question calls for it.
 
-The explorer chrome itself must also use AgentsInTheCloud design-system classes and tokens. Label it clearly as prototype tooling so it is not mistaken for the proposed product UI.
+The explorer chrome itself must also use Kintsugi design-system classes and tokens. Label it clearly as prototype tooling so it is not mistaken for the proposed product UI.
 
 ### 3. Create genuinely different directions
 
@@ -70,7 +70,7 @@ Do not abstract the variants into a shared layout. Reusing actual design-system 
 - No tests or production-grade abstraction.
 - Include a top-of-file comment marking the file as a throwaway prototype and naming the design question.
 
-Run AgentsInTheCloud with `bun run web` and open the prototype's served URL. Do not make the user locate or prepare it manually.
+Run Kintsugi with `bun run web` and open the prototype's served URL. Do not make the user locate or prepare it manually.
 
 ### 5. Hand it over as findings, not just options
 
@@ -84,12 +84,12 @@ Feedback like “the hierarchy from B with the disclosure from C” is a success
 
 ### 6. Capture the answer and clean up
 
-Once a direction wins, record which parts won and why. Implement the validated result properly in the real server-rendered AgentsInTheCloud UI; do not promote prototype markup directly. Preserve the exploratory file on a throwaway branch as described in [SKILL.md](SKILL.md), and remove it from main.
+Once a direction wins, record which parts won and why. Implement the validated result properly in the real server-rendered Kintsugi UI; do not promote prototype markup directly. Preserve the exploratory file on a throwaway branch as described in [SKILL.md](SKILL.md), and remove it from main.
 
 ## Anti-patterns
 
-- Building a polished stand-alone mini-product unrelated to AgentsInTheCloud's shell or density.
-- Copying design-system CSS into the file, redefining an existing component, or approximating AgentsInTheCloud with bespoke styles.
+- Building a polished stand-alone mini-product unrelated to Kintsugi's shell or density.
+- Copying design-system CSS into the file, redefining an existing component, or approximating Kintsugi with bespoke styles.
 - Using raw `<button>`, `<input>`, or menu styling where a shipped class already exists.
 - Treating theme, color, or decoration as the primary difference between variants.
 - Showing toy data or isolated cards when realistic app context is available.

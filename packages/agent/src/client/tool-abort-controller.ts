@@ -1,4 +1,4 @@
-import { composerSubmitKey, type WorkspaceClientControllerConstructor } from "@agents-in-the-cloud/shared";
+import { composerSubmitKey, type WorkspaceClientControllerConstructor } from "@kintsugi/shared";
 
 export function createAgentToolAbortController(Controller: WorkspaceClientControllerConstructor) {
   return class AgentToolAbortController extends Controller {

@@ -1,6 +1,6 @@
 /// <reference lib="dom" />
 
-import { layoutAfterEvent, softwareKeyboardArranged } from "@agents-in-the-cloud/shared";
+import { layoutAfterEvent, softwareKeyboardArranged } from "@kintsugi/shared";
 
 /**
  * A changed size is applied only once it has held this long, so a rotation

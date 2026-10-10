@@ -1,4 +1,4 @@
-import type { TranscriptItem, ToolView, WorkingTranscriptItem } from "@agents-in-the-cloud/agent/server/transcript";
+import type { TranscriptItem, ToolView, WorkingTranscriptItem } from "@kintsugi/agent/server/transcript";
 import type {
   ThreadItem,
   Turn,

@@ -1,13 +1,13 @@
 import { createHash } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { agentsInTheCloudDataPath, dockerHostAgentsInTheCloudDataPath, getAgentsInTheCloudRuntimeContext, requireDocker, runCommand, shellQuote, workloadCgroupArgs } from "@agents-in-the-cloud/core";
+import { kintsugiDataPath, dockerHostKintsugiDataPath, getKintsugiRuntimeContext, requireDocker, runCommand, shellQuote, workloadCgroupArgs } from "@kintsugi/core";
 import { repositoryBuildCommand } from "./build-network.ts";
 import { dockerImageId } from "./local-images.ts";
 import { workspaceImagePruneArgs } from "./prune.ts";
 
 const runtimeImageFile = new URL("../runtime-image", import.meta.url);
-const roleLabel = "com.agents-in-the-cloud.role=repository-builder";
+const roleLabel = "com.kintsugi.role=repository-builder";
 
 /** A persistent private daemon, not the System daemon, owns untrusted builds.
  * Its HTTP sources, image pulls and RUN steps all originate behind the workload
@@ -18,11 +18,11 @@ const roleLabel = "com.agents-in-the-cloud.role=repository-builder";
  */
 export async function buildRepositoryImage(baseImage: string, tag: string, build: (dockerCommand: string[]) => Promise<void>): Promise<void> {
   const buildCommand = await repositoryBuildCommand(["docker"]);
-  const runtime = getAgentsInTheCloudRuntimeContext();
-  const identity = createHash("sha256").update(`${runtime.dockerHostAgentsInTheCloudDataDir}\0${process.env.ATELIER_NAMESPACE ?? "host"}`).digest("hex").slice(0, 16);
-  const name = `agents-in-the-cloud-builder-${identity}`;
-  const directory = agentsInTheCloudDataPath(runtime, "repository-builder", identity);
-  const hostDirectory = dockerHostAgentsInTheCloudDataPath(runtime, "repository-builder", identity);
+  const runtime = getKintsugiRuntimeContext();
+  const identity = createHash("sha256").update(`${runtime.dockerHostKintsugiDataDir}\0${process.env.ATELIER_NAMESPACE ?? "host"}`).digest("hex").slice(0, 16);
+  const name = `kintsugi-builder-${identity}`;
+  const directory = kintsugiDataPath(runtime, "repository-builder", identity);
+  const hostDirectory = dockerHostKintsugiDataPath(runtime, "repository-builder", identity);
   const image = (await readFile(runtimeImageFile, "utf8")).trim();
   await mkdir(directory, { recursive: true, mode: 0o700 });
 
@@ -72,7 +72,7 @@ export async function buildRepositoryImage(baseImage: string, tag: string, build
   if (!images.stdout.split(/\s+/).includes(baseId)) {
     await pipe(["docker", "save", baseId], ["docker", ...builder, "load"]);
   }
-  await docker(["tag", baseId, "agents-in-the-cloud-workspace"]);
+  await docker(["tag", baseId, "kintsugi-workspace"]);
   const buildStartedAt = new Date();
   await build([...buildCommand, ...builder]);
   // Publishing back preserves the ordinary workspace creation/run path. Stream

@@ -26,6 +26,9 @@ FROM deps AS build
 RUN bun run --cwd apps/web build:client
 
 FROM ${ATELIER_RUNTIME_IMAGE} AS runtime
+# Adapt executable names supplied by the pinned upstream runtime.
+RUN test -x /usr/local/bin/kintsugi-dockerd || ln -s /usr/local/bin/agents-in-the-cloud-dockerd /usr/local/bin/kintsugi-dockerd
+RUN test -x /usr/local/bin/kintsugi-image-transfer || ln -s /usr/local/bin/agents-in-the-cloud-image-transfer /usr/local/bin/kintsugi-image-transfer
 ARG DEBIAN_FRONTEND=noninteractive
 WORKDIR /app
 
@@ -59,17 +62,17 @@ ENV ATELIER_DATA_DIR=/data/app
 
 COPY --from=deps /app/node_modules /app/node_modules
 COPY --from=build --exclude=node_modules /app /app
-RUN printf '%s\n' '#!/usr/bin/env sh' 'exec /usr/local/bin/bun /app/packages/proxy-ingress/src/ingress/tailscale-serve-helper.ts "$@"' > /usr/local/bin/agents-in-the-cloud-tailscale-serve-helper \
- && chmod 755 /usr/local/bin/agents-in-the-cloud-tailscale-serve-helper /app/apps/web/docker-entrypoint.sh
+RUN printf '%s\n' '#!/usr/bin/env sh' 'exec /usr/local/bin/bun /app/packages/proxy-ingress/src/ingress/tailscale-serve-helper.ts "$@"' > /usr/local/bin/kintsugi-tailscale-serve-helper \
+ && chmod 755 /usr/local/bin/kintsugi-tailscale-serve-helper /app/apps/web/docker-entrypoint.sh
 
 ARG ATELIER_COMMIT_ID
 ARG ATELIER_DEFAULT_WORKSPACE_IMAGE
 ARG ATELIER_EAGERLY_PRELOAD="[]"
 ENV ATELIER_COMMIT_ID=${ATELIER_COMMIT_ID}
-LABEL org.opencontainers.image.source="https://github.com/lucasmeijer/atelier" \
+LABEL org.opencontainers.image.source="https://github.com/rcarmo/kintsugi" \
       org.opencontainers.image.revision="${ATELIER_COMMIT_ID}" \
       eagerly-preload="${ATELIER_EAGERLY_PRELOAD}"
-RUN printf '%s\n' "$ATELIER_DEFAULT_WORKSPACE_IMAGE" > /app/.agents-in-the-cloud-default-workspace-image
+RUN printf '%s\n' "$ATELIER_DEFAULT_WORKSPACE_IMAGE" > /app/.kintsugi-default-workspace-image
 
 EXPOSE 3000
 

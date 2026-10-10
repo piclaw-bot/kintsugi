@@ -1,4 +1,4 @@
-import type { WorkspaceClientApplication, WorkspaceClientControllerConstructor } from "@agents-in-the-cloud/shared";
+import type { WorkspaceClientApplication, WorkspaceClientControllerConstructor } from "@kintsugi/shared";
 
 interface WorkspaceNavigationControllerSurface {
   selectWorkspaceById(workspaceId: string): Promise<void>;

@@ -2,14 +2,14 @@ import { afterEach, beforeEach, expect, test } from "bun:test";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { createAgentsInTheCloudEventBus } from "@agents-in-the-cloud/core";
+import { createKintsugiEventBus } from "@kintsugi/core";
 import { getAgentType, defaultAgentType, orderedAgentTypes, rememberAgentType } from "../src/server/agent-types.ts";
 
 let directory: string;
 let previous: string | undefined;
 beforeEach(async () => {
   previous = process.env.ATELIER_DATA_DIR;
-  directory = await mkdtemp(join(tmpdir(), "agents-in-the-cloud-agent-types-"));
+  directory = await mkdtemp(join(tmpdir(), "kintsugi-agent-types-"));
   process.env.ATELIER_DATA_DIR = directory;
 });
 afterEach(async () => {
@@ -49,7 +49,7 @@ test("unknown Agent types cannot overwrite the default", async () => {
 });
 
 test("default-change events observe the already-persisted preference", async () => {
-  const events = createAgentsInTheCloudEventBus();
+  const events = createKintsugiEventBus();
   const observed: string[] = [];
   events.on("agent_type_default_changed", async ({ agentTypeId }) => {
     expect((await defaultAgentType()).id).toBe(agentTypeId);
@@ -62,12 +62,12 @@ test("default-change events observe the already-persisted preference", async () 
 test("defaults to Claude Code when an Anthropic subscription is the only way to run an agent", async () => {
   const child = Bun.spawn([process.execPath, "-e", `
     import { expect, mock } from "bun:test";
-    const agent = await import("@agents-in-the-cloud/builtin-agent/server");
-    const llm = await import("@agents-in-the-cloud/llm/server");
+    const agent = await import("@kintsugi/builtin-agent/server");
+    const llm = await import("@kintsugi/llm/server");
     let builtinHasModel = false;
     let credentials = [{ providerId: "anthropic", type: "oauth" }];
-    mock.module("@agents-in-the-cloud/builtin-agent/server", () => ({ ...agent, hasAvailableBuiltinAgentModel: async () => builtinHasModel }));
-    mock.module("@agents-in-the-cloud/llm/server", () => ({ ...llm, createPiModelRuntime: async () => ({ listCredentials: async () => credentials }) }));
+    mock.module("@kintsugi/builtin-agent/server", () => ({ ...agent, hasAvailableBuiltinAgentModel: async () => builtinHasModel }));
+    mock.module("@kintsugi/llm/server", () => ({ ...llm, createPiModelRuntime: async () => ({ listCredentials: async () => credentials }) }));
     const { defaultAgentType, orderedAgentTypes, rememberAgentType } = await import(${JSON.stringify(join(import.meta.dir, "../src/server/agent-types.ts"))});
     expect((await orderedAgentTypes())[0].id).toBe("claude");
     await rememberAgentType("builtin");
@@ -96,8 +96,8 @@ test("previous Agent type preference remains readable and new choices use the re
 
 
 test("Codex and Codex CLI resolve to distinct implementations without old aliases", async () => {
-  const { agentsInTheCloudServerModule: codex } = await import("@agents-in-the-cloud/codex-agent/server");
-  const { agentsInTheCloudServerModule: codexCli } = await import("@agents-in-the-cloud/codex-cli-agent/server");
+  const { kintsugiServerModule: codex } = await import("@kintsugi/codex-agent/server");
+  const { kintsugiServerModule: codexCli } = await import("@kintsugi/codex-cli-agent/server");
   expect(getAgentType("codex")).toBe(codex.agentType!);
   expect(getAgentType("codex-cli")).toBe(codexCli.agentType!);
   expect(codex.id).toBe("codex-agent");

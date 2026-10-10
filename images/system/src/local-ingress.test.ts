@@ -2,11 +2,11 @@ import { expect, test } from "bun:test";
 import { localTarget } from "./local-ingress.ts";
 
 test("local host routing exposes only app, diagnostics, and preview listener range", () => {
-  expect(localTarget("agents-in-the-cloud.localhost:55123", 3000)).toBe(3000);
-  expect(localTarget("agents-in-the-cloud.localhost:55123", 3001)).toBe(3001);
-  expect(localTarget("system.agents-in-the-cloud.localhost:55123", 3000)).toBe(3001);
-  expect(localTarget("p41001.agents-in-the-cloud.localhost:55123", 3000)).toBe(41001);
-  for (const host of ["localhost", "p2375.agents-in-the-cloud.localhost", "p42000.agents-in-the-cloud.localhost", "p41001.agents-in-the-cloud.localhost.evil.com", "evil.com"]) expect(localTarget(host, 3000)).toBeUndefined();
+  expect(localTarget("kintsugi.localhost:55123", 3000)).toBe(3000);
+  expect(localTarget("kintsugi.localhost:55123", 3001)).toBe(3001);
+  expect(localTarget("system.kintsugi.localhost:55123", 3000)).toBe(3001);
+  expect(localTarget("p41001.kintsugi.localhost:55123", 3000)).toBe(41001);
+  for (const host of ["localhost", "p2375.kintsugi.localhost", "p42000.kintsugi.localhost", "p41001.kintsugi.localhost.evil.com", "evil.com"]) expect(localTarget(host, 3000)).toBeUndefined();
 });
 
 test("local routing preserves HTTP cookies and WebSocket traffic", async () => {
@@ -20,11 +20,11 @@ test("local routing preserves HTTP cookies and WebSocket traffic", async () => {
   const proxy = startLocalIngress(() => backend.port!, 0);
   const address = { port: proxy.port };
   try {
-    const response = await fetch(`http://127.0.0.1:${address.port}/`, { headers: { host: `agents-in-the-cloud.localhost:${address.port}` } });
-    expect(await response.text()).toBe(`agents-in-the-cloud.localhost:${address.port}`);
+    const response = await fetch(`http://127.0.0.1:${address.port}/`, { headers: { host: `kintsugi.localhost:${address.port}` } });
+    expect(await response.text()).toBe(`kintsugi.localhost:${address.port}`);
     expect(response.headers.get("set-cookie")).toBe("preview=1; SameSite=Lax");
     await new Promise<void>((resolve, reject) => {
-      const socket = new WebSocket(`ws://127.0.0.1:${address.port}/`, { headers: { host: `agents-in-the-cloud.localhost:${address.port}` } });
+      const socket = new WebSocket(`ws://127.0.0.1:${address.port}/`, { headers: { host: `kintsugi.localhost:${address.port}` } });
       socket.onopen = () => socket.send("hello");
       socket.onmessage = event => { expect(event.data).toBe("hello"); socket.close(); resolve(); };
       socket.onerror = reject;

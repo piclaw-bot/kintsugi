@@ -1,11 +1,11 @@
-import { composerAttachmentAttributes, renderComposerBody } from "@agents-in-the-cloud/prompt/server";
-import type { WorkspaceTemplateSummary } from "@agents-in-the-cloud/workspace-templates";
+import { composerAttachmentAttributes, renderComposerBody } from "@kintsugi/prompt/server";
+import type { WorkspaceTemplateSummary } from "@kintsugi/workspace-templates";
 import { workspaceTemplateChoiceHtml, workspaceTemplateIconHtml } from "./workspace-template-presentation.ts";
-import { buttonHtml } from "@agents-in-the-cloud/design-system/button";
+import { buttonHtml } from "@kintsugi/design-system/button";
 import { renderAgentTypePicker } from "./agent-type-picker.ts";
-import { popupHtml } from "@agents-in-the-cloud/design-system/popup";
-import { dictationComposerController } from "@agents-in-the-cloud/dictation/server";
-import { domId, escapeHtml, type AgentLaunchFooterContext, type WorkspaceAgentType } from "@agents-in-the-cloud/shared";
+import { popupHtml } from "@kintsugi/design-system/popup";
+import { dictationComposerController } from "@kintsugi/dictation/server";
+import { domId, escapeHtml, type AgentLaunchFooterContext, type WorkspaceAgentType } from "@kintsugi/shared";
 
 /** Host-owned launch composer content. */
 export interface AgentLaunchPresentation {

@@ -4,29 +4,29 @@ export interface AgentSystemPromptPrepareEvent {
   lines: string[];
 }
 
-export interface AgentsInTheCloudHostStartedEvent {
+export interface KintsugiHostStartedEvent {
   workspaces: Array<{ id: string; parked: boolean }>;
 }
 
-export interface AgentsInTheCloudEventMap {
+export interface KintsugiEventMap {
   agent_system_prompt_prepare: AgentSystemPromptPrepareEvent;
-  agents_in_the_cloud_host_stopping: Record<string, never>;
-  agents_in_the_cloud_host_started: AgentsInTheCloudHostStartedEvent;
+  kintsugi_host_stopping: Record<string, never>;
+  kintsugi_host_started: KintsugiHostStartedEvent;
 }
 
-export type AgentsInTheCloudEventHandler<K extends keyof AgentsInTheCloudEventMap> = (event: AgentsInTheCloudEventMap[K]) => void | Promise<void>;
+export type KintsugiEventHandler<K extends keyof KintsugiEventMap> = (event: KintsugiEventMap[K]) => void | Promise<void>;
 
-export interface AgentsInTheCloudEventBus {
-  on<K extends keyof AgentsInTheCloudEventMap>(eventName: K, handler: AgentsInTheCloudEventHandler<K>): () => void;
-  emit<K extends keyof AgentsInTheCloudEventMap>(eventName: K, event: AgentsInTheCloudEventMap[K]): Promise<void>;
+export interface KintsugiEventBus {
+  on<K extends keyof KintsugiEventMap>(eventName: K, handler: KintsugiEventHandler<K>): () => void;
+  emit<K extends keyof KintsugiEventMap>(eventName: K, event: KintsugiEventMap[K]): Promise<void>;
 }
 
-export function createAgentsInTheCloudEventBus(): AgentsInTheCloudEventBus {
-  const handlers = new Map<keyof AgentsInTheCloudEventMap, Set<AgentsInTheCloudEventHandler<any>>>();
+export function createKintsugiEventBus(): KintsugiEventBus {
+  const handlers = new Map<keyof KintsugiEventMap, Set<KintsugiEventHandler<any>>>();
 
   return {
     on(eventName, handler) {
-      const eventHandlers = handlers.get(eventName) ?? new Set<AgentsInTheCloudEventHandler<typeof eventName>>();
+      const eventHandlers = handlers.get(eventName) ?? new Set<KintsugiEventHandler<typeof eventName>>();
       handlers.set(eventName, eventHandlers);
       eventHandlers.add(handler);
       return () => eventHandlers.delete(handler);

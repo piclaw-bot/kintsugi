@@ -1,4 +1,4 @@
-FROM agents-in-the-cloud-custom-workspace
+FROM kintsugi-custom-workspace
 
 RUN apt-get update \
  && apt-get install -y --no-install-recommends figlet \

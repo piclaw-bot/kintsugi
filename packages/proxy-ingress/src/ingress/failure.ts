@@ -1,4 +1,4 @@
-import { errorMessage, type WorkspaceAppRef } from "@agents-in-the-cloud/shared";
+import { errorMessage, type WorkspaceAppRef } from "@kintsugi/shared";
 
 export class UnknownWorkspaceAppError extends Error {
   constructor(public readonly app: WorkspaceAppRef) {
@@ -22,7 +22,7 @@ export class WorkspaceUpstreamError extends Error {
   }
 }
 
-/** A transport failure on the AgentsInTheCloud-to-workspace hop, not the app hop. */
+/** A transport failure on the Kintsugi-to-workspace hop, not the app hop. */
 export class WorkspaceConnectionError extends Error {
   constructor(cause: unknown) {
     super(errorMessage(cause), { cause });
@@ -32,7 +32,7 @@ export class WorkspaceConnectionError extends Error {
 
 export class WorkspaceAuthenticationError extends Error {
   constructor() {
-    super("AgentsInTheCloud’s workspace connection credentials were rejected");
+    super("Kintsugi’s workspace connection credentials were rejected");
     this.name = "WorkspaceAuthenticationError";
   }
 }

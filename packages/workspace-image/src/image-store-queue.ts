@@ -1,4 +1,4 @@
-import { commandSignal, waitForCommand, type AgentsInTheCloudEventBus } from "@agents-in-the-cloud/core";
+import { commandSignal, waitForCommand, type KintsugiEventBus } from "@kintsugi/core";
 
 export interface DockerImageStoreWaitState {
   elapsedMs: number;
@@ -15,7 +15,7 @@ export interface DockerImageStoreQueue {
   run<T>(operation: DockerImageStoreOperation, work: () => Promise<T>): Promise<T>;
 }
 
-export function workspaceImageStoreWaitReporter(options: { events?: AgentsInTheCloudEventBus; workspaceId?: string }): DockerImageStoreOperation["onWait"] {
+export function workspaceImageStoreWaitReporter(options: { events?: KintsugiEventBus; workspaceId?: string }): DockerImageStoreOperation["onWait"] {
   const { events, workspaceId } = options;
   if (!events || !workspaceId) return undefined;
   return async (state) => {

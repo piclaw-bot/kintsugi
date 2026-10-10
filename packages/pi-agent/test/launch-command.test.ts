@@ -2,11 +2,11 @@ import { afterEach, beforeEach, expect, test } from "bun:test";
 import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { CliAgentSession, CliModelSettings } from "@agents-in-the-cloud/cli-agent/server";
-import type { WorkspaceAgentInput } from "@agents-in-the-cloud/shared";
-import { shellQuote } from "@agents-in-the-cloud/core";
+import type { CliAgentSession, CliModelSettings } from "@kintsugi/cli-agent/server";
+import type { WorkspaceAgentInput } from "@kintsugi/shared";
+import { shellQuote } from "@kintsugi/core";
 import { piLaunchScript } from "../src/server/launch-command.ts";
-import { piAgentsInTheCloudExtensionPath } from "../src/server/session.ts";
+import { piKintsugiExtensionPath } from "../src/server/session.ts";
 
 let home: string;
 let defaultSession: CliAgentSession;
@@ -35,14 +35,14 @@ function run(script: string) {
 const empty = { text: "", images: [], attachmentNotes: [] };
 const sessionId = "1f2e3d4c-0000-4000-8000-000000000001";
 function expectedBaseArgs(session: CliAgentSession): string[] {
-  return ["--approve", "--offline", "--tui-mode", "regular", "--session-dir", `/home/agents-in-the-cloud/.local/share/pi/sessions/${session.id}`, "--extension", piAgentsInTheCloudExtensionPath(session)];
+  return ["--approve", "--offline", "--tui-mode", "regular", "--session-dir", `/home/agent/.local/share/pi/sessions/${session.id}`, "--extension", piKintsugiExtensionPath(session)];
 }
 
 test("passes initial prompt, images, file notes, provider and Pi thinking level literally", async () => {
   await executable(binary(), 'printf "%s\\0" "$@"');
   const text = `--help 'quoted' $(touch ${home}/injected)\nsecond line`;
-  const notes = "File: /tmp/agents-in-the-cloud-attachments/my file.txt";
-  const image = "/tmp/agents-in-the-cloud-attachments/image 1.png";
+  const notes = "File: /tmp/kintsugi-attachments/my file.txt";
+  const image = "/tmp/kintsugi-attachments/image 1.png";
   const [code, output] = await run(launch({ ...empty, text, attachmentNotes: [notes] }, [image], { model: "anthropic::claude", thinkingLevel: "minimal" }));
   expect(code).toBe(0);
   expect(output.split("\0").slice(0, -1)).toEqual([...baseArgs, "--provider", "anthropic", "--model", "claude", "--thinking", "minimal", "--", `@${image}`, `${text}\n\n${notes}`]);
@@ -95,21 +95,21 @@ test("installation and startup failures keep their exit codes and diagnostics", 
   expect(startupOutput).toContain("Pi failed (exit 7)");
 });
 
-test("loads the session's AgentsInTheCloud extension", async () => {
+test("loads the session's Kintsugi extension", async () => {
   await executable(binary(), 'printf "%s\\0" "$@"');
   const session = { id: sessionId, directory: `${home}/session`, turnSignalCommand: `${home}/turn-signal.sh` };
   const [code, output] = await run(launch(empty, [], {}, session));
   expect(code).toBe(0);
-  expect(output.split("\0")).toContain(piAgentsInTheCloudExtensionPath(session));
-  expect(output.split("\0")).toContain(`/home/agents-in-the-cloud/.local/share/pi/sessions/${sessionId}`);
+  expect(output.split("\0")).toContain(piKintsugiExtensionPath(session));
+  expect(output.split("\0")).toContain(`/home/agent/.local/share/pi/sessions/${sessionId}`);
 });
 
 test("native resume restores the exact conversation with no submitted prompt", async () => {
   await executable(binary(), 'printf "%s\\0" "$@"');
   const session = { id: sessionId, directory: `${home}/session`, turnSignalCommand: `${home}/turn-signal.sh` };
-  const [code, output] = await run(launch(empty, [], {}, session, "/home/agents-in-the-cloud/.local/share/pi/sessions/tab/saved.jsonl"));
+  const [code, output] = await run(launch(empty, [], {}, session, "/home/agent/.local/share/pi/sessions/tab/saved.jsonl"));
   expect(code).toBe(0);
   const args = output.split("\0").slice(0, -1);
-  expect(args.join(" ")).toContain(["--session", "/home/agents-in-the-cloud/.local/share/pi/sessions/tab/saved.jsonl"].join(" "));
+  expect(args.join(" ")).toContain(["--session", "/home/agent/.local/share/pi/sessions/tab/saved.jsonl"].join(" "));
   expect(args.at(-1)).toBe("--");
 });

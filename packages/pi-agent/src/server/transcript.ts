@@ -1,8 +1,8 @@
 import { join } from "node:path";
-import { getAgentsInTheCloudRuntimeContext } from "@agents-in-the-cloud/core";
-import { recordsFromSessionEntries } from "@agents-in-the-cloud/agent/server/session-records";
-import { type TranscriptRecord } from "@agents-in-the-cloud/agent/server/transcript";
-import { latestNativeSessionFile, loadNativeTranscriptFiles, loadNativeTranscriptImage, nativeImageTypes, nativeJsonlRows, nativeSessionFiles } from "@agents-in-the-cloud/cli-agent/server";
+import { getKintsugiRuntimeContext } from "@kintsugi/core";
+import { recordsFromSessionEntries } from "@kintsugi/agent/server/session-records";
+import { type TranscriptRecord } from "@kintsugi/agent/server/transcript";
+import { latestNativeSessionFile, loadNativeTranscriptFiles, loadNativeTranscriptImage, nativeImageTypes, nativeJsonlRows, nativeSessionFiles } from "@kintsugi/cli-agent/server";
 import { Type } from "typebox";
 import { Value } from "typebox/value";
 
@@ -28,7 +28,7 @@ export function piTranscriptRecords(jsonl: string): TranscriptRecord[] {
 }
 
 function sessionDirectory(workspaceId: string, sessionId: string): string {
-  return join(getAgentsInTheCloudRuntimeContext().agentsInTheCloudDataDir, "workspaces", workspaceId, "home-local", ".local", "share", "pi", "sessions", sessionId);
+  return join(getKintsugiRuntimeContext().kintsugiDataDir, "workspaces", workspaceId, "home-local", ".local", "share", "pi", "sessions", sessionId);
 }
 export async function piHistoryFiles(workspaceId: string, sessionId: string): Promise<string[]> {
   return nativeSessionFiles(sessionDirectory(workspaceId, sessionId));
@@ -50,5 +50,5 @@ export async function loadPiTranscriptImage(workspaceId: string, sessionId: stri
 /** Session storage is private to this tab, not the workspace's most recent agent. */
 export async function piResumePath(workspaceId: string, sessionId: string): Promise<string | undefined> {
   const file = await latestNativeSessionFile(sessionDirectory(workspaceId, sessionId));
-  return file?.replace(join(getAgentsInTheCloudRuntimeContext().agentsInTheCloudDataDir, "workspaces", workspaceId, "home-local"), "/home/agents-in-the-cloud");
+  return file?.replace(join(getKintsugiRuntimeContext().kintsugiDataDir, "workspaces", workspaceId, "home-local"), "/home/agent");
 }

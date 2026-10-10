@@ -1,6 +1,6 @@
-import { AgentsInTheCloudCoreError, createKeyedOperationQueue, shellQuote } from "@agents-in-the-cloud/core";
-import { buildKillSessionCommand, buildListSessionsCommand, buildObservableSessionCommand } from "@agents-in-the-cloud/observable-terminal/server";
-import { createWorkspaceMetadataState, execWorkspaceShell, workspaceRoot } from "@agents-in-the-cloud/workspace";
+import { KintsugiCoreError, createKeyedOperationQueue, shellQuote } from "@kintsugi/core";
+import { buildKillSessionCommand, buildListSessionsCommand, buildObservableSessionCommand } from "@kintsugi/observable-terminal/server";
+import { createWorkspaceMetadataState, execWorkspaceShell, workspaceRoot } from "@kintsugi/workspace";
 import { Type, type Static } from "typebox";
 import { Value } from "typebox/value";
 
@@ -38,7 +38,7 @@ export async function listTmuxSessions(workspaceId: string): Promise<TmuxSession
   const result = await execWorkspaceShell(workspaceId, buildListSessionsCommand(format));
   if (result.exitCode !== 0) {
     if (/no server running|no sessions|error connecting to .*\(No such file or directory\)/.test(result.stderr)) return [];
-    throw new AgentsInTheCloudCoreError("terminal_sessions_failed", result.stderr.trim() || "Could not list tmux sessions");
+    throw new KintsugiCoreError("terminal_sessions_failed", result.stderr.trim() || "Could not list tmux sessions");
   }
 
   return result.stdout.trim().split("\n").filter(Boolean).map((line) => {
@@ -72,7 +72,7 @@ function availableTitle(existingTitles: string[], preferred?: string): string {
 function normalizeCwd(cwd?: string): string {
   const value = cwd?.trim() || workspaceRoot;
   if (value !== workspaceRoot && !value.startsWith(`${workspaceRoot}/`)) {
-    throw new AgentsInTheCloudCoreError("terminal_invalid_cwd", `terminal cwd must be under ${workspaceRoot}: ${value}`);
+    throw new KintsugiCoreError("terminal_invalid_cwd", `terminal cwd must be under ${workspaceRoot}: ${value}`);
   }
   return value;
 }
@@ -105,7 +105,7 @@ export async function createWorkspaceTerminal(workspaceId: string, options: Work
       status: false,
       historyLimit: workspaceTerminalHistoryLimit,
     }));
-    if (result.exitCode !== 0) throw new AgentsInTheCloudCoreError("terminal_create_failed", result.stderr.trim() || `could not create terminal: ${tmuxSession}`);
+    if (result.exitCode !== 0) throw new KintsugiCoreError("terminal_create_failed", result.stderr.trim() || `could not create terminal: ${tmuxSession}`);
 
     const terminal = newTerminal(terminals, options.title?.trim() || "Terminal", tmuxSession, "owned");
     terminalsState.write(workspaceId, terminals);
@@ -116,7 +116,7 @@ export async function createWorkspaceTerminal(workspaceId: string, options: Work
 export async function attachWorkspaceTerminal(workspaceId: string, tmuxSession: string): Promise<WorkspaceTerminal> {
   return mutateTerminals(workspaceId, async () => {
     if (!(await tmuxSessionExists(workspaceId, tmuxSession))) {
-      throw new AgentsInTheCloudCoreError("terminal_not_found", `tmux session not found: ${tmuxSession}`);
+      throw new KintsugiCoreError("terminal_not_found", `tmux session not found: ${tmuxSession}`);
     }
     const terminals = [...await listWorkspaceTerminals(workspaceId)];
     const terminal = newTerminal(terminals, tmuxSession, tmuxSession, "attached");
@@ -129,11 +129,11 @@ export async function deleteWorkspaceTerminal(workspaceId: string, terminalId: s
   return mutateTerminals(workspaceId, async () => {
     const terminals = [...await listWorkspaceTerminals(workspaceId)];
     const index = terminals.findIndex((terminal) => terminal.id === terminalId);
-    if (index < 0) throw new AgentsInTheCloudCoreError("terminal_not_found", `terminal not found: ${terminalId}`);
+    if (index < 0) throw new KintsugiCoreError("terminal_not_found", `terminal not found: ${terminalId}`);
     const [terminal] = terminals.splice(index, 1);
     if (terminal!.sessionRelationship === "owned") {
       const result = await execWorkspaceShell(workspaceId, buildKillSessionCommand(terminal!.tmuxSession));
-      if (result.exitCode !== 0) throw new AgentsInTheCloudCoreError("terminal_close_failed", result.stderr.trim() || `could not close terminal session: ${terminal!.tmuxSession}`);
+      if (result.exitCode !== 0) throw new KintsugiCoreError("terminal_close_failed", result.stderr.trim() || `could not close terminal session: ${terminal!.tmuxSession}`);
     }
     terminalsState.write(workspaceId, terminals);
   });

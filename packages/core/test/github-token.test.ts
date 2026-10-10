@@ -5,7 +5,7 @@ import { dirname, join } from "node:path";
 import { clearGitHubToken, discoverGitHubToken, gitHubCredentialHelperShellBody, hasGitHubToken, setGitHubToken } from "../src/github-token.ts";
 
 async function runCredentialHelper(input: string): Promise<string> {
-  const proc = Bun.spawn(["sh", "-c", gitHubCredentialHelperShellBody, "agents-in-the-cloud-git-credential", "get"], {
+  const proc = Bun.spawn(["sh", "-c", gitHubCredentialHelperShellBody, "kintsugi-git-credential", "get"], {
     env: { ...process.env, GH_TOKEN: "secret-token" },
     stdin: "pipe",
     stdout: "pipe",
@@ -26,7 +26,7 @@ describe("GitHub token discovery", () => {
   beforeEach(async () => {
     previousDataDir = process.env.ATELIER_DATA_DIR;
     previousGitHubToken = process.env.GH_TOKEN;
-    dataDir = await mkdtemp(join(tmpdir(), "agents-in-the-cloud-github-token-"));
+    dataDir = await mkdtemp(join(tmpdir(), "kintsugi-github-token-"));
     process.env.ATELIER_DATA_DIR = dataDir;
     delete process.env.GH_TOKEN;
   });
