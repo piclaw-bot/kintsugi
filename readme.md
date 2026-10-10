@@ -13,6 +13,7 @@ This fork adds:
 - GitHub Copilot subscription usage, quota information and calendar-month pacing.
 - Unattended installation and transactional admin bootstrap with private token delivery.
 - Trusted LAN proxy access with configurable preview origins, Caddy TLS termination and persistent publications.
+- Opt-in workspace LAN/private-network permissions, configurable CIDR groups and external DNS/mDNS forwarders, with restart status and security-scoped admin settings.
 - Tag-only releases with native AMD64/ARM64 builds, staged checks, shared caches and selective CI.
 
 The name comes from **金継ぎ**, the Japanese art of repairing pottery with gold, because the original project was a brilliant way to glue together several components and I wanted to honor that approach.
