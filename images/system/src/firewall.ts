@@ -1,10 +1,11 @@
+import { canonicalNetworkCidr, parseNetworkPolicy, parseNetworkCidr, protectedNetworkCidrs, type WorkspaceNetworkPolicy } from "../../../packages/shared/src/network-policy.ts";
 import { isIP } from "node:net";
 import { allowedEgressIpv6Range, blockedEgressIpv6Ranges, workspaceEgressNftIpv4Elements } from "../../../packages/shared/src/egress-policy.ts";
 
 /** Every bridge-attached workload shares the destination policy. Host-side build
  * clients also use it when NFT_SOCKET is available. Management sockets are
  * never selected. On unsupported kernels host-side clients are unrestricted. */
-export function workspaceFirewallRules(buildClientsCgroup: string, nameservers: string[], protectBuildClients = true): string {
+export function workspaceFirewallRules(buildClientsCgroup: string, nameservers: string[], protectBuildClients = true, networks: Array<{ bridge: string; policy: WorkspaceNetworkPolicy }> = []): string {
   const parts = buildClientsCgroup.split("/").filter(Boolean);
   if (!buildClientsCgroup.startsWith("/") || !parts.length || parts.some(part => part === "." || part === ".." || !/^[a-zA-Z0-9_.-]+$/.test(part)))
     throw new Error("Invalid build client cgroup path");
@@ -13,6 +14,17 @@ export function workspaceFirewallRules(buildClientsCgroup: string, nameservers: 
     const family = isIP(address);
     if (!family) throw new Error(`Invalid DNS server: ${address}`);
     return `    ${family === 4 ? "ip" : "ip6"} daddr ${address} meta l4proto { tcp, udp } th dport 53 counter accept`;
+  });
+  const lanRules = networks.flatMap(({ bridge, policy }) => {
+    if (!/^atw-[a-f0-9]{11}$/.test(bridge)) throw new Error("Invalid workspace bridge");
+    parseNetworkPolicy(policy);
+    if (policy.mode === "off") return [];
+    const subnetRules = (cidrs: string[], verdict: string) => cidrs.map(cidr => {
+      const { family } = parseNetworkCidr(cidr);
+      return `    iifname "${bridge}" ${family === 4 ? "ip" : "ip6"} daddr ${canonicalNetworkCidr(cidr)} counter ${verdict}`;
+    });
+    const dns = policy.dns.map(address => `    iifname "${bridge}" ${isIP(address) === 4 ? "ip" : "ip6"} daddr ${address} meta l4proto { tcp, udp } th dport 53 counter accept`);
+    return [...dns, ...subnetRules([...protectedNetworkCidrs, ...policy.denied], "drop"), ...subnetRules(policy.cidrs, "accept")];
   });
   return `add table inet kintsugi_workspaces
 flush table inet kintsugi_workspaces
@@ -43,6 +55,7 @@ ${protectBuildClients ? `    ${selector} jump public_egress` : ""}
   chain forward {
     type filter hook forward priority -10; policy accept;
     meta iifkind "bridge" meta oifkind "bridge" counter drop
+${lanRules.join("\n")}
     meta iifkind "bridge" jump public_destinations
   }
 }
@@ -102,10 +115,10 @@ add rule inet aitc_socket_preflight output socket cgroupv2 level ${parts.length}
   throw new Error(`Could not install workspace firewall: ${result.diagnostic}`);
 }
 
-export async function installWorkspaceFirewall(buildClientsCgroup: string, nameservers: string[]) {
+export async function installWorkspaceFirewall(buildClientsCgroup: string, nameservers: string[], networks: Array<{ bridge: string; policy: WorkspaceNetworkPolicy }> = []) {
   const protectBuildClients = await buildClientFirewallSupported(buildClientsCgroup);
   // One atomic batch replaces all three family tables; Docker rules survive.
-  const result = await nft(workspaceFirewallRules(buildClientsCgroup, nameservers, protectBuildClients));
+  const result = await nft(workspaceFirewallRules(buildClientsCgroup, nameservers, protectBuildClients, networks));
   if (result.code !== 0)
     throw new Error(`Could not install workspace firewall: ${result.diagnostic}`);
 }

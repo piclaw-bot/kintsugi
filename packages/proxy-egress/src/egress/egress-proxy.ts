@@ -1,6 +1,7 @@
 import { bridgeWebSocket, requestWebSocketUpgrade, validateWebSocketRequest, type UpgradeRequest } from "./websocket.ts";
 import { getProxyForUrl } from "proxy-from-env";
 import dns from "node:dns/promises";
+import { lookupWorkspaceHost } from "./workspace-dns.ts";
 import { readFileSync } from "node:fs";
 import { chmod, mkdir, unlink } from "node:fs/promises";
 import { dirname } from "node:path";
@@ -97,6 +98,7 @@ export async function ensureWorkspaceEgressProxy(workspaceId: string): Promise<v
       socketPath: kintsugiDataPath(getKintsugiRuntimeContext(), "workspace-sockets", workspaceId, "egress.sock"),
       ca: await ensureMitmCa(),
       getContext: () => getWorkspaceSecretContext(workspaceId),
+      upstreamDnsLookup: hostname => lookupWorkspaceHost(workspaceId, hostname),
     }))().catch(error => { workspaceProxies.delete(workspaceId); throw error; });
     workspaceProxies.set(workspaceId, existing);
   }

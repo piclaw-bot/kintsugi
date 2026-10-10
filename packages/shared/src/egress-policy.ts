@@ -1,22 +1,10 @@
 import { BlockList, isIP } from "node:net";
 
-/**
- * The workspace egress invariant: over IP, a workspace may reach global
- * unicast destinations (the public internet) and nothing else.
- *
- * Kintsugi's own services are never valid destinations. The app, the
- * supervisor and every other control channel are reached through per-workspace
- * Unix sockets with fixed route lists, not through the network. Private
- * networks (LAN, VPN, tailnet, Docker bridges) are not reachable either; when
- * a workspace legitimately needs one, allow an exact host through the proxy's
- * hook layer instead of reopening a whole range here.
- *
- * This module is the one policy definition for both enforcement layers: the
- * System nftables firewall (images/system/src/firewall.ts) and the egress
- * proxy's destination check (packages/proxy-egress), so they cannot drift.
- */
+/** Default workspace egress is public global unicast only. Explicit LAN grants
+ * are layered on this policy by network-policy.ts, shared by the System
+ * firewall and proxy. Control services and peer workspaces remain isolated. */
 
-/** Special-purpose IPv4 ranges that are never workspace egress destinations. */
+/** Special-purpose IPv4 ranges denied by the default workspace policy. */
 export const blockedEgressIpv4Ranges: ReadonlyArray<readonly [address: string, prefix: number]> = [
   ["0.0.0.0", 8], // "this network", broadcast abuse
   ["10.0.0.0", 8], // RFC1918 private

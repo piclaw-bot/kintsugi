@@ -15,6 +15,7 @@
     "@kintsugi/shared": "workspace:*",
     "@kintsugi/workspace-image": "workspace:*",
     "typebox": "^1.0.57",
-    "@kintsugi/design-system": "workspace:*"
+    "@kintsugi/design-system": "workspace:*",
+    "@kintsugi/host": "workspace:*"
   }
 }

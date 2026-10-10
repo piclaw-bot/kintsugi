@@ -4,7 +4,8 @@
   "type": "module",
   "exports": {
     "./server": "./src/server/index.ts",
-    "./client": "./src/client/index.ts"
+    "./client": "./src/client/index.ts",
+    "./control": "./src/server/connection.ts"
   },
   "dependencies": {
     "@kintsugi/core": "workspace:*",

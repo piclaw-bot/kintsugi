@@ -23,6 +23,7 @@ export function createWorkspaceContainerLifecycle(options: {
   container: string;
   checkpointRequired: boolean;
   waitForStartup(): Promise<string>;
+  beforeStart?(): Promise<void>;
   docker?: typeof requireDocker;
 }) {
   const docker = options.docker ?? requireDocker;
@@ -50,6 +51,7 @@ export function createWorkspaceContainerLifecycle(options: {
         if (text === undefined) {
           if (options.checkpointRequired) throw new Error(`Missing configuration checkpoint for ${options.container}`);
           // Existing workspaces predate checkpoints; preserve their normal start path.
+          await options.beforeStart?.();
           await docker(["start", options.container]);
           return "";
         }
@@ -59,6 +61,7 @@ export function createWorkspaceContainerLifecycle(options: {
           checkpoint.phase = "configured";
           await writeJsonAtomic(checkpointPath, checkpoint, { mode: 0o600 });
         }
+        await options.beforeStart?.();
         await docker(["start", options.container]);
         return options.waitForStartup();
       });

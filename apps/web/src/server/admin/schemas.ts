@@ -1,3 +1,4 @@
+import { networkConfigurationSchema, networkModeSchema } from "@kintsugi/shared/network-policy";
 import { accessModeSchema } from "@kintsugi/shared";
 import { releaseSourceSchema, registryCredentialSchema } from "@kintsugi/shared/release-source";
 import { Type, type TSchema } from "typebox";
@@ -17,6 +18,8 @@ export const workspaceCreateSchema = object({
 /** Runtime validation and OpenAPI share exactly the same mutation contracts. */
 export function adminInputSchema(route: AdminRoute): TSchema {
   const path = route.path;
+  if (path === "/settings/network") return networkConfigurationSchema;
+  if (path === "/workspaces/{id}/network") return object({ mode: networkModeSchema });
   if (path === "/settings/release-source") return releaseSourceSchema;
   if (path === "/settings/release-registry" && route.method === "POST") return registryCredentialSchema;
   if (path === "/settings/update-channel") return object({ channel: Type.Union([Type.Literal("stable"), Type.Literal("latest"), Type.Literal("custom")]) });

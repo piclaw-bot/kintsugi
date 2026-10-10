@@ -80,3 +80,23 @@ test("without NFT_SOCKET only host-side client filtering is omitted", () => {
   expect(rules).toContain('meta iifkind "bridge" jump public_destinations');
   expect(rules).toContain("ip daddr @non_public_v4 counter drop");
 });
+
+test("workspace LAN exceptions are source-specific and cannot override bridge or control isolation", () => {
+  const rules = workspaceFirewallRules("/system/workloads/build-clients", [], true, [{ bridge: "atw-123456789ab", policy: {
+    mode: "lan", cidrs: ["192.168.10.0/24", "fd12:3456::/64"], dns: ["192.168.20.53"], search: [], denied: ["172.18.0.0/16", "93.184.215.10/32"],
+  } }]);
+  const lan = rules.indexOf('iifname "atw-123456789ab" ip daddr 192.168.10.0/24 counter accept');
+  expect(lan).toBeGreaterThan(rules.indexOf('meta iifkind "bridge" meta oifkind "bridge" counter drop'));
+  expect(lan).toBeGreaterThan(rules.indexOf('iifname "atw-123456789ab" ip daddr 172.18.0.0/16 counter drop'));
+  expect(lan).toBeLessThan(rules.indexOf('meta iifkind "bridge" jump public_destinations'));
+  expect(rules).toContain('iifname "atw-123456789ab" ip6 daddr fd12:3456::/64 counter accept');
+  expect(rules).toContain('iifname "atw-123456789ab" ip daddr 192.168.20.53 meta l4proto { tcp, udp } th dport 53 counter accept');
+  // Separate family FIB guards always run, even after an inet accept verdict.
+  expect(rules.match(/meta iifkind "bridge" fib daddr type local counter drop/g)).toHaveLength(2);
+  expect(rules).not.toContain('oifname "tailscale0"');
+});
+
+test("off mode cannot accidentally install a saved LAN exception", () => {
+  const policy = { mode: "off", cidrs: ["192.168.10.0/24"], dns: ["192.168.10.53"], search: [], denied: [] } as const;
+  expect(workspaceFirewallRules("/system/build", [], false, [{ bridge: "atw-123456789ab", policy: { ...policy, cidrs: [...policy.cidrs], dns: [...policy.dns], search: [], denied: [] } }])).not.toContain('iifname "atw-');
+});

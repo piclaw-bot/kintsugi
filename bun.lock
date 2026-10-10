@@ -453,6 +453,7 @@
       "dependencies": {
         "@kintsugi/core": "workspace:*",
         "@kintsugi/design-system": "workspace:*",
+        "@kintsugi/host": "workspace:*",
         "@kintsugi/observable-terminal": "workspace:*",
         "@kintsugi/shared": "workspace:*",
         "@kintsugi/workspace-image": "workspace:*",
@@ -1319,6 +1320,12 @@
     "@aws-sdk/credential-provider-sso/@aws-sdk/token-providers": ["@aws-sdk/token-providers@3.1138.0", "", { "dependencies": { "@aws-sdk/core": "^3.978.1", "@aws-sdk/nested-clients": "^3.997.46", "@aws-sdk/types": "^3.974.6", "@smithy/core": "^3.35.0", "@smithy/types": "^4.19.0", "tslib": "^2.6.2" } }, "sha512-GpyAr0DD63YOEmYFM6Df+gJuIgC92MMTiBK4FTKfxii5MJ9ge20epR7LyroulscYlG89J+ZB2ivFDPjvfQhzdw=="],
 
     "@earendil-works/pi-ai/https-proxy-agent": ["https-proxy-agent@9.1.0", "", { "dependencies": { "agent-base": "9.0.0", "debug": "^4.3.4", "proxy-agent-negotiate": "1.1.0" } }, "sha512-ag87y7cJJ9/3+GxFr8Oy4O5faDsGRGnBGsJj/YjOSsSx/5eadKLYTMPlzuR6obgoCDDm0abAAZitXXQkMOPSpA=="],
+
+    "@kintsugi/desktop/@hotwired/stimulus": ["@hotwired/stimulus@github:hotwired/dev-builds#339df54", {}, "hotwired-dev-builds-339df54", "sha512-mHNF9l1AaFMwHph9F+E6H9/MOtt8gIPSyNKMJELZOfYlh9rdmfmgXu6+EmC1NfjcA0tc6u+xn8PDoOjSzc9SGw=="],
+
+    "@kintsugi/inline-content/@hotwired/stimulus": ["@hotwired/stimulus@github:hotwired/dev-builds#339df54", {}, "hotwired-dev-builds-339df54", "sha512-mHNF9l1AaFMwHph9F+E6H9/MOtt8gIPSyNKMJELZOfYlh9rdmfmgXu6+EmC1NfjcA0tc6u+xn8PDoOjSzc9SGw=="],
+
+    "@kintsugi/web/@hotwired/stimulus": ["@hotwired/stimulus@github:hotwired/dev-builds#339df54", {}, "hotwired-dev-builds-339df54", "sha512-mHNF9l1AaFMwHph9F+E6H9/MOtt8gIPSyNKMJELZOfYlh9rdmfmgXu6+EmC1NfjcA0tc6u+xn8PDoOjSzc9SGw=="],
 
     "@pierre/diffs/diff": ["diff@9.0.0", "", {}, "sha512-svtcdpS8CgJyqAjEQIXdb3OjhFVVYjzGAPO8WGCmRbrml64SPw/jJD4GoE98aR7r25A0XcgrK3F02yw9R/vhQw=="],
 

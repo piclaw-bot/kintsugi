@@ -14,6 +14,13 @@ with tempfile.TemporaryDirectory(prefix="aitc-firewall-kernel-") as directory:
         source = 'import {workspaceFirewallRules} from "./images/system/src/firewall.ts"; process.stdout.write(workspaceFirewallRules("/system/workloads/build-clients", ["127.0.0.53", "::1"], ' + str(enabled).lower() + '));'
         rules = subprocess.check_output(["bun", "-e", source], cwd=root)
         (path / ("protected.nft" if enabled else "bridge-only.nft")).write_bytes(rules)
+    source = '''import {workspaceFirewallRules} from "./images/system/src/firewall.ts";
+import {privateNetworkCidrs} from "./packages/shared/src/network-policy.ts";
+process.stdout.write(workspaceFirewallRules("/system/workloads/build-clients", [], false, [
+{bridge:"atw-11111111111",policy:{mode:"lan",cidrs:["192.168.10.0/24","fd12:aaaa::/64"],dns:["192.168.20.53"],search:[],denied:["172.28.0.0/16"]}},
+{bridge:"atw-22222222222",policy:{mode:"private",cidrs:privateNetworkCidrs,dns:["192.168.20.53"],search:[],denied:["172.28.0.0/16"]}}
+]));'''
+    (path / "lan.nft").write_bytes(subprocess.check_output(["bun", "-e", source], cwd=root))
     script = r'''
 set -eu
 export DEBIAN_FRONTEND=noninteractive
@@ -90,6 +97,98 @@ PYTEST
     nft list chain "$family" kintsugi_workspaces local_destinations | grep -E 'counter packets [1-9][0-9]*.*drop'
   done
 fi
+# Real bridge forwarding: three namespaces model independently permissioned
+# workspaces. No host network namespace or real LAN is modified.
+sysctl -qw net.ipv4.ip_forward=1 net.ipv6.conf.all.forwarding=1 net.ipv6.conf.default.forwarding=1
+for n in 1 2 3; do
+  digits=$(printf '%011d' 0 | tr 0 "$n")
+  bridge="atw-$digits"
+  ip link add "$bridge" type bridge
+  ip addr add "172.28.$n.1/24" dev "$bridge"
+  ip -6 addr add "fd12:1:$n::1/64" dev "$bridge" nodad
+  ip link set "$bridge" up
+  ip netns add "client$n"
+  ip link add "peer$n" type veth peer name "child$n"
+  ip link set "peer$n" master "$bridge"
+  ip link set "peer$n" up
+  ip link set "child$n" netns "client$n"
+  ip -n "client$n" link set lo up
+  ip -n "client$n" link set "child$n" up
+  ip -n "client$n" addr add "172.28.$n.2/24" dev "child$n"
+  ip -n "client$n" -6 addr add "fd12:1:$n::2/64" dev "child$n" nodad
+  ip -n "client$n" route add default via "172.28.$n.1"
+  ip -n "client$n" -6 route add default via "fd12:1:$n::1"
+done
+ip netns add lan
+ip link add uplink type veth peer name endpoint
+ip link set endpoint netns lan
+ip link set uplink up
+ip -n lan link set endpoint up
+ip -n lan link set lo up
+for pair in '192.168.10.1 192.168.10.20' '10.23.0.1 10.23.0.20' '192.168.20.1 192.168.20.53' '8.8.8.1 8.8.8.8'; do
+  set -- $pair
+  ip addr add "$1/24" dev uplink
+  ip -n lan addr add "$2/24" dev endpoint
+done
+for prefix in fd12:aaaa fd12:bbbb; do
+  ip -6 addr add "$prefix::1/64" dev uplink nodad
+  ip -n lan -6 addr add "$prefix::20/64" dev endpoint nodad
+done
+ip -n lan route add default via 192.168.10.1
+ip -n lan -6 route add default via fd12:aaaa::1
+cat >/tmp/network-server.py <<'PYSERVER'
+import socket, threading, time
+sockets=[]
+def serve(s):
+    while True:
+        c,_=s.accept()
+        with c:c.sendall(b'allowed')
+for family,host in [(socket.AF_INET,'0.0.0.0'),(socket.AF_INET6,'::')]:
+    for port in [53,54,8080]:
+        s=socket.socket(family,socket.SOCK_STREAM)
+        s.setsockopt(socket.SOL_SOCKET,socket.SO_REUSEADDR,1)
+        if family==socket.AF_INET6:s.setsockopt(socket.IPPROTO_IPV6,socket.IPV6_V6ONLY,1)
+        s.bind((host,port));s.listen();sockets.append(s)
+        threading.Thread(target=serve,args=(s,),daemon=True).start()
+time.sleep(120)
+PYSERVER
+ip netns exec lan python3 /tmp/network-server.py &
+python3 /tmp/network-server.py &
+for n in 1 2 3; do ip netns exec "client$n" python3 /tmp/network-server.py & done
+sleep .5
+nft -f /rules/lan.nft
+nft -f /rules/lan.nft
+cat >/tmp/network-probe.py <<'PYPROBE'
+import socket,sys
+mode=sys.argv[1]
+def probe(host,port,expected):
+    s=socket.socket(socket.AF_INET6 if ':' in host else socket.AF_INET,socket.SOCK_STREAM)
+    s.settimeout(5 if expected else .5)
+    try:
+        s.connect((host,port));assert s.recv(64)==b'allowed';actual=True
+    except (TimeoutError,ConnectionRefusedError,OSError):actual=False
+    finally:s.close()
+    assert actual==expected,(mode,host,port,expected,actual)
+for host in ['192.168.10.20','fd12:aaaa::20']:probe(host,8080,mode!='off')
+for host in ['10.23.0.20','fd12:bbbb::20']:probe(host,8080,mode=='private')
+probe('8.8.8.8',8080,True)
+probe('192.168.20.53',53,mode!='off')
+probe('192.168.20.53',54,mode=='private')
+# All are real listeners: failure proves isolation rather than a closed port.
+probe('172.28.1.1',8080,False)
+probe('172.28.2.2' if sys.argv[2]=='1' else '172.28.1.2',8080,False)
+probe('fd12:1:1::1',8080,False)
+print('PASS kernel LAN forwarding scope:',mode,flush=True)
+PYPROBE
+ip netns exec client1 python3 /tmp/network-probe.py lan 1 || { nft list table inet kintsugi_workspaces; ip -6 route; ip -6 neigh; ip -n client1 -6 route; ip -n client1 -6 neigh; ip -n lan -6 route; ip -n lan -6 neigh; exit 1; }
+ip netns exec client2 python3 /tmp/network-probe.py private 2
+ip netns exec client3 python3 /tmp/network-probe.py off 3
+# Atomic revocation to the default policy; replacing a snapshot restores it.
+nft -f /rules/bridge-only.nft
+ip netns exec client1 python3 /tmp/network-probe.py off 1
+nft -f /rules/lan.nft
+ip netns exec client1 python3 /tmp/network-probe.py lan 1
+
 printf 'PASS: bridge-only rules, IPv4/IPv6 kernel FIB packet lookup, atomic replacement/rollback; NFT_SOCKET=%s\n' "$protected"
 '''
     subprocess.run([

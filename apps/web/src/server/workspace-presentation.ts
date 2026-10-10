@@ -114,6 +114,7 @@ function renderWorkspaceRow(workspace: WorkspacePaneEntry, index: number): strin
     container: parked ? undefined : { attributesHtml: `data-workspace-order="${index}"` },
     label: { kind: "text", text: workspace.title },
     trailingHtml: renderWorkspaceRowStatus(workspace),
+    engagedActionsHtml: actionLinkHtml({ href: `/workspaces/${encodeURIComponent(workspace.id)}/network`, variant: "secondary", content: { kind: "icon-only", iconHtml: Icons.Settings, label: `Network settings for ${workspace.title}` }, attributesHtml: 'data-turbo-stream="true" data-turbo-frame="_top"' }),
     leadingActionsHtml: `<button type="button" class="workspace-template-icon-button" title="${escapeHtml(newFromTemplate)}" aria-label="${escapeHtml(newFromTemplate)}" data-action="workspace-pane#openPickerFor" data-workspace-pane-workspace-template-param="${escapeHtml(workspaceTemplate?.id ?? "")}">${workspaceTemplateIconHtml(workspaceTemplate)}</button>`,
     primary: {
       tag: "button",
