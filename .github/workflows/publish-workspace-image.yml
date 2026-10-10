@@ -3,7 +3,7 @@ name: Publish default workspace image
 on:
   push:
     branches:
-      - rename-kintsugi
+      - main
   workflow_dispatch:
 
 permissions:
@@ -16,14 +16,14 @@ concurrency:
 
 jobs:
   publish:
-    if: github.ref == 'refs/heads/rename-kintsugi'
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - uses: oven-sh/setup-bun@v2
         with:
-          bun-version: 1.4.0
+          bun-version: 1.4.2
 
       - name: Generate the default workspace image and its signature
         id: image

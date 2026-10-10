@@ -8,16 +8,20 @@ bun run release --stable    # latest and stable
 bun run release --check     # validate the builder without publishing
 ```
 
-This branch publishes `ghcr.io/rcarmo/kintsugi:latest` and
-immutable commit/staging tags. `--stable` also advances its `stable` tag after
-VM acceptance. Atelier hotfix releases remain on `main` and use their original
-image repositories and release command. These two lanes have separate log
-directories, locks and builder context names. `--check` may be combined with
-`--stable` and never publishes.
+The release command targets `origin/main`, `ghcr.io/rcarmo/kintsugi:latest` and
+immutable commit/staging tags. `--stable` also advances `stable`; complete VM
+acceptance before using it. `--check` may be combined with `--stable` and never
+publishes. Upstream Atelier releases use their own repository.
 
-The renamed runtime is published separately with `images/patched-docker/publish.sh`.
-App, System and workspace images pin its multi-platform digest; commit updated
-pins before releasing.
+Test-only GitHub Actions CI runs installation, checks and the full test suite.
+The workspace publisher is disabled until dual-architecture builds and registry
+publication are verified. It uses the workflow's `GITHUB_TOKEN` with
+`packages: write`, independently of the app/System release credentials below.
+Enabling it publishes only the workspace dependency, not app or System images.
+
+App, System and workspace images retain a pinned upstream runtime dependency.
+`images/patched-docker/publish.sh` can publish a fork runtime separately; commit
+any updated multi-platform digest pins before releasing.
 
 For the VM test, publish this branch's app and separately publish its System image
 as `ghcr.io/rcarmo/kintsugi-system:latest` (`images/system/publish.sh` moves latest); this release command
@@ -27,7 +31,8 @@ installation starts empty: do not mount Atelier storage or import its settings.
 Test installation, workspace creation/parking, updates, restart and uninstall
 before promoting to stable. Publishing to the renamed repositories does not
 replace the public Atelier installer or advance Atelier's update tags.
-The installer supports removing a legacy Atelier installation with `--uninstall`.
+`--uninstall` removes Kintsugi data. The fork installer refuses automatic removal
+of a legacy Atelier installation.
 
 Existing `ATELIER_*` environment/build-argument names remain unchanged; defaults,
 storage names, labels and runtime protocols do not adopt Atelier state.
@@ -47,7 +52,7 @@ local Docker daemon: arm64 for an amd64 workstation, or amd64 for an ARM laptop.
 Both daemons need registry access. Missing, unreachable, or wrong-architecture
 helpers fail before publishing; there is no emulation fallback.
 
-The command fetches `origin/rename-kintsugi` and records its exact SHA. It uses the integrated
+The command fetches `origin/main` and records its exact SHA. It uses the integrated
 Docker BuildKit builders (`docker` driver) for the current Docker context and a
 persistent SSH context derived from the helper destination. No separate BuildKit
 container is created. Inside Atelier this preserves the patched daemon's EROFS
@@ -71,7 +76,7 @@ Channel tags are not passed to the build. An existing commit image is reused, no
 overwritten, and its two architectures and revision labels must pass verification.
 Rerunning after a completed upload therefore skips the application rebuild.
 
-Before promotion, the command verifies the rename branch has not moved. If it has, the command
+Before promotion, the command verifies `origin/main` has not moved. If it has, the command
 fails without updating channels; rerun to release the new branch head. Otherwise it
 promotes the verified digest to latest (and stable with `--stable`) and checks its registry digest.
 Channel updates are **not atomic**. Status records each channel separately. A

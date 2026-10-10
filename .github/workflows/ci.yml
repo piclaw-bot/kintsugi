@@ -30,6 +30,8 @@ jobs:
           sudo mkdir -p /work
           sudo chmod 1777 /work
           sudo --preserve-env=PATH "$(command -v bun)" x playwright install --with-deps chromium
+          chromium=$(sudo --preserve-env=PATH "$(command -v bun)" -e 'import { chromium } from "playwright"; console.log(chromium.executablePath())')
+          sudo ln -sf "$chromium" /usr/bin/chromium
       - run: bun run check
       # Installer ownership tests exercise chown to agent's numeric UID/GID.
       - name: Run the full test suite
