@@ -14,7 +14,7 @@ import {
   handleCanonicalWorkspaceRequest,
   StoppedWorkspaceError,
 } from "@kintsugi/proxy-ingress/server";
-import { kintsugiName, errorMessage, type WorkspaceAppBackend, type WorkspaceAppRef, type WorkspaceServerAppResolver, type WorkspaceServerProvisioningHook, type WorkspaceServerSocketHandler, type WorkspaceServerSocketSession } from "@kintsugi/shared";
+import { proxyAccessSchema, validateProxyAccess, kintsugiName, errorMessage, type WorkspaceAppBackend, type WorkspaceAppRef, type WorkspaceServerAppResolver, type WorkspaceServerProvisioningHook, type WorkspaceServerSocketHandler, type WorkspaceServerSocketSession } from "@kintsugi/shared";
 import { response, textResponse } from "@kintsugi/shared/http";
 import { checkWorkspaceReadiness, createWorkspace, ensureWorkspaceStarted, deleteWorkspace, ensureHostInotifyLimit, isWorkspaceRunning, listWorkspaces, resolveWorkspace, stopWorkspaceContainer, setWorkspaceParked, workspaceImageOutdated, workspacePortBackend, workspaceSetupProvisioningHook } from "@kintsugi/workspace";
 import { ensureDefaultWorkspaceImage } from "@kintsugi/workspace-image";
@@ -55,6 +55,16 @@ const runtimeContext = getKintsugiRuntimeContext();
 
 
 const parentOriginPublisher = await detectParentOriginPublisher(defaultPublicOriginPortRange);
+let parentOriginPortRange = defaultPublicOriginPortRange;
+if (parentOriginPublisher.kind === "system") {
+  const response = await fetch("http://127.0.0.1:3001/access");
+  if (!response.ok) throw new Error("System access configuration is unavailable");
+  const access = await response.json();
+  if (access.mode === "proxy") {
+    if (!Value.Check(proxyAccessSchema, access.proxy)) throw new Error("Invalid System proxy access configuration");
+    parentOriginPortRange = validateProxyAccess(access.proxy).previewPorts;
+  }
+}
 
 const registry = createWorkspaceRegistry({
   activityStore: createFileWorkspaceActivityStore(join(runtimeContext.kintsugiDataDir, "view-state", "workspace-activity.json")),
@@ -234,7 +244,7 @@ const workspaceIngress = createWorkspaceIngress({
     if (!await isWorkspaceRunning(workspaceId)) throw new StoppedWorkspaceError(workspaceId);
   },
   resolveApp: resolveWorkspaceApp,
-  originPortRange: defaultPublicOriginPortRange,
+  originPortRange: parentOriginPortRange,
   parentOriginPublisher,
   resolvePort: (id, port, protocol, url) => workspacePortBackend(id, port, url.pathname + url.search, `${protocol}:`),
   originIdentityStore: createFileOriginIdentityStore(),

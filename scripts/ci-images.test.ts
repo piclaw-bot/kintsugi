@@ -146,3 +146,11 @@ test("docs and workflows do not trigger ordinary CI; tags force full checks", ()
   expect(selection).toContain("'${{ github.ref_type }}' != tag");
   expect(selection).toContain("required=true");
 });
+
+test("Caddy recipe keeps UI, preview and API origins separate without rewriting security headers",async()=>{
+ const {caddyRecipe}=await import("./deployment.ts");
+ const recipe=caddyRecipe("https://agent-host.local","127.0.0.1:3000","41000:41001","192.0.2.10","https://agent-host.local:3443","127.0.0.1:3444");
+ expect(recipe).toContain("https://agent-host.local:41000");expect(recipe).toContain("https://agent-host.local:41001");expect(recipe).toContain("flush_interval -1");
+ expect(recipe).not.toContain("header_up Origin");expect(recipe).not.toContain("header_up Authorization");expect(recipe).not.toContain("header_up Host");
+ expect(()=>caddyRecipe("https://agent-host.local","192.0.2.10:3000","41000:41001","192.0.2.10")).toThrow("loopback");
+});

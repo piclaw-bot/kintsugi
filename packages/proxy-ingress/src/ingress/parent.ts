@@ -1,3 +1,4 @@
+import { accessModeSchema, proxyAccessSchema, validateProxyAccess, proxyPreviewOrigin } from "../../../shared/src/proxy-access.ts";
 import { requireTailscaleHttps } from "../../../shared/src/tailscale.ts";
 import { Type } from "typebox";
 import { Value } from "typebox/value";
@@ -75,7 +76,11 @@ export function createSystemOriginPublisher(portRange?: PortRange, fetcher: (url
     const response = await fetcher("http://127.0.0.1:3001/access");
     if (!response.ok) throw new Error(`System access status failed: ${response.status}`);
     const status: unknown = await response.json();
-    if (!Value.Check(Type.Object({ mode: Type.Union([Type.Literal("localhost"), Type.Literal("tailscale")]), localPort: Type.Optional(Type.Integer({ minimum: 1, maximum: 65535 })) }), status)) throw new Error("Invalid System access status");
+    if (!Value.Check(Type.Object({ mode: accessModeSchema, proxy: Type.Optional(proxyAccessSchema), localPort: Type.Optional(Type.Integer({ minimum: 1, maximum: 65535 })) }), status)) throw new Error("Invalid System access status");
+    if (status.mode === "proxy") {
+      if (!status.proxy) throw new Error("System proxy access has no configuration");
+      return proxyPreviewOrigin(validateProxyAccess(status.proxy), port);
+    }
     if (status.mode === "tailscale") return tailscale.publish(port);
     if (!status.localPort) throw new Error("System's local port has not been published yet");
     return `http://p${port}.kintsugi.localhost:${status.localPort}`;

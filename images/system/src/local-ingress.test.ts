@@ -31,3 +31,28 @@ test("local routing preserves HTTP cookies and WebSocket traffic", async () => {
     });
   } finally { proxy.stop(true); backend.stop(true); }
 });
+
+test("proxy access exposes only the public UI origin and isolated preview ports", async () => {
+  const { proxyTarget } = await import("./local-ingress.ts");
+  const config = { origin: "https://agent-host.local", previewPorts: { start: 41000, end: 41009 } };
+  expect(proxyTarget("agent-host.local", config, 3000)).toBe(3000);
+  expect(proxyTarget("agent-host.local:41001", config, 3000)).toBe(41001);
+  for (const host of ["agent-host.local:3001", "agent-host.local:41010", "system.agent-host.local", "agent-host.local.evil", "127.0.0.1:2375", "agent-host.local:041001"]) expect(proxyTarget(host, config, 3000)).toBeUndefined();
+});
+test("proxy termination pins scheme and preserves foreign/missing origin rejection", async () => {
+  const { startProxyIngress } = await import("./local-ingress.ts");
+  const { managementOriginRejection } = await import("../../../packages/proxy-ingress/src/server/management-origin.ts");
+  const backend = Bun.serve({hostname:"127.0.0.1",port:0,fetch(request){return managementOriginRejection(request,"127.0.0.1") ?? Response.json({host:request.headers.get("host"),scheme:request.headers.get("x-forwarded-proto"),forwarded:request.headers.get("forwarded")});}});
+  const config = { origin: "https://agent-host.local", previewPorts: { start: 41000, end: 41009 } };
+  const proxy = startProxyIngress(()=>backend.port!,()=>config,0);
+  try {
+    const target = "http://127.0.0.1:"+proxy.port+"/probe";
+    const good = await fetch(target,{method:"POST",headers:{host:"agent-host.local",origin:config.origin,"x-forwarded-proto":"http",forwarded:"host=evil;proto=http"}});
+    expect(good.status).toBe(200); expect(await good.json()).toEqual({host:"agent-host.local",scheme:"https",forwarded:null});
+    for (const origin of ["https://foreign.example","http://agent-host.local","null",""]) {
+      const headers = new Headers({host:"agent-host.local"}); if(origin)headers.set("origin",origin);
+      expect((await fetch(target,{method:"POST",headers})).status).toBe(403);
+    }
+    expect((await fetch(target,{headers:{host:"system.agent-host.local"}})).status).toBe(404);
+  } finally {proxy.stop(true);backend.stop(true);}
+});

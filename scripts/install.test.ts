@@ -14,7 +14,8 @@ uname() { echo ${options.mac ? "Darwin" : "Linux"}; }
 id() { echo ${options.mac || options.nonRoot ? 501 : 0}; }
 sudo() {
   printf 'SUDO %s\\n' "$*" >&2
-  if [ "$1" = -v ]; then return ${options.denySudo ? 1 : 0}; fi
+  if [ "${options.denySudo ? 1 : 0}" -eq 1 ]; then return 1; fi
+  if [ "$1" = -n ]; then shift; fi
   "$@"
 }
 module_loaded=0
@@ -54,7 +55,7 @@ docker() {
         printf '%s\n%s\n%s\n' "\${system:-$source-system:latest}" "\${app:-$source:latest}" "\${hostname:-${options.savedHostname ?? 'kintsugi-system'}}"
       fi
       return 0 ;;
-    'image inspect') if [[ "$*" == *'storage-drivers'* ]]; then echo ${options.storageCompatible === false ? 'erofs' : 'erofs,overlayfs'}; elif [[ "$*" == *'installer-config'* ]]; then echo ${options.installerCompatible === false ? 0 : 1}; elif [[ "$*" == *'{{.Id}}'* ]]; then echo ${pinned}; fi; return 0 ;;
+    'image inspect') if [[ "$*" == *'deployment-config'* ]]; then echo 1; elif [[ "$*" == *'storage-drivers'* ]]; then echo ${options.storageCompatible === false ? 'erofs' : 'erofs,overlayfs'}; elif [[ "$*" == *'installer-config'* ]]; then echo ${options.installerCompatible === false ? 0 : 1}; elif [[ "$*" == *'{{.Id}}'* ]]; then echo ${pinned}; fi; return 0 ;;
     'pull '*)
       if [ "${options.pullDenied ? 1 : 0}" -eq 1 ]; then echo 'Error response from daemon: Head "https://ghcr.io/v2/rcarmo/kintsugi-system/manifests/latest": denied: denied' >&2; return 1; fi
       return ${options.pullFails ? 1 : 0} ;;
@@ -301,8 +302,8 @@ test("open without an access choice preserves the existing access mode", () => {
 test("Linux requests sudo itself while Mac and WSL with Docker access do not", () => {
   const linux = run({ nonRoot: true });
   expect(linux.status).toBe(0);
-  expect(linux.output).toContain("SUDO -v");
-  expect(linux.output).toContain("SUDO mkdir -p /etc/modules-load.d");
+  expect(linux.output).not.toContain("SUDO -v");
+  expect(linux.output).toContain("SUDO -n mkdir -p /etc/modules-load.d");
   for (const options of [{ mac: true }, { wsl: true, nonRoot: true }, {}]) {
     expect(run(options).output).not.toContain("SUDO");
   }
@@ -311,7 +312,7 @@ test("Linux requests sudo itself while Mac and WSL with Docker access do not", (
 test("denied sudo fails before changing the Linux host", () => {
   const result = run({ nonRoot: true, denySudo: true });
   expect(result.status).not.toBe(0);
-  expect(result.output).toContain("administrator access was not granted");
+  expect(result.output).toContain("Administrator access was not granted");
   expect(result.output).not.toContain("DOCKER pull");
   expect(result.output).not.toContain("MODPROBE");
 });
@@ -646,4 +647,31 @@ test("unsupported storage names are rejected", () => {
   const result = run({}, ["--storage-driver", "overlay2"]);
   expect(result.status).toBe(1);
   expect(result.output).toContain("Storage driver must be erofs or overlayfs");
+});
+
+const unattended = ["--non-interactive","--action","install","--access-mode","localhost","--storage-driver","overlayfs","--tailscale-hostname","agent-host","--source-repository","ghcr.io/rcarmo/kintsugi"];
+test("unattended fresh install needs no terminal and never prompts",()=>{
+  const result=run({},unattended); expect(result.status).toBe(0);
+  expect(result.output).not.toContain("Choose [1]"); expect(result.output).not.toContain("Release image repository [");
+});
+test("missing unattended inputs and destructive confirmation fail before Docker changes",()=>{
+  for(const args of [["--non-interactive"],["--non-interactive","--action","install"],["--non-interactive","--action","update"],["--non-interactive","--uninstall"]]) {
+    const result=run({},args); expect(result.status).not.toBe(0); expect(result.output).not.toContain("DOCKER");
+  }
+});
+test("passwordless command rules never require sudo validation",()=>{
+  const result=run({nonRoot:true},unattended); expect(result.status).toBe(0); expect(result.output).not.toContain("SUDO -v"); expect(result.output).toContain("SUDO -n mkdir");
+  const denied=run({nonRoot:true,denySudo:true},unattended);expect(denied.status).not.toBe(0);expect(denied.output).toContain("Administrator access required for mkdir");
+});
+test("proxy setup requires explicit LAN trust and loopback-only publications",()=>{
+  const args=unattended.map(value=>value==="localhost"?"proxy":value);
+  const proxy=["--public-origin","https://agent-host.local","--ui-publish","127.0.0.1:3000:3081"];
+  expect(run({},[...args,...proxy]).status).not.toBe(0);
+  const good=run({},[...args,...proxy,"--acknowledge-lan-trust"]);expect(good.status).toBe(0);expect(good.output).toContain("--publish 127.0.0.1:3000:3081");
+  expect(run({},[...args,...proxy,"--acknowledge-lan-trust","--ui-publish","0.0.0.0:3000:3081"]).status).not.toBe(0);
+});
+
+test("supported proxy upgrade replaces conflicting legacy sidecar publications only",()=>{
+ const result=run({installed:true,portMappings:"127.0.0.1:3000:3002/tcp\n127.0.0.1:3444:3444/tcp\n127.0.0.1:5555:5555/tcp"},["--action","update","--access-mode","proxy","--public-origin","https://agent-host.local","--acknowledge-lan-trust","--ui-publish","127.0.0.1:3000:3081","--admin-proxy-publish","127.0.0.1:3444:3082"]);
+ expect(result.status).toBe(0);expect(result.output).toContain("--publish 127.0.0.1:3000:3081");expect(result.output).toContain("--publish 127.0.0.1:3444:3082");expect(result.output).not.toContain("--publish 127.0.0.1:3000:3002");expect(result.output).not.toContain("--publish 127.0.0.1:3444:3444");expect(result.output).toContain("--publish 127.0.0.1:5555:5555");
 });

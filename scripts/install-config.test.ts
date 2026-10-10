@@ -117,3 +117,13 @@ test("installer persists overlayfs and refuses changed settings without altering
   expect(run("plan", "", "", "", "").status).toBe(0);
   expect(JSON.parse(await readFile(join(directory, "supervisor/storage.json"), "utf8"))).toEqual({ driver: "overlayfs" });
 }));
+
+test("proxy origin, preview range and selected mode survive update and rollback",()=>fixture(async(directory,run)=>{
+ const proxy={origin:"https://agent-host.local",previewPorts:{start:41000,end:41009},adminPort:3443};
+ const args=["","","","agent-host",pinned,previous,"","","overlayfs",JSON.stringify(proxy),"proxy"];
+ expect(run("apply",...args).status).toBe(0);
+ expect(JSON.parse(await readFile(join(directory,"supervisor/state.json"),"utf8"))).toMatchObject({proxy,accessMode:"proxy"});
+ expect(run("apply","","","","",pinned,previous,"","","overlayfs").status).toBe(0);
+ expect(JSON.parse(await readFile(join(directory,"supervisor/state.json"),"utf8"))).toMatchObject({proxy,accessMode:"proxy"});
+ for(const invalid of [{...proxy,origin:"https://agent-host.local/path"},{...proxy,adminPort:3001},{...proxy,previewPorts:{start:41010,end:41000}}])expect(run("plan",...args.slice(0,9),JSON.stringify(invalid),"proxy").status).not.toBe(0);
+}));

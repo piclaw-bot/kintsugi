@@ -321,3 +321,25 @@ test("TLS listener setup failure rolls back already-started bindings", () => fix
   const replacement = Bun.serve({ hostname: "127.0.0.1", port, fetch: () => Response.json({}) });
   replacement.stop(true);
 }));
+
+describe("transactional admin bootstrap",()=>{
+ test("commits listener and token together, hashes only and preserves existing tokens",()=>fixture(async({store,directory})=>{
+  const delivered:string[]=[];
+  const result=await store.bootstrap({bindings:[{host:"127.0.0.1",port:3443}],token:{name:"bootstrap",scopes:["host:read"]}},async issued=>{delivered.push(issued.secret);return async()=>{};});
+  expect(result.restartRequired).toBe(true);expect((await store.read()).tokens).toHaveLength(2);
+  expect(await store.authenticate("Bearer "+delivered[0])).toMatchObject({name:"bootstrap"});expect(await readFile(join(directory,"admin-bindings.json"),"utf8")).not.toContain(delivered[0]!);
+ }));
+ test("invalid binding or failed delivery leaves configuration and tokens unchanged",()=>fixture(async({store})=>{
+  const before=await store.read();
+  await expect(store.bootstrap({bindings:[{host:"0.0.0.0",port:3443}],token:{name:"bad",scopes:["host:read"]}},async()=>{throw Error("must not deliver");})).rejects.toThrow("TLS");
+  await expect(store.bootstrap({bindings:[{host:"127.0.0.1",port:3443}],token:{name:"bad",scopes:["host:read"]}},async()=>{throw Error("delivery failed");})).rejects.toThrow("delivery failed");
+  expect(await store.read()).toEqual(before);
+ }));
+ test("CLI refuses existing token output and creates private new output",()=>fixture(async({store,directory})=>{
+  const input=join(directory,"bootstrap.json"), output=join(directory,"issued.json");
+  await writeFile(input,JSON.stringify({bindings:[{host:"127.0.0.1",port:3443}],token:{name:"cli",scopes:["host:read"]}}));
+  await adminBindingsCommand(["bootstrap","--data-dir",directory,"--file",input,"--token-output",output]);
+  expect((await stat(output)).mode & 0o777).toBe(0o600);
+  const before=await store.read();await expect(adminBindingsCommand(["bootstrap","--data-dir",directory,"--file",input,"--token-output",output])).rejects.toThrow();expect(await store.read()).toEqual(before);
+ }));
+});
