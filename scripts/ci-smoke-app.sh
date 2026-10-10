@@ -10,7 +10,7 @@ case "$machine" in x86_64|aarch64) ;; *) exit 1 ;; esac
 command=$(cat <<'SMOKE'
 test "$(uname -m)" = "$1"
 bun --version
-kintsugi-dockerd --version
+kintsugi-dockerd /usr/local/bin/dockerd --version
 bun -e '
   import { existsSync } from "node:fs";
   import { parseAssetManifest } from "./apps/web/src/server/asset-manifest.ts";

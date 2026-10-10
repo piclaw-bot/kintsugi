@@ -64,7 +64,7 @@ jobs:
         with:
           bun-version: 1.4.2
       - name: Restore Bun downloads
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5
         with:
           path: ~/.bun/install/cache
           key: bun-${{ runner.os }}-${{ runner.arch }}-1.4.2-${{ hashFiles('**/bun.lock', 'patches/**') }}
@@ -75,7 +75,7 @@ jobs:
       - name: Lint and type-check
         run: bun run check
       - name: Restore Playwright browsers
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5
         with:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('bun.lock') }}
@@ -96,9 +96,12 @@ jobs:
           if ldd "$browser" | grep 'not found'; then
             bun node_modules/@playwright/test/cli.js install-deps chromium
           fi
-      # Installer tests need chown; HOME keeps the runner's cached browser path.
+          # Root-owned installer fixtures must not change the runner's home.
+          sudo mkdir -p /root/.cache
+          sudo ln -s "$HOME/.cache/ms-playwright" /root/.cache/ms-playwright
+      # Installer tests need chown. Their HOME stays isolated from cache owners.
       - name: Run the full test suite
-        run: sudo --preserve-env=HOME,PATH "$(command -v bun)" run test
+        run: sudo --preserve-env=PATH "$(command -v bun)" run test
       - name: Record verification
         if: always()
         run: |
