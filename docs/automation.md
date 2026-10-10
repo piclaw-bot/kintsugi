@@ -138,9 +138,23 @@ If admission logging fails, the API returns `503 audit_unavailable` **without ex
 For reproducible integration verification on a development machine with Docker, build local app/System/workspace images, then run `bun scripts/verify-admin-bindings-system.ts --app APP_IMAGE --system SYSTEM_IMAGE --workspace WORKSPACE_IMAGE`. It creates a uniquely named disposable System, tests a separate client container, nested CLI, TLS, real System endpoints, startup isolation and stopped-container port persistence, then removes its containers/volume. It never targets an existing installation. It needs several GiB of free disk for the inner image store. This verifies Docker network access, not reachability or firewall policy from a separate physical LAN machine; verify that deployment-specific boundary separately.
 
 Template environment changes still apply to new containers. Existing secret placeholders resolve to rotated credentials on subsequent proxied requests; existing connections may need reconnecting.
+## Tagged releases
+
+Code pushes to `main` and pull requests run checks. Docs-only and `.github`-only changes do not start CI. Tags always run the full checks, even when their commit only changes documentation or workflows. Manual CI remains available.
+
+Create the first release from a committed, verified `main` revision:
+
+```sh
+git push origin main
+git tag -a v0.0.1 -m "Kintsugi v0.0.1"
+git push origin v0.0.1
+```
+
+The Tagged release workflow validates a `vMAJOR.MINOR.PATCH` tag on main, runs full lint/types/tests, then builds and smoke-tests native AMD64/ARM64 images. It publishes all three images with the version tag and creates a GitHub Release only after successful verification. Existing version tags cannot be overwritten with different image digests. Only the newest version tag advances `latest`; `stable` is unchanged. No deployment occurs. Re-run a failed tagged workflow rather than moving its tag.
+
 ## Fork release sources
 
-App updates and the host installer consume the persisted release selection below. Native CI publishes verified Latest app, System and workspace manifests. Upstream-sync automation is not configured. Installer install/update requires a System image carrying `kintsugi.installer-config=1`, built from this branch; an incompatible image is rejected before the existing System is stopped. A retained older System image can still be restored with installer rollback.
+App updates and the host installer consume the persisted release selection below. Only pushed version tags publish verified app, System and workspace manifests; ordinary branch CI never publishes images. Upstream-sync automation is not configured. Installer install/update requires a System image carrying `kintsugi.installer-config=1`, built from this branch; an incompatible image is rejected before the existing System is stopped. A retained older System image can still be restored with installer rollback.
 
 System-managed installations store release selection in `/data/app/update.json`. Stable and Latest explicitly select this fork’s release images; Custom selects the saved Docker repositories and pins. Switching to a standard channel retains the custom source for later use. Existing files with a `releaseSource` show Custom and keep their previous Stable/Latest tag selection. Custom never silently falls back to the default source. Invalid settings disable updates without preventing the app from starting.
 

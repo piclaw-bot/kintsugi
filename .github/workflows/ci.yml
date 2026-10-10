@@ -3,13 +3,28 @@ on:
   push:
     branches:
       - main
+    paths-ignore:
+      - "docs/**"
+      - "notes/**"
+      - ".github/**"
+      - "**/*.md"
+      - "LICENSE"
+      - "NOTICE"
   pull_request:
+    paths-ignore:
+      - "docs/**"
+      - "notes/**"
+      - ".github/**"
+      - "**/*.md"
+      - "LICENSE"
+      - "NOTICE"
+  workflow_call:
   workflow_dispatch:
 permissions:
   contents: read
 concurrency:
   group: "ci-${{ github.ref }}"
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.ref_type != 'tag' }}
 jobs:
   check:
     name: Select / check / test (AMD64)
@@ -19,37 +34,25 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 2
-      - name: Classify changes (unknown changes require all checks)
+      - name: Classify changes (tags and unknown bases require all checks)
         id: changes
         run: |
           base='${{ github.event.pull_request.base.sha || github.event.before }}'
           required=true
-          images=true
           gateway=true
-          if [ '${{ github.event_name }}' != workflow_dispatch ] && [ -n "$base" ] && git fetch --depth=1 origin "$base"; then
+          if [ '${{ github.ref_type }}' != tag ] && [ '${{ github.event_name }}' != workflow_dispatch ] && [ -n "$base" ] && git fetch --depth=1 origin "$base"; then
             git diff --name-only "$base" HEAD > changed-files.txt
             if ! grep -q '^packages/workspace-image/workspace-image/gateway/' changed-files.txt; then gateway=false; fi
             if [ -s changed-files.txt ] && ! grep -q "^docs/deploy-in-workspace/" changed-files.txt && ! grep -Ev '^(docs/|notes/|readme\.md$|AGENTS\.md$|LICENSE$)' changed-files.txt; then
               required=false
             fi
-            if [ -s changed-files.txt ] && ! grep -q "^docs/deploy-in-workspace/" changed-files.txt && ! grep -Ev '^(docs/|notes/|\.github/workflows/ci\.yml$|readme\.md$|AGENTS\.md$|CONTEXT\.md$|acceptance/|scripts/ci-(images(\.test)?\.ts|smoke-app\.sh)$)|(^|/)test/|\.test\.(ts|js|mjs)$' changed-files.txt; then
-              images=false
-            fi
           fi
           {
             echo "required=$required"
-            echo "images=$images"
             echo "gateway=$gateway"
           } >> "$GITHUB_OUTPUT"
           echo "## Check selection" >> "$GITHUB_STEP_SUMMARY"
-          echo "Runtime checks required: $required. Unknown bases run all checks; documentation-only changes skip them." >> "$GITHUB_STEP_SUMMARY"
-          printf '%s\n' "$images" > ci-selection.txt
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
-        if: "github.event_name == 'push'"
-        with:
-          name: ci-selection
-          path: ci-selection.txt
-          retention-days: 1
+          echo "Runtime checks required: $required. Tags and unknown bases run all checks; docs/workflow-only pushes do not trigger CI." >> "$GITHUB_STEP_SUMMARY"
       - name: Validate all workflows
         uses: docker://rhysd/actionlint@sha256:b1934ee5f1c509618f2508e6eb47ee0d3520686341fec936f3b79331f9315667 # v1.7.12
         if: "steps.changes.outputs.required == 'true'"

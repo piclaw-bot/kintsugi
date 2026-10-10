@@ -1,18 +1,15 @@
 name: Native images
 
 on:
-  workflow_dispatch:
-    inputs:
-      publish:
-        description: Publish verified images and advance latest (requires green CI on main)
-        type: boolean
-        default: false
   workflow_call:
     inputs:
       publish:
         type: boolean
         default: false
       revision:
+        type: string
+        default: ''
+      release_tag:
         type: string
         default: ''
 
@@ -49,15 +46,17 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ inputs.revision || github.sha }}
-      - name: Require successful CI at this exact revision
+          fetch-depth: 0
+      - name: Require a versioned release tag
         run: |
+          test '${{ inputs.publish }}' = true
           commit=$(git rev-parse HEAD)
-          if [ '${{ inputs.publish }}' = true ]; then
-            test "$commit" = "$(git ls-remote origin refs/heads/main | cut -f1)"
-          fi
-          curl -fsS -H 'Authorization: Bearer ${{ github.token }}' \
-            'https://api.github.com/repos/${{ github.repository }}/actions/workflows/ci.yml/runs?head_sha='"$commit"'&status=success&per_page=100' \
-            | jq -e --arg sha "$commit" 'any(.workflow_runs[]; .head_sha == $sha and .conclusion == "success")'
+          tag='${{ inputs.release_tag }}'
+          [[ "$tag" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]
+          test '${{ github.ref }}' = "refs/tags/$tag"
+          git fetch --force origin "refs/tags/$tag:refs/tags/$tag" main
+          test "$commit" = "$(git rev-parse "refs/tags/$tag^{commit}")"
+          git merge-base --is-ancestor "$commit" origin/main
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
         with:
           bun-version: 1.4.2
@@ -111,6 +110,9 @@ jobs:
           if [ '${{ steps.workspace.outputs.exists }}' = true ] && [ '${{ steps.system.outputs.exists }}' = true ] && [ '${{ steps.app.outputs.exists }}' = true ]; then
             required=false
             for ref in '${{ steps.workspace.outputs.ref }}' '${{ steps.system.outputs.ref }}' '${{ steps.app.outputs.ref }}'; do
+              bun scripts/ci-images.ts release-check "$ref" '${{ inputs.release_tag }}'
+              bun scripts/ci-images.ts current "$ref" '${{ inputs.release_tag }}' > current-channel.txt
+              if ! grep -qx 'matches=true' current-channel.txt; then required=true; fi
               bun scripts/ci-images.ts current "$ref" > current-channel.txt
               if ! grep -qx 'matches=true' current-channel.txt; then required=true; fi
             done
@@ -426,7 +428,7 @@ jobs:
             });
 
   promote:
-    name: Verify all manifests / promote latest
+    name: Verify manifests / publish version / promote latest
     needs: [prepare, workspace, workspace_manifest, system, images]
     if: >-
       always() && !cancelled() && inputs.publish && needs.prepare.result == 'success' &&
@@ -476,13 +478,26 @@ jobs:
           bun scripts/ci-images.ts verify '${{ needs.prepare.outputs.workspace }}:${{ needs.prepare.outputs.signature }}' com.kintsugi.workspace-image.signature '${{ needs.prepare.outputs.signature }}' > workspace-receipt.txt
           bun scripts/ci-images.ts verify 'ghcr.io/${{ github.repository_owner }}/kintsugi:sha-${{ needs.prepare.outputs.commit }}' org.opencontainers.image.revision '${{ needs.prepare.outputs.commit }}' > app-receipt.txt
           bun scripts/ci-images.ts verify 'ghcr.io/${{ github.repository_owner }}/kintsugi-system:content-${{ needs.prepare.outputs.system_signature }}' com.kintsugi.system.signature '${{ needs.prepare.outputs.system_signature }}' > system-receipt.txt
-      - name: Reject stale publication / promote verified digests
+      - name: Publish immutable version tags / advance latest from newest release
         run: |
-          test '${{ needs.prepare.outputs.commit }}' = "$(git ls-remote origin refs/heads/main | cut -f1)"
+          tag='${{ inputs.release_tag }}'
+          git fetch --force origin 'refs/tags/v*:refs/tags/v*'
+          test '${{ needs.prepare.outputs.commit }}' = "$(git rev-parse "refs/tags/$tag^{commit}")"
+          newest=$(git tag --list 'v*' | grep -E '^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$' | sort -V | tail -1)
+          for kind in workspace app system; do
+            ref=$(sed -n 's/^ref=//p' "$kind-receipt.txt")
+            bun scripts/ci-images.ts release-check "$ref" "$tag"
+          done
           for kind in workspace app system; do
             ref=$(sed -n 's/^ref=//p' "$kind-receipt.txt")
             [[ "$ref" =~ @sha256:[a-f0-9]{64}$ ]]
             repository=${ref%@*}
+            bun scripts/ci-images.ts release "$ref" "$tag"
+            echo "Published $repository:$tag at ${ref#*@}" >> "$GITHUB_STEP_SUMMARY"
+            if [ "$tag" != "$newest" ]; then
+              echo "Older release: latest unchanged." >> "$GITHUB_STEP_SUMMARY"
+              continue
+            fi
             bun scripts/ci-images.ts current "$ref" > current-channel.txt
             if grep -qx 'matches=true' current-channel.txt; then
               echo "$repository:latest already matches the verified digest; skipped." >> "$GITHUB_STEP_SUMMARY"

@@ -1,8 +1,9 @@
 import { expect, test } from "bun:test";
+import { readFileSync } from "node:fs";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { channelMatches, digestValue, sliceReferences, verifiedImage } from "./ci-images.ts";
+import { channelMatches, digestValue, publishVersion, releaseTag, sliceReferences, verifiedImage } from "./ci-images.ts";
 import type { Run } from "./release-support.ts";
 
 const digest = `sha256:${"a".repeat(64)}`;
@@ -89,4 +90,59 @@ test("current channels skip promotion only after a verified digest match", async
 
 test("System reuse requires the installer capability", async () => {
   await expect(verifiedImage(runner({ modifyConfig: value => { value.config.Labels["kintsugi.installer-config"] = "0"; } }), image, "com.kintsugi.system.signature", "signature")).rejects.toThrow("installer capability");
+});
+
+test("release versions are strict stable semantic versions", () => {
+  for (const tag of ["v0.0.1", "v1.2.3", "v10.20.30"]) expect(releaseTag(tag)).toBe(tag);
+  for (const tag of ["latest", "v01.0.1", "v1.2", "v1.2.3-rc.1", "v1.2.3\n", "v1.2.3; echo secret"]) expect(() => releaseTag(tag)).toThrow();
+});
+test("release publication reuses matching versions and rejects overwrites", async () => {
+  await publishVersion(runner(), image + "@" + digest, "v0.0.1");
+  await expect(publishVersion(runner(), image + "@" + amd64, "v0.0.1")).rejects.toThrow("immutable release tag");
+});
+test("version preflight never publishes and registry errors fail closed", async () => {
+  const calls: string[][] = [];
+  const missing: Run = async args => { calls.push(args); return {code: 1, stdout: "", stderr: "manifest unknown"}; };
+  await publishVersion(missing, image + "@" + digest, "v0.0.1", true);
+  expect(calls).toHaveLength(1);
+  await expect(publishVersion(runner({missing: "unauthorized"}), image + "@" + digest, "v0.0.1")).rejects.toThrow();
+});
+test("new version is checked after publication", async () => {
+  let published = false;
+  const base = runner();
+  const run: Run = async (args, options) => {
+    if (args.includes("create")) {published = true; return {code: 0, stdout: "", stderr: ""};}
+    if (!published) return {code: 1, stdout: "", stderr: "manifest unknown"};
+    return base(args, options);
+  };
+  await publishVersion(run, image + "@" + digest, "v0.0.1");
+  expect(published).toBe(true);
+  published = false;
+  await expect(publishVersion(run, image + "@" + amd64, "v0.0.1")).rejects.toThrow("published digest mismatch");
+});
+
+test("only version tags start release CI and publication has no manual bypass", () => {
+  const release = Bun.YAML.parse(readFileSync(new URL("../.github/workflows/release.yml", import.meta.url), "utf8"));
+  const images = Bun.YAML.parse(readFileSync(new URL("../.github/workflows/images.yml", import.meta.url), "utf8"));
+  expect(Object.keys(release.on)).toEqual(["push"]);
+  expect(release.on.push.tags).toEqual(["v*.*.*"]);
+  expect(Object.keys(images.on)).toEqual(["workflow_call"]);
+  expect(release.jobs.checks.needs).toBe("validate");
+  expect(release.jobs.images.needs).toBe("checks");
+  expect(release.jobs.release.needs).toBe("images");
+  expect(release.jobs.images.with.publish).toBe(true);
+  expect(release.concurrency["cancel-in-progress"]).toBe(false);
+});
+test("docs and workflows do not trigger ordinary CI; tags force full checks", () => {
+  const ci = Bun.YAML.parse(readFileSync(new URL("../.github/workflows/ci.yml", import.meta.url), "utf8"));
+  for (const event of [ci.on.push, ci.on.pull_request]) {
+    expect(event["paths-ignore"]).toContain("docs/**");
+    expect(event["paths-ignore"]).toContain(".github/**");
+    expect(event["paths-ignore"]).toContain("**/*.md");
+  }
+  expect(ci.on.push.branches).toEqual(["main"]);
+  expect(ci.on).toHaveProperty("workflow_call");
+  const selection = ci.jobs.check.steps.find((step: { id?: string; run: string }) => step.id === "changes").run;
+  expect(selection).toContain("'${{ github.ref_type }}' != tag");
+  expect(selection).toContain("required=true");
 });

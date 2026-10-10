@@ -55,10 +55,28 @@ export async function verifiedImage(run: Run, ref: string, label: string, expect
   return `${repository}@${digestValue(manifest.digest)}`;
 }
 
-export async function channelMatches(run: Run, ref: string): Promise<boolean> {
+export function releaseTag(value: string): string {
+  if (!/^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$/.test(value)) throw new Error("Expected a release tag such as v0.0.1");
+  return value;
+}
+
+export async function publishVersion(run: Run, ref: string, tag: string, checkOnly = false): Promise<void> {
+  releaseTag(tag);
   const [repository, digest] = ref.split("@");
   digestValue(digest ?? "");
-  const manifest = await inspectImage(run, `${repository}:latest`, true);
+  const existing = await inspectImage(run, `${repository}:${tag}`, true);
+  if (existing && existing.digest !== digest) throw new Error(`${repository}:${tag}: immutable release tag already points to another digest`);
+  if (existing || checkOnly) return;
+  await run(["docker", "buildx", "imagetools", "create", "--tag", `${repository}:${tag}`, ref]);
+  const published = await inspectImage(run, `${repository}:${tag}`);
+  if (published?.digest !== digest) throw new Error(`${repository}:${tag}: published digest mismatch`);
+}
+
+export async function channelMatches(run: Run, ref: string, tag = "latest"): Promise<boolean> {
+  if (tag !== "latest") releaseTag(tag);
+  const [repository, digest] = ref.split("@");
+  digestValue(digest ?? "");
+  const manifest = await inspectImage(run, `${repository}:${tag}`, true);
   return manifest?.digest === digest;
 }
 
@@ -76,8 +94,11 @@ if (import.meta.main) {
     console.log(`exists=${Boolean(ref)}`);
     console.log(`ref=${ref ?? ""}`);
   } else if (command === "current") {
-    if (args.length !== 1) throw new Error("Usage: ci-images.ts current PINNED_REF");
-    console.log(`matches=${await channelMatches(run, args[0]!)}`);
+    if (args.length < 1 || args.length > 2) throw new Error("Usage: ci-images.ts current PINNED_REF [RELEASE_TAG]");
+    console.log(`matches=${await channelMatches(run, args[0]!, args[1])}`);
+  } else if (command === "release" || command === "release-check") {
+    if (args.length !== 2) throw new Error("Usage: ci-images.ts release|release-check PINNED_REF RELEASE_TAG");
+    await publishVersion(run, args[0]!, args[1]!, command === "release-check");
   } else if (command === "merge") {
     if (args.length !== 3) throw new Error("Usage: ci-images.ts merge RECEIPTS IMAGE TAG");
     await run(["docker", "buildx", "imagetools", "create", "--tag", `${args[1]}:${args[2]}`, ...sliceReferences(args[0]!, args[1]!)]);

@@ -11,7 +11,7 @@ This fork adds:
 - Configurable Docker release sources, private GHCR authentication, pinned updates and installer rollback.
 - Word wrapping in the file viewer, including Markdown source mode.
 - GitHub Copilot subscription usage, quota information and calendar-month pacing.
-- Cost-optimised, resource-efficient CI with native AMD64/ARM64 builds, staged checks, shared caches and selective execution.
+- Tag-only releases with native AMD64/ARM64 builds, staged checks, shared caches and selective CI.
 
 The name comes from **金継ぎ**, the Japanese art of repairing pottery with gold, because the original project was a brilliant way to glue together several components and I wanted to honor that approach.
 

@@ -1,0 +1,67 @@
+name: Tagged release
+
+on:
+  push:
+    tags: ['v*.*.*']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    name: Validate release tag
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - name: Require a versioned main commit
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          [[ "$RELEASE_TAG" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]
+          test "$(git rev-parse HEAD)" = "$(git rev-parse "refs/tags/$RELEASE_TAG^{commit}")"
+          git merge-base --is-ancestor HEAD origin/main
+
+  checks:
+    name: Full release checks
+    needs: validate
+    uses: ./.github/workflows/ci.yml
+
+  images:
+    name: Verified native release images
+    needs: checks
+    permissions:
+      contents: read
+      actions: write
+      packages: write
+    uses: ./.github/workflows/images.yml
+    with:
+      publish: true
+      revision: ${{ github.sha }}
+      release_tag: ${{ github.ref_name }}
+
+  release:
+    name: Create GitHub Release
+    needs: images
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Create release after verified publication
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          if gh release view "$RELEASE_TAG"; then
+            echo 'Release already exists; unchanged.' >> "$GITHUB_STEP_SUMMARY"
+          else
+            gh release create "$RELEASE_TAG" --verify-tag --generate-notes --title "Kintsugi $RELEASE_TAG"
+          fi
