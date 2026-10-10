@@ -152,6 +152,8 @@ git push origin v0.0.1
 
 The Tagged release workflow validates a `vMAJOR.MINOR.PATCH` tag on main, runs full lint/types/tests, then builds and smoke-tests native AMD64/ARM64 images. It publishes all three images with the version tag and creates a GitHub Release only after successful verification. Existing version tags cannot be overwritten with different image digests. Only the newest version tag advances `latest`; `stable` is unchanged. No deployment occurs. Re-run a failed tagged workflow rather than moving its tag.
 
+Release [`v0.0.1`](https://github.com/rcarmo/kintsugi/releases/tag/v0.0.1) passed [tagged CI](https://github.com/rcarmo/kintsugi/actions/runs/38062757227): 1,905 tests passed, 39 skipped, and native AMD64/ARM64 image checks passed. All three versioned images and matching `latest` manifests are anonymously pullable and declare EROFS/OverlayFS support. Full OverlayFS lifecycle acceptance on an EROFS-free ARM host has not been verified.
+
 ## Fork release sources
 
 App updates and the host installer consume the persisted release selection below. Only pushed version tags publish verified app, System and workspace manifests; ordinary branch CI never publishes images. Upstream-sync automation is not configured. Installer install/update requires a System image carrying `kintsugi.installer-config=1`, built from this branch; an incompatible image is rejected before the existing System is stopped. A retained older System image can still be restored with installer rollback.
