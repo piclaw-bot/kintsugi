@@ -1,6 +1,7 @@
 import { existsSync } from "node:fs";
 import { chown, mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
+import { readStorageDriver } from "../../../packages/core/src/storage-driver.ts";
 const GiB = 1024 ** 3;
 export function resourcePolicy(memory: number, pids: number) {
   if (memory < 3 * GiB)
@@ -142,6 +143,7 @@ export async function initializeResources() {
   await mkdir("/run/kintsugi-system", { recursive: true });
   await writeFile("/run/kintsugi-system/resources.json", JSON.stringify(result));
   const config = JSON.parse(await readFile("/etc/docker/daemon.json", "utf8"));
+  config["storage-driver"] = await readStorageDriver("/data/supervisor/storage.json");
   config["cgroup-parent"] = result.workloadsCgroupParent;
   config["exec-opts"] = ["native.cgroupdriver=cgroupfs"];
   // Each workspace needs one container address, not Docker's default /16.

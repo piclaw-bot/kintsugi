@@ -4,7 +4,7 @@ import { workspaceImagePreloader } from "./preload.ts";
 import type { WorkspaceImageConfigureEvent } from "./events.ts";
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
-import { KintsugiCoreError, kintsugiDataPath, createProcessFileLock, dockerHostKintsugiDataPath, getKintsugiRuntimeContext, gitHubCredentialHelperShellBody, invalidArguments, isJsonObject, readTextIfExists, requireDocker, runDocker, runDockerBuffer, withManagedDockerCommand, withCommandSignal, waitForCommand, shellQuote, writeJsonAtomic, type KintsugiEventBus, type CommandInput, type JsonObject } from "@kintsugi/core";
+import { assertStorageSupport, readStorageDriver, KintsugiCoreError, kintsugiDataPath, createProcessFileLock, dockerHostKintsugiDataPath, getKintsugiRuntimeContext, gitHubCredentialHelperShellBody, invalidArguments, isJsonObject, readTextIfExists, requireDocker, runDocker, runDockerBuffer, withManagedDockerCommand, withCommandSignal, waitForCommand, shellQuote, writeJsonAtomic, type KintsugiEventBus, type CommandInput, type JsonObject } from "@kintsugi/core";
 import { runHostObservableCommand, stripTerminalControls, tailTerminalText } from "@kintsugi/observable-terminal/server";
 import { errorMessage, isWorkspaceAppPort, workspaceGatewayPort, type WorkspaceGateway, type WorkspaceHttpAppBackend, type WorkspaceServerProvisioningHook } from "@kintsugi/shared";
 import { inspectWorkspaceImage, resolveWorkspaceImage } from "@kintsugi/workspace-image";
@@ -438,7 +438,7 @@ export async function createWorkspace(options: { id: string; events: KintsugiEve
       const sockets = kintsugiDataPath(getKintsugiRuntimeContext(), "workspace-sockets", id);
       await mkdir(sockets, { recursive: true });
       activePlan.mounts.push({ type: "volume", target: "/data" });
-      activePlan.mounts.push({ type: "bind", source: "/data/erofs-cache", target: "/data/erofs-cache", readonly: true });
+      if (await readStorageDriver() === "erofs") activePlan.mounts.push({ type: "bind", source: "/data/erofs-cache", target: "/data/erofs-cache", readonly: true });
       activePlan.mounts.push({ type: "bind", source: dockerHostKintsugiDataPath(getKintsugiRuntimeContext(), "workspace-sockets", id), target: "/run/kintsugi-parent", readonly: true });
       await events.emit("workspace_plan_prepare", { workspaceId: id, init, context, workHostPath: source.worktreePath, workContainerPath: workspaceRoot, plan: activePlan });
       // Host modules authorize seeding before any repository-requested config is exported.
@@ -460,6 +460,10 @@ export async function createWorkspace(options: { id: string; events: KintsugiEve
       await prepareWorkspaceSystemd(activePlan, kintsugiDataPath(getKintsugiRuntimeContext(), "workspaces", id, "systemd"), workspaceInitScript(activePlan));
       const image = activePlan.image;
       if (!image) throw new KintsugiCoreError("workspace_image_missing", "workspace image was not resolved");
+      if (await readStorageDriver() === "overlayfs") {
+        const inspected = JSON.parse((await requireDocker(["image", "inspect", image])).stdout)[0];
+        assertStorageSupport(inspected.Config.Labels, "overlayfs");
+      }
       const container = workspaceContainerName(id);
       await workspaceContainerLifecycle(id, true).snapshot(activePlan.containerFiles);
       await requireDocker(["network", "create", "--driver", "bridge", "--opt", `com.docker.network.bridge.name=${workspaceBridgeName(id)}`, "--label", `${workspaceTypeLabel}=workspace-network`, "--label", `${workspaceIdLabel}=${id}`, workspaceNetworkName(id)]);

@@ -23,6 +23,7 @@ for (const scenario of ["new", "warm", "stopped", "upgrade", "unavailable", "bui
             calls.push(args);
             let stdout = '';
             if(args[0] === '--host') stdout = args.includes('ls') && scenario==='warm' ? 'sha256:base' : '';
+            else if(args[0] === 'run' && args.includes('/etc/containerd/config.toml')) stdout='default = ["erofs", "walking"]';
             else if(args[0] === 'run' && args.includes('--rm')) stdout=JSON.stringify({hosts:['unix:///var/run/docker.sock'],'runtime-setting':'preserved'});
             else if(args[0] === 'ps') stdout = exists ? 'builder-id' : '';
             else if(args[0] === 'inspect') stdout = JSON.stringify([{Config:{Image:scenario==='upgrade'?'old-runtime':${JSON.stringify(runtimeImage)}},State:{Running:scenario!=='stopped'}}]);
@@ -68,7 +69,7 @@ for (const scenario of ["new", "warm", "stopped", "upgrade", "unavailable", "bui
       } else {
         expect(readConfig).toEqual(["run", "--rm", "--network=none", "--entrypoint", "cat", runtimeImage, "/etc/docker/daemon.json"]);
         const daemon = JSON.parse(await readFile(join(control, "daemon.json"), "utf8"));
-        expect(daemon).toEqual({ hosts: ["unix:///control/docker.sock"], "runtime-setting": "preserved" });
+        expect(daemon).toEqual({ hosts: ["unix:///control/docker.sock"], "runtime-setting": "preserved", "storage-driver": "erofs" });
       }
       if (["warm", "stopped"].includes(scenario)) expect(run).toBeUndefined();
       else {

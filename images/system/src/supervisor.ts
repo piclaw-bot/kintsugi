@@ -12,6 +12,7 @@ import { createReleaseRequests, prepareRelease } from "./releases.ts";
 import { Type } from "typebox";
 import { Value } from "typebox/value";
 import { installWorkspaceFirewall, resolverAddresses } from "./firewall.ts";
+import { readStorageDriver, storageContainerdConfig, assertStorageSupport } from "../../../packages/core/src/storage-driver.ts";
 import { filesystemFailure } from "./filesystems.ts";
 import { initializeResources } from "./resources.ts";
 import { spawn, type ChildProcess } from "node:child_process";
@@ -36,6 +37,7 @@ const { values } = parseArgs({
   strict: true,
 });
 let resources: Awaited<ReturnType<typeof initializeResources>>;
+const storageDriver = await readStorageDriver("/data/supervisor/storage.json");
 const timeout = 120_000;
 const stateDir = "/data/supervisor";
 await Promise.all(
@@ -43,7 +45,7 @@ await Promise.all(
     stateDir,
     "/data/app",
     "/data/tailscale",
-    "/data/erofs-cache",
+    ...(storageDriver === "erofs" ? ["/data/erofs-cache"] : []),
     "/run/tailscale",
   ].map((path) => mkdir(path, { recursive: true })),
 );
@@ -212,6 +214,7 @@ async function prepareImage(reference: string, options: { pullApp: boolean; pull
   if (options.pullApp && !(await docker("image", "ls", "-q", reference)))
     await pullImage(reference, "Downloading Kintsugi");
   const image = JSON.parse(await docker("image", "inspect", reference))[0];
+  assertStorageSupport(image.Config.Labels, storageDriver);
   const preload: unknown = JSON.parse(
     image.Config.Labels?.["eagerly-preload"] ?? "[]",
   );
@@ -221,7 +224,8 @@ async function prepareImage(reference: string, options: { pullApp: boolean; pull
     throw new Error("eagerly-preload must be a JSON array of image references");
   for (const ref of preload) {
     if (options.pullDependencies) await pullImage(ref, `Downloading workspace image ${ref}`);
-    else await docker("image", "inspect", ref);
+    const dependency = JSON.parse(await docker("image", "inspect", ref))[0];
+    assertStorageSupport(dependency.Config.Labels, storageDriver);
   }
   return image.Id;
 }
@@ -231,7 +235,11 @@ async function prepareSelectedRelease(reference: string) {
     fetcher: await releaseRegistry.fetcher(),
     pull: reference => pullImage(reference, "Downloading release image"),
     tag: async (pinned, alias) => { await docker("tag", pinned, alias); },
-    inspect: reference => docker("image", "inspect", "--format", "{{.Id}}", reference),
+    inspect: async reference => {
+      const image = JSON.parse(await docker("image", "inspect", reference))[0];
+      assertStorageSupport(image.Config.Labels, storageDriver);
+      return image.Id;
+    },
   });
 }
 const releaseRequests = createReleaseRequests({
@@ -338,7 +346,8 @@ async function replace(request: Replacement) {
       "--mount",
       "type=bind,src=/data/app,dst=/data/app",
       "--mount",
-      "type=bind,src=/data/erofs-cache,dst=/data/erofs-cache",
+      "type=bind,src=/run/kintsugi-system/storage.json,dst=/etc/kintsugi/storage.json,readonly",
+      ...(storageDriver === "erofs" ? ["--mount", "type=bind,src=/data/erofs-cache,dst=/data/erofs-cache"] : []),
       "--mount",
       "type=bind,src=/var/run/docker.sock,dst=/var/run/docker.sock",
       "--mount",
@@ -715,7 +724,7 @@ process.on("SIGINT", () => {
 });
 async function initialize() {
   stage("Checking Docker host requirements");
-  failure = filesystemFailure(await readFile("/proc/filesystems", "utf8"));
+  failure = filesystemFailure(await readFile("/proc/filesystems", "utf8"), storageDriver);
   if (failure) {
     log(failure);
     return;
@@ -726,8 +735,10 @@ async function initialize() {
   await installWorkspaceFirewall(resources.buildClientsCgroupParent, resolverAddresses(await readFile("/etc/resolv.conf", "utf8")));
   // Privileged containers only copy device nodes the host /dev already has; some
   // VMs lack loop-control until first use. Opening it autoloads the loop driver.
-  if (!existsSync("/dev/loop-control")) await command(["mknod", "-m", "0660", "/dev/loop-control", "c", "10", "237"]);
-  daemon(["containerd", "--config", "/etc/containerd/config.toml"]);
+  if (storageDriver === "erofs" && !existsSync("/dev/loop-control")) await command(["mknod", "-m", "0660", "/dev/loop-control", "c", "10", "237"]);
+  await writeFile("/run/kintsugi-system/storage.json", JSON.stringify({ driver: storageDriver }));
+  await writeFile("/run/kintsugi-system/containerd.toml", storageContainerdConfig(await readFile("/etc/containerd/config.toml", "utf8"), storageDriver));
+  daemon(["containerd", "--config", "/run/kintsugi-system/containerd.toml"]);
   await waitFor(
     async () => {
       try {

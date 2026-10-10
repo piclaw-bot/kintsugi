@@ -1,3 +1,4 @@
+import { readStorageDriver, assertStorageSupport } from "@kintsugi/core";
 import { resolveImage, type PlannedImage } from "./registry.ts";
 import { readFile } from "node:fs/promises";
 import { request } from "node:http";
@@ -124,8 +125,10 @@ export async function prepareUpdate(reference: string, progress: (progress: Pull
   progress({ kind: "progress", percent: 99, message: "Finalizing…" });
   const appReference = aliases.get(reference)!;
   const appImage = await inspect(appReference);
+  const storageDriver = await readStorageDriver();
+  assertStorageSupport(appImage.Config?.Labels, storageDriver);
   for (const image of images.values()) {
-    if (image.reference !== appReference) await inspect(image.reference);
+    if (image.reference !== appReference) assertStorageSupport((await inspect(image.reference)).Config?.Labels, storageDriver);
   }
   // Keep declared mutable names usable by workspace creation, but only after all pulls succeed.
   for (const [alias, pinned] of aliases) {

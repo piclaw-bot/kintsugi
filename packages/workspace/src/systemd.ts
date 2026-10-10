@@ -1,5 +1,6 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
+import { readStorageDriver } from "@kintsugi/core";
 import type { WorkspaceDockerPlan } from "./types.ts";
 
 /** Snapshot Docker support and setup; runtime units are owned by the image. */
@@ -11,6 +12,7 @@ export async function prepareWorkspaceSystemd(plan: WorkspaceDockerPlan, directo
   const configuration = join(directory, "kintsugi");
   await mkdir(configuration, { recursive: true });
   await writeFile(join(configuration, "docker-support"), `${plan.privileged ? "enabled" : "disabled"}\n${plan.dockerSupportSettingsUrl ?? ""}\n`);
+  await writeFile(join(configuration, "storage.json"), JSON.stringify({ driver: await readStorageDriver() }));
   // docker cp cannot create a file's missing parent directory in a stopped container.
   // Copy the directory into /etc so provisioning owns its creation, too.
   plan.containerFiles.push({ source: configuration, target: "/etc" });

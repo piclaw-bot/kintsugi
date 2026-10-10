@@ -306,8 +306,9 @@ test("cache waiters receive shared progress and cancellation detaches their repo
   const controller = new AbortController();
   const first = withCommandSignal(controller.signal, () => preloader.install(images, "one", detail => details.push(detail), progress => firstProgress.push(progress))).catch(error => error);
   await started.promise;
-  const second = preloader.install(images, "two", () => {}, progress => secondProgress.push(progress));
-  await new Promise<void>(resolve => setImmediate(resolve));
+  const attached = deferred();
+  const second = preloader.install(images, "two", () => {}, progress => { secondProgress.push(progress); attached.resolve(); });
+  await attached.promise;
   expect(secondProgress).toContainEqual({ terminalSession: "kintsugi-provision-image-cache-shared", output: undefined });
   controller.abort(new Error("cancelled"));
   expect(await first).toMatchObject({ message: "cancelled" });

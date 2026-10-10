@@ -9,7 +9,9 @@ import { Value } from "typebox/value";
 import { parseArgs } from "node:util";
 import { createAdminStore, adminScopes } from "../apps/web/src/server/admin/store.ts";
 
-const { values } = parseArgs({ options: { app: { type: "string", default: "kintsugi-admin:local" }, system: { type: "string", default: "kintsugi-system:admin-local" }, workspace: { type: "string" }, "release-updates": { type: "boolean", default: false }, "installer-system": { type: "string" } } });
+const { values } = parseArgs({ options: { app: { type: "string", default: "kintsugi-admin:local" }, system: { type: "string", default: "kintsugi-system:admin-local" }, workspace: { type: "string" }, "release-updates": { type: "boolean", default: false }, "installer-system": { type: "string" }, "storage-driver": { type: "string", default: "erofs" } } });
+const storageDriver = values["storage-driver"]!;
+if (storageDriver !== "erofs" && storageDriver !== "overlayfs") throw new Error("Unsupported storage driver");
 const name = `kintsugi-admin-integration-${crypto.randomUUID().slice(0, 8)}`;
 const volume = name;
 const fixtureApp = `${name}:app`;
@@ -39,7 +41,8 @@ try {
   const issued = await store.issue({ name: "integration", scopes: [...adminScopes] });
   const cert = await readFile(join(directory, "cert.pem"), "utf8");
   // Start only dockerd for preloading, as in the existing System bootstrap test.
-  await run(["docker", "run", "-d", "--name", name, "--privileged", "--cgroupns=host", "--tmpfs", "/run", "--mount", `source=${volume},target=/data`, "--entrypoint", "/usr/local/bin/kintsugi-dockerd", values.system!, "dockerd"]);
+  const bootstrap = `import {readFile,writeFile,mkdir} from "node:fs/promises";const driver=${JSON.stringify(storageDriver)};const path="/etc/docker/daemon.json";const config=JSON.parse(await readFile(path,"utf8"));config["storage-driver"]=driver;await writeFile(path,JSON.stringify(config));if(driver==="overlayfs"){const path="/etc/containerd/config.toml";await writeFile(path,(await readFile(path,"utf8")).replace('default = ["erofs", "walking"]','default = ["walking"]'));}await mkdir("/data/supervisor",{recursive:true});await writeFile("/data/supervisor/storage.json",JSON.stringify({driver}));`;
+  await run(["docker", "run", "-d", "--name", name, "--label", `kintsugi.storage-driver=${storageDriver}`, "--privileged", "--cgroupns=host", "--tmpfs", "/run", "--mount", `source=${volume},target=/data`, "--entrypoint", "/bin/sh", values.system!, "-ec", 'bun -e "$1"; exec /usr/local/bin/kintsugi-dockerd dockerd', "bootstrap", bootstrap]);
   await until(async () => (await exec("docker", "info").then(() => true, () => false)), "inner Docker daemon");
   const save = Bun.spawn(["docker", "save", values.app!, workspaceImage], { stdout: "pipe", stderr: "pipe" });
   const load = Bun.spawn(["docker", "exec", "-i", name, "docker", "load"], { stdin: save.stdout, stdout: "pipe", stderr: "pipe" });
@@ -53,10 +56,11 @@ try {
   await exec("chown", "-R", "1000:1000", "/data/app");
   await exec("chmod", "700", "/data/app/admin-tls");
   await run(["docker", "stop", "--time", "60", name]); await run(["docker", "rm", name]);
-  await run(["docker", "run", "-d", "--name", name, "--privileged", "--cgroupns=host", "--tmpfs", "/run", "--publish", `127.0.0.1:${hostPort}:3443`, "--publish", `127.0.0.1:${hostPort + 1}:3080`, "--mount", `source=${volume},target=/data`, values.system!, "--app-image", fixtureApp, "--access-mode", "localhost"]);
+  await run(["docker", "run", "-d", "--name", name, "--label", `kintsugi.storage-driver=${storageDriver}`, "--privileged", "--cgroupns=host", "--tmpfs", "/run", "--publish", `127.0.0.1:${hostPort}:3443`, "--publish", `127.0.0.1:${hostPort + 1}:3080`, "--mount", `source=${volume},target=/data`, values.system!, "--app-image", fixtureApp, "--access-mode", "localhost"]);
   const localPort = Number(await run(["docker", "inspect", "--format", '{{(index (index .HostConfig.PortBindings "3080/tcp") 0).HostPort}}', name]));
   await until(async () => (await exec("bun", "-e", `const r=await fetch("http://127.0.0.1:3001/access",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({mode:"localhost",localPort:${localPort}})});process.exit(r.ok?0:1);`).then(() => true, () => false)), "installer local-port registration");
   await until(async () => (await exec("bun", "-e", 'const r=await fetch("http://127.0.0.1:3001/status");process.exit((await r.json()).healthy?0:1)').then(() => true, () => false)), "real System app health");
+  assert.equal(await exec("docker", "info", "--format", "{{.Driver}}"), storageDriver);
   const mappingTemplate = '{{range $port, $bindings := .HostConfig.PortBindings}}{{if ne $port "3080/tcp"}}{{range $bindings}}{{.HostIp}}:{{.HostPort}}:{{$port}}{{println}}{{end}}{{end}}{{end}}';
   const mapping = await run(["docker", "inspect", "--format", mappingTemplate, name]);
   const port = Number(mapping.split(":")[1]);
@@ -153,6 +157,27 @@ try {
     assert.equal(restored.currentImage, originalApp); assert.equal(restored.healthy, true);
     console.log("PASS: real host installer pins and replaces System/app, preserves fork source/admin ports/hostname, and restores the retained pair without registry pulls");
   }
+  if (storageDriver === "overlayfs") {
+    assert.equal(await exec("docker", "exec", "kintsugi", "cat", "/etc/kintsugi/storage.json"), '{"driver":"overlayfs"}');
+    const mounts = JSON.parse(await exec("docker", "inspect", "kintsugi"))[0].Mounts;
+    assert(!mounts.some((mount: { Destination: string }) => mount.Destination === "/data/erofs-cache"));
+    const created = await api("/workspaces", "POST", JSON.stringify({ source: { type: "empty" }, title: "OverlayFS acceptance" }));
+    assert.equal(created.status, 202);
+    const workspaceId = created.body.workspace.id;
+    await until(async () => {
+      const current = await api(`/workspaces/${workspaceId}`);
+      const phase = current.body.workspace.phase;
+      if (phase.status === "failed") throw new Error("OverlayFS workspace provisioning failed");
+      return phase.kind === "runningPhase";
+    }, "real OverlayFS workspace", 900_000);
+    const container = await exec("docker", "ps", "-aq", "--filter", `label=com.kintsugi.workspace-id=${workspaceId}`);
+    assert(container);
+    const workspaceMounts = JSON.parse(await exec("docker", "inspect", container))[0].Mounts;
+    assert(!workspaceMounts.some((mount: { Destination: string }) => mount.Destination === "/data/erofs-cache"));
+    assert.equal(await exec("docker", "exec", container, "cat", "/etc/kintsugi/storage.json"), '{"driver":"overlayfs"}');
+    assert.equal((await api(`/workspaces/${workspaceId}/delete?force=1`, "POST", "{}")).status, 200);
+    console.log("PASS: OverlayFS selection survives System update/rollback, reaches the app/workspace, and omits EROFS mounts");
+  }
   const cli = JSON.parse(await exec("docker", "exec", "--user", "1000:1000", "kintsugi", "bun", "/app/apps/web/scripts/admin-bindings.ts", "show"));
   assert.equal(cli.tokens.length, 1);
   // Deliberately corrupt optional configuration, then verify real UI health after app restart.
@@ -162,6 +187,10 @@ try {
   await run(["docker", "stop", "--time", "60", name]);
   assert.equal(await run(["docker", "inspect", "--format", mappingTemplate, name]), mapping, "persistent mappings survive stopped System");
   console.log("PASS: real System, TLS publication, separate client container, nested CLI, access/status/diagnostics, global settings JSON CRUD, startup isolation, stopped-container publication persistence");
+} catch (error) {
+  console.error(await run(["docker", "logs", "--tail", "100", name]).catch(() => "System logs unavailable"));
+  console.error(await exec("docker", "logs", "--tail", "60", "kintsugi").catch(() => "App logs unavailable"));
+  throw error;
 } finally {
   await run(["docker", "rm", "-f", name]).catch(() => {});
   await run(["docker", "volume", "rm", volume]).catch(() => {});

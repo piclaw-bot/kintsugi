@@ -17,6 +17,27 @@ with open('/.kintsugi/environment', 'w', opener=lambda path, flags: os.open(path
             escaped = value.replace('\\', '\\\\').replace('"', '\\"').replace('`', '\\`').replace('$', '\\$')
             file.write(f'{key}="{escaped}"\n')
 PY
+# Configure the private daemon before systemd can activate either service.
+python3 - <<'PY'
+import json, os
+path = '/etc/kintsugi/storage.json'
+driver = json.load(open(path))['driver'] if os.path.exists(path) else 'erofs'
+if driver not in ('erofs', 'overlayfs'):
+    raise ValueError('Invalid storage driver')
+if driver == 'overlayfs':
+    path = '/etc/docker/daemon.json'
+    config = json.load(open(path))
+    config['storage-driver'] = driver
+    with open(path, 'w') as file:
+        json.dump(config, file)
+    path = '/etc/containerd/config.toml'
+    config = open(path).read()
+    original = 'default = ["erofs", "walking"]'
+    if original not in config and 'default = ["walking"]' not in config:
+        raise ValueError('Unsupported containerd differ configuration')
+    with open(path, 'w') as file:
+        file.write(config.replace(original, 'default = ["walking"]'))
+PY
 read -r docker_support < /etc/kintsugi/docker-support
 case "$docker_support" in
     enabled)

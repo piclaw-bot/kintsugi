@@ -146,6 +146,7 @@ async function hashContext(directory, prefix = "") {
 }
 await hashContext(outDir);
 const signature = hash.digest("hex").slice(0, 16);
+dockerfile += `LABEL kintsugi.storage-drivers="erofs,overlayfs"\n`;
 dockerfile += `LABEL com.kintsugi.workspace-image.signature=${quote(signature)}\n`;
 await writeFile(join(outDir, "Dockerfile"), dockerfile);
 await writeFile(join(outDir, "metadata.json"), `${JSON.stringify({ tag: `kintsugi-workspace:${signature}`, modules: moduleNames }, null, 2)}\n`);

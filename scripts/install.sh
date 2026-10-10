@@ -17,6 +17,8 @@ access_mode=""
 admin_publish=()
 admin_publish_disabled=0
 admin_allow_all=0
+storage_driver="erofs"
+storage_override=""
 system_name=kintsugi-system
 
 # Keep subprocess output available without turning the welcome into a log tail.
@@ -135,6 +137,7 @@ Update also installs the newest Kintsugi app on the installation's selected chan
   --source-repository REPO  App repository (GHCR or Docker Hub); System defaults to REPO-system
   --tailscale-hostname NAME  Tailscale machine name (prompted on setup)
   --registry-config FILE  Docker config with inline GHCR auth; copied privately into System
+  --storage-driver MODE  erofs (default) or overlayfs; selected on fresh install, retained on update
   --access-mode MODE  localhost or tailscale (default selected for this machine)
   --admin-publish IP:HOST_PORT:ADMIN_PORT  Publish an admin listener (repeatable; TLS/token setup separate)
   --no-admin-publish   Remove all admin port publications on install/update
@@ -152,13 +155,14 @@ HELP
 
 while [ "$#" -gt 0 ]; do
   case "$1" in
-    --system-image|--app-image|--action|--access-mode|--source-repository|--tailscale-hostname|--registry-config)
+    --system-image|--app-image|--action|--access-mode|--source-repository|--tailscale-hostname|--registry-config|--storage-driver)
       [ "$#" -ge 2 ] && [ -n "$2" ] || fail "$1 requires a value"
       case "$1" in
         --system-image) system_image="$2"; system_image_override="$2" ;;
         --app-image) app_image="$2"; app_image_override="$2" ;;
         --source-repository) source_repository="$2" ;;
         --tailscale-hostname) tailscale_hostname="$2" ;;
+        --storage-driver) storage_override="$2"; storage_driver="$2" ;;
         --registry-config) registry_config="$2" ;;
         --action) action="$2" ;;
         --access-mode) access_mode="$2" ;;
@@ -180,6 +184,7 @@ if [ "$uninstall_requested" -eq 1 ]; then
 fi
 case "$action" in ""|install|update|rollback|connect|open|uninstall) ;; *) fail "unknown action: $action" ;; esac
 case "$access_mode" in ""|localhost|tailscale) ;; *) fail "unknown access mode: $access_mode" ;; esac
+case "$storage_driver" in erofs|overlayfs) ;; *) fail "Storage driver must be erofs or overlayfs" ;; esac
 for reference in "$app_image_override" "$system_image_override"; do
   [ -z "$reference" ] || [[ "$reference" =~ ^[a-zA-Z0-9][a-zA-Z0-9._/:@-]*$ ]] || fail "Invalid explicit image reference"
 done
@@ -266,11 +271,21 @@ if [ "$host_os" = Linux ] && [ "$(id -u)" -ne 0 ] && ! docker info >>"$log_file"
 fi
 run_quiet "Checking Docker" docker info
 
+installed=0
+if docker container inspect "$system_name" >/dev/null 2>&1; then installed=1; fi
+if [ "$installed" -eq 1 ]; then
+  saved_storage_driver="$(docker inspect --format '{{index .Config.Labels "kintsugi.storage-driver"}}' "$system_name")"
+  case "$saved_storage_driver" in ""|"<no value>") saved_storage_driver=erofs ;; erofs|overlayfs) ;; *) fail "Invalid saved storage driver" ;; esac
+  [ -z "$storage_override" ] || [ "$storage_override" = "$saved_storage_driver" ] || fail "Cannot change an existing installation's storage driver; use a fresh installation"
+  storage_driver="$saved_storage_driver"
+fi
 # Nested daemons share the host kernel; privileged containers cannot supply
 # filesystem drivers missing from that kernel.
 if [ "$action" != uninstall ] && [ "$host_os" = Linux ] && [ "$desktop" -eq 0 ]; then
   request_root
-  for filesystem in erofs overlay; do
+  filesystems=(overlay)
+  if [ "$storage_driver" = erofs ]; then filesystems=(erofs overlay); fi
+  for filesystem in "${filesystems[@]}"; do
     if ! grep -qw "$filesystem" /proc/filesystems; then
       if ! command -v modprobe >/dev/null || ! run_root modprobe "$filesystem"; then
         fail "The Linux kernel that powers your Docker does not have $filesystem, which Kintsugi requires."
@@ -279,11 +294,9 @@ if [ "$action" != uninstall ] && [ "$host_os" = Linux ] && [ "$desktop" -eq 0 ];
     fi
   done
   run_root mkdir -p /etc/modules-load.d
-  printf 'erofs\noverlay\n' | run_root tee /etc/modules-load.d/kintsugi-system.conf >/dev/null
+  printf '%s\n' "${filesystems[@]}" | run_root tee /etc/modules-load.d/kintsugi-system.conf >/dev/null
 fi
 
-installed=0
-if docker container inspect "$system_name" >/dev/null 2>&1; then installed=1; fi
 # Upstream installations belong to their own installer; never delete their data.
 if [ "$action" = uninstall ]; then
   new_volume="$(docker volume ls --format '{{.Name}}' --filter "name=^${system_name}$")"
@@ -548,13 +561,17 @@ if [ -n "$source_repository$tailscale_hostname$registry_config$app_image_overrid
   case "$action" in install|update) ;; *) fail "Source, hostname, registry and image options require install or update" ;; esac
 fi
 
+if [ -n "$storage_override" ]; then
+  case "$action" in install|update|rollback) ;; *) fail "--storage-driver requires install, update or rollback" ;; esac
+fi
+
 if [ "${#admin_publish[@]}" -gt 0 ] || [ "$admin_publish_disabled" -eq 1 ] || [ "$admin_allow_all" -eq 1 ]; then
   case "$action" in install|update) ;; *) fail "Admin publication options require --action install or update; Docker ports require container replacement" ;; esac
 fi
 
 # This portable Bun helper also runs in older System images, without app/module dependencies.
 release_config_script="$(cat <<'INSTALLER_CONFIG_JS'
-const [operation, sourceOverride, appOverride, systemOverride, hostnameOverride, systemId, preparedApp, credentialFile, previousSystemId] = process.argv.slice(1);
+const [operation, sourceOverride, appOverride, systemOverride, hostnameOverride, systemId, preparedApp, credentialFile, previousSystemId, storageOverride] = process.argv.slice(1);
 const fs = await import('node:fs/promises');
 const repositoryPattern = /^(?:ghcr\.io|docker\.io)\/[a-z0-9]+(?:[._-][a-z0-9]+)*\/[a-z0-9]+(?:[._/-][a-z0-9]+)*$/;
 const versionPattern = /^(?:[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}|sha256:[a-f0-9]{64})$/;
@@ -567,6 +584,13 @@ async function read(path) {
 let settings = await read('/data/app/update.json');
 const state = await read('/data/supervisor/state.json');
 const history = await read('/data/supervisor/installer.json');
+let storage;
+try {
+  storage = JSON.parse(await fs.readFile('/data/supervisor/storage.json','utf8'));
+  if (!storage || typeof storage !== 'object' || Array.isArray(storage) || Object.keys(storage).length !== 1 || !['erofs','overlayfs'].includes(storage.driver)) throw Error('Invalid storage settings');
+} catch(error) { if(error.code !== 'ENOENT') throw Error('Cannot read storage settings; nothing was replaced'); }
+const storageDriver = storageOverride || storage?.driver || 'erofs';
+if (!['erofs','overlayfs'].includes(storageDriver) || (storage && storage.driver !== storageDriver)) throw Error('Invalid or changed storage driver; nothing was replaced');
 if (settings.releaseChannel !== undefined && !['stable','latest'].includes(settings.releaseChannel)) throw Error('Invalid release channel');
 if (settings.releaseMode !== undefined && !['upstream','custom'].includes(settings.releaseMode)) throw Error('Invalid release mode');
 function validSource(source) {
@@ -639,6 +663,7 @@ if (operation === 'auth-check') {
   if (preparedApp && !imageIdPattern.test(preparedApp)) throw Error('App must be pinned before replacement');
   await fs.mkdir('/data/app', {recursive:true}); await fs.mkdir('/data/supervisor', {recursive:true});
   await write('/data/app/update.json',settings,true);
+  await write('/data/supervisor/storage.json',{driver:storageDriver},false);
   state.tailscaleHostname = hostname;
   const previousAppImage = state.currentImage ?? null;
   if (operation === 'rollback-apply') {
@@ -654,9 +679,9 @@ INSTALLER_CONFIG_JS
 )"
 release_plan() {
   if [ -n "$registry_directory" ]; then
-    docker run --rm -i --network none --entrypoint bun --mount "source=$system_name,target=/data,readonly" "$1" -e "$release_config_script" "${2:-plan}" "$source_repository" "$app_image_override" "$system_image_override" "$tailscale_hostname" "" "" - < "$registry_directory/config.json"
+    docker run --rm -i --network none --entrypoint bun --mount "source=$system_name,target=/data,readonly" "$1" -e "$release_config_script" "${2:-plan}" "$source_repository" "$app_image_override" "$system_image_override" "$tailscale_hostname" "" "" - "" "$storage_driver" < "$registry_directory/config.json"
   else
-    docker run --rm --network none --entrypoint bun --mount "source=$system_name,target=/data,readonly" "$1" -e "$release_config_script" "${2:-plan}" "$source_repository" "$app_image_override" "$system_image_override" "$tailscale_hostname"
+    docker run --rm --network none --entrypoint bun --mount "source=$system_name,target=/data,readonly" "$1" -e "$release_config_script" "${2:-plan}" "$source_repository" "$app_image_override" "$system_image_override" "$tailscale_hostname" "" "" "" "" "$storage_driver"
   fi
 }
 host_pull() {
@@ -665,6 +690,9 @@ host_pull() {
 prepare_installed_app() {
   docker exec "$system_name" bun -e '
     const reference=process.argv[1];
+    const driver=process.argv[2];
+    const rollback=process.argv[3]==="rollback";
+    function compatible(image) { if(driver==="overlayfs" && !image.Config.Labels?.["kintsugi.storage-drivers"]?.split(",").includes(driver)) throw Error("Image does not support overlayfs; existing services were retained"); }
     async function docker(...args) {
       const p=Bun.spawn(["docker","--config","/data/supervisor/docker-auth",...args],{stdout:"pipe",stderr:"pipe"});
       const deadline=setTimeout(()=>p.kill(),1800000);
@@ -673,16 +701,17 @@ prepare_installed_app() {
       if(code!==0)throw new Error("Cannot prepare the selected app or its dependencies; existing services were retained");
       return out.trim();
     }
-    if(/^(ghcr\.io|docker\.io)\//.test(reference)) await docker("pull",reference);
+    if(!rollback && /^(ghcr\.io|docker\.io)\//.test(reference)) await docker("pull",reference);
     const image=JSON.parse(await docker("image","inspect",reference))[0];
+    compatible(image);
     const dependencies=JSON.parse(image.Config.Labels?.["eagerly-preload"]??"[]");
     if(!Array.isArray(dependencies)||dependencies.length>100||dependencies.some(ref=>typeof ref!=="string"||! /^[a-zA-Z0-9][a-zA-Z0-9._/:@-]*$/.test(ref)))throw new Error("Invalid workspace dependency references");
     for(const dependency of dependencies){
-      if(/^(ghcr\.io|docker\.io)\//.test(dependency))await docker("pull",dependency);
-      else await docker("image","inspect",dependency);
+      if(!rollback && /^(ghcr\.io|docker\.io)\//.test(dependency))await docker("pull",dependency);
+      compatible(JSON.parse(await docker("image","inspect",dependency))[0]);
     }
     console.log(image.Id);
-  ' "$app_image"
+  ' "$app_image" "$storage_driver" "$action"
 }
 
 case "$action" in
@@ -779,6 +808,10 @@ case "$action" in
       capability="$(docker image inspect --format '{{index .Config.Labels "kintsugi.installer-config"}}' "$system_image")"
       [ "$capability" = 1 ] || fail "The selected System image does not support this installer. Use a System image built from the fork release-source branch; nothing was replaced"
     fi
+    if [ "$storage_driver" = overlayfs ]; then
+      storage_capability="$(docker image inspect --format '{{index .Config.Labels "kintsugi.storage-drivers"}}' "$system_image")"
+      [[ ",$storage_capability," == *,overlayfs,* ]] || fail "The selected System image does not support overlayfs; nothing was replaced"
+    fi
     # Validate the persisted plan with the exact selected image before stopping anything.
     plan="$(release_plan "$system_image" "${plan_operation:-plan}" 2>>"$log_file")" || fail "The selected System image cannot validate this installation"
     plan_fields=(); while IFS= read -r field; do plan_fields+=("$field"); done <<<"$plan"
@@ -789,10 +822,14 @@ case "$action" in
         run_quiet "Starting System to prepare the selected app" docker start "$system_name"
       fi
       if [ -n "$registry_directory" ]; then
-        run_quiet "Preparing private registry access" docker run --rm -i --network none --entrypoint bun --mount "source=$system_name,target=/data" "$system_image" -e "$release_config_script" credentials "$source_repository" "$app_image_override" "$system_image_override" "$tailscale_hostname" "" "" - < "$registry_directory/config.json"
+        run_quiet "Preparing private registry access" docker run --rm -i --network none --entrypoint bun --mount "source=$system_name,target=/data" "$system_image" -e "$release_config_script" credentials "$source_repository" "$app_image_override" "$system_image_override" "$tailscale_hostname" "" "" - "" "$storage_driver" < "$registry_directory/config.json"
       fi
       if [ "$action" = rollback ]; then
         pinned_app="$app_image"
+        if [ "$storage_driver" = overlayfs ]; then
+          [ "$(docker inspect --format '{{.State.Running}}' "$system_name")" = true ] || run_quiet "Starting System to validate rollback images" docker start "$system_name"
+          pinned_app="$(prepare_installed_app 2>>"$log_file")" || fail "Previous images do not support overlayfs; nothing was replaced"
+        fi
       else
         for ((attempt=0; attempt<60; attempt++)); do
           if docker exec "$system_name" docker info >>"$log_file" 2>&1; then break; fi
@@ -809,12 +846,12 @@ case "$action" in
     fi
     apply_operation=apply; if [ "$action" = rollback ]; then apply_operation=rollback-apply; fi
     if [ -n "$registry_directory" ]; then
-      run_quiet "Saving installation source and hostname" docker run --rm -i --network none --entrypoint bun --mount "source=$system_name,target=/data" "$system_image" -e "$release_config_script" "$apply_operation" "$source_repository" "$app_image_override" "$system_image_override" "$tailscale_hostname" "$system_image" "$pinned_app" - "$old_system_image" < "$registry_directory/config.json"
+      run_quiet "Saving installation source and hostname" docker run --rm -i --network none --entrypoint bun --mount "source=$system_name,target=/data" "$system_image" -e "$release_config_script" "$apply_operation" "$source_repository" "$app_image_override" "$system_image_override" "$tailscale_hostname" "$system_image" "$pinned_app" - "$old_system_image" "$storage_driver" < "$registry_directory/config.json"
     else
-      run_quiet "Saving installation source and hostname" docker run --rm --network none --entrypoint bun --mount "source=$system_name,target=/data" "$system_image" -e "$release_config_script" "$apply_operation" "$source_repository" "$app_image_override" "$system_image_override" "$tailscale_hostname" "$system_image" "$pinned_app" "" "$old_system_image"
+      run_quiet "Saving installation source and hostname" docker run --rm --network none --entrypoint bun --mount "source=$system_name,target=/data" "$system_image" -e "$release_config_script" "$apply_operation" "$source_repository" "$app_image_override" "$system_image_override" "$tailscale_hostname" "$system_image" "$pinned_app" "" "$old_system_image" "$storage_driver"
     fi
     stop_on_failure=1
-    run_quiet "Starting Kintsugi services" docker run -d --name "$system_name" --hostname "$tailscale_hostname" --privileged --cgroupns=host --restart unless-stopped \
+    run_quiet "Starting Kintsugi services" docker run -d --name "$system_name" --label "kintsugi.storage-driver=$storage_driver" --hostname "$tailscale_hostname" --privileged --cgroupns=host --restart unless-stopped \
       --stop-timeout 120 --tmpfs /run --mount "source=$system_name,target=/data" --publish 127.0.0.1:3080:3080 "${admin_port_args[@]}" \
       "$system_image" --app-image "$app_image" --access-mode "${access_mode:-tailscale}"
     ;;

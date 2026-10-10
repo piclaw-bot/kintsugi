@@ -4,7 +4,11 @@
 
 Kintsugi is an opinionated fork of [AgentsInTheCloud](https://github.com/lucasmeijer/AgentsInTheCloud), originally created by Lucas Meijer. It runs coding agents on your own infrastructure, with your choice of model providers and tools for evaluating their work.
 
-This fork adds an embedded Draw.io editor and diagram previews, a scoped management API, configurable Docker release sources, private GHCR authentication, pinned updates and installer rollback. It also adds a cost-optimised, resource-efficient CI workflow with native AMD64/ARM64 builds, staged checks, shared caches and selective execution.
+This fork adds an embedded Draw.io editor and diagram previews, a scoped management API, configurable Docker release sources, private GHCR authentication, pinned updates and installer rollback.
+
+It also removes the original's EROFS requirement with an opt-in OverlayFS fallback for minimal host kernels and ARM systems whose kernels omit EROFS.
+
+Finally, it adds a cost-optimised, resource-efficient CI workflow with native AMD64/ARM64 builds, staged checks, shared caches and selective execution.
 
 The name comes from **金継ぎ**, the Japanese art of repairing pottery with gold, because the original project was a brilliant way to glue together several components and I wanted to honor that approach.
 
@@ -16,6 +20,14 @@ Use a dedicated Linux server with Docker. The installer defaults to `ghcr.io/rca
 curl -fsSL https://raw.githubusercontent.com/rcarmo/kintsugi/main/scripts/install.sh -o /tmp/install-kintsugi.sh
 bash /tmp/install-kintsugi.sh --action install
 ```
+
+EROFS remains the default for efficient shared image storage. Minimal Linux host kernels and ARM single-board-computer kernels often omit optional EROFS support. The fallback still requires a Linux kernel; it does not add support for non-Linux microkernels. For a fresh installation on these hosts, select the OverlayFS fallback:
+
+```sh
+bash /tmp/install-kintsugi.sh --action install --storage-driver overlayfs
+```
+
+OverlayFS mode requires Linux OverlayFS support and compatible backing storage, but not EROFS. It transfers complete images into each workspace, using more disk space and initial provisioning I/O. Updates retain the selected driver; switching an existing installation's driver in place is not supported. Use matching System, app and workspace images that declare OverlayFS support; older releases are rejected.
 
 Setup asks for the app image repository and Tailscale machine name. System defaults to the app repository with `-system` appended. For locally built or separately named images, use `--app-image` and `--system-image`. Private GHCR sources accept `--registry-config FILE`. See [automation](docs/automation.md) for source selection, updates and rollback.
 

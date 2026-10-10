@@ -13,3 +13,8 @@ test.each([
   const failure = filesystemFailure(available);
   expect(failure).toBe(`The Linux kernel that powers your Docker does not have ${missing}, which Kintsugi requires.`);
 });
+
+test("overlayfs mode does not require erofs but still requires overlay", () => {
+  expect(filesystemFailure("nodev overlay\n", "overlayfs")).toBeUndefined();
+  expect(filesystemFailure("erofs\n", "overlayfs")).toContain("overlay");
+});

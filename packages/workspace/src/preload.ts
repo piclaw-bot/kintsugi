@@ -1,9 +1,10 @@
 import { mkdir, readFile, writeFile, stat } from "node:fs/promises";
 import { join } from "node:path";
-import { isNotFoundError, requireDocker, workloadCommand, runCommand, waitForCommand, withCommandSignal, shellQuote, writeFileAtomic } from "@kintsugi/core";
+import { readStorageDriver, type StorageDriver, isNotFoundError, requireDocker, workloadCommand, runCommand, waitForCommand, withCommandSignal, shellQuote, writeFileAtomic } from "@kintsugi/core";
 import { ensureDefaultWorkspaceImage } from "@kintsugi/workspace-image";
 
 import { runHostObservableCommand, stripTerminalControls, tailTerminalText } from "@kintsugi/observable-terminal/server";
+import { transferImageArchive } from "./image-archive.ts";
 import type { WorkspaceProvisionProgress } from "./provisioning.ts";
 
 type Report = (progress: WorkspaceProvisionProgress) => void;
@@ -46,7 +47,7 @@ export function normalizeImageReference(input: string): string {
 
 /** One app owns the shared directory. Image prep is deduplicated; mkfs commands
  * serialize so different manifests sharing a layer cannot replace each other's files. */
-export function createImagePreloader(run: Command = command, docker: typeof requireDocker = requireDocker, cacheDirectory = "/data/erofs-cache", defaultWorkspace: () => Promise<string> = ensureDefaultWorkspaceImage, build: (args: string[], report: Report) => Promise<void> = buildCacheCommand) {
+export function createImagePreloader(run: Command = command, docker: typeof requireDocker = requireDocker, cacheDirectory = "/data/erofs-cache", defaultWorkspace: () => Promise<string> = ensureDefaultWorkspaceImage, build: (args: string[], report: Report) => Promise<void> = buildCacheCommand, storage: () => Promise<StorageDriver> = readStorageDriver, transfer: typeof transferImageArchive = transferImageArchive) {
   const resolving = new Map<string, Promise<string>>();
   const preparing = new Map<string, CachePreparation>();
   let cacheQueue = Promise.resolve();
@@ -115,6 +116,54 @@ export function createImagePreloader(run: Command = command, docker: typeof requ
     try { await waitForCommand(entry.task); }
     finally { entry.listeners.delete(report); }
   }
+  async function installOverlay(images: PreparedImage[], container: string, report: (detail: string) => void) {
+    report("Starting workspace containerd");
+    await docker(["exec", "--user", "root", container, "systemctl", "start", "containerd.service"]);
+    const platform = (await docker(["version", "--format", "{{.Server.Os}}/{{.Server.Arch}}"])).stdout.trim();
+    if (!/^linux\/(amd64|arm64)$/.test(platform)) throw new Error("Unsupported image transfer platform");
+    const [os, architecture] = platform.split("/");
+    for (const image of images) {
+      if (!image.reference) throw new Error("Image has not been resolved: " + image.requested);
+      const split = image.reference.lastIndexOf("@");
+      const base = image.reference.slice(0, split).replace(/:[^/:]+$/, "");
+      let digest = image.reference.slice(split + 1);
+      if (!base || !/^sha256:[a-f0-9]{64}$/.test(digest)) throw new Error("Expected pinned image reference");
+      // Archives contain only the native platform. Pin FROM to that manifest,
+      // rather than an index referencing platforms absent from the workspace.
+      for (let depth = 0; ; depth++) {
+        if (depth >= 4) throw new Error("Image index nesting limit exceeded");
+        const value = JSON.parse((await ctr("content", "get", digest)).stdout.toString());
+        if (Array.isArray(value.layers) && value.config?.digest) break;
+        if (!Array.isArray(value.manifests)) throw new Error("Invalid image manifest");
+        const selected = value.manifests.filter((entry: { platform?: { os?: string; architecture?: string } }) => entry.platform?.os === os && entry.platform?.architecture === architecture);
+        if (selected.length !== 1 || !/^sha256:[a-f0-9]{64}$/.test(selected[0].digest)) throw new Error("Image has no unique native manifest");
+        digest = selected[0].digest;
+      }
+      const reference = base + "@" + digest;
+      const destination = ["exec", "--user", "root", container, "ctr", "--namespace", "moby"];
+      const listing = (await docker([...destination, "images", "ls", "name==" + reference])).stdout;
+      const installed = listing.split("\n").find(row => row.split(/\s+/)[0] === reference);
+      if (installed && installed.split(/\s+/)[2] !== digest) throw new Error("Installed image digest mismatch");
+      if (!installed) {
+        report("Transferring complete image " + image.requested);
+        await transfer(
+          ["ctr", "--namespace", "moby", "images", "export", "--local", "--platform", platform, "--skip-manifest-json", "-", image.reference],
+          ["docker", "exec", "--user", "root", "-i", container, "ctr", "--namespace", "moby", "images", "import", "--local", "--platform", platform, "--snapshotter", "overlayfs", "--digests", "--base-name", base, "-"],
+        );
+        // The complete archive retains its original multi-platform index.
+        // Register the native manifest separately using the existing tiny OCI
+        // exporter; ordinary import now finds all its layer blobs locally.
+        report("Registering native image " + image.requested);
+        await transfer(
+          ["kintsugi-image-transfer", "export", "--platform", platform, image.reference],
+          ["docker", "exec", "--user", "root", "-i", container, "ctr", "--namespace", "moby", "images", "import", "--local", "--platform", platform, "--snapshotter", "overlayfs", "--digests", "--base-name", base, "-"],
+        );
+        const verified = (await docker([...destination, "images", "ls", "name==" + reference])).stdout.split("\n").find(row => row.split(/\s+/)[0] === reference);
+        if (!verified || verified.split(/\s+/)[2] !== digest) throw new Error("Transferred image digest mismatch");
+      } else report("Reusing installed image " + image.requested);
+      if (image.requested === defaultWorkspacePreload) await docker(["exec", "--user", "root", "-i", container, "tee", "/etc/kintsugi/default-workspace-image"], { stdin: image.reference.slice(0, split) + "@" + digest + "\n" });
+    }
+  }
   return {
     async snapshot(images: string[], directory: string): Promise<string | undefined> {
       await mkdir(directory, { recursive: true });
@@ -142,6 +191,7 @@ export function createImagePreloader(run: Command = command, docker: typeof requ
     },
     async install(images: PreparedImage[], container: string, report: (detail: string) => void = () => {}, activity: Report = () => {}): Promise<void> {
       if (!images.length) return;
+      if (await storage() === "overlayfs") return installOverlay(images, container, report);
       // containerd is sufficient for importing snapshots; socket activation keeps Docker asleep.
       report("Starting workspace containerd");
       await docker(["exec", "--user", "root", container, "systemctl", "start", "containerd.service"]);

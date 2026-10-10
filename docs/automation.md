@@ -169,6 +169,16 @@ Private GHCR credentials live in System's `/data/supervisor/docker-auth/config.j
 
 ### Installer setup, update and rollback
 
+Fresh installations default to shared EROFS layers, requiring host-kernel EROFS and OverlayFS support. Use `--storage-driver overlayfs` when EROFS is unavailable. This selects containerd's OverlayFS snapshotter for System, workspaces and the isolated repository builder. The installer attempts to load only the selected mode's filesystem modules; containers cannot supply missing host-kernel drivers. OverlayFS also needs compatible backing storage and working nested mounts.
+
+```sh
+bash scripts/install.sh --action install --storage-driver overlayfs
+```
+
+OverlayFS preloads stream complete native-platform OCI archives, then register the native image manifest using a small metadata archive. Only containerd starts during preloading. Existing native images skip repeat transfers, and builds/runs can work offline after preparation. Each daemon stores its own image layers; the shared EROFS cache is not mounted in this mode. Expect more disk use and initial provisioning I/O.
+
+Selection is persisted in `/data/supervisor/storage.json` and the host System container's `kintsugi.storage-driver` label. Updates and rollback retain it. Changing an installed backend is rejected; there is no snapshot conversion or error-triggered fallback. OverlayFS requires matching images labelled `kintsugi.storage-drivers=erofs,overlayfs`; incompatible replacement images fail before existing services are stopped. No new environment variables or Btrfs backend are introduced.
+
 Fresh setup prompts for a **release image repository** and a **Tailscale hostname**, including when localhost access is selected. The repository is an app Docker repository, not a Git URL. System defaults to the matching repository with `-system` appended. For example, `ghcr.io/example/kintsugi` selects `ghcr.io/example/kintsugi-system`. Use `--system-image` when the two repositories have different names. The hostname is a short machine name: 1–63 lowercase letters, digits or hyphens, without a tailnet domain.
 
 ```sh
@@ -196,7 +206,7 @@ Explicit `--app-image` and `--system-image` overrides also work on existing inst
 
 Verification: `bun run check`, focused server tests, and `bun scripts/verify-admin-bindings-system.ts --app LOCAL_APP --system LOCAL_SYSTEM --release-updates`. Add `--installer-system LOCAL_NEW_SYSTEM` to exercise real host installer replacement and rollback against a disposable older System. The integration checks TLS admin access, credential isolation, and two-version app/System replacement/rollback, including hostname, source and publication persistence. Real private GHCR publication and authenticated private image downloads have not been tested.
 
-Local installer/update/rollback integration used `linux/amd64`. GitHub Actions builds and smoke-tests fork app, System and workspace images natively on `linux/amd64` and `linux/arm64`, then publishes verified Latest manifests. ARM64 installer/System end-to-end acceptance has not been performed. See [releases](releases.md) for CI selection, caching and promotion guards.
+Local installer/update/rollback integration used `linux/amd64`. OverlayFS verification includes real System/app/workspace creation, source/credential isolation, update/rollback persistence and no EROFS mounts. Run `bun scripts/verify-admin-bindings-system.ts --app LOCAL_APP --system LOCAL_SYSTEM --workspace LOCAL_WORKSPACE --storage-driver overlayfs --release-updates --installer-system LOCAL_SYSTEM` against locally built images. `bun packages/workspace/test/overlay-storage.integration.ts LOCAL_WORKSPACE` separately verifies complete native transfers, offline run/build/cache mounts, locally built preloads, warm reuse and restart; existing EROFS runtime integration also passes. A real EROFS-free ARM SBC kernel remains an acceptance target. GitHub Actions builds and smoke-tests fork app, System and workspace images natively on `linux/amd64` and `linux/arm64`, then publishes verified Latest manifests. ARM64 installer/System end-to-end acceptance has not been performed. See [releases](releases.md) for CI selection, caching and promotion guards.
 
 ## Present a workspace
 

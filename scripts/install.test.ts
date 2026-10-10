@@ -2,7 +2,7 @@ import { expect, test } from "bun:test";
 
 const installer = await Bun.file(new URL("./install.sh", import.meta.url)).text();
 
-function run(options: { savedRepository?: string; savedHostname?: string; appPrepareFails?: boolean; savedRegistry?: boolean; rollbackAvailable?: boolean; installerCompatible?: boolean; promptRepository?: string; promptHostname?: string; systemState?: "restarting" | "exited"; portMappings?: string; nonRoot?: boolean; denySudo?: boolean; mac?: boolean; wsl?: boolean; installed?: boolean; old?: boolean; legacyAtelier?: boolean; legacyVolumeOnly?: boolean; legacyPreSystem?: boolean; legacyDownloadFails?: boolean; legacyDelegateFails?: boolean; pullFails?: boolean; pullDenied?: boolean; appFails?: boolean; retryUpdateRequest?: boolean; rejectUpdateRequest?: boolean; pendingHealth?: boolean; missingFilesystem?: boolean; loadable?: boolean; uninstallAnswer?: string; uninstallFails?: boolean; uninstallRequestFails?: boolean; inventoryFails?: boolean; volumeOnly?: boolean; volumeRemovalFails?: boolean; initiallyStopped?: boolean } = {}, args: string[] = []) {
+function run(options: { savedStorageDriver?: string; storageCompatible?: boolean; erofsMissing?: boolean; savedRepository?: string; savedHostname?: string; appPrepareFails?: boolean; savedRegistry?: boolean; rollbackAvailable?: boolean; installerCompatible?: boolean; promptRepository?: string; promptHostname?: string; systemState?: "restarting" | "exited"; portMappings?: string; nonRoot?: boolean; denySudo?: boolean; mac?: boolean; wsl?: boolean; installed?: boolean; old?: boolean; legacyAtelier?: boolean; legacyVolumeOnly?: boolean; legacyPreSystem?: boolean; legacyDownloadFails?: boolean; legacyDelegateFails?: boolean; pullFails?: boolean; pullDenied?: boolean; appFails?: boolean; retryUpdateRequest?: boolean; rejectUpdateRequest?: boolean; pendingHealth?: boolean; missingFilesystem?: boolean; loadable?: boolean; uninstallAnswer?: string; uninstallFails?: boolean; uninstallRequestFails?: boolean; inventoryFails?: boolean; volumeOnly?: boolean; volumeRemovalFails?: boolean; initiallyStopped?: boolean } = {}, args: string[] = []) {
   const pinned = `sha256:${"c".repeat(64)}`;
   const logPath = `/tmp/kintsugi-install-test-${crypto.randomUUID()}.log`;
   const mock = `
@@ -20,7 +20,7 @@ sudo() {
 module_loaded=0
 container_present=${options.installed ? 1 : 0}
 volume_present=${options.installed || options.volumeOnly ? 1 : 0}
-grep() { if [[ "$*" == *microsoft* ]]; then return ${options.wsl ? 0 : 1}; fi; [ "$module_loaded" -eq 1 ] || return ${options.missingFilesystem ? 1 : 0}; }
+grep() { if [[ "$*" == *microsoft* ]]; then return ${options.wsl ? 0 : 1}; fi; if [[ "$*" == *erofs* ]] && [ "${options.erofsMissing ? 1 : 0}" -eq 1 ]; then return 1; fi; [ "$module_loaded" -eq 1 ] || return ${options.missingFilesystem ? 1 : 0}; }
 modprobe() {
   printf 'MODPROBE %s\\n' "$*" >&2
   module_loaded=1
@@ -54,7 +54,7 @@ docker() {
         printf '%s\n%s\n%s\n' "\${system:-$source-system:latest}" "\${app:-$source:latest}" "\${hostname:-${options.savedHostname ?? 'kintsugi-system'}}"
       fi
       return 0 ;;
-    'image inspect') if [[ "$*" == *'installer-config'* ]]; then echo ${options.installerCompatible === false ? 0 : 1}; elif [[ "$*" == *'{{.Id}}'* ]]; then echo ${pinned}; fi; return 0 ;;
+    'image inspect') if [[ "$*" == *'storage-drivers'* ]]; then echo ${options.storageCompatible === false ? 'erofs' : 'erofs,overlayfs'}; elif [[ "$*" == *'installer-config'* ]]; then echo ${options.installerCompatible === false ? 0 : 1}; elif [[ "$*" == *'{{.Id}}'* ]]; then echo ${pinned}; fi; return 0 ;;
     'pull '*)
       if [ "${options.pullDenied ? 1 : 0}" -eq 1 ]; then echo 'Error response from daemon: Head "https://ghcr.io/v2/rcarmo/kintsugi-system/manifests/latest": denied: denied' >&2; return 1; fi
       return ${options.pullFails ? 1 : 0} ;;
@@ -101,7 +101,7 @@ docker() {
         return
       fi ;;
     'logs --tail') echo 'supervisor startup failed: io.weight unavailable';;
-    'inspect --format') if [[ "$*" == *'{{.Image}}'* ]]; then echo ${pinned}; elif [[ "$*" == *'range $port'* ]]; then printf '%b\\n' ${JSON.stringify(options.portMappings ?? '')}; elif [[ "$*" == *State.Status* ]]; then echo ${options.systemState ?? 'running'}; elif [[ "$*" == *3080/tcp* ]]; then echo 55123; else echo ${options.initiallyStopped ? "false" : "true"}; fi ;;
+    'inspect --format') if [[ "$*" == *'kintsugi.storage-driver'* ]]; then echo ${options.savedStorageDriver ?? ''}; elif [[ "$*" == *'{{.Image}}'* ]]; then echo ${pinned}; elif [[ "$*" == *'range $port'* ]]; then printf '%b\\n' ${JSON.stringify(options.portMappings ?? '')}; elif [[ "$*" == *State.Status* ]]; then echo ${options.systemState ?? 'running'}; elif [[ "$*" == *3080/tcp* ]]; then echo 55123; else echo ${options.initiallyStopped ? "false" : "true"}; fi ;;
   esac
 }
 `;
@@ -130,7 +130,7 @@ test("fresh install launches privileged System with persistent named volume and 
   const result = run({}, ["--system-image", "test/system:v1", "--app-image", "test/app:v1"]);
   expect(result.status).toBe(0);
   expect(result.output).toContain("DOCKER image inspect test/system:v1");
-  expect(result.output).toContain(`--name kintsugi-system --hostname kintsugi-system --privileged --cgroupns=host --restart unless-stopped --stop-timeout 120 --tmpfs /run --mount source=kintsugi-system,target=/data --publish 127.0.0.1:3080:3080 ${pinnedSystem} --app-image test/app:v1 --access-mode tailscale`);
+  expect(result.output).toContain(`--name kintsugi-system --label kintsugi.storage-driver=erofs --hostname kintsugi-system --privileged --cgroupns=host --restart unless-stopped --stop-timeout 120 --tmpfs /run --mount source=kintsugi-system,target=/data --publish 127.0.0.1:3080:3080 ${pinnedSystem} --app-image test/app:v1 --access-mode tailscale`);
   expect(result.output).not.toContain("DOCKER stop");
   expect(result.output).toContain("DOCKER exec kintsugi-system bun -e");
 });
@@ -615,4 +615,35 @@ test("an incompatible System image is rejected before stopping the current insta
   expect(result.output).toContain("does not support this installer");
   expect(result.output).not.toContain("DOCKER stop");
   expect(result.output).not.toContain("DOCKER rm");
+});
+
+test("overlayfs installation does not require or load erofs and records its driver", () => {
+  const result = run({ erofsMissing: true }, ["--action", "install", "--storage-driver", "overlayfs"]);
+  expect(result.status).toBe(0);
+  expect(result.output).not.toContain("MODPROBE erofs");
+  expect(result.output).toContain("--label kintsugi.storage-driver=overlayfs");
+});
+
+test("overlayfs updates retain the selected driver and reject incompatible System before replacement", () => {
+  const result = run({ installed: true, savedStorageDriver: "overlayfs", erofsMissing: true }, ["--action", "update"]);
+  expect(result.status).toBe(0);
+  expect(result.output).toContain("--label kintsugi.storage-driver=overlayfs");
+  const incompatible = run({ installed: true, savedStorageDriver: "overlayfs", storageCompatible: false }, ["--action", "update"]);
+  expect(incompatible.status).toBe(1);
+  expect(incompatible.output).toContain("does not support overlayfs");
+  expect(incompatible.output).not.toContain("DOCKER stop");
+});
+
+test("changing an installed backend is refused before pulls or replacement", () => {
+  const result = run({ installed: true }, ["--action", "update", "--storage-driver", "overlayfs"]);
+  expect(result.status).toBe(1);
+  expect(result.output).toContain("Cannot change an existing installation");
+  expect(result.output).not.toContain("DOCKER pull");
+  expect(result.output).not.toContain("DOCKER stop");
+});
+
+test("unsupported storage names are rejected", () => {
+  const result = run({}, ["--storage-driver", "overlay2"]);
+  expect(result.status).toBe(1);
+  expect(result.output).toContain("Storage driver must be erofs or overlayfs");
 });

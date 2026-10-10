@@ -61,4 +61,6 @@ export { workloadCgroupArgs, workloadCommand } from "./workload-resources.ts";
 
 export { commandSignal, withCommandSignal, waitForCommand, runCommand, killCommandGroup } from "./command-scope.ts";
 
+export { readStorageDriver, storageContainerdConfig, assertStorageSupport, storageDriversLabel, type StorageDriver } from "./storage-driver.ts";
+
 export { collectUnpushedCommits, type UnpushedCommit } from "./git-delete-safety.ts";

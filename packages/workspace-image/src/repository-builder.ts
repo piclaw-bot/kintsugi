@@ -1,3 +1,4 @@
+import { readStorageDriver, storageContainerdConfig } from "@kintsugi/core";
 import { createHash } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
@@ -39,8 +40,12 @@ export async function buildRepositoryImage(baseImage: string, tag: string, build
   }
   if (!exists) {
     // Reuse this exact runtime's configuration instead of maintaining a second
-    // copy of its storage/containerd settings in the app. Change only the socket.
+    // copy of its storage/containerd settings. Adapt the selected driver and socket.
     const config = JSON.parse((await requireDocker(["run", "--rm", "--network=none", "--entrypoint", "cat", image, "/etc/docker/daemon.json"])).stdout);
+    const driver = await readStorageDriver();
+    config["storage-driver"] = driver;
+    const containerd = (await requireDocker(["run", "--rm", "--network=none", "--entrypoint", "cat", image, "/etc/containerd/config.toml"])).stdout;
+    await writeFile(join(directory, "containerd.toml"), storageContainerdConfig(containerd, driver));
     config.hosts = ["unix:///control/docker.sock"];
     await writeFile(join(directory, "daemon.json"), JSON.stringify(config));
     if (!(await requireDocker(["network", "ls", "-q", "--filter", `name=^${name}$`])).stdout.trim()) {
@@ -49,13 +54,14 @@ export async function buildRepositoryImage(baseImage: string, tag: string, build
     await requireDocker([
       "run", "-d", "--name", name, "--label", roleLabel,
       "--restart", "unless-stopped", "--stop-timeout", "120",
-      // The trusted daemon needs mounts/devices for the shipped EROFS runtime.
+      // The trusted daemon needs mounts/devices for the nested runtime.
       // Build containers themselves are NOT privileged or granted entitlements.
       "--privileged", "--cgroupns=private", ...await workloadCgroupArgs(),
       "--network", name, "--tmpfs", "/run",
       "--mount", `type=volume,src=${name},dst=/data`,
       "--mount", `type=bind,src=${hostDirectory},dst=/control`,
       "--mount", `type=bind,src=${hostDirectory}/daemon.json,dst=/etc/docker/daemon.json,readonly`,
+      "--mount", `type=bind,src=${hostDirectory}/containerd.toml,dst=/etc/containerd/config.toml,readonly`,
       image, "dockerd",
     ]);
   }

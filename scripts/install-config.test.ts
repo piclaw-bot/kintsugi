@@ -109,3 +109,11 @@ test("private credential transport uses stdin without placing credentials in com
   expect(result.stderr.toString()).not.toContain(auth);
   expect((await stat(join(directory, "supervisor/docker-auth/config.json"))).mode & 0o777).toBe(0o600);
 }));
+
+test("installer persists overlayfs and refuses changed settings without altering state", () => fixture(async (directory, run) => {
+  expect(run("apply", "", "", "", "valid", pinned, previous, "", "", "overlayfs").status).toBe(0);
+  expect(JSON.parse(await readFile(join(directory, "supervisor/storage.json"), "utf8"))).toEqual({ driver: "overlayfs" });
+  expect(run("plan", "", "", "", "", "", "", "", "", "erofs").status).not.toBe(0);
+  expect(run("plan", "", "", "", "").status).toBe(0);
+  expect(JSON.parse(await readFile(join(directory, "supervisor/storage.json"), "utf8"))).toEqual({ driver: "overlayfs" });
+}));
