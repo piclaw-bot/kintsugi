@@ -9,7 +9,6 @@ This fork adds:
 - An embedded Draw.io editor and diagram previews.
 - A scoped, token-authenticated management API.
 - Configurable Docker release sources, private GHCR authentication, pinned updates and installer rollback.
-- An opt-in OverlayFS fallback, removing the mandatory EROFS requirement for minimal host kernels and ARM systems whose kernels omit it.
 - Word wrapping in the file viewer, including Markdown source mode.
 - GitHub Copilot subscription usage, quota information and calendar-month pacing.
 - Cost-optimised, resource-efficient CI with native AMD64/ARM64 builds, staged checks, shared caches and selective execution.
@@ -25,13 +24,13 @@ curl -fsSL https://raw.githubusercontent.com/rcarmo/kintsugi/main/scripts/instal
 bash /tmp/install-kintsugi.sh --action install
 ```
 
-EROFS remains the default for efficient shared image storage. Minimal Linux host kernels and ARM single-board-computer kernels often omit optional EROFS support. The fallback still requires a Linux kernel; it does not add support for non-Linux microkernels. For a fresh installation on these hosts, select the OverlayFS fallback:
+EROFS is the default. For a fresh installation on a host without EROFS support, use OverlayFS:
 
 ```sh
 bash /tmp/install-kintsugi.sh --action install --storage-driver overlayfs
 ```
 
-OverlayFS mode requires Linux OverlayFS support and compatible backing storage, but not EROFS. It transfers complete images into each workspace, using more disk space and initial provisioning I/O. Updates retain the selected driver; switching an existing installation's driver in place is not supported. Use matching System, app and workspace images that declare OverlayFS support; older releases are rejected.
+OverlayFS uses more disk space and initial provisioning I/O. Updates retain the selected driver; in-place switching is unsupported. See [storage requirements](docs/automation.md#installer-setup-update-and-rollback) for kernel and image compatibility.
 
 Setup asks for the app image repository and Tailscale machine name. System defaults to the app repository with `-system` appended. For locally built or separately named images, use `--app-image` and `--system-image`. Private GHCR sources accept `--registry-config FILE`. See [automation](docs/automation.md) for source selection, updates and rollback.
 
