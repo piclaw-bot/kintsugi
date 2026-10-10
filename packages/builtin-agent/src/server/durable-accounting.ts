@@ -21,8 +21,9 @@ export function durableSubscriptionActivity(models: Pick<ModelRuntime, "getAuth"
   return defineExtension({ name: "kintsugi.subscription-activity", hooks: [hook(GenerationTask, {
     async afterResponse(message) {
       // These providers expose subscription quotas with known pacing periods.
-      if ((message.provider !== "openai-codex" && message.provider !== "github-copilot") || message.stopReason === "error" || message.stopReason === "aborted" || message.stopReason === "deferred") return;
-      if ((await models.getAuth(message.provider))?.source === "OAuth") record(message.provider);
+      if ((message.provider !== "openai-codex" && message.provider !== "github-copilot" && message.provider !== "opencode-go") || message.stopReason === "error" || message.stopReason === "aborted" || message.stopReason === "deferred") return;
+      const auth = await models.getAuth(message.provider);
+      if (auth && (message.provider === "opencode-go" || auth.source === "OAuth")) record(message.provider);
     },
   })] });
 }

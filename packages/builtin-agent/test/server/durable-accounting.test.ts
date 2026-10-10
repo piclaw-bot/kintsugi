@@ -35,7 +35,7 @@ test("native context estimate follows head cutoffs, and derived edits", async ()
 });
 
 test("subscription pacing hook runs without a presentation mount and ignores API keys/errors", async () => {
-  for (const provider of ["openai-codex", "github-copilot", "unrelated"]) for (const source of ["OAuth", "API Key"] as const) {
+  for (const provider of ["openai-codex", "github-copilot", "opencode-go", "unrelated"]) for (const source of ["OAuth", "API Key"] as const) {
     const recorded: string[] = [];
     const registry = createRegistry();
     registry.install(durableSubscriptionActivity({ getAuth: async () => ({ source, auth: { apiKey: "fake" } }) }, provider => { recorded.push(provider); }));
@@ -48,7 +48,7 @@ test("subscription pacing hook runs without a presentation mount and ignores API
       const conversation = await harness.createConversation({ ownership: { kind: "ownerless" }, agent: { model: { provider, modelId: "faux-1" } } }, context);
       await (await conversation.submit({ type: "input", content: "question", requestId: "one" }, context)).wait(context);
       await (await conversation.submit({ type: "input", content: "another", requestId: "two" }, context)).wait(context);
-      expect(recorded).toEqual(source === "OAuth" && provider !== "unrelated" ? [provider] : []);
+      expect(recorded).toEqual((source === "OAuth" || provider === "opencode-go") && provider !== "unrelated" ? [provider] : []);
     } finally { await harness.close(context); }
   }
 });

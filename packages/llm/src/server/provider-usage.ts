@@ -4,6 +4,7 @@ import { anthropicUsageSource } from "./anthropic-subscription-usage.ts";
 import { usageWindowTiming, type PacedUsageWindow } from "./usage-window.ts";
 import { fetchCodexSubscriptionUsage } from "./codex-subscription-usage.ts";
 import { fetchXaiSubscriptionUsage } from "./xai-subscription-usage.ts";
+import { fetchOpenCodeGoSubscriptionUsage } from "./opencode-go-subscription-usage.ts";
 import { fetchGitHubCopilotSubscriptionUsage } from "./github-copilot-subscription-usage.ts";
 import { fetchRadiusUsage } from "./radius-usage.ts";
 import { cheapestProviderModel, createPiModelRuntime, readGitHubCopilotUsageCredentials } from "./pi-config-models.ts";
@@ -11,13 +12,14 @@ import type { ModelRuntime } from "@earendil-works/pi-coding-agent";
 
 // Only providers with implemented subscription adapters appear in the overview.
 // Radius reports a credit balance without allowance windows, so it never drives the usage button.
-export const supportedUsageProviders = [{ id: "anthropic", label: "Anthropic" }, { id: "openai-codex", label: "ChatGPT / Codex" }, { id: "xai", label: "xAI" }, { id: "radius", label: "Radius" }, { id: "github-copilot", label: "GitHub Copilot" }] as const;
+export const supportedUsageProviders = [{ id: "anthropic", label: "Anthropic" }, { id: "openai-codex", label: "ChatGPT / Codex" }, { id: "xai", label: "xAI" }, { id: "radius", label: "Radius" }, { id: "github-copilot", label: "GitHub Copilot" }, { id: "opencode-go", label: "OpenCode Go" }] as const;
 export type UsageProvider = typeof supportedUsageProviders[number];
 type UsageRequest = { runtime: ModelRuntime; refresh: boolean };
 const subscriptionAdapters = {
   // Codex reports usage cheaply on every request, so it is always current.
   "openai-codex": (token) => fetchCodexSubscriptionUsage(token),
   xai: (token) => fetchXaiSubscriptionUsage(token),
+  "opencode-go": (token) => fetchOpenCodeGoSubscriptionUsage(token),
   radius: (token) => fetchRadiusUsage(token),
   anthropic: (token, { runtime, refresh }) => {
     const model = cheapestProviderModel(runtime, "anthropic");
@@ -78,7 +80,7 @@ export async function getProviderUsageOverview(provider: UsageProvider, options:
         // Pi owns credential storage and serialized OAuth refresh for subscriptions.
         const auth = await runtime.getAuth(provider.id, { signal: AbortSignal.timeout(10_000) });
         if (!auth?.auth.apiKey) throw new SubscriptionUsageError(`${provider.label} credentials are unavailable. Reconnect ${provider.label}.`);
-        if (auth.source !== "OAuth") throw new SubscriptionUsageError(`${provider.label} subscription usage requires OAuth sign-in, not an API key. Reconnect ${provider.label} with your subscription.`);
+        if (provider.id !== "opencode-go" && auth.source !== "OAuth") throw new SubscriptionUsageError(`${provider.label} subscription usage requires OAuth sign-in, not an API key. Reconnect ${provider.label} with your subscription.`);
         const adapter = subscriptionAdapters[provider.id];
         const token = auth.auth.apiKey;
         reported = await sharedUsage(provider, token, refresh, () => adapter(token, { runtime, refresh }));
