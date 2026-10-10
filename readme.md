@@ -6,7 +6,7 @@ Kintsugi is an opinionated fork of [AgentsInTheCloud](https://github.com/lucasme
 
 This fork adds an embedded Draw.io editor and diagram previews, a scoped management API, configurable Docker release sources, private GHCR authentication, pinned updates and installer rollback.
 
-The name comes from **金継ぎ**, the Japanese art of repairing pottery with gold, because the original project was a brilliant way to glue together several components and I want to honor that approach.
+The name comes from **金継ぎ**, the Japanese art of repairing pottery with gold, because the original project was a brilliant way to glue together several components and I wanted to honor that approach.
 
 ## Installation
 
