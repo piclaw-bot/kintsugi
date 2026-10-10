@@ -1,0 +1,20 @@
+.drawio-pane { display: flex; flex-direction: column; min-height: 0; height: 100%; background: var(--panel); color: var(--text); font-family: var(--font-sans); }
+.drawio-toolbar, .drawio-statusbar { background: var(--panel); border-bottom: 1px solid var(--line); }
+.drawio-toolbar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.drawio-toolbar > input { flex: 1; min-width: 160px; }
+.drawio-toolbar label { display: flex; gap: 4px; align-items: center; font-size: 12px; }
+.drawio-editor { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.drawio-editor iframe { width: 100%; flex: 1; min-height: 0; border: 0; background: var(--panel); }
+.drawio-statusbar { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; padding: 6px 10px; font-size: 12px; }
+.drawio-statusbar > button { flex-shrink: 0; }
+.drawio-statusbar > [data-drawio-status] { flex: 1 1 220px; overflow-wrap: anywhere; }
+.drawio-statusbar [data-error] { color: var(--danger); }
+.drawio-empty { padding: 20px; }
+.drawio-preview { position: relative; display: flex; flex-direction: column; height: 100%; min-height: 0; }
+.drawio-preview iframe { width: 100%; flex: 1; min-height: 0; border: 0; }
+.drawio-preview-status { position: absolute; inset: 0 0 40px; display: grid; place-items: center; background: var(--panel); color: var(--text-muted); }
+.drawio-preview-status[hidden] { display: none; }
+.drawio-preview-tabs { display: flex; flex: none; overflow-x: auto; border-top: 1px solid var(--line); background: var(--panel); }
+.drawio-preview-tab { flex-shrink: 0; padding: 10px 16px; border: 0; border-right: 1px solid var(--line); border-bottom: 2px solid transparent; border-radius: 0; color: var(--text-muted); background: transparent; font: 12px var(--font-sans); cursor: pointer; }
+.drawio-preview-tab:hover { background: var(--accent-soft); }
+.drawio-preview-tab[aria-selected="true"] { color: var(--text-bright); background: var(--elev); border-bottom-color: var(--accent); }

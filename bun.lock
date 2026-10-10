@@ -17,6 +17,9 @@
     "apps/web": {
       "name": "@kintsugi/web",
       "dependencies": {
+        "@gespenst/core": "catalog:",
+        "@hotwired/stimulus": "github:hotwired/dev-builds#339df548999c34d440e04c24b59ad9dc57ce3eb1",
+        "@hotwired/turbo": "8.0.13",
         "@kintsugi/agent": "workspace:*",
         "@kintsugi/artifact-preview": "workspace:*",
         "@kintsugi/browser": "workspace:*",
@@ -24,11 +27,13 @@
         "@kintsugi/changes": "workspace:*",
         "@kintsugi/claude-agent": "workspace:*",
         "@kintsugi/cli-agent": "workspace:*",
-        "@kintsugi/codex-cli-agent": "workspace:*",
         "@kintsugi/codex-agent": "workspace:*",
+        "@kintsugi/codex-cli-agent": "workspace:*",
         "@kintsugi/core": "workspace:*",
         "@kintsugi/design-system": "workspace:*",
         "@kintsugi/desktop": "workspace:*",
+        "@kintsugi/dictation": "workspace:*",
+        "@kintsugi/drawio": "workspace:*",
         "@kintsugi/files": "workspace:*",
         "@kintsugi/host": "workspace:*",
         "@kintsugi/inline-content": "workspace:*",
@@ -39,21 +44,19 @@
         "@kintsugi/proxy-ingress": "workspace:*",
         "@kintsugi/shared": "workspace:*",
         "@kintsugi/subagents": "workspace:*",
-        "@kintsugi/dictation": "workspace:*",
         "@kintsugi/update": "workspace:*",
         "@kintsugi/vscode": "workspace:*",
         "@kintsugi/workspace": "workspace:*",
         "@kintsugi/workspace-templates": "workspace:*",
         "@kintsugi/workspace-terminal": "workspace:*",
-        "@gespenst/core": "catalog:",
-        "@hotwired/stimulus": "github:hotwired/dev-builds#339df548999c34d440e04c24b59ad9dc57ce3eb1",
-        "@hotwired/turbo": "8.0.13",
         "typebox": "^1.0.57",
       },
     },
     "packages/agent": {
       "name": "@kintsugi/agent",
       "dependencies": {
+        "@earendil-works/pi-ai": "catalog:",
+        "@earendil-works/pi-coding-agent": "catalog:",
         "@kintsugi/core": "workspace:*",
         "@kintsugi/design-system": "workspace:*",
         "@kintsugi/llm": "workspace:*",
@@ -64,8 +67,6 @@
         "@kintsugi/syntax": "workspace:*",
         "@kintsugi/workspace": "workspace:*",
         "@kintsugi/workspace-templates": "workspace:*",
-        "@earendil-works/pi-ai": "catalog:",
-        "@earendil-works/pi-coding-agent": "catalog:",
         "@modelcontextprotocol/sdk": "1.30.0",
         "@pierre/diffs": "1.5.2",
         "@wasm-fmt/biome_fmt": "0.2.9",
@@ -98,22 +99,22 @@
     "packages/builtin-agent": {
       "name": "@kintsugi/builtin-agent",
       "dependencies": {
+        "@earendil-works/chord": "catalog:",
+        "@earendil-works/pi-ai": "catalog:",
+        "@earendil-works/pi-coding-agent": "catalog:",
+        "@earendil-works/pi-durable": "catalog:",
         "@kintsugi/agent": "workspace:*",
         "@kintsugi/core": "workspace:*",
         "@kintsugi/design-system": "workspace:*",
+        "@kintsugi/dictation": "workspace:*",
         "@kintsugi/legacy-converter": "workspace:*",
         "@kintsugi/llm": "workspace:*",
         "@kintsugi/markdown": "workspace:*",
         "@kintsugi/observable-terminal": "workspace:*",
         "@kintsugi/prompt": "workspace:*",
         "@kintsugi/shared": "workspace:*",
-        "@kintsugi/dictation": "workspace:*",
         "@kintsugi/workspace": "workspace:*",
         "@kintsugi/workspace-templates": "workspace:*",
-        "@earendil-works/chord": "catalog:",
-        "@earendil-works/pi-ai": "catalog:",
-        "@earendil-works/pi-coding-agent": "catalog:",
-        "@earendil-works/pi-durable": "catalog:",
         "proper-lockfile": "4.1.2",
         "typebox": "^1.0.57",
         "web-push": "3.6.7",
@@ -126,12 +127,12 @@
     "packages/changes": {
       "name": "@kintsugi/changes",
       "dependencies": {
+        "@hotwired/turbo": "8.0.13",
         "@kintsugi/core": "workspace:*",
         "@kintsugi/design-system": "workspace:*",
         "@kintsugi/shared": "workspace:*",
         "@kintsugi/syntax": "workspace:*",
         "@kintsugi/workspace": "workspace:*",
-        "@hotwired/turbo": "8.0.13",
         "@pierre/diffs": "1.5.2",
         "typebox": "^1.0.57",
       },
@@ -154,22 +155,10 @@
         "@kintsugi/agent": "workspace:*",
         "@kintsugi/core": "workspace:*",
         "@kintsugi/design-system": "workspace:*",
+        "@kintsugi/dictation": "workspace:*",
         "@kintsugi/llm": "workspace:*",
         "@kintsugi/observable-terminal": "workspace:*",
         "@kintsugi/prompt": "workspace:*",
-        "@kintsugi/shared": "workspace:*",
-        "@kintsugi/dictation": "workspace:*",
-        "@kintsugi/workspace": "workspace:*",
-        "typebox": "^1.0.57",
-      },
-    },
-    "packages/codex-cli-agent": {
-      "name": "@kintsugi/codex-cli-agent",
-      "dependencies": {
-        "@kintsugi/agent": "workspace:*",
-        "@kintsugi/cli-agent": "workspace:*",
-        "@kintsugi/core": "workspace:*",
-        "@kintsugi/llm": "workspace:*",
         "@kintsugi/shared": "workspace:*",
         "@kintsugi/workspace": "workspace:*",
         "typebox": "^1.0.57",
@@ -190,6 +179,18 @@
         "typebox": "^1.0.57",
       },
     },
+    "packages/codex-cli-agent": {
+      "name": "@kintsugi/codex-cli-agent",
+      "dependencies": {
+        "@kintsugi/agent": "workspace:*",
+        "@kintsugi/cli-agent": "workspace:*",
+        "@kintsugi/core": "workspace:*",
+        "@kintsugi/llm": "workspace:*",
+        "@kintsugi/shared": "workspace:*",
+        "@kintsugi/workspace": "workspace:*",
+        "typebox": "^1.0.57",
+      },
+    },
     "packages/core": {
       "name": "@kintsugi/core",
       "dependencies": {
@@ -199,35 +200,53 @@
     "packages/design-system": {
       "name": "@kintsugi/design-system",
       "dependencies": {
-        "@kintsugi/shared": "workspace:*",
-        "@kintsugi/syntax": "workspace:*",
         "@fontsource/jetbrains-mono": "5.2.8",
         "@hotwired/stimulus": "github:hotwired/dev-builds#339df548999c34d440e04c24b59ad9dc57ce3eb1",
+        "@kintsugi/shared": "workspace:*",
+        "@kintsugi/syntax": "workspace:*",
         "qrcode-generator": "2.0.4",
       },
     },
     "packages/desktop": {
       "name": "@kintsugi/desktop",
       "dependencies": {
+        "@hotwired/stimulus": "github:hotwired/dev-builds#339df548999c34d440e04c24b59ad9dc57ce3eb1",
         "@kintsugi/agent": "workspace:*",
         "@kintsugi/core": "workspace:*",
         "@kintsugi/design-system": "workspace:*",
         "@kintsugi/shared": "workspace:*",
         "@kintsugi/workspace": "workspace:*",
-        "@hotwired/stimulus": "github:hotwired/dev-builds#339df548999c34d440e04c24b59ad9dc57ce3eb1",
         "@novnc/novnc": "1.7.0",
+        "typebox": "^1.0.57",
+      },
+    },
+    "packages/dictation": {
+      "name": "@kintsugi/dictation",
+      "dependencies": {
+        "@kintsugi/core": "workspace:*",
+        "@kintsugi/design-system": "workspace:*",
+        "@kintsugi/observable-terminal": "workspace:*",
+        "@kintsugi/shared": "workspace:*",
+        "@kintsugi/workspace": "workspace:*",
+        "@kintsugi/workspace-templates": "workspace:*",
+        "typebox": "^1.0.57",
+      },
+    },
+    "packages/drawio": {
+      "name": "@kintsugi/drawio",
+      "dependencies": {
+        "@kintsugi/core": "workspace:*",
+        "@kintsugi/design-system": "workspace:*",
+        "@kintsugi/files": "workspace:*",
+        "@kintsugi/shared": "workspace:*",
+        "@kintsugi/workspace": "workspace:*",
+        "@xmldom/xmldom": "0.9.12",
         "typebox": "^1.0.57",
       },
     },
     "packages/files": {
       "name": "@kintsugi/files",
       "dependencies": {
-        "@kintsugi/core": "workspace:*",
-        "@kintsugi/design-system": "workspace:*",
-        "@kintsugi/markdown": "workspace:*",
-        "@kintsugi/shared": "workspace:*",
-        "@kintsugi/syntax": "workspace:*",
-        "@kintsugi/workspace": "workspace:*",
         "@codemirror/autocomplete": "6.20.3",
         "@codemirror/commands": "6.10.4",
         "@codemirror/lang-cpp": "6.0.3",
@@ -244,6 +263,12 @@
         "@codemirror/search": "6.7.1",
         "@codemirror/state": "6.7.1",
         "@codemirror/view": "6.43.6",
+        "@kintsugi/core": "workspace:*",
+        "@kintsugi/design-system": "workspace:*",
+        "@kintsugi/markdown": "workspace:*",
+        "@kintsugi/shared": "workspace:*",
+        "@kintsugi/syntax": "workspace:*",
+        "@kintsugi/workspace": "workspace:*",
         "@lezer/highlight": "1.2.3",
         "typebox": "^1.0.57",
       },
@@ -251,46 +276,46 @@
     "packages/host": {
       "name": "@kintsugi/host",
       "dependencies": {
+        "@hotwired/stimulus": "github:hotwired/dev-builds#339df548999c34d440e04c24b59ad9dc57ce3eb1",
         "@kintsugi/core": "workspace:*",
         "@kintsugi/design-system": "workspace:*",
         "@kintsugi/observable-terminal": "workspace:*",
         "@kintsugi/proxy-ingress": "workspace:*",
         "@kintsugi/shared": "workspace:*",
-        "@hotwired/stimulus": "github:hotwired/dev-builds#339df548999c34d440e04c24b59ad9dc57ce3eb1",
         "typebox": "^1.0.57",
       },
     },
     "packages/inline-content": {
       "name": "@kintsugi/inline-content",
       "dependencies": {
+        "@hotwired/stimulus": "github:hotwired/dev-builds#339df548999c34d440e04c24b59ad9dc57ce3eb1",
         "@kintsugi/design-system": "workspace:*",
         "@kintsugi/markdown": "workspace:*",
         "@kintsugi/shared": "workspace:*",
         "@kintsugi/workspace": "workspace:*",
-        "@hotwired/stimulus": "github:hotwired/dev-builds#339df548999c34d440e04c24b59ad9dc57ce3eb1",
         "typebox": "^1.0.57",
       },
     },
     "packages/legacy-converter": {
       "name": "@kintsugi/legacy-converter",
       "dependencies": {
-        "@kintsugi/core": "workspace:*",
         "@earendil-works/pi-ai": "catalog:",
         "@earendil-works/pi-coding-agent": "catalog:",
         "@earendil-works/pi-durable": "catalog:",
+        "@kintsugi/core": "workspace:*",
         "typebox": "^1.0.57",
       },
     },
     "packages/llm": {
       "name": "@kintsugi/llm",
       "dependencies": {
+        "@earendil-works/pi-ai": "catalog:",
+        "@earendil-works/pi-coding-agent": "catalog:",
         "@kintsugi/core": "workspace:*",
         "@kintsugi/design-system": "workspace:*",
         "@kintsugi/proxy-egress": "workspace:*",
         "@kintsugi/shared": "workspace:*",
         "@kintsugi/workspace": "workspace:*",
-        "@earendil-works/pi-ai": "catalog:",
-        "@earendil-works/pi-coding-agent": "catalog:",
         "typebox": "^1.0.57",
       },
     },
@@ -311,15 +336,17 @@
     "packages/observable-terminal": {
       "name": "@kintsugi/observable-terminal",
       "dependencies": {
+        "@gespenst/core": "catalog:",
         "@kintsugi/core": "workspace:*",
         "@kintsugi/design-system": "workspace:*",
         "@kintsugi/shared": "workspace:*",
-        "@gespenst/core": "catalog:",
       },
     },
     "packages/pi-agent": {
       "name": "@kintsugi/pi-agent",
       "dependencies": {
+        "@earendil-works/pi-ai": "catalog:",
+        "@earendil-works/pi-coding-agent": "catalog:",
         "@kintsugi/agent": "workspace:*",
         "@kintsugi/cli-agent": "workspace:*",
         "@kintsugi/core": "workspace:*",
@@ -327,8 +354,6 @@
         "@kintsugi/proxy-egress": "workspace:*",
         "@kintsugi/shared": "workspace:*",
         "@kintsugi/workspace": "workspace:*",
-        "@earendil-works/pi-ai": "catalog:",
-        "@earendil-works/pi-coding-agent": "catalog:",
         "typebox": "^1.0.57",
       },
     },
@@ -337,8 +362,8 @@
       "dependencies": {
         "@kintsugi/core": "workspace:*",
         "@kintsugi/design-system": "workspace:*",
-        "@kintsugi/shared": "workspace:*",
         "@kintsugi/dictation": "workspace:*",
+        "@kintsugi/shared": "workspace:*",
         "@kintsugi/workspace": "workspace:*",
       },
     },
@@ -375,14 +400,14 @@
     "packages/subagents": {
       "name": "@kintsugi/subagents",
       "dependencies": {
+        "@earendil-works/chord": "catalog:",
+        "@earendil-works/pi-ai": "catalog:",
+        "@earendil-works/pi-durable": "catalog:",
         "@kintsugi/agent": "workspace:*",
         "@kintsugi/builtin-agent": "workspace:*",
         "@kintsugi/core": "workspace:*",
         "@kintsugi/design-system": "workspace:*",
         "@kintsugi/shared": "workspace:*",
-        "@earendil-works/chord": "catalog:",
-        "@earendil-works/pi-ai": "catalog:",
-        "@earendil-works/pi-durable": "catalog:",
         "typebox": "^1.0.57",
       },
     },
@@ -400,18 +425,6 @@
         "@shikijs/core": "4.4.3",
         "@shikijs/engine-oniguruma": "4.4.3",
         "@shikijs/langs": "4.4.3",
-      },
-    },
-    "packages/dictation": {
-      "name": "@kintsugi/dictation",
-      "dependencies": {
-        "@kintsugi/core": "workspace:*",
-        "@kintsugi/design-system": "workspace:*",
-        "@kintsugi/observable-terminal": "workspace:*",
-        "@kintsugi/shared": "workspace:*",
-        "@kintsugi/workspace": "workspace:*",
-        "@kintsugi/workspace-templates": "workspace:*",
-        "typebox": "^1.0.57",
       },
     },
     "packages/update": {
@@ -478,8 +491,8 @@
     },
   },
   "patchedDependencies": {
-    "@earendil-works/pi-durable@1.1.0": "patches/@earendil-works%2Fpi-durable@1.1.0.patch",
     "@gespenst/core@0.1.1": "patches/@gespenst%2Fcore@0.1.1.patch",
+    "@earendil-works/pi-durable@1.1.0": "patches/@earendil-works%2Fpi-durable@1.1.0.patch",
   },
   "catalog": {
     "@earendil-works/chord": "1.1.0",
@@ -489,74 +502,6 @@
     "@gespenst/core": "0.1.1",
   },
   "packages": {
-    "@kintsugi/agent": ["@kintsugi/agent@workspace:packages/agent"],
-
-    "@kintsugi/artifact-preview": ["@kintsugi/artifact-preview@workspace:packages/artifact-preview"],
-
-    "@kintsugi/browser": ["@kintsugi/browser@workspace:packages/browser"],
-
-    "@kintsugi/builtin-agent": ["@kintsugi/builtin-agent@workspace:packages/builtin-agent"],
-
-    "@kintsugi/changes": ["@kintsugi/changes@workspace:packages/changes"],
-
-    "@kintsugi/claude-agent": ["@kintsugi/claude-agent@workspace:packages/claude-agent"],
-
-    "@kintsugi/cli-agent": ["@kintsugi/cli-agent@workspace:packages/cli-agent"],
-
-    "@kintsugi/codex-cli-agent": ["@kintsugi/codex-cli-agent@workspace:packages/codex-cli-agent"],
-    "@kintsugi/codex-agent": ["@kintsugi/codex-agent@workspace:packages/codex-agent"],
-
-    "@kintsugi/core": ["@kintsugi/core@workspace:packages/core"],
-
-    "@kintsugi/design-system": ["@kintsugi/design-system@workspace:packages/design-system"],
-
-    "@kintsugi/desktop": ["@kintsugi/desktop@workspace:packages/desktop"],
-
-    "@kintsugi/files": ["@kintsugi/files@workspace:packages/files"],
-
-    "@kintsugi/host": ["@kintsugi/host@workspace:packages/host"],
-
-    "@kintsugi/inline-content": ["@kintsugi/inline-content@workspace:packages/inline-content"],
-
-
-    "@kintsugi/legacy-converter": ["@kintsugi/legacy-converter@workspace:packages/legacy-converter"],
-
-    "@kintsugi/llm": ["@kintsugi/llm@workspace:packages/llm"],
-
-    "@kintsugi/markdown": ["@kintsugi/markdown@workspace:packages/markdown"],
-
-    "@kintsugi/observable-terminal": ["@kintsugi/observable-terminal@workspace:packages/observable-terminal"],
-
-    "@kintsugi/pi-agent": ["@kintsugi/pi-agent@workspace:packages/pi-agent"],
-
-    "@kintsugi/prompt": ["@kintsugi/prompt@workspace:packages/prompt"],
-
-    "@kintsugi/proxy-egress": ["@kintsugi/proxy-egress@workspace:packages/proxy-egress"],
-
-    "@kintsugi/proxy-ingress": ["@kintsugi/proxy-ingress@workspace:packages/proxy-ingress"],
-
-    "@kintsugi/shared": ["@kintsugi/shared@workspace:packages/shared"],
-
-    "@kintsugi/subagents": ["@kintsugi/subagents@workspace:packages/subagents"],
-
-    "@kintsugi/syntax": ["@kintsugi/syntax@workspace:packages/syntax"],
-
-    "@kintsugi/dictation": ["@kintsugi/dictation@workspace:packages/dictation"],
-
-    "@kintsugi/update": ["@kintsugi/update@workspace:packages/update"],
-
-    "@kintsugi/vscode": ["@kintsugi/vscode@workspace:packages/vscode"],
-
-    "@kintsugi/web": ["@kintsugi/web@workspace:apps/web"],
-
-    "@kintsugi/workspace": ["@kintsugi/workspace@workspace:packages/workspace"],
-
-    "@kintsugi/workspace-image": ["@kintsugi/workspace-image@workspace:packages/workspace-image"],
-
-    "@kintsugi/workspace-templates": ["@kintsugi/workspace-templates@workspace:packages/workspace-templates"],
-
-    "@kintsugi/workspace-terminal": ["@kintsugi/workspace-terminal@workspace:packages/workspace-terminal"],
-
     "@anthropic-ai/sdk": ["@anthropic-ai/sdk@0.129.0", "", { "dependencies": { "json-schema-to-ts": "^3.1.1", "standardwebhooks": "^1.0.0" }, "peerDependencies": { "zod": "^3.25.0 || ^4.0.0" }, "optionalPeers": ["zod"], "bin": { "anthropic-ai-sdk": "bin/cli" } }, "sha512-MH7LB20kNpGLUpPTe2OG5XvL/KhX8HUO9XyBaFjgFk6TLS4Xjt0VPIuMKywe7POKKPslX+QxSlVok9e+8kG5Nw=="],
 
     "@aws-sdk/client-bedrock-runtime": ["@aws-sdk/client-bedrock-runtime@3.1127.0", "", { "dependencies": { "@aws-sdk/core": "^3.977.9", "@aws-sdk/credential-provider-node": "^3.972.82", "@aws-sdk/eventstream-handler-node": "^3.972.34", "@aws-sdk/middleware-eventstream": "^3.972.29", "@aws-sdk/middleware-websocket": "^3.972.52", "@aws-sdk/token-providers": "3.1127.0", "@aws-sdk/types": "^3.974.5", "@smithy/core": "^3.33.3", "@smithy/fetch-http-handler": "^5.7.2", "@smithy/node-http-handler": "^4.11.3", "@smithy/types": "^4.17.2", "tslib": "^2.6.2" } }, "sha512-IDl/lrPb90aH+pZFHGNDmgH9nAUQj5PlZH1sJ3w7RikctyjHSnY3oNjZhrLoaBoQn/rNK0zsP6OHEqEhj2tdLA=="],
@@ -714,6 +659,76 @@
     "@hotwired/stimulus": ["@hotwired/stimulus@github:hotwired/dev-builds#339df54", {}, "hotwired-dev-builds-339df54", "sha512-mHNF9l1AaFMwHph9F+E6H9/MOtt8gIPSyNKMJELZOfYlh9rdmfmgXu6+EmC1NfjcA0tc6u+xn8PDoOjSzc9SGw=="],
 
     "@hotwired/turbo": ["@hotwired/turbo@8.0.13", "", {}, "sha512-M7qXUqcGab6G5PKOiwhgbByTtrPgKPFCTMNQ52QhzUEXEqmp0/ApEguUesh/FPiUjrmFec+3lq98KsWnYY2C7g=="],
+
+    "@kintsugi/agent": ["@kintsugi/agent@workspace:packages/agent"],
+
+    "@kintsugi/artifact-preview": ["@kintsugi/artifact-preview@workspace:packages/artifact-preview"],
+
+    "@kintsugi/browser": ["@kintsugi/browser@workspace:packages/browser"],
+
+    "@kintsugi/builtin-agent": ["@kintsugi/builtin-agent@workspace:packages/builtin-agent"],
+
+    "@kintsugi/changes": ["@kintsugi/changes@workspace:packages/changes"],
+
+    "@kintsugi/claude-agent": ["@kintsugi/claude-agent@workspace:packages/claude-agent"],
+
+    "@kintsugi/cli-agent": ["@kintsugi/cli-agent@workspace:packages/cli-agent"],
+
+    "@kintsugi/codex-agent": ["@kintsugi/codex-agent@workspace:packages/codex-agent"],
+
+    "@kintsugi/codex-cli-agent": ["@kintsugi/codex-cli-agent@workspace:packages/codex-cli-agent"],
+
+    "@kintsugi/core": ["@kintsugi/core@workspace:packages/core"],
+
+    "@kintsugi/design-system": ["@kintsugi/design-system@workspace:packages/design-system"],
+
+    "@kintsugi/desktop": ["@kintsugi/desktop@workspace:packages/desktop"],
+
+    "@kintsugi/dictation": ["@kintsugi/dictation@workspace:packages/dictation"],
+
+    "@kintsugi/drawio": ["@kintsugi/drawio@workspace:packages/drawio"],
+
+    "@kintsugi/files": ["@kintsugi/files@workspace:packages/files"],
+
+    "@kintsugi/host": ["@kintsugi/host@workspace:packages/host"],
+
+    "@kintsugi/inline-content": ["@kintsugi/inline-content@workspace:packages/inline-content"],
+
+    "@kintsugi/legacy-converter": ["@kintsugi/legacy-converter@workspace:packages/legacy-converter"],
+
+    "@kintsugi/llm": ["@kintsugi/llm@workspace:packages/llm"],
+
+    "@kintsugi/markdown": ["@kintsugi/markdown@workspace:packages/markdown"],
+
+    "@kintsugi/observable-terminal": ["@kintsugi/observable-terminal@workspace:packages/observable-terminal"],
+
+    "@kintsugi/pi-agent": ["@kintsugi/pi-agent@workspace:packages/pi-agent"],
+
+    "@kintsugi/prompt": ["@kintsugi/prompt@workspace:packages/prompt"],
+
+    "@kintsugi/proxy-egress": ["@kintsugi/proxy-egress@workspace:packages/proxy-egress"],
+
+    "@kintsugi/proxy-ingress": ["@kintsugi/proxy-ingress@workspace:packages/proxy-ingress"],
+
+    "@kintsugi/shared": ["@kintsugi/shared@workspace:packages/shared"],
+
+    "@kintsugi/subagents": ["@kintsugi/subagents@workspace:packages/subagents"],
+
+    "@kintsugi/syntax": ["@kintsugi/syntax@workspace:packages/syntax"],
+
+    "@kintsugi/update": ["@kintsugi/update@workspace:packages/update"],
+
+    "@kintsugi/vscode": ["@kintsugi/vscode@workspace:packages/vscode"],
+
+    "@kintsugi/web": ["@kintsugi/web@workspace:apps/web"],
+
+    "@kintsugi/workspace": ["@kintsugi/workspace@workspace:packages/workspace"],
+
+    "@kintsugi/workspace-image": ["@kintsugi/workspace-image@workspace:packages/workspace-image"],
+
+    "@kintsugi/workspace-templates": ["@kintsugi/workspace-templates@workspace:packages/workspace-templates"],
+
+    "@kintsugi/workspace-terminal": ["@kintsugi/workspace-terminal@workspace:packages/workspace-terminal"],
 
     "@lezer/common": ["@lezer/common@1.5.2", "", {}, "sha512-sxQE460fPZyU3sdc8lafxiPwJHBzZRy/udNFynGQky1SePYBdhkBl1kOagA9uT3pxR8K09bOrmTUqA9wb/PjSQ=="],
 
@@ -878,6 +893,8 @@
     "@wasm-fmt/ruff_fmt": ["@wasm-fmt/ruff_fmt@0.15.20", "", {}, "sha512-PYij4wTiDSTx6MyBGHSY0nWDjSiTbOB3moPJiZTBL8F0JZLEfHAi4lYAn9SC9Hzm8tVeTnL7Qyf1iPW0TKHVEg=="],
 
     "@wasm-fmt/shfmt": ["@wasm-fmt/shfmt@0.2.7", "", {}, "sha512-bxmf5pXBHe3ujjc2iEoXqRXKgrQmR44jHLZ9G5BsKsb5moDWsuqsISs+88Ov9/SAI88caXYIsP02U4c4YDQpIQ=="],
+
+    "@xmldom/xmldom": ["@xmldom/xmldom@0.9.12", "", {}, "sha512-5AXjrcMClTryPe9LgZrygpB1lj7s0S9E0+W+AHaVKAVyHanafK86iPSvG5xHVSp/jC+VH1UXu0TAEmY279xH7A=="],
 
     "accepts": ["accepts@2.0.0", "", { "dependencies": { "mime-types": "^3.0.0", "negotiator": "^1.0.0" } }, "sha512-5cvg6CtKwfgdmVqY1WIiXKc3Q1bkRqGLi+2W/6ao+6Y7gu/RCwRuAhGEzh5B4KlszSuTLgZYuqFqo5bImjNKng=="],
 
@@ -1298,14 +1315,6 @@
     "zod-to-json-schema": ["zod-to-json-schema@3.25.2", "", { "peerDependencies": { "zod": "^3.25.28 || ^4" } }, "sha512-O/PgfnpT1xKSDeQYSCfRI5Gy3hPf91mKVDuYLUHZJMiDFptvP41MSnWofm8dnCm0256ZNfZIM7DSzuSMAFnjHA=="],
 
     "zwitch": ["zwitch@2.0.4", "", {}, "sha512-bXE4cR/kVZhKZX/RjPEflHaKVhUVl85noU3v6b8apfQEc1x4A+zBxjZ4lN8LqGd6WZ3dl98pY4o717VFmoPp+A=="],
-
-    "@kintsugi/desktop/@hotwired/stimulus": ["@hotwired/stimulus@github:hotwired/dev-builds#339df54", {}, "hotwired-dev-builds-339df54", "sha512-mHNF9l1AaFMwHph9F+E6H9/MOtt8gIPSyNKMJELZOfYlh9rdmfmgXu6+EmC1NfjcA0tc6u+xn8PDoOjSzc9SGw=="],
-
-    "@kintsugi/host/@hotwired/stimulus": ["@hotwired/stimulus@github:hotwired/dev-builds#339df54", {}, "hotwired-dev-builds-339df54", "sha512-mHNF9l1AaFMwHph9F+E6H9/MOtt8gIPSyNKMJELZOfYlh9rdmfmgXu6+EmC1NfjcA0tc6u+xn8PDoOjSzc9SGw=="],
-
-    "@kintsugi/inline-content/@hotwired/stimulus": ["@hotwired/stimulus@github:hotwired/dev-builds#339df54", {}, "hotwired-dev-builds-339df54", "sha512-mHNF9l1AaFMwHph9F+E6H9/MOtt8gIPSyNKMJELZOfYlh9rdmfmgXu6+EmC1NfjcA0tc6u+xn8PDoOjSzc9SGw=="],
-
-    "@kintsugi/web/@hotwired/stimulus": ["@hotwired/stimulus@github:hotwired/dev-builds#339df54", {}, "hotwired-dev-builds-339df54", "sha512-mHNF9l1AaFMwHph9F+E6H9/MOtt8gIPSyNKMJELZOfYlh9rdmfmgXu6+EmC1NfjcA0tc6u+xn8PDoOjSzc9SGw=="],
 
     "@aws-sdk/credential-provider-sso/@aws-sdk/token-providers": ["@aws-sdk/token-providers@3.1138.0", "", { "dependencies": { "@aws-sdk/core": "^3.978.1", "@aws-sdk/nested-clients": "^3.997.46", "@aws-sdk/types": "^3.974.6", "@smithy/core": "^3.35.0", "@smithy/types": "^4.19.0", "tslib": "^2.6.2" } }, "sha512-GpyAr0DD63YOEmYFM6Df+gJuIgC92MMTiBK4FTKfxii5MJ9ge20epR7LyroulscYlG89J+ZB2ivFDPjvfQhzdw=="],
 

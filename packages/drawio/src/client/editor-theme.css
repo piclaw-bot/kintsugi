@@ -1,0 +1,83 @@
+/* Bridge shell tokens into the bundled editor without recoloring the drawing. */
+:root[data-kintsugi-chrome] {
+  --ge-panel-color: var(--kintsugi-panel);
+  --toolbar-color: var(--kintsugi-panel);
+  --dark-toolbar-color: var(--kintsugi-panel);
+  --ge-dark-panel-color: var(--kintsugi-panel);
+  --dialog-color: var(--kintsugi-elev);
+  --dark-dialog-color: var(--kintsugi-elev);
+  --dark-header-color: var(--kintsugi-panel);
+  --inactive-color: var(--kintsugi-bg);
+  --active-color: var(--kintsugi-accent-soft);
+  --highlight-color: var(--kintsugi-accent-soft);
+  --dark-highlight-color: var(--kintsugi-accent-soft);
+  --primary-color: var(--kintsugi-accent-soft);
+  --primary-hover-color: var(--kintsugi-accent-soft);
+  --accent-color: var(--kintsugi-accent-soft);
+  --accent-hover-color: var(--kintsugi-accent-soft);
+  --accent-text-color: var(--kintsugi-accent);
+  --dark-accent-color: var(--kintsugi-accent-soft);
+  --dark-accent-text-color: var(--kintsugi-accent);
+  --dark-active-accent-color: var(--kintsugi-accent-soft);
+  --border-color: var(--kintsugi-line);
+  --dark-border-color: var(--kintsugi-line);
+  --strong-border-color: var(--kintsugi-line-strong);
+  --dark-strong-border-color: var(--kintsugi-line-strong);
+  --text-color: var(--kintsugi-text-bright);
+  --dark-text-color: var(--kintsugi-text-bright);
+  --strong-text-color: var(--kintsugi-text-bright);
+  --dark-strong-text-color: var(--kintsugi-text-bright);
+  --secondary-text-color: var(--kintsugi-text);
+  --dark-secondary-text-color: var(--kintsugi-text);
+  --faint-text-color: var(--kintsugi-text-muted);
+  --dark-faint-text-color: var(--kintsugi-text-muted);
+  --field-color: var(--kintsugi-elev);
+  --dark-field-color: var(--kintsugi-elev);
+  --field-border-color: var(--kintsugi-line-strong);
+  --dark-field-border-color: var(--kintsugi-line-strong);
+  --card-color: var(--kintsugi-elev);
+  --dark-card-color: var(--kintsugi-elev);
+  --soft-color: var(--kintsugi-bg);
+  --dark-soft-color: var(--kintsugi-bg);
+  --soft-hover-color: var(--kintsugi-accent-soft);
+  --dark-soft-hover-color: var(--kintsugi-accent-soft);
+  --focus-color: var(--kintsugi-accent);
+  --dark-focus-color: var(--kintsugi-accent);
+  --selected-color: var(--kintsugi-accent-soft);
+  --selected-hover-color: var(--kintsugi-accent-soft);
+  --active-item-color: var(--kintsugi-accent-soft);
+  --dark-active-item-color: var(--kintsugi-accent-soft);
+  --scrollbar-color: var(--kintsugi-line-strong);
+  --dark-scrollbar-color: var(--kintsugi-line-strong);
+  --scrollbar-hover-color: var(--kintsugi-text-muted);
+}
+
+[data-kintsugi-chrome] .geEditor {
+  font-family: var(--kintsugi-font-sans);
+  color-scheme: var(--kintsugi-color-scheme) !important;
+}
+
+/* Leave the artboard, shape colors, labels and inline label editor alone. */
+[data-kintsugi-chrome] .geDiagramContainer {
+  color-scheme: light;
+}
+
+[data-kintsugi-chrome] :is(.geMenubarContainer, .geToolbarContainer, .geSidebarContainer, .geTabContainer, .geDialog, .mxPopupMenu, .mxWindow) {
+  font-family: var(--kintsugi-font-sans);
+}
+
+[data-kintsugi-chrome] :is(.geDialog, .mxPopupMenu, .mxWindow) {
+  background-color: var(--kintsugi-elev);
+  border-color: var(--kintsugi-line-strong);
+  color: var(--kintsugi-text-bright);
+}
+
+[data-kintsugi-chrome] :is(button, input, select, textarea):not(.geDiagramContainer *) {
+  font-family: var(--kintsugi-font-sans);
+  border-radius: var(--kintsugi-radius-control);
+}
+
+/* draw.io uses black image/sprite icons, independent of its color tokens. */
+[data-kintsugi-appearance="dark"] :is(.geButton, .geAdaptiveAsset, .geTitle, .geBtnStepper > div, .geColorDropper, .geStyleMenuItem, .gePropHeader):not(.geDiagramContainer *, .geDarkMode *) {
+  filter: invert(1);
+}

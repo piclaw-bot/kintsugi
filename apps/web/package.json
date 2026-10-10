@@ -42,6 +42,7 @@
     "@kintsugi/artifact-preview": "workspace:*",
     "@kintsugi/builtin-agent": "workspace:*",
     "@kintsugi/changes": "workspace:*",
-    "@kintsugi/codex-agent": "workspace:*"
+    "@kintsugi/codex-agent": "workspace:*",
+    "@kintsugi/drawio": "workspace:*"
   }
 }

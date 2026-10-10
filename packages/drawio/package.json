@@ -1,0 +1,18 @@
+{
+  "name": "@kintsugi/drawio",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./server": "./src/server/index.ts",
+    "./client": "./src/client/index.ts"
+  },
+  "dependencies": {
+    "@kintsugi/core": "workspace:*",
+    "@kintsugi/design-system": "workspace:*",
+    "@kintsugi/files": "workspace:*",
+    "@kintsugi/shared": "workspace:*",
+    "@kintsugi/workspace": "workspace:*",
+    "@xmldom/xmldom": "0.9.12",
+    "typebox": "^1.0.57"
+  }
+}

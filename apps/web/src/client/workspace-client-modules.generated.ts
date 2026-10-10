@@ -6,15 +6,16 @@ import { kintsugiClientModule as clientModule4 } from "@kintsugi/changes/client"
 import { kintsugiClientModule as clientModule5 } from "@kintsugi/cli-agent/client";
 import { kintsugiClientModule as clientModule6 } from "@kintsugi/desktop/client";
 import { kintsugiClientModule as clientModule7 } from "@kintsugi/dictation/client";
-import { kintsugiClientModule as clientModule8 } from "@kintsugi/files/client";
-import { kintsugiClientModule as clientModule9 } from "@kintsugi/host/client";
-import { kintsugiClientModule as clientModule10 } from "@kintsugi/inline-content/client";
-import { kintsugiClientModule as clientModule11 } from "@kintsugi/llm/client";
-import { kintsugiClientModule as clientModule12 } from "@kintsugi/prompt/client";
-import { kintsugiClientModule as clientModule13 } from "@kintsugi/subagents/client";
-import { kintsugiClientModule as clientModule14 } from "@kintsugi/update/client";
-import { kintsugiClientModule as clientModule15 } from "@kintsugi/vscode/client";
-import { kintsugiClientModule as clientModule16 } from "@kintsugi/workspace-terminal/client";
+import { kintsugiClientModule as clientModule8 } from "@kintsugi/drawio/client";
+import { kintsugiClientModule as clientModule9 } from "@kintsugi/files/client";
+import { kintsugiClientModule as clientModule10 } from "@kintsugi/host/client";
+import { kintsugiClientModule as clientModule11 } from "@kintsugi/inline-content/client";
+import { kintsugiClientModule as clientModule12 } from "@kintsugi/llm/client";
+import { kintsugiClientModule as clientModule13 } from "@kintsugi/prompt/client";
+import { kintsugiClientModule as clientModule14 } from "@kintsugi/subagents/client";
+import { kintsugiClientModule as clientModule15 } from "@kintsugi/update/client";
+import { kintsugiClientModule as clientModule16 } from "@kintsugi/vscode/client";
+import { kintsugiClientModule as clientModule17 } from "@kintsugi/workspace-terminal/client";
 import type { WorkspaceClientModule } from "@kintsugi/shared";
 
 export const workspaceClientModules: WorkspaceClientModule[] = [
@@ -35,4 +36,5 @@ export const workspaceClientModules: WorkspaceClientModule[] = [
   clientModule14,
   clientModule15,
   clientModule16,
+  clientModule17,
 ];

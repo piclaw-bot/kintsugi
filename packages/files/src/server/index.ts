@@ -157,3 +157,6 @@ const filesWorkspaceModule: WorkspaceModule = {
 };
 
 export { filesWorkspaceModule as kintsugiServerModule };
+
+// Shared file operations for specialized workspace editors.
+export { readEditableFile, writeEditableFile, EditableFileError, uploadFile, FilesPathError, filesDiskChanged };

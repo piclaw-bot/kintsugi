@@ -87,11 +87,15 @@ function selectedFileActions(workspaceId: string, view: FilesView, readOnly = fa
     <input type="hidden" name="path" value="${escapeHtml(path)}"><input type="hidden" name="filesView" value="${escapeHtml(view.id)}">
     ${deleteButton}
   </form>`;
+  const diagramButton = /\.drawio(?:\.xml)?$/i.test(path) ? `<form method="post" action="/workspaces/${encodeURIComponent(workspaceId)}/drawio/open" data-turbo-stream="true">
+    <input type="hidden" name="path" value="${escapeHtml(path)}">
+    ${buttonHtml({ type: "submit", variant: "secondary", content: { kind: "caption", caption: "Open in Draw.io" } })}
+  </form>` : "";
   return buttonGroupHtml({
     orientation: "horizontal",
     semantics: "group",
     label: "Actions for selected file",
-    itemsHtml: `${readOnly ? "" : copyButton}${downloadButton}${deleteForm}`,
+    itemsHtml: `${diagramButton}${readOnly ? "" : copyButton}${downloadButton}${deleteForm}`,
   });
 }
 
@@ -242,6 +246,13 @@ export function renderFilesEditorFrame(workspaceId: string, view: FilesView, pre
     </section></turbo-frame>`;
   }
   const contentUrl = `/workspaces/${encodeURIComponent(workspaceId)}/files-view/content?${new URLSearchParams({ path: view.path })}`;
+  if (/\.drawio(?:\.xml)?$/i.test(view.path)) {
+    const previewId = `${frameId}_diagram_${Bun.hash(view.path).toString(16)}`;
+    return `<turbo-frame id="${frameId}" class="files-editor-frame"><section class="file-editor-pane file-editor-diagram-pane" id="${previewId}" data-turbo-permanent data-controller="files-diagram" data-files-diagram-workspace-id-value="${escapeHtml(workspaceId)}" data-files-diagram-content-url-value="${escapeHtml(contentUrl)}" data-files-diagram-preview-url-value="/workspaces/${encodeURIComponent(workspaceId)}/drawio/preview">
+      <header class="file-editor-toolbar work-view-toolbar"><span class="file-editor-status is-error" data-files-diagram-target="status"></span><span class="file-editor-toolbar-actions">${selectedFileActions(workspaceId, view, true)}${filesNavigatorToggle("expand")}</span></header>
+      <div class="file-editor-diagram-preview" data-files-diagram-target="preview"><p class="empty-state">Loading diagram…</p></div>
+    </section></turbo-frame>`;
+  }
   const markdown = /\.(?:md|markdown)$/i.test(view.path);
   const editorId = `${frameId}_${Bun.hash(view.path).toString(16)}`;
   return `<turbo-frame id="${frameId}" class="files-editor-frame" data-controller="file-editor-navigation" data-file-editor-navigation-editor-value="${escapeHtml(editorId)}" data-file-editor-navigation-request-value="${filesNavigationRequest(workspaceId, view.id)}" data-file-editor-navigation-line-value="${view.line ?? 0}" data-file-editor-navigation-column-value="${view.column ?? 0}"><section class="file-editor-pane" id="${escapeHtml(editorId)}" data-turbo-permanent data-controller="file-editor" data-file-editor-workspace-id-value="${escapeHtml(workspaceId)}" data-file-editor-path-value="${escapeHtml(view.path)}" data-file-editor-content-url-value="${escapeHtml(contentUrl)}" data-file-editor-line-value="${view.line ?? 0}" data-file-editor-column-value="${view.column ?? 0}">
