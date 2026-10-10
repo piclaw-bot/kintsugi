@@ -104,7 +104,7 @@ Send `Content-Type: application/json` for all mutations, including `{}` for oper
 | `workspaces` | List/inspect/create/rename/park/unpark/delete, provisioning recovery, warning dismissal |
 | `workspaces:force-delete` | Additional permission for explicit forced deletion; also requires `workspaces` |
 | `host:read` | Host availability, bounded diagnostic samples and System status; no terminals or raw supervisor logs |
-| `security` | Privileged mode, credential seeding, Dockerfiles, template/global SSH keys and trust, System access mode, admin binding/token management |
+| `security` | Privileged mode, credential seeding, Dockerfiles, template/global SSH keys and trust, System access mode, installation/workspace network settings, admin binding/token management |
 
 Template and global configuration reads are shared by `configuration`, `secrets`, `security` and `workspaces` tokens and include environment values, never plaintext managed secrets/private keys. Changing an existing configured secret's environment name, placeholder, host destination or path policy requires a nonempty `secretValue` to be supplied again, atomically replacing the value; otherwise the operation returns `409 workspace_template_secret_routing_changed` without altering storage. Annotation-only edits and rotation at the same destination do not require knowledge of the old value. These restrictions also apply to the normal UI's secret edits. A supplied replacement may differ from the old value: this prevents rerouting an unknown existing credential, not authorized replacement of it.
 
@@ -126,6 +126,12 @@ Use the same JSON bodies as the corresponding template routes. A GET on the base
 These settings include empty/non-template workspaces. Template-local environment variables and secrets override global entries with the same name; rotating a global secret does not overwrite such overrides. Global secret rotation affects subsequent proxied requests from existing workspaces, and global SSH keys are authorised live. Environment variables and trusted SSH server configuration are applied during workspace preparation; ordinary updates do not rewrite existing container environments. For a bulk migration, inspect global settings, update records by ID, then separately create/retire workspaces as required. There is no atomic bulk migration operation, and deleting a template-local entry reveals any inherited global value; deleting a global entry leaves template-local entries unchanged.
 
 Additional operations: `GET/PUT /admin/bindings`, `GET/POST /admin/tokens`, `DELETE /admin/tokens/{tokenId}`, `GET /host/status`, `GET/POST /settings/access`. Token issuance returns `{ token, secret }` once; revocation requires `{}`. System access reads/changes require `security` and return `authUrl` when Tailscale sign-in is needed. Treat that URL as sensitive; open it manually and poll access status to complete login. `host:read` status never returns it or raw logs. Standalone instances return `503` for System-only operations. Diagnostic probes are read-only and bounded, but their output is operationally sensitive.
+
+### Workspace network settings
+
+`GET/POST /settings/network` manages installation LAN CIDRs, external DNS forwarders and search domains. `GET/POST /workspaces/{id}/network` reads or saves a persistent `off`, `lan` or `private` mode. All four operations require `security`. Workspace responses distinguish desired mode, applied policy and `restartRequired`; changes apply after parking and unparking the workspace, which closes terminal and VS Code views.
+
+See the internal [workspace network policy](workspace-network.md) documentation for payloads, DNS/mDNS requirements, enforcement, state files and regression commands. Runtime LAN permissions require System and default to Off; enabling them does not change admin/UI exposure or Tailscale routing.
 
 ### Audit and request limits
 
