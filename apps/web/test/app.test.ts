@@ -205,7 +205,7 @@ test("the theme is a server setting pushed to every open page", async () => {
     await Bun.sleep(10);
     expect(pushed.join("")).toContain('data-kintsugi-theme-name-value="tokyo-night"');
     expect(JSON.parse(await readFile(join(process.env.ATELIER_DATA_DIR!, "theme.json"), "utf8"))).toEqual({ theme: "tokyo-night" });
-    const settings = await (await app.fetch(new Request("http://test.local/settings"))).text();
+    const settings = await (await app.fetch(new Request("http://test.local/settings/sections/theme"))).text();
     expect(settings).toContain('<option value="tokyo-night" selected>');
     const rejected = await app.fetch(new Request("http://test.local/settings/theme", { method: "POST", body: new URLSearchParams({ theme: "neon" }) }));
     expect(rejected.status).toBe(400);
