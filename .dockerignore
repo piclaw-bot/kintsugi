@@ -12,10 +12,13 @@ apps/web/public/assets-manifest.json
 apps/web/public/workspace.js.map
 apps/web/public/drawio
 
-# CI metadata and documentation do not belong in production build contexts.
+# Exclude CI metadata and non-runtime documentation. Workspace help is loaded
+# during app startup and must remain in the production image.
 .github
 .ci-image-context
-docs
+docs/*
+!docs/deploy-in-workspace/
+!docs/deploy-in-workspace/**
 notes
 readme.md
 AGENTS.md

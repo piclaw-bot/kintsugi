@@ -9,6 +9,7 @@ case "$machine" in x86_64|aarch64) ;; *) exit 1 ;; esac
 # dependency or pretending a stand-in workspace is a release acceptance test.
 command=$(cat <<'SMOKE'
 test "$(uname -m)" = "$1"
+test -f docs/deploy-in-workspace/kintsugi.md
 bun --version
 kintsugi-dockerd /usr/local/bin/dockerd --version
 bun -e '
