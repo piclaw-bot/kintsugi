@@ -120,6 +120,17 @@
   --button-hover-border: color-mix(in srgb, var(--accent) 65%, var(--text-bright));
 }
 
+/* Touch screens need readable type in both orientations, including tablets
+ * whose wide viewport otherwise receives the compact desktop typography.
+ * any-pointer keeps this sizing when a touch device also has a trackpad. */
+@media (any-pointer: coarse) {
+  :root {
+    --text-body: 16px;
+    --text-title: 18px;
+    --text-code: 14px;
+  }
+}
+
 /* A reusable visual title. Semantic heading level remains the owner's choice. */
 .title {
   margin: 0;
