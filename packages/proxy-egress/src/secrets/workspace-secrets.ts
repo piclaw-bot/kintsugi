@@ -1,8 +1,9 @@
+import { withHostNetworkBoundary } from "../egress/network-boundary.ts";
 import { clearGitHubToken as clearStoredGitHubToken, discoverGitHubToken, hasGitHubToken as hasStoredGitHubToken, setGitHubToken as setStoredGitHubToken } from "@kintsugi/core";
 import { workspaceTemplateIdOfInit, revealEffectiveSecrets, onWorkspaceTemplateStoreChanged, workspaceTemplateSecretPlaceholder, workspaceTemplateSecretHosts, workspaceTemplateSecretAllowsPath } from "@kintsugi/workspace-templates";
-import { getWorkspaceInit, type WorkspaceInitInstruction } from "@kintsugi/workspace";
+import { getWorkspaceInit, getAppliedWorkspaceNetwork, type WorkspaceInitInstruction } from "@kintsugi/workspace";
 import { matchHostname } from "./patterns.ts";
-import { isWorkspaceEgressAddress } from "@kintsugi/shared/egress-policy";
+import { workspaceNetworkAddressAllowed } from "@kintsugi/shared/network-policy";
 import { createHttpHooks, type RequestTransformHttpHooks, type SecretRequestTransform, type SecretDefinition } from "./placeholder-hooks.ts";
 
 export const githubTokenEnvVar = "GH_TOKEN";
@@ -102,7 +103,7 @@ function buildContext(workspaceId: string, secrets: Record<string, SecretDefinit
   const hooks = createHttpHooks({
     allowedHosts: ["*"],
     blockInternalRanges: false,
-    isIpAllowed: ({ ip }) => isWorkspaceEgressAddress(ip),
+    isIpAllowed: ({ ip }) => workspaceNetworkAddressAllowed(ip, withHostNetworkBoundary(getAppliedWorkspaceNetwork(workspaceId))),
     replaceSecretsInQuery: false,
     secrets,
     onRequest: async (request, registerSecret) => {

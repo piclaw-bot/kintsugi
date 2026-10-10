@@ -12,7 +12,7 @@ import { createReleaseRegistry, releaseDockerConfig } from "./release-registry.t
 import { createReleaseRequests, prepareRelease } from "./releases.ts";
 import { Type } from "typebox";
 import { Value } from "typebox/value";
-import { installWorkspaceFirewall, resolverAddresses } from "./firewall.ts";
+import { createWorkspaceNetworkControl } from "./workspace-network.ts";
 import { readStorageDriver, storageContainerdConfig, assertStorageSupport } from "../../../packages/core/src/storage-driver.ts";
 import { filesystemFailure } from "./filesystems.ts";
 import { initializeResources } from "./resources.ts";
@@ -747,9 +747,9 @@ async function initialize() {
     return;
   }
   resources = await initializeResources();
-  await startHostService({ root: dirname(dirname(resources.commandsCgroup)), effectiveMemory: resources.effectiveMemory });
+  const network = await createWorkspaceNetworkControl(resources.buildClientsCgroupParent);
+  await startHostService({ root: dirname(dirname(resources.commandsCgroup)), effectiveMemory: resources.effectiveMemory, network });
   await chown(hostSocketPath, 1000, 1000);
-  await installWorkspaceFirewall(resources.buildClientsCgroupParent, resolverAddresses(await readFile("/etc/resolv.conf", "utf8")));
   // Privileged containers only copy device nodes the host /dev already has; some
   // VMs lack loop-control until first use. Opening it autoloads the loop driver.
   if (storageDriver === "erofs" && !existsSync("/dev/loop-control")) await command(["mknod", "-m", "0660", "/dev/loop-control", "c", "10", "237"]);

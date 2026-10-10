@@ -16,6 +16,8 @@ import { applySeedConfigManifest } from "./seed-config.ts";
 import type { WorkspaceCreationContext, WorkspaceDockerMount, WorkspaceDockerPlan, WorkspaceInitInstruction } from "./types.ts";
 export type { WorkspaceCreationContext, WorkspaceDockerMount, WorkspaceDockerPlan, WorkspaceInitInstruction, WorkspaceInitInstructionMap } from "./types.ts";
 
+import { prepareWorkspaceNetwork, configureWorkspaceDns } from "./network.ts";
+export { getNetworkConfiguration, setNetworkConfiguration, getWorkspaceNetworkMode, setWorkspaceNetworkMode, getAppliedWorkspaceNetwork, workspaceNetworkRestartRequired } from "./network.ts";
 export { createWorkspaceMetadataState, type WorkspaceMetadataState } from "./metadata-state.ts";
 export { ensureHostInotifyLimit } from "./host-inotify.ts";
 export { createWorkspaceProvisioning, type WorkspaceProvisioning, type WorkspaceProvisionRun } from "./provisioning.ts";
@@ -612,6 +614,11 @@ function workspaceContainerLifecycle(id: string, checkpointRequired: boolean) {
     directory: kintsugiDataPath(getKintsugiRuntimeContext(), "workspaces", id, "configuration"),
     container: workspaceContainerName(id), checkpointRequired,
     waitForStartup: () => waitForWorkspaceStartup(id),
+    beforeStart: async () => {
+      if (await isWorkspaceRunning(id)) return;
+      const policy = await prepareWorkspaceNetwork(id);
+      await configureWorkspaceDns(id, policy);
+    },
   });
 }
 

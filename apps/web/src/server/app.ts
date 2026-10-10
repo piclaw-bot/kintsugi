@@ -1,3 +1,4 @@
+import { handleWorkspaceNetwork } from "./settings/network.ts";
 import { templateSettingsHostId, templateSettingsFrameId } from "./template-settings.ts";
 import { maybeNameWorkspaceFromPrompt } from "@kintsugi/builtin-agent/server";
 import {
@@ -1231,6 +1232,10 @@ export function createWebApp(deps: WebAppDeps): WebApp {
     }
 
     let params: string[] | undefined;
+    if ((params = matchRoute(url, /^\/workspaces\/([^/]+)\/network$/))) {
+      const entry = requireWorkspace(params[0]!);
+      return await handleWorkspaceNetwork(request, entry.id, workspaceTitle(entry), html => surfacePage({ kind: "module-modal", dialogHtml: html }));
+    }
 
     if ((params = matchRoute(url, /^\/workspaces\/([^/]+)\/file\/open$/))) {
       if (request.method !== "GET") return response("Method not allowed", { status: 405, headers: { allow: "GET" } });

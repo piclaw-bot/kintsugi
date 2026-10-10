@@ -6,7 +6,9 @@ export interface HostTerminal { id: string; title: string }
 export interface HostMetric { id: HostMetricId; value: string; warning?: boolean }
 export interface HostSection { title: string; text: string; error?: boolean }
 export interface HostSample { sampledAt: string; durationMs: number; metrics: HostMetric[]; sections: HostSection[] }
+import { networkModeSchema, networkConfigurationSchema, type WorkspaceNetworkPolicy } from "@kintsugi/shared/network-policy";
 export interface HostResults {
+  network: WorkspaceNetworkPolicy;
   list: HostTerminal[];
   create: HostTerminal;
   terminate: null;
@@ -15,6 +17,7 @@ export interface HostResults {
 export type HostResult = HostResults[keyof HostResults];
 const terminalId = Type.String({ pattern: "^host-[a-f0-9-]{36}$" });
 const requestSchema = Type.Union([
+  Type.Object({ operation: Type.Literal("network"), workspaceId: Type.String({ pattern: "^[a-zA-Z0-9][a-zA-Z0-9_.-]*$" }), mode: networkModeSchema, configuration: networkConfigurationSchema }),
   Type.Object({ operation: Type.Literal("list") }),
   Type.Object({ operation: Type.Literal("create") }),
   Type.Object({ operation: Type.Literal("terminate"), id: terminalId }),

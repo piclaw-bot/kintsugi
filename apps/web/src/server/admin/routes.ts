@@ -23,6 +23,10 @@ for (const prefix of [template, globalSettings]) {
 }
 for (const suffix of ["delete", "preload-images"]) route("POST", `${template}/${suffix}`, ["configuration"]);
 for (const suffix of ["privileged", "seed-config", "dockerfile"]) route("POST", `${template}/${suffix}`, ["security"]);
+route("GET", "/settings/network", ["security"], "Read LAN CIDRs and external DNS forwarders");
+route("POST", "/settings/network", ["security"], "Configure LAN CIDRs and external DNS forwarders; workspace restart required");
+route("GET", "/workspaces/{id}/network", ["security"]);
+route("POST", "/workspaces/{id}/network", ["security"], "Set persistent workspace LAN access; workspace restart required");
 route("GET", "/workspaces", ["workspaces"]);
 route("POST", "/workspaces", ["workspaces"]);
 route("GET", "/workspaces/{id}", ["workspaces"]);
