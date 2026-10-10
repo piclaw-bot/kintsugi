@@ -55,6 +55,13 @@ export async function verifiedImage(run: Run, ref: string, label: string, expect
   return `${repository}@${digestValue(manifest.digest)}`;
 }
 
+export async function channelMatches(run: Run, ref: string): Promise<boolean> {
+  const [repository, digest] = ref.split("@");
+  digestValue(digest ?? "");
+  const manifest = await inspectImage(run, `${repository}:latest`, true);
+  return manifest?.digest === digest;
+}
+
 if (import.meta.main) {
   const run: Run = async (args, options) => {
     const process = Bun.spawn(args, { stdout: "pipe", stderr: "pipe", stdin: "ignore" });
@@ -68,6 +75,9 @@ if (import.meta.main) {
     const ref = await verifiedImage(run, args[0]!, args[1]!, args[2]!, command === "reuse");
     console.log(`exists=${Boolean(ref)}`);
     console.log(`ref=${ref ?? ""}`);
+  } else if (command === "current") {
+    if (args.length !== 1) throw new Error("Usage: ci-images.ts current PINNED_REF");
+    console.log(`matches=${await channelMatches(run, args[0]!)}`);
   } else if (command === "merge") {
     if (args.length !== 3) throw new Error("Usage: ci-images.ts merge RECEIPTS IMAGE TAG");
     await run(["docker", "buildx", "imagetools", "create", "--tag", `${args[1]}:${args[2]}`, ...sliceReferences(args[0]!, args[1]!)]);

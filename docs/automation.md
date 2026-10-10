@@ -138,9 +138,9 @@ If admission logging fails, the API returns `503 audit_unavailable` **without ex
 For reproducible integration verification on a development machine with Docker, build local app/System/workspace images, then run `bun scripts/verify-admin-bindings-system.ts --app APP_IMAGE --system SYSTEM_IMAGE --workspace WORKSPACE_IMAGE`. It creates a uniquely named disposable System, tests a separate client container, nested CLI, TLS, real System endpoints, startup isolation and stopped-container port persistence, then removes its containers/volume. It never targets an existing installation. It needs several GiB of free disk for the inner image store. This verifies Docker network access, not reachability or firewall policy from a separate physical LAN machine; verify that deployment-specific boundary separately.
 
 Template environment changes still apply to new containers. Existing secret placeholders resolve to rotated credentials on subsequent proxied requests; existing connections may need reconnecting.
-## Fork release sources (development branch)
+## Fork release sources
 
-App updates and the host installer consume the persisted release selection below. Fork publication and upstream-sync CI remain pending. Installer install/update requires a System image carrying `kintsugi.installer-config=1`, built from this branch; an incompatible image is rejected before the existing System is stopped. A retained older System image can still be restored with installer rollback.
+App updates and the host installer consume the persisted release selection below. Native CI publishes verified Latest app, System and workspace manifests. Upstream-sync automation is not configured. Installer install/update requires a System image carrying `kintsugi.installer-config=1`, built from this branch; an incompatible image is rejected before the existing System is stopped. A retained older System image can still be restored with installer rollback.
 
 System-managed installations store release selection in `/data/app/update.json`. Stable and Latest explicitly select this fork’s release images; Custom selects the saved Docker repositories and pins. Switching to a standard channel retains the custom source for later use. Existing files with a `releaseSource` show Custom and keep their previous Stable/Latest tag selection. Custom never silently falls back to the default source. Invalid settings disable updates without preventing the app from starting.
 
@@ -196,7 +196,7 @@ Explicit `--app-image` and `--system-image` overrides also work on existing inst
 
 Verification: `bun run check`, focused server tests, and `bun scripts/verify-admin-bindings-system.ts --app LOCAL_APP --system LOCAL_SYSTEM --release-updates`. Add `--installer-system LOCAL_NEW_SYSTEM` to exercise real host installer replacement and rollback against a disposable older System. The integration checks TLS admin access, credential isolation, and two-version app/System replacement/rollback, including hostname, source and publication persistence. Real private GHCR publication and authenticated private image downloads have not been tested.
 
-Local fork verification images are currently `linux/amd64` only. App publishing supports `--platform linux/amd64,linux/arm64`; the System publisher also requires both architectures. Current upstream Latest app and System manifests include both. ARM execution and fork ARM images remain unverified.
+Local installer/update/rollback integration used `linux/amd64`. GitHub Actions builds and smoke-tests fork app, System and workspace images natively on `linux/amd64` and `linux/arm64`, then publishes verified Latest manifests. ARM64 installer/System end-to-end acceptance has not been performed. See [releases](releases.md) for CI selection, caching and promotion guards.
 
 ## Present a workspace
 

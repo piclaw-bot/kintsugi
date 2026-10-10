@@ -8,6 +8,7 @@ The app’s **Update channel** follows either the published `latest` image or th
 runtime checks; unknown bases require them. Workflow validation, lint and types
 run before browser setup and the full suite. Superseded runs are cancelled.
 Bun downloads and Playwright browsers are cached; dependencies use frozen locks.
+Selection and tests share one runner job to avoid another billed job/startup.
 The full suite runs once on AMD64, including installer ownership checks.
 
 `images.yml` builds workspace, System and app images on native `ubuntu-24.04`
@@ -17,15 +18,19 @@ QEMU or package-write PAT is required by CI.
 
 Contexts and System bundles are prepared once. Workspace and System builds run
 in parallel; app builds follow verified workspace assembly and successful System
-checks. Published workspace signatures, System content hashes and app commit
-images are verified before reuse, so unchanged images skip native jobs entirely.
+checks. Failed native stages cancel the remaining expensive work before promotion.
+Published workspace signatures, System content hashes and app commit images are
+verified before reuse, so unchanged images skip native jobs entirely. If all
+verified images already match `latest`, the promotion job is also skipped.
 Missing manifests trigger builds; authentication, network and invalid-manifest
 errors fail the run. App dependency installation has its own cached Docker layer.
 
 Dry runs use architecture-specific Actions layer caches with `mode=min` to limit
 storage. Publication uses full registry layer caches with `mode=max`, also reading
 the dry-run caches. Handoff artifacts preserve file modes and expire after one day.
-Named jobs and step summaries show selection, reuse, native builds and promotion.
+Disposable Docker build records are removed after each run; logs and short-lived
+verification receipts remain. Named jobs and step summaries show selection,
+reuse, native builds and promotion.
 
 `publish-workspace-image.yml` now publishes all three images after successful
 push CI on `main`. Documentation, test-only and workflow-only changes skip image
@@ -41,7 +46,10 @@ cancelled halfway through. **Channel changes are not atomic:** an error after on
 tag advances requires inspection or rerunning the same publication. `stable`
 is never advanced by CI; complete clean-install/update/rollback acceptance first.
 
-Automatic publication stays disabled until native build verification succeeds.
+Automatic publication is enabled in `rcarmo/kintsugi` after successful native
+builds, smoke tests and GHCR publication of all three dual-architecture manifests.
+Re-running publication reuses verified images without native builds. This does
+not deploy or restart an existing installation.
 
 ## Local release command
 

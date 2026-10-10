@@ -44,6 +44,7 @@ jobs:
       system_ref: ${{ steps.system.outputs.ref }}
       app_exists: ${{ steps.app.outputs.exists }}
       app_ref: ${{ steps.app.outputs.ref }}
+      promotion_required: ${{ steps.channels.outputs.required }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -102,6 +103,20 @@ jobs:
         id: app
         if: inputs.publish
         run: bun scripts/ci-images.ts reuse 'ghcr.io/${{ github.repository_owner }}/kintsugi:sha-${{ steps.plan.outputs.commit }}' org.opencontainers.image.revision '${{ steps.plan.outputs.commit }}' >> "$GITHUB_OUTPUT"
+      - name: Skip promotion when verified channels are already current
+        id: channels
+        if: inputs.publish
+        run: |
+          required=true
+          if [ '${{ steps.workspace.outputs.exists }}' = true ] && [ '${{ steps.system.outputs.exists }}' = true ] && [ '${{ steps.app.outputs.exists }}' = true ]; then
+            required=false
+            for ref in '${{ steps.workspace.outputs.ref }}' '${{ steps.system.outputs.ref }}' '${{ steps.app.outputs.ref }}'; do
+              bun scripts/ci-images.ts current "$ref" > current-channel.txt
+              if ! grep -qx 'matches=true' current-channel.txt; then required=true; fi
+            done
+          fi
+          echo "required=$required" >> "$GITHUB_OUTPUT"
+          echo "Channel promotion required: $required" >> "$GITHUB_STEP_SUMMARY"
       - name: Preserve context modes for deterministic builds
         if: steps.workspace.outputs.exists != 'true' || steps.system.outputs.exists != 'true'
         run: tar -cf "$RUNNER_TEMP/image-contexts.tar" .ci-image-context
@@ -415,6 +430,7 @@ jobs:
     needs: [prepare, workspace, workspace_manifest, system, images]
     if: >-
       always() && !cancelled() && inputs.publish && needs.prepare.result == 'success' &&
+      needs.prepare.outputs.promotion_required == 'true' &&
       (needs.images.result == 'success' || needs.prepare.outputs.app_exists == 'true') &&
       (needs.system.result == 'success' || needs.prepare.outputs.system_exists == 'true') &&
       (needs.prepare.outputs.workspace_exists == 'true' || needs.workspace_manifest.result == 'success')
@@ -467,6 +483,11 @@ jobs:
             ref=$(sed -n 's/^ref=//p' "$kind-receipt.txt")
             [[ "$ref" =~ @sha256:[a-f0-9]{64}$ ]]
             repository=${ref%@*}
+            bun scripts/ci-images.ts current "$ref" > current-channel.txt
+            if grep -qx 'matches=true' current-channel.txt; then
+              echo "$repository:latest already matches the verified digest; skipped." >> "$GITHUB_STEP_SUMMARY"
+              continue
+            fi
             docker buildx imagetools create --tag "$repository:latest" "$ref"
             digest=$(docker buildx imagetools inspect "$repository:latest" --format '{{json .Manifest}}' | jq -er '.digest')
             test "$digest" = "${ref#*@}"
@@ -495,7 +516,13 @@ jobs:
           fi
           if [ '${{ needs.prepare.outputs.system_exists }}' != true ]; then test '${{ needs.system.result }}' = success; fi
           if [ '${{ needs.prepare.outputs.app_exists }}' != true ]; then test '${{ needs.images.result }}' = success; fi
-          if [ '${{ inputs.publish }}' = true ]; then test '${{ needs.promote.result }}' = success; fi
+          if [ '${{ inputs.publish }}' = true ]; then
+            case '${{ needs.prepare.outputs.promotion_required }}' in
+              true) test '${{ needs.promote.result }}' = success ;;
+              false) test '${{ needs.promote.result }}' = skipped ;;
+              *) exit 1 ;;
+            esac
+          fi
       - name: Remove disposable Docker build records (keep logs and receipts)
         if: always()
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9

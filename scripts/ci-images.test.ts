@@ -2,7 +2,7 @@ import { expect, test } from "bun:test";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { digestValue, sliceReferences, verifiedImage } from "./ci-images.ts";
+import { channelMatches, digestValue, sliceReferences, verifiedImage } from "./ci-images.ts";
 import type { Run } from "./release-support.ts";
 
 const digest = `sha256:${"a".repeat(64)}`;
@@ -79,6 +79,14 @@ test("mutable or inconsistent workspace dependencies fail", async () => {
   for (const dependency of ["ghcr.io/example/workspace:latest", `${image}@${digest}`])
     await expect(verifiedImage(runner({ modifyConfig: value => { value.config.Labels["eagerly-preload"] = JSON.stringify([dependency]); } }), image, label, commit)).rejects.toThrow();
 });
+test("current channels skip promotion only after a verified digest match", async () => {
+  expect(await channelMatches(runner(), `${image}@${digest}`)).toBe(true);
+  expect(await channelMatches(runner(), `${image}@${amd64}`)).toBe(false);
+  expect(await channelMatches(runner({ missing: "manifest unknown" }), `${image}@${digest}`)).toBe(false);
+  await expect(channelMatches(runner({ missing: "unauthorized" }), `${image}@${digest}`)).rejects.toThrow();
+  await expect(channelMatches(runner(), `${image}:latest`)).rejects.toThrow();
+});
+
 test("System reuse requires the installer capability", async () => {
   await expect(verifiedImage(runner({ modifyConfig: value => { value.config.Labels["kintsugi.installer-config"] = "0"; } }), image, "com.kintsugi.system.signature", "signature")).rejects.toThrow("installer capability");
 });
