@@ -6,7 +6,8 @@ The app’s **Update channel** follows either the published `latest` image or th
 
 `ci.yml` selects checks from the changed files. Documentation-only changes skip
 runtime checks; unknown bases require them. Workflow validation, lint and types
-run before browser setup and the full suite. Superseded runs are cancelled.
+run before browser setup and the full suite. Gateway changes also run cached Go
+formatting checks and tests first; unchanged gateway code skips Go setup. Superseded runs are cancelled.
 Bun downloads and Playwright browsers are cached; dependencies use frozen locks.
 Selection and tests share one runner job to avoid another billed job/startup.
 The full suite runs once on AMD64, including installer ownership checks.
@@ -33,8 +34,8 @@ verification receipts remain. Named jobs and step summaries show selection,
 reuse, native builds and promotion.
 
 `publish-workspace-image.yml` now publishes all three images after successful
-push CI on `main`. Documentation, test-only and workflow-only changes skip image
-publication. Manual publication still requires successful exact-revision CI.
+push CI on `main`. Documentation, test-only and CI-check-only changes skip image
+publication. Build/publication workflow changes and unknown paths require it. Manual publication still requires successful exact-revision CI.
 The workflow uses its `GITHUB_TOKEN` with job-scoped `packages: write`; no
 additional secrets or environment variables are needed.
 
@@ -133,7 +134,8 @@ there is no automatic rollback. Inspect the tag/digest or rerun the same release
 
 An OS lock prevents overlapping releases from the same Git common directory,
 including linked worktrees. **It is not a distributed lock:** do not run releases
-from two independent workspaces simultaneously. The branch-head check reduces stale
+from two independent workspaces simultaneously. Do not run local publishers
+concurrently with CI publication. The branch-head check reduces stale
 promotions but cannot eliminate a race with another workspace's publisher.
 
 Build caches remain with each Docker daemon. SSH contexts and probe images are

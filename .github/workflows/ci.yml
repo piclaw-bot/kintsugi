@@ -25,17 +25,22 @@ jobs:
           base='${{ github.event.pull_request.base.sha || github.event.before }}'
           required=true
           images=true
+          gateway=true
           if [ '${{ github.event_name }}' != workflow_dispatch ] && [ -n "$base" ] && git fetch --depth=1 origin "$base"; then
             git diff --name-only "$base" HEAD > changed-files.txt
+            if ! grep -q '^packages/workspace-image/workspace-image/gateway/' changed-files.txt; then gateway=false; fi
             if [ -s changed-files.txt ] && ! grep -Ev '^(docs/|notes/|readme\.md$|AGENTS\.md$|LICENSE$)' changed-files.txt; then
               required=false
             fi
-            if [ -s changed-files.txt ] && ! grep -Ev '^(docs/|notes/|\.github/|readme\.md$|AGENTS\.md$|CONTEXT\.md$|acceptance/|scripts/ci-(images(\.test)?\.ts|smoke-app\.sh)$)|(^|/)test/|\.test\.(ts|js|mjs)$' changed-files.txt; then
+            if [ -s changed-files.txt ] && ! grep -Ev '^(docs/|notes/|\.github/workflows/ci\.yml$|readme\.md$|AGENTS\.md$|CONTEXT\.md$|acceptance/|scripts/ci-(images(\.test)?\.ts|smoke-app\.sh)$)|(^|/)test/|\.test\.(ts|js|mjs)$' changed-files.txt; then
               images=false
             fi
           fi
-          echo "required=$required" >> "$GITHUB_OUTPUT"
-          echo "images=$images" >> "$GITHUB_OUTPUT"
+          {
+            echo "required=$required"
+            echo "images=$images"
+            echo "gateway=$gateway"
+          } >> "$GITHUB_OUTPUT"
           echo "## Check selection" >> "$GITHUB_STEP_SUMMARY"
           echo "Runtime checks required: $required. Unknown bases run all checks; documentation-only changes skip them." >> "$GITHUB_STEP_SUMMARY"
           printf '%s\n' "$images" > ci-selection.txt
@@ -65,6 +70,18 @@ jobs:
       - name: Lint and type-check
         run: bun run check
         if: "steps.changes.outputs.required == 'true'"
+      - name: Set up Go only for gateway changes
+        if: steps.changes.outputs.gateway == 'true'
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+        with:
+          go-version-file: packages/workspace-image/workspace-image/gateway/go.mod
+          cache-dependency-path: packages/workspace-image/workspace-image/gateway/go.mod
+      - name: Check gateway formatting and tests before expensive stages
+        if: steps.changes.outputs.gateway == 'true'
+        working-directory: packages/workspace-image/workspace-image/gateway
+        run: |
+          test -z "$(gofmt -l .)"
+          go test ./...
       - name: Restore Playwright browsers
         uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5
         with:

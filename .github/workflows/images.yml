@@ -497,7 +497,10 @@ jobs:
   result:
     name: Image run result
     needs: [prepare, workspace, workspace_manifest, system, images, promote]
-    if: always()
+    # A verified no-op has no native work, promotion or build records to process.
+    if: >-
+      always() && !(inputs.publish && needs.prepare.result == 'success' &&
+      needs.prepare.outputs.promotion_required == 'false')
     runs-on: ubuntu-24.04
     timeout-minutes: 2
     permissions:
