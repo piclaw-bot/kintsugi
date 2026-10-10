@@ -1,0 +1,482 @@
+name: Native images
+
+on:
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: Publish verified images and advance latest (requires green CI on main)
+        type: boolean
+        default: false
+  workflow_call:
+    inputs:
+      publish:
+        type: boolean
+        default: false
+      revision:
+        type: string
+        default: ''
+
+permissions:
+  contents: read
+
+# Never cancel a publication halfway through channel promotion.
+concurrency:
+  group: native-images-${{ inputs.publish && 'publication' || github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    name: Plan / reuse immutable images
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      actions: read
+      packages: read
+    outputs:
+      commit: ${{ steps.plan.outputs.commit }}
+      workspace: ${{ steps.plan.outputs.workspace }}
+      signature: ${{ steps.plan.outputs.signature }}
+      system_signature: ${{ steps.plan.outputs.system_signature }}
+      workspace_exists: ${{ steps.workspace.outputs.exists }}
+      workspace_ref: ${{ steps.workspace.outputs.ref }}
+      system_exists: ${{ steps.system.outputs.exists }}
+      system_ref: ${{ steps.system.outputs.ref }}
+      app_exists: ${{ steps.app.outputs.exists }}
+      app_ref: ${{ steps.app.outputs.ref }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.revision || github.sha }}
+      - name: Require successful CI at this exact revision
+        run: |
+          commit=$(git rev-parse HEAD)
+          if [ '${{ inputs.publish }}' = true ]; then
+            test "$commit" = "$(git ls-remote origin refs/heads/main | cut -f1)"
+          fi
+          curl -fsS -H 'Authorization: Bearer ${{ github.token }}' \
+            'https://api.github.com/repos/${{ github.repository }}/actions/workflows/ci.yml/runs?head_sha='"$commit"'&status=success&per_page=100' \
+            | jq -e --arg sha "$commit" 'any(.workflow_runs[]; .head_sha == $sha and .conclusion == "success")'
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: 1.4.2
+      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: ~/.bun/install/cache
+          key: bun-${{ runner.os }}-${{ runner.arch }}-1.4.2-${{ hashFiles('**/bun.lock', 'patches/**') }}
+          restore-keys: bun-${{ runner.os }}-${{ runner.arch }}-1.4.2-
+      - name: Prepare architecture-independent contexts once
+        id: plan
+        run: |
+          bun ci
+          bun install --cwd images/system --frozen-lockfile
+          bun images/system/build.ts
+          bun packages/workspace-image/scripts/build-context.mjs .ci-image-context/workspace
+          mkdir -p .ci-image-context/system/.build
+          cp images/system/Dockerfile images/system/.dockerignore .ci-image-context/system/
+          cp images/system/.build/{supervisor.js,client.js,design-system.css} .ci-image-context/system/.build/
+          signature=$(jq -er '.tag | select(startswith("kintsugi-workspace:")) | ltrimstr("kintsugi-workspace:")' .ci-image-context/workspace/metadata.json)
+          system_signature=$(sha256sum images/system/Dockerfile images/system/.build/{supervisor.js,client.js,design-system.css} | sha256sum | cut -d' ' -f1)
+          owner='${{ github.repository_owner }}'
+          {
+            echo "commit=$(git rev-parse HEAD)"
+            echo "workspace=ghcr.io/${owner,,}/kintsugi-workspace"
+            echo "signature=$signature"
+            echo "system_signature=$system_signature"
+          } >> "$GITHUB_OUTPUT"
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4
+        if: inputs.publish
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+      - name: Reuse verified workspace manifest
+        id: workspace
+        if: inputs.publish
+        run: bun scripts/ci-images.ts reuse '${{ steps.plan.outputs.workspace }}:${{ steps.plan.outputs.signature }}' com.kintsugi.workspace-image.signature '${{ steps.plan.outputs.signature }}' >> "$GITHUB_OUTPUT"
+      - name: Reuse verified System content
+        id: system
+        if: inputs.publish
+        run: bun scripts/ci-images.ts reuse 'ghcr.io/${{ github.repository_owner }}/kintsugi-system:content-${{ steps.plan.outputs.system_signature }}' com.kintsugi.system.signature '${{ steps.plan.outputs.system_signature }}' >> "$GITHUB_OUTPUT"
+      - name: Reuse verified app commit
+        id: app
+        if: inputs.publish
+        run: bun scripts/ci-images.ts reuse 'ghcr.io/${{ github.repository_owner }}/kintsugi:sha-${{ steps.plan.outputs.commit }}' org.opencontainers.image.revision '${{ steps.plan.outputs.commit }}' >> "$GITHUB_OUTPUT"
+      - name: Preserve context modes for deterministic builds
+        if: steps.workspace.outputs.exists != 'true' || steps.system.outputs.exists != 'true'
+        run: tar -cf "$RUNNER_TEMP/image-contexts.tar" .ci-image-context
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        if: steps.workspace.outputs.exists != 'true' || steps.system.outputs.exists != 'true'
+        with:
+          name: image-contexts
+          path: ${{ runner.temp }}/image-contexts.tar
+          retention-days: 1
+          if-no-files-found: error
+      - name: Record build plan
+        run: |
+          {
+            echo '## Image plan'
+            echo 'Commit: ${{ steps.plan.outputs.commit }}; publication: ${{ inputs.publish }}'
+            echo '| Image | Reuse verified publication |'
+            echo '| --- | --- |'
+            echo '| Workspace | ${{ steps.workspace.outputs.exists == 'true' }} |'
+            echo '| System | ${{ steps.system.outputs.exists == 'true' }} |'
+            echo '| App | ${{ steps.app.outputs.exists == 'true' }} |'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  workspace:
+    name: Workspace / ${{ matrix.arch }}
+    needs: prepare
+    if: needs.prepare.outputs.workspace_exists != 'true'
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - arch: amd64
+            machine: x86_64
+            runner: ubuntu-24.04
+          - arch: arm64
+            machine: aarch64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 40
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          name: image-contexts
+          path: ${{ runner.temp }}
+      - name: Restore context modes
+        run: tar -xf "$RUNNER_TEMP/image-contexts.tar"
+      - name: Confirm native execution
+        run: test "$(uname -m)" = '${{ matrix.machine }}'
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4
+        if: inputs.publish
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+      - name: Build native workspace (cached)
+        id: build
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7
+        with:
+          context: .ci-image-context/workspace
+          platforms: linux/${{ matrix.arch }}
+          load: true
+          push: ${{ inputs.publish }}
+          provenance: false
+          tags: ${{ needs.prepare.outputs.workspace }}:${{ needs.prepare.outputs.signature }}-${{ matrix.arch }}
+          labels: org.opencontainers.image.source=https://github.com/${{ github.repository }}
+          cache-from: |
+            type=gha,scope=workspace-${{ matrix.arch }}
+            type=registry,ref=${{ needs.prepare.outputs.workspace }}:cache-${{ matrix.arch }}
+          cache-to: ${{ inputs.publish && format('type=registry,ref={0}:cache-{1},mode=max', needs.prepare.outputs.workspace, matrix.arch) || format('type=gha,scope=workspace-{0},mode=min', matrix.arch) }}
+      - name: Smoke-test native workspace
+        run: |
+          docker run --rm --entrypoint /bin/sh '${{ needs.prepare.outputs.workspace }}:${{ needs.prepare.outputs.signature }}-${{ matrix.arch }}' \
+            -ec 'test "$(uname -m)" = "${{ matrix.machine }}"; bun --version; kintsugi-dockerd --version; test -x /usr/local/bin/kintsugi-workspace-gateway'
+      - name: Save verified slice receipt
+        if: inputs.publish
+        run: |
+          mkdir -p receipts
+          printf '%s\n' '${{ steps.build.outputs.digest }}' > 'receipts/${{ matrix.arch }}'
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        if: inputs.publish
+        with:
+          name: workspace-${{ matrix.arch }}
+          path: receipts/
+          retention-days: 1
+          if-no-files-found: error
+
+  workspace_manifest:
+    name: Verify combined workspace
+    needs: [prepare, workspace]
+    if: inputs.publish && needs.prepare.outputs.workspace_exists != 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      ref: ${{ steps.verify.outputs.ref }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.prepare.outputs.commit }}
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: 1.4.2
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          pattern: workspace-*
+          merge-multiple: true
+          path: receipts
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+      - name: Merge verified native digests
+        run: bun scripts/ci-images.ts merge receipts '${{ needs.prepare.outputs.workspace }}' '${{ needs.prepare.outputs.signature }}'
+      - name: Verify both architectures and signature
+        id: verify
+        run: bun scripts/ci-images.ts verify '${{ needs.prepare.outputs.workspace }}:${{ needs.prepare.outputs.signature }}' com.kintsugi.workspace-image.signature '${{ needs.prepare.outputs.signature }}' >> "$GITHUB_OUTPUT"
+
+  system:
+    name: System / ${{ matrix.arch }}
+    needs: prepare
+    if: needs.prepare.outputs.system_exists != 'true'
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - arch: amd64
+            machine: x86_64
+            runner: ubuntu-24.04
+          - arch: arm64
+            machine: aarch64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        with:
+          name: image-contexts
+          path: ${{ runner.temp }}
+      - name: Restore context modes / confirm native execution
+        run: |
+          tar -xf "$RUNNER_TEMP/image-contexts.tar"
+          test "$(uname -m)" = '${{ matrix.machine }}'
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4
+        if: inputs.publish
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+      - name: Build native System (cached)
+        id: system
+        if: needs.prepare.outputs.system_exists != 'true'
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7
+        with:
+          context: .ci-image-context/system
+          platforms: linux/${{ matrix.arch }}
+          load: true
+          push: ${{ inputs.publish }}
+          provenance: false
+          tags: ghcr.io/${{ github.repository_owner }}/kintsugi-system:content-${{ needs.prepare.outputs.system_signature }}-${{ matrix.arch }}
+          labels: |
+            org.opencontainers.image.revision=${{ needs.prepare.outputs.commit }}
+            com.kintsugi.system.signature=${{ needs.prepare.outputs.system_signature }}
+          cache-from: |
+            type=gha,scope=system-${{ matrix.arch }}
+            type=registry,ref=ghcr.io/${{ github.repository_owner }}/kintsugi-system:cache-${{ matrix.arch }}
+          cache-to: ${{ inputs.publish && format('type=registry,ref=ghcr.io/{0}/kintsugi-system:cache-{1},mode=max', github.repository_owner, matrix.arch) || format('type=gha,scope=system-{0},mode=min', matrix.arch) }}
+      - name: Smoke-test native System
+        if: needs.prepare.outputs.system_exists != 'true'
+        run: |
+          ref='ghcr.io/${{ github.repository_owner }}/kintsugi-system:content-${{ needs.prepare.outputs.system_signature }}-${{ matrix.arch }}'
+          docker run --rm --entrypoint /bin/sh "$ref" -ec 'test "$(uname -m)" = "${{ matrix.machine }}"; bun --version; tailscale version; kintsugi-dockerd --version; test -s /opt/kintsugi-system/supervisor.js'
+          test "$(docker inspect "$ref" --format '{{ index .Config.Labels "kintsugi.installer-config" }}')" = 1
+      - name: Save verified native slice
+        if: inputs.publish
+        run: |
+          mkdir -p receipts
+          printf '%s\n' '${{ steps.system.outputs.digest }}' > 'receipts/${{ matrix.arch }}'
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        if: inputs.publish
+        with:
+          name: system-${{ matrix.arch }}
+          path: receipts/
+          retention-days: 1
+          if-no-files-found: error
+
+  images:
+    name: App / ${{ matrix.arch }}
+    needs: [prepare, workspace, workspace_manifest, system]
+    if: >-
+      always() && !cancelled() && needs.prepare.result == 'success' &&
+      (needs.prepare.outputs.workspace_exists == 'true' || needs.workspace.result == 'success') &&
+      (!inputs.publish || needs.prepare.outputs.workspace_exists == 'true' || needs.workspace_manifest.result == 'success') &&
+      (needs.prepare.outputs.system_exists == 'true' || needs.system.result == 'success') &&
+      needs.prepare.outputs.app_exists != 'true'
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - arch: amd64
+            machine: x86_64
+            runner: ubuntu-24.04
+          - arch: arm64
+            machine: aarch64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 40
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.prepare.outputs.commit }}
+      - name: Confirm native execution and bind workspace
+        id: dependency
+        run: |
+          test "$(uname -m)" = '${{ matrix.machine }}'
+          if [ '${{ inputs.publish }}' = true ]; then
+            ref='${{ needs.prepare.outputs.workspace_ref || needs.workspace_manifest.outputs.ref }}'
+            [[ "$ref" =~ @sha256:[a-f0-9]{64}$ ]]
+          else
+            ref='${{ needs.prepare.outputs.workspace }}:${{ needs.prepare.outputs.signature }}'
+          fi
+          echo "ref=$ref" >> "$GITHUB_OUTPUT"
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4
+        if: inputs.publish
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+      - name: Build native app (cached)
+        id: app
+        if: needs.prepare.outputs.app_exists != 'true'
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7
+        with:
+          context: .
+          file: apps/web/Dockerfile
+          platforms: linux/${{ matrix.arch }}
+          load: true
+          push: ${{ inputs.publish }}
+          provenance: false
+          tags: ghcr.io/${{ github.repository_owner }}/kintsugi:sha-${{ needs.prepare.outputs.commit }}-${{ matrix.arch }}
+          build-args: |
+            ATELIER_COMMIT_ID=${{ needs.prepare.outputs.commit }}
+            ATELIER_DEFAULT_WORKSPACE_IMAGE=${{ steps.dependency.outputs.ref }}
+            ATELIER_EAGERLY_PRELOAD=["${{ steps.dependency.outputs.ref }}"]
+          labels: com.kintsugi.workspace-image.ref=${{ steps.dependency.outputs.ref }}
+          cache-from: |
+            type=gha,scope=app-${{ matrix.arch }}
+            type=registry,ref=ghcr.io/${{ github.repository_owner }}/kintsugi:cache-${{ matrix.arch }}
+          cache-to: ${{ inputs.publish && format('type=registry,ref=ghcr.io/{0}/kintsugi:cache-{1},mode=max', github.repository_owner, matrix.arch) || format('type=gha,scope=app-{0},mode=min', matrix.arch) }}
+      - name: Smoke-test native app
+        if: needs.prepare.outputs.app_exists != 'true'
+        run: bash scripts/ci-smoke-app.sh 'ghcr.io/${{ github.repository_owner }}/kintsugi:sha-${{ needs.prepare.outputs.commit }}-${{ matrix.arch }}' '${{ matrix.machine }}'
+      - name: Save verified native slice
+        if: inputs.publish
+        run: |
+          mkdir -p receipts
+          printf '%s\n' '${{ steps.app.outputs.digest }}' > 'receipts/${{ matrix.arch }}'
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        if: inputs.publish
+        with:
+          name: app-${{ matrix.arch }}
+          path: receipts/
+          retention-days: 1
+          if-no-files-found: error
+
+  promote:
+    name: Verify all manifests / promote latest
+    needs: [prepare, workspace, workspace_manifest, system, images]
+    if: >-
+      always() && !cancelled() && inputs.publish && needs.prepare.result == 'success' &&
+      (needs.images.result == 'success' || needs.prepare.outputs.app_exists == 'true') &&
+      (needs.system.result == 'success' || needs.prepare.outputs.system_exists == 'true') &&
+      (needs.prepare.outputs.workspace_exists == 'true' || needs.workspace_manifest.result == 'success')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.prepare.outputs.commit }}
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: 1.4.2
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        if: needs.images.result == 'success'
+        with:
+          pattern: app-*
+          merge-multiple: true
+          path: receipts/app
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        if: needs.system.result == 'success'
+        with:
+          pattern: system-*
+          merge-multiple: true
+          path: receipts/system
+      - name: Assemble only missing manifests
+        run: |
+          if [ '${{ needs.prepare.outputs.app_exists }}' != true ]; then
+            bun scripts/ci-images.ts merge receipts/app 'ghcr.io/${{ github.repository_owner }}/kintsugi' 'sha-${{ needs.prepare.outputs.commit }}'
+          fi
+          if [ '${{ needs.prepare.outputs.system_exists }}' != true ]; then
+            bun scripts/ci-images.ts merge receipts/system 'ghcr.io/${{ github.repository_owner }}/kintsugi-system' 'content-${{ needs.prepare.outputs.system_signature }}'
+          fi
+      - name: Verify every manifest before changing any channel
+        run: |
+          bun scripts/ci-images.ts verify '${{ needs.prepare.outputs.workspace }}:${{ needs.prepare.outputs.signature }}' com.kintsugi.workspace-image.signature '${{ needs.prepare.outputs.signature }}' > workspace-receipt.txt
+          bun scripts/ci-images.ts verify 'ghcr.io/${{ github.repository_owner }}/kintsugi:sha-${{ needs.prepare.outputs.commit }}' org.opencontainers.image.revision '${{ needs.prepare.outputs.commit }}' > app-receipt.txt
+          bun scripts/ci-images.ts verify 'ghcr.io/${{ github.repository_owner }}/kintsugi-system:content-${{ needs.prepare.outputs.system_signature }}' com.kintsugi.system.signature '${{ needs.prepare.outputs.system_signature }}' > system-receipt.txt
+      - name: Reject stale publication / promote verified digests
+        run: |
+          test '${{ needs.prepare.outputs.commit }}' = "$(git ls-remote origin refs/heads/main | cut -f1)"
+          for kind in workspace app system; do
+            ref=$(sed -n 's/^ref=//p' "$kind-receipt.txt")
+            [[ "$ref" =~ @sha256:[a-f0-9]{64}$ ]]
+            repository=${ref%@*}
+            docker buildx imagetools create --tag "$repository:latest" "$ref"
+            digest=$(docker buildx imagetools inspect "$repository:latest" --format '{{json .Manifest}}' | jq -er '.digest')
+            test "$digest" = "${ref#*@}"
+            echo "Published $repository:latest at $digest" >> "$GITHUB_STEP_SUMMARY"
+          done
+
+  result:
+    name: Image run result
+    needs: [prepare, workspace, workspace_manifest, system, images, promote]
+    if: always()
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    permissions:
+      contents: read
+      actions: write
+    steps:
+      - name: Fail closed on failed or cancelled stages
+        run: |
+          results='${{ join(needs.*.result, ',') }}'
+          echo "Stage results: $results; publish=${{ inputs.publish }}" >> "$GITHUB_STEP_SUMMARY"
+          if [[ "$results" == *failure* || "$results" == *cancelled* ]]; then exit 1; fi
+          test '${{ needs.prepare.result }}' = success
+          if [ '${{ needs.prepare.outputs.workspace_exists }}' != true ]; then
+            test '${{ needs.workspace.result }}' = success
+            if [ '${{ inputs.publish }}' = true ]; then test '${{ needs.workspace_manifest.result }}' = success; fi
+          fi
+          if [ '${{ needs.prepare.outputs.system_exists }}' != true ]; then test '${{ needs.system.result }}' = success; fi
+          if [ '${{ needs.prepare.outputs.app_exists }}' != true ]; then test '${{ needs.images.result }}' = success; fi
+          if [ '${{ inputs.publish }}' = true ]; then test '${{ needs.promote.result }}' = success; fi
+      - name: Remove disposable Docker build records (keep logs and receipts)
+        if: always()
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
+        with:
+          script: |
+            const artifacts = await github.paginate(github.rest.actions.listWorkflowRunArtifacts, {
+              owner: context.repo.owner, repo: context.repo.repo, run_id: context.runId,
+            });
+            for (const artifact of artifacts.filter(a => a.name.endsWith('.dockerbuild'))) {
+              core.info(`Removing disposable build record ${artifact.name} (${artifact.size_in_bytes} bytes)`);
+              await github.rest.actions.deleteArtifact({
+                owner: context.repo.owner, repo: context.repo.repo, artifact_id: artifact.id,
+              });
+            }

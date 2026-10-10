@@ -1,104 +1,63 @@
-name: Publish default workspace image
+name: Publish images after CI
 
 on:
-  push:
-    branches:
-      - main
+  workflow_run:
+    workflows: [CI]
+    branches: [main]
+    types: [completed]
   workflow_dispatch:
 
 permissions:
   contents: read
+  actions: read
   packages: write
 
 concurrency:
-  group: publish-workspace-image-latest
+  group: publish-images
   cancel-in-progress: false
 
 jobs:
-  publish:
-    if: github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
+  selection:
+    name: Require successful push CI / skip documentation
+    if: >-
+      github.ref == 'refs/heads/main' &&
+      (github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push'))
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      required: ${{ steps.selection.outputs.required }}
     steps:
-      - uses: actions/checkout@v5
-
-      - uses: oven-sh/setup-bun@v2
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        if: github.event_name == 'workflow_run'
         with:
-          bun-version: 1.4.2
-
-      - name: Generate the default workspace image and its signature
-        id: image
+          name: ci-selection
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ github.token }}
+      - name: Select publication (missing or invalid receipts fail)
+        id: selection
         run: |
-          set -euo pipefail
-          context="$RUNNER_TEMP/workspace-image"
-          bun packages/workspace-image/scripts/build-context.mjs "$context"
-          tag=$(jq -er '.tag | select(startswith("kintsugi-workspace:")) | ltrimstr("kintsugi-workspace:")' "$context/metadata.json")
-          repository="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/kintsugi-workspace"
-          {
-            echo "context=$context"
-            echo "ref=$repository:$tag"
-            echo "alias=$repository:latest"
-          } >> "$GITHUB_OUTPUT"
-
-      - uses: docker/setup-qemu-action@v3
-
-      - uses: docker/setup-buildx-action@v3
-
-      - uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Check for the signature in the registry
-        id: registry
-        env:
-          IMAGE: ${{ steps.image.outputs.ref }}
-        run: |
-          set -euo pipefail
-          if docker buildx imagetools inspect "$IMAGE" --raw > manifest.json 2> inspect-error.txt; then
-            # A previous single-platform publication is not a complete cache hit.
-            if jq -e '[.manifests[]?.platform | .os + "/" + .architecture] | contains(["linux/amd64", "linux/arm64"])' manifest.json; then
-              echo "exists=true" >> "$GITHUB_OUTPUT"
-            else
-              echo "exists=false" >> "$GITHUB_OUTPUT"
-            fi
-          elif grep -Eqi 'manifest unknown|not found' inspect-error.txt; then
-            echo "exists=false" >> "$GITHUB_OUTPUT"
+          if [ '${{ github.event_name }}' = workflow_dispatch ]; then
+            required=true
           else
-            cat inspect-error.txt >&2
-            exit 1
+            required=$(cat ci-selection.txt)
+            [[ "$required" == true || "$required" == false ]]
           fi
+          echo "required=$required" >> "$GITHUB_OUTPUT"
+          echo "Image publication required: $required" >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Build and push the missing signature
-        if: steps.registry.outputs.exists != 'true'
-        uses: docker/build-push-action@v6
-        with:
-          context: ${{ steps.image.outputs.context }}
-          platforms: linux/amd64,linux/arm64
-          push: true
-          provenance: false
-          tags: ${{ steps.image.outputs.ref }}
-          labels: |
-            org.opencontainers.image.source=https://github.com/${{ github.repository }}
-            com.kintsugi.workspace-image.kind=default
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-      - name: Point latest at the signature without rebuilding
-        env:
-          IMAGE: ${{ steps.image.outputs.ref }}
-          ALIAS: ${{ steps.image.outputs.alias }}
-        run: |
-          set -euo pipefail
-          digest=$(docker buildx imagetools inspect "$IMAGE" --format '{{json .Manifest}}' | jq -er '.digest')
-          if docker buildx imagetools inspect "$ALIAS" --format '{{json .Manifest}}' > alias.json 2> inspect-error.txt; then
-            if [ "$(jq -er '.digest' alias.json)" = "$digest" ]; then
-              echo "$ALIAS already points at $IMAGE; nothing to do."
-              exit 0
-            fi
-          elif ! grep -Eqi 'manifest unknown|not found' inspect-error.txt; then
-            cat inspect-error.txt >&2
-            exit 1
-          fi
-          docker buildx imagetools create --tag "$ALIAS" "$IMAGE@$digest"
-          echo "Published $IMAGE and $ALIAS" >> "$GITHUB_STEP_SUMMARY"
+  publish:
+    name: Native staged publication
+    permissions:
+      contents: read
+      actions: write
+      packages: write
+    needs: selection
+    if: needs.selection.outputs.required == 'true'
+    uses: ./.github/workflows/images.yml
+    with:
+      publish: true
+      revision: ${{ github.event.workflow_run.head_sha || github.sha }}

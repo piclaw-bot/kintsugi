@@ -11,3 +11,19 @@ apps/web/public/assets
 apps/web/public/assets-manifest.json
 apps/web/public/workspace.js.map
 apps/web/public/drawio
+
+# CI metadata and documentation do not belong in production build contexts.
+.github
+.ci-image-context
+docs
+notes
+readme.md
+AGENTS.md
+CONTEXT.md
+acceptance
+**/test
+**/*.test.ts
+**/*.test.js
+**/*.test.mjs
+scripts/ci-images.ts
+scripts/ci-smoke-app.sh

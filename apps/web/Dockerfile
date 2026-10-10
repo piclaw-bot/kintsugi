@@ -1,3 +1,4 @@
+# syntax=docker/dockerfile:1-labs
 ARG ATELIER_RUNTIME_IMAGE=ghcr.io/lucasmeijer/agents-in-the-cloud-docker@sha256:144a54ae19731c822e750b1020bdfc5e2098348b4092e76e42b7f0cc576ca232
 FROM oven/bun:1.4.0 AS bun-dist
 
@@ -17,12 +18,16 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
  && apt-get install -y --no-install-recommends ca-certificates
 WORKDIR /app
 
-COPY . .
+# Source-only changes must not invalidate the dependency installation layer.
+COPY package.json bun.lock bunfig.toml ./
+COPY patches/ patches/
+COPY --parents apps/*/package.json packages/*/package.json ./
 
 RUN --mount=type=cache,target=/root/.bun/install/cache \
     bun install --frozen-lockfile
 
 FROM deps AS build
+COPY . .
 RUN bun run --cwd apps/web build:client
 
 FROM ${ATELIER_RUNTIME_IMAGE} AS runtime

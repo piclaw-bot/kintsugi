@@ -2,6 +2,52 @@
 
 The app’s **Update channel** follows either the published `latest` image or the image promoted to `stable`. Those image tags remain the publication boundary.
 
+## GitHub Actions
+
+`ci.yml` selects checks from the changed files. Documentation-only changes skip
+runtime checks; unknown bases require them. Workflow validation, lint and types
+run before browser setup and the full suite. Superseded runs are cancelled.
+Bun downloads and Playwright browsers are cached; dependencies use frozen locks.
+The full suite runs once on AMD64, including installer ownership checks.
+
+`images.yml` builds workspace, System and app images on native `ubuntu-24.04`
+and `ubuntu-24.04-arm` runners. It requires successful CI at the exact source
+revision. Manual runs default to build-and-smoke-test only. No SSH builder,
+QEMU or package-write PAT is required by CI.
+
+Contexts and System bundles are prepared once. Workspace and System builds run
+in parallel; app builds follow verified workspace assembly and successful System
+checks. Published workspace signatures, System content hashes and app commit
+images are verified before reuse, so unchanged images skip native jobs entirely.
+Missing manifests trigger builds; authentication, network and invalid-manifest
+errors fail the run. App dependency installation has its own cached Docker layer.
+
+Dry runs use architecture-specific Actions layer caches with `mode=min` to limit
+storage. Publication uses full registry layer caches with `mode=max`, also reading
+the dry-run caches. Handoff artifacts preserve file modes and expire after one day.
+Named jobs and step summaries show selection, reuse, native builds and promotion.
+
+`publish-workspace-image.yml` now publishes all three images after successful
+push CI on `main`. Documentation, test-only and workflow-only changes skip image
+publication. Manual publication still requires successful exact-revision CI.
+The workflow uses its `GITHUB_TOKEN` with job-scoped `packages: write`; no
+additional secrets or environment variables are needed.
+
+Both native slices must pass smoke tests before their receipts are merged.
+Every combined manifest, source/signature label and pinned workspace dependency
+is verified before any `latest` tag changes. Stale main revisions are rejected
+before writes and again before promotion. Promotion is serialised and never
+cancelled halfway through. **Channel changes are not atomic:** an error after one
+tag advances requires inspection or rerunning the same publication. `stable`
+is never advanced by CI; complete clean-install/update/rollback acceptance first.
+
+Automatic publication stays disabled until native build verification succeeds.
+
+## Local release command
+
+The existing local command uses a two-daemon SSH builder. This requirement applies
+to local release tooling only; GitHub Actions uses its own native runners.
+
 ```sh
 bun run release             # latest
 bun run release --stable    # latest and stable
@@ -12,12 +58,6 @@ The release command targets `origin/main`, `ghcr.io/rcarmo/kintsugi:latest` and
 immutable commit/staging tags. `--stable` also advances `stable`; complete VM
 acceptance before using it. `--check` may be combined with `--stable` and never
 publishes. Upstream Atelier releases use their own repository.
-
-Test-only GitHub Actions CI runs installation, checks and the full test suite.
-The workspace publisher is disabled until dual-architecture builds and registry
-publication are verified. It uses the workflow's `GITHUB_TOKEN` with
-`packages: write`, independently of the app/System release credentials below.
-Enabling it publishes only the workspace dependency, not app or System images.
 
 App, System and workspace images retain a pinned upstream runtime dependency.
 `images/patched-docker/publish.sh` can publish a fork runtime separately; commit
@@ -37,13 +77,13 @@ of a legacy Atelier installation.
 Existing `ATELIER_*` environment/build-argument names remain unchanged; defaults,
 storage names, labels and runtime protocols do not adopt Atelier state.
 
-Publishing requires the existing `GH_PACKAGE_TOKEN` with GHCR package write access.
+Local publishing requires the existing `GH_PACKAGE_TOKEN` with GHCR package write access.
 Docker, Buildx, Bun and Git are required and supplied by the Atelier workspace.
 The release CLI runs on Linux and macOS; it calls the native OS locking API through
 Bun rather than requiring a `flock` executable. No GitHub Actions or host Docker
 socket is needed.
 
-## What runs
+### Local builders
 
 Set `ATELIER_RELEASE_HELPER=builder@hostname` (or an SSH config alias). The helper
 must allow noninteractive SSH with an already trusted host key, and its SSH user
@@ -92,7 +132,7 @@ Build caches remain with each Docker daemon. SSH contexts and probe images are
 retained for reuse. The script does not provision Docker or modify the helper's
 storage configuration.
 
-## Live progress for people and agents
+### Local progress
 
 The script is an ordinary foreground CLI: stdout is live and simultaneously saved.
 It needs neither tmux nor Atelier to function. For long runs in Atelier, start it

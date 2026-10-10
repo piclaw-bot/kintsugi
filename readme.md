@@ -4,7 +4,7 @@
 
 Kintsugi is an opinionated fork of [AgentsInTheCloud](https://github.com/lucasmeijer/AgentsInTheCloud), originally created by Lucas Meijer. It runs coding agents on your own infrastructure, with your choice of model providers and tools for evaluating their work.
 
-This fork adds an embedded Draw.io editor and diagram previews, a scoped management API, configurable Docker release sources, private GHCR authentication, pinned updates and installer rollback.
+This fork adds an embedded Draw.io editor and diagram previews, a scoped management API, configurable Docker release sources, private GHCR authentication, pinned updates and installer rollback. It also adds a cost-optimised, resource-efficient CI workflow with native AMD64/ARM64 builds, staged checks, shared caches and selective execution.
 
 The name comes from **金継ぎ**, the Japanese art of repairing pottery with gold, because the original project was a brilliant way to glue together several components and I wanted to honor that approach.
 
