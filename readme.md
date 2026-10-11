@@ -37,6 +37,8 @@ bash /tmp/install-kintsugi.sh --action install --storage-driver overlayfs
 
 OverlayFS uses more disk space and initial provisioning I/O. Updates retain the selected driver; in-place switching is unsupported. See [storage requirements](docs/automation.md#installer-setup-update-and-rollback) for kernel and image compatibility.
 
+On Linux with systemd, setup installs the private host updater by default. Settings uses **Check now → Download update → Restart to update** for System, the app and workspace image dependencies. Existing installations need one host-installer update from a release containing the service. `--no-updater` skips it; macOS and older installations retain app-only updates.
+
 Setup asks for the app image repository and Tailscale machine name. System defaults to the app repository with `-system` appended. For locally built or separately named images, use `--app-image` and `--system-image`. Private GHCR sources accept `--registry-config FILE`. See [automation](docs/automation.md) for source selection, updates and rollback.
 
 For unattended setup and LAN access, follow the [deployment instructions](docs/automation.md#trusted-lan-proxy-deployment-v002). Use the installer from the selected release tag, with matching app and System version tags. Cloning the repository does not install a running service.

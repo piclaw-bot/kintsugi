@@ -17,3 +17,5 @@
 .release-source-settings form { gap: 16px; margin-top: 16px; }
 .release-source-settings form button { align-self: flex-start; }
 .release-source-settings h3 { margin-top: 24px; }
+
+.release-source-settings code { overflow-wrap: anywhere; }

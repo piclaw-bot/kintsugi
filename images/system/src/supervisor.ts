@@ -1,3 +1,4 @@
+import { updaterSocket } from "../../../packages/shared/src/installation-update.ts";
 import { tailscaleHttpsSettingsUrl, TailscaleHttpsDisabledError } from "../../../packages/shared/src/tailscale.ts";
 import { hostSocketPath } from "../../../packages/host/src/protocol.ts";
 import { startHostService } from "../../../packages/host/src/system/service.ts";
@@ -437,6 +438,16 @@ const server = Bun.serve({
   idleTimeout: 0,
   async fetch(request) {
     const url = new URL(request.url);
+    if (url.pathname.startsWith("/release/updater/")) {
+      const operation = url.pathname.slice("/release/updater/".length);
+      if (operation === "capabilities" && request.method === "GET") return Response.json({ installed: existsSync("/run/kintsugi-updater"), available: existsSync(updaterSocket) });
+      if (!["status", "check", "prepare", "apply", "rollback"].includes(operation)) return new Response("Not found", { status: 404 });
+      if ((operation === "status" ? "GET" : "POST") !== request.method) return new Response("Method not allowed", { status: 405 });
+      if (request.method === "POST" && !allowedOrigin(request)) return new Response("Forbidden", { status: 403 });
+      if (!existsSync(updaterSocket)) return Response.json({ error: "Host updater is unavailable" }, { status: 503 });
+      try { return await fetch(`http://updater/${operation}`, { unix: updaterSocket, method: request.method, headers: { "content-type": "application/json" }, body: request.method === "POST" ? await request.text() : undefined, signal: AbortSignal.timeout(120_000) }); }
+      catch { return Response.json({ error: "Host updater is unavailable" }, { status: 503 }); }
+    }
     if (url.pathname.startsWith("/release/")) {
       if (request.method !== "GET" && !allowedOrigin(request)) return new Response("Forbidden", { status: 403 });
       const response = await releaseRequests(request);

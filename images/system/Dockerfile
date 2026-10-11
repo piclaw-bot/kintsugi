@@ -13,6 +13,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     iotop-c iproute2 iputils-ping linux-perf lsof mtr-tiny ncdu nethogs \
     nftables procps psmisc smem strace sysstat systemd tcpdump tmux util-linux \
     && rm -rf /var/lib/apt/lists/*
+LABEL kintsugi.host-updater="1"
 LABEL kintsugi.deployment-config="1"
 LABEL kintsugi.installer-config="1" kintsugi.storage-drivers="erofs,overlayfs"
 LABEL org.opencontainers.image.source="https://github.com/rcarmo/kintsugi" \
@@ -20,6 +21,7 @@ LABEL org.opencontainers.image.source="https://github.com/rcarmo/kintsugi" \
 COPY --from=bun /usr/local/bin/bun /usr/local/bin/bun
 COPY --from=tailscale /usr/local/bin/tailscale /usr/local/bin/tailscale
 COPY --from=tailscale /usr/local/bin/tailscaled /usr/local/bin/tailscaled
+COPY .build/host-updater.js .build/install.sh /opt/kintsugi-system/
 COPY .build/supervisor.js .build/client.js .build/design-system.css /opt/kintsugi-system/
 ENTRYPOINT ["/usr/bin/tini", "--", "bun", "/opt/kintsugi-system/supervisor.js"]
 CMD []

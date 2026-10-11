@@ -13,6 +13,7 @@ export const releaseSourceSchema = Type.Object({
 export type ReleaseSource = Static<typeof releaseSourceSchema>;
 export const defaultReleaseSource: ReleaseSource = { appRepository: "ghcr.io/rcarmo/kintsugi", systemRepository: "ghcr.io/rcarmo/kintsugi-system" };
 export const releaseSettingsSchema = Type.Object({
+  releaseSelection: Type.Optional(Type.Union([Type.Literal("stable"), Type.Literal("latest"), Type.Literal("custom")])),
   releaseChannel: Type.Optional(Type.Union([Type.Literal("stable"), Type.Literal("latest")])),
   releaseSource: Type.Optional(releaseSourceSchema),
   releaseMode: Type.Optional(Type.Union([Type.Literal("upstream"), Type.Literal("custom")])),
@@ -38,7 +39,13 @@ export function activeReleaseSource(settings: ReleaseSettings): ReleaseSource {
   return settings.releaseSource ?? defaultReleaseSource;
 }
 export function selectedReleaseChannel(settings: ReleaseSettings): "stable" | "latest" | "custom" {
-  return settings.releaseMode !== "upstream" && settings.releaseSource ? "custom" : settings.releaseChannel ?? "latest";
+  if (settings.releaseSelection) return settings.releaseSelection;
+  const source = activeReleaseSource(settings);
+  if (settings.releaseMode !== "upstream" && settings.releaseSource) {
+    if (source.appVersion === source.systemVersion && (source.appVersion === "latest" || source.appVersion === "stable")) return source.appVersion;
+    return "custom";
+  }
+  return settings.releaseChannel ?? "latest";
 }
 
 export function releaseReference(settings: ReleaseSettings, component: "app" | "system"): string {
@@ -72,3 +79,8 @@ export const registryCredentialSchema = Type.Object({
   token: Type.String({ minLength: 1, maxLength: 4096, pattern: "^[^\\s:]+$", writeOnly: true }),
 }, { additionalProperties: false });
 export type RegistryCredentials = Static<typeof registryCredentialSchema>;
+
+/** Saving a source without versions opts into Latest; existing saved pins remain untouched. */
+export function trackingReleaseSource(source: ReleaseSource): ReleaseSource {
+  return { ...source, appVersion: source.appVersion ?? "latest", systemVersion: source.systemVersion ?? "latest" };
+}

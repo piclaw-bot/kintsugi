@@ -35,6 +35,9 @@ admin_bootstrap=""
 admin_token_output=""
 result_file=""
 admin_ready=false
+no_updater=0
+preserve_release_selection=0
+updater_mount=()
 
 # Keep subprocess output available without turning the welcome into a log tail.
 log_file=""
@@ -155,6 +158,8 @@ Update also installs the newest Kintsugi app on the installation's selected chan
   --registry-config FILE  Docker config with inline GHCR auth; copied privately into System
   --storage-driver MODE  erofs (default) or overlayfs; selected on fresh install, retained on update
   --access-mode MODE  localhost, proxy (trusted LAN), or tailscale
+  --no-updater        Disable host updater installation (Linux enables it by default)
+  --preserve-release-selection  Use image overrides without changing saved tracking
   --non-interactive   Never prompt; fully specify fresh install inputs
   --confirm-replace   Confirm interruption for unattended update/rollback
   --confirm-delete    Confirm permanent deletion for unattended uninstall
@@ -210,6 +215,8 @@ while [ "$#" -gt 0 ]; do
       admin_publish+=("$2"); shift 2 ;;
     --non-interactive) non_interactive=1; shift ;;
     --confirm-replace) confirm_replace=1; shift ;;
+    --no-updater) no_updater=1; shift ;;
+    --preserve-release-selection) preserve_release_selection=1; shift ;;
     --confirm-delete) confirm_delete=1; shift ;;
     --install-docker) install_docker=1; shift ;;
     --acknowledge-lan-trust) lan_trust=1; shift ;;
@@ -598,6 +605,9 @@ uninstall_system() {
     printf '\n  Uninstall cancelled. No data was deleted.\n'
     return
   fi
+  if [ "$host_os" = Linux ] && [ "$no_updater" -eq 0 ] && [ -f /etc/systemd/system/kintsugi-updater.service ]; then
+    run_root systemctl disable --now kintsugi-updater.service
+  fi
   if [ "$installed" -eq 1 ]; then
     docker exec --user root "$system_name" bun -e '
       const response = await fetch("http://supervisor/uninstall", {
@@ -634,6 +644,7 @@ uninstall_system() {
   fi
   remaining="$(docker volume ls --format '{{.Name}}' --filter "name=^${system_name}$")"
   if [ -n "$remaining" ]; then run_quiet "Deleting installation storage" docker volume rm "$system_name"; fi
+  if [ "$host_os" = Linux ] && [ "$no_updater" -eq 0 ]; then run_root rm -rf /var/lib/kintsugi-updater; fi
   remaining="$(docker ps -a --format '{{.Names}}' --filter "name=^${system_name}$")"
   [ -z "$remaining" ] || fail "System container still exists"
   remaining="$(docker volume ls --format '{{.Name}}' --filter "name=^${system_name}$")"
@@ -704,6 +715,7 @@ try {
 } catch(error) { if(error.code !== 'ENOENT') throw Error('Cannot read storage settings; nothing was replaced'); }
 const storageDriver = storageOverride || storage?.driver || 'erofs';
 if (!['erofs','overlayfs'].includes(storageDriver) || (storage && storage.driver !== storageDriver)) throw Error('Invalid or changed storage driver; nothing was replaced');
+if (settings.releaseSelection !== undefined && !['stable','latest','custom'].includes(settings.releaseSelection)) throw Error('Invalid release selection');
 if (settings.releaseChannel !== undefined && !['stable','latest'].includes(settings.releaseChannel)) throw Error('Invalid release channel');
 if (settings.releaseMode !== undefined && !['upstream','custom'].includes(settings.releaseMode)) throw Error('Invalid release mode');
 function validSource(source) {
@@ -717,6 +729,8 @@ if (sourceOverride) {
   settings.releaseSource = {appRepository:sourceOverride,systemRepository:sourceOverride+'-system'};
   settings.releaseMode = sourceOverride === defaults.appRepository ? 'upstream' : 'custom';
 }
+const preserveSelection = process.argv[process.argv.length-1] === "preserve-selection";
+const savedSettings = structuredClone(settings);
 const overrides = {app:appOverride,system:systemOverride};
 for (const [component, reference] of Object.entries(overrides)) {
   if (!reference) continue;
@@ -728,7 +742,7 @@ for (const [component, reference] of Object.entries(overrides)) {
   source[component+'Repository'] = match[1];
   if (match[3] || match[2]) source[component+'Version'] = match[3] || match[2]; else delete source[component+'Version'];
   if (!validSource(source)) throw Error('Invalid release image override');
-  settings.releaseSource = source; settings.releaseMode = 'custom';
+  settings.releaseSource = source; settings.releaseMode = 'custom'; settings.releaseSelection = 'custom';
 }
 const source = settings.releaseMode === 'upstream' ? defaults : settings.releaseSource ?? defaults;
 function reference(component) {
@@ -775,7 +789,7 @@ if (operation === 'auth-check') {
   if (!imageIdPattern.test(systemId)) throw Error('System must be pinned before replacement');
   if (preparedApp && !imageIdPattern.test(preparedApp)) throw Error('App must be pinned before replacement');
   await fs.mkdir('/data/app', {recursive:true}); await fs.mkdir('/data/supervisor', {recursive:true});
-  await write('/data/app/update.json',settings,true);
+  await write('/data/app/update.json',preserveSelection ? savedSettings : settings,true);
   await write('/data/supervisor/storage.json',{driver:storageDriver},false);
   state.tailscaleHostname = hostname;
   const previousAppImage = state.currentImage ?? null;
@@ -792,12 +806,16 @@ INSTALLER_CONFIG_JS
 )"
 release_plan() {
   if [ -n "$registry_directory" ]; then
-    docker run --rm -i --network none --entrypoint bun --mount "source=$system_name,target=/data,readonly" "$1" -e "$release_config_script" "${2:-plan}" "$source_repository" "$app_image_override" "$system_image_override" "$tailscale_hostname" "" "" - "" "$storage_driver" "$proxy_config" "$access_mode" < "$registry_directory/config.json"
+    docker run --rm -i --network none --entrypoint bun --mount "source=$system_name,target=/data,readonly" "$1" -e "$release_config_script" "${2:-plan}" "$source_repository" "$app_image_override" "$system_image_override" "$tailscale_hostname" "" "" - "" "$storage_driver" "$proxy_config" "$access_mode" "$([ "$preserve_release_selection" -eq 1 ] && echo preserve-selection || echo normal-selection)" < "$registry_directory/config.json"
   else
-    docker run --rm --network none --entrypoint bun --mount "source=$system_name,target=/data,readonly" "$1" -e "$release_config_script" "${2:-plan}" "$source_repository" "$app_image_override" "$system_image_override" "$tailscale_hostname" "" "" "" "" "$storage_driver" "$proxy_config" "$access_mode"
+    docker run --rm --network none --entrypoint bun --mount "source=$system_name,target=/data,readonly" "$1" -e "$release_config_script" "${2:-plan}" "$source_repository" "$app_image_override" "$system_image_override" "$tailscale_hostname" "" "" "" "" "$storage_driver" "$proxy_config" "$access_mode" "$([ "$preserve_release_selection" -eq 1 ] && echo preserve-selection || echo normal-selection)"
   fi
 }
 host_pull() {
+  if [ -z "$registry_directory" ] && [ "$installed" -eq 1 ] && [ "$(id -u)" -eq 0 ]; then
+    host_data="$(docker inspect --format '{{range .Mounts}}{{if eq .Destination "/data"}}{{.Source}}{{end}}{{end}}' "$system_name")"
+    if [ -f "$host_data/supervisor/docker-auth/config.json" ]; then docker --config "$host_data/supervisor/docker-auth" pull "$1"; return; fi
+  fi
   if [ -n "$registry_directory" ]; then docker --config "$registry_directory" pull "$1"; else docker pull "$1"; fi
 }
 prepare_installed_app() {
@@ -924,6 +942,15 @@ case "$action" in
     [ -z "$admin_proxy_publish" ] || proxy_port_args+=(--publish "$admin_proxy_publish")
     deployment_required=0
     if [ -n "$proxy_config$admin_bootstrap" ] || [ "$access_mode" = proxy ] || [ "${#proxy_port_args[@]}" -gt 0 ]; then deployment_required=1; fi
+    if [ "$host_os" = Linux ] && [ "$no_updater" -eq 0 ]; then
+      command -v systemctl >>"$log_file" 2>&1 || fail "Host updater requires systemd; use --no-updater only for an app-only installation"
+      systemctl show-environment >>"$log_file" 2>&1 || fail "Host updater requires a running systemd manager; use --no-updater for an app-only installation"
+    fi
+    if [ "$host_os" = Linux ] && [ "$no_updater" -eq 0 ]; then
+      run_root mkdir -p /run/kintsugi-updater
+      run_root chmod 700 /run/kintsugi-updater
+      updater_mount=(--mount "type=bind,source=/run/kintsugi-updater,target=/run/kintsugi-updater,readonly")
+    fi
     pull_log_start="$(($(wc -l <"$log_file") + 1))"
     if [ "$action" = rollback ]; then
       docker image inspect "$system_image" >>"$log_file" 2>&1 || fail "Previous System image is no longer retained; nothing was replaced"
@@ -947,6 +974,20 @@ case "$action" in
     if [ "$deployment_required" -eq 1 ]; then
       [ "$(docker image inspect --format '{{index .Config.Labels "kintsugi.deployment-config"}}' "$system_image")" = 1 ] || fail "Selected System lacks deployment configuration support; nothing was replaced"
     fi
+    if [ "$host_os" = Linux ] && [ "$no_updater" -eq 0 ] && [ "$action" != rollback ]; then
+      [ "$(docker image inspect --format '{{index .Config.Labels "kintsugi.host-updater"}}' "$system_image")" = 1 ] || fail "Selected System lacks the default host updater; use a matching new release"
+    fi
+    if [ "$host_os" = Linux ] && [ "$no_updater" -eq 0 ] && [ "$action" != rollback ]; then
+  updater_files="$(mktemp -d /tmp/kintsugi-updater.XXXXXX)"
+  updater_container="$(docker create --entrypoint /bin/true "$system_image")"
+  if ! { docker cp "$updater_container:/usr/local/bin/bun" "$updater_files/bun" && docker cp "$updater_container:/opt/kintsugi-system/host-updater.js" "$updater_files/updater.js" && docker cp "$updater_container:/opt/kintsugi-system/install.sh" "$updater_files/install.sh"; }; then
+    docker rm "$updater_container" >>"$log_file" 2>&1
+    fail "Could not extract the host updater"
+  fi
+  docker rm "$updater_container" >>"$log_file" 2>&1
+  chmod 755 "$updater_files/bun"
+  "$updater_files/bun" --version >>"$log_file" 2>&1 || fail "Packaged updater runtime cannot run on this host"
+    fi
     # Validate the persisted plan with the exact selected image before stopping anything.
     plan="$(release_plan "$system_image" "${plan_operation:-plan}" 2>>"$log_file")" || fail "The selected System image cannot validate this installation"
     plan_fields=(); while IFS= read -r field; do plan_fields+=("$field"); done <<<"$plan"
@@ -957,7 +998,7 @@ case "$action" in
         run_quiet "Starting System to prepare the selected app" docker start "$system_name"
       fi
       if [ -n "$registry_directory" ]; then
-        run_quiet "Preparing private registry access" docker run --rm -i --network none --entrypoint bun --mount "source=$system_name,target=/data" "$system_image" -e "$release_config_script" credentials "$source_repository" "$app_image_override" "$system_image_override" "$tailscale_hostname" "" "" - "" "$storage_driver" "$proxy_config" "$access_mode" < "$registry_directory/config.json"
+        run_quiet "Preparing private registry access" docker run --rm -i --network none --entrypoint bun --mount "source=$system_name,target=/data" "$system_image" -e "$release_config_script" credentials "$source_repository" "$app_image_override" "$system_image_override" "$tailscale_hostname" "" "" - "" "$storage_driver" "$proxy_config" "$access_mode" "$([ "$preserve_release_selection" -eq 1 ] && echo preserve-selection || echo normal-selection)" < "$registry_directory/config.json"
       fi
       if [ "$action" = rollback ]; then
         pinned_app="$app_image"
@@ -984,13 +1025,13 @@ case "$action" in
     fi
     apply_operation=apply; if [ "$action" = rollback ]; then apply_operation=rollback-apply; fi
     if [ -n "$registry_directory" ]; then
-      run_quiet "Saving installation source and hostname" docker run --rm -i --network none --entrypoint bun --mount "source=$system_name,target=/data" "$system_image" -e "$release_config_script" "$apply_operation" "$source_repository" "$app_image_override" "$system_image_override" "$tailscale_hostname" "$system_image" "$pinned_app" - "$old_system_image" "$storage_driver" "$proxy_config" "$access_mode" < "$registry_directory/config.json"
+      run_quiet "Saving installation source and hostname" docker run --rm -i --network none --entrypoint bun --mount "source=$system_name,target=/data" "$system_image" -e "$release_config_script" "$apply_operation" "$source_repository" "$app_image_override" "$system_image_override" "$tailscale_hostname" "$system_image" "$pinned_app" - "$old_system_image" "$storage_driver" "$proxy_config" "$access_mode" "$([ "$preserve_release_selection" -eq 1 ] && echo preserve-selection || echo normal-selection)" < "$registry_directory/config.json"
     else
-      run_quiet "Saving installation source and hostname" docker run --rm --network none --entrypoint bun --mount "source=$system_name,target=/data" "$system_image" -e "$release_config_script" "$apply_operation" "$source_repository" "$app_image_override" "$system_image_override" "$tailscale_hostname" "$system_image" "$pinned_app" "" "$old_system_image" "$storage_driver" "$proxy_config" "$access_mode"
+      run_quiet "Saving installation source and hostname" docker run --rm --network none --entrypoint bun --mount "source=$system_name,target=/data" "$system_image" -e "$release_config_script" "$apply_operation" "$source_repository" "$app_image_override" "$system_image_override" "$tailscale_hostname" "$system_image" "$pinned_app" "" "$old_system_image" "$storage_driver" "$proxy_config" "$access_mode" "$([ "$preserve_release_selection" -eq 1 ] && echo preserve-selection || echo normal-selection)"
     fi
     stop_on_failure=1
     run_quiet "Starting Kintsugi services" docker run -d --name "$system_name" --label "kintsugi.storage-driver=$storage_driver" --hostname "$tailscale_hostname" --privileged --cgroupns=host --restart unless-stopped \
-      --stop-timeout 120 --tmpfs /run --mount "source=$system_name,target=/data" --publish 127.0.0.1:3080:3080 "${admin_port_args[@]}" "${proxy_port_args[@]}" \
+      --stop-timeout 120 --tmpfs /run --mount "source=$system_name,target=/data" --publish 127.0.0.1:3080:3080 "${admin_port_args[@]}" "${proxy_port_args[@]}" "${updater_mount[@]}" \
       "$system_image" --app-image "$app_image" --access-mode "${access_mode:-tailscale}"
     ;;
   connect)
@@ -1054,4 +1095,38 @@ if [ -n "$result_file" ]; then
     ' "$(docker inspect --format '{{.Image}}' "$system_name")" "$admin_ready" "$([ -n "$admin_proxy_publish" ] && echo true || echo false)"
   }
   if [ "$result_file" = - ]; then report_result >&3; else report_result > "$result_file"; fi
+fi
+
+
+# Install the narrowly scoped host service after health checks, never mount host Docker in System.
+if [ "$host_os" = Linux ] && [ "$no_updater" -eq 0 ] && { [ "$action" = install ] || [ "$action" = update ]; }; then
+  run_root install -d -m 755 /usr/local/lib/kintsugi-updater
+  run_root install -d -m 700 /var/lib/kintsugi-updater
+  for updater_file in bun updater.js install.sh; do
+    run_root install -m 755 "$updater_files/$updater_file" "/usr/local/lib/kintsugi-updater/$updater_file.next"
+    run_root mv "/usr/local/lib/kintsugi-updater/$updater_file.next" "/usr/local/lib/kintsugi-updater/$updater_file"
+  done
+  rm -rf "$updater_files"
+  run_root tee /etc/systemd/system/kintsugi-updater.service >/dev/null <<'UPDATER_UNIT'
+[Unit]
+Description=Kintsugi installation updater
+After=docker.service
+Requires=docker.service
+[Service]
+Type=simple
+User=root
+UMask=0077
+RuntimeDirectory=kintsugi-updater
+RuntimeDirectoryMode=0700
+RuntimeDirectoryPreserve=yes
+ExecStart=/usr/bin/flock -n /run/kintsugi-updater/service.lock /usr/local/lib/kintsugi-updater/bun /usr/local/lib/kintsugi-updater/updater.js
+Restart=always
+RestartSec=2
+TimeoutStopSec=3000
+NoNewPrivileges=true
+[Install]
+WantedBy=multi-user.target
+UPDATER_UNIT
+  run_root systemctl daemon-reload
+  run_root systemctl enable --now kintsugi-updater.service
 fi

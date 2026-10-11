@@ -1,8 +1,8 @@
 import { expect, test } from "bun:test";
 
-const installer = await Bun.file(new URL("./install.sh", import.meta.url)).text();
+const installer = (await Bun.file(new URL("./install.sh", import.meta.url)).text()).replace("no_updater=0", "no_updater=1");
 
-function run(options: { savedStorageDriver?: string; storageCompatible?: boolean; erofsMissing?: boolean; savedRepository?: string; savedHostname?: string; appPrepareFails?: boolean; savedRegistry?: boolean; rollbackAvailable?: boolean; installerCompatible?: boolean; promptRepository?: string; promptHostname?: string; systemState?: "restarting" | "exited"; portMappings?: string; nonRoot?: boolean; denySudo?: boolean; mac?: boolean; wsl?: boolean; installed?: boolean; old?: boolean; legacyAtelier?: boolean; legacyVolumeOnly?: boolean; legacyPreSystem?: boolean; legacyDownloadFails?: boolean; legacyDelegateFails?: boolean; pullFails?: boolean; pullDenied?: boolean; appFails?: boolean; retryUpdateRequest?: boolean; rejectUpdateRequest?: boolean; pendingHealth?: boolean; missingFilesystem?: boolean; loadable?: boolean; uninstallAnswer?: string; uninstallFails?: boolean; uninstallRequestFails?: boolean; inventoryFails?: boolean; volumeOnly?: boolean; volumeRemovalFails?: boolean; initiallyStopped?: boolean } = {}, args: string[] = []) {
+function run(options: { hostUpdater?: boolean; savedStorageDriver?: string; storageCompatible?: boolean; erofsMissing?: boolean; savedRepository?: string; savedHostname?: string; appPrepareFails?: boolean; savedRegistry?: boolean; rollbackAvailable?: boolean; installerCompatible?: boolean; promptRepository?: string; promptHostname?: string; systemState?: "restarting" | "exited"; portMappings?: string; nonRoot?: boolean; denySudo?: boolean; mac?: boolean; wsl?: boolean; installed?: boolean; old?: boolean; legacyAtelier?: boolean; legacyVolumeOnly?: boolean; legacyPreSystem?: boolean; legacyDownloadFails?: boolean; legacyDelegateFails?: boolean; pullFails?: boolean; pullDenied?: boolean; appFails?: boolean; retryUpdateRequest?: boolean; rejectUpdateRequest?: boolean; pendingHealth?: boolean; missingFilesystem?: boolean; loadable?: boolean; uninstallAnswer?: string; uninstallFails?: boolean; uninstallRequestFails?: boolean; inventoryFails?: boolean; volumeOnly?: boolean; volumeRemovalFails?: boolean; initiallyStopped?: boolean } = {}, args: string[] = []) {
   const pinned = `sha256:${"c".repeat(64)}`;
   const logPath = `/tmp/kintsugi-install-test-${crypto.randomUUID()}.log`;
   const mock = `
@@ -18,6 +18,7 @@ sudo() {
   if [ "$1" = -n ]; then shift; fi
   "$@"
 }
+systemctl() { printf 'SYSTEMCTL %s\\n' "$*" >&2; return 1; }
 module_loaded=0
 container_present=${options.installed ? 1 : 0}
 volume_present=${options.installed || options.volumeOnly ? 1 : 0}
@@ -106,7 +107,7 @@ docker() {
   esac
 }
 `;
-  const script = installer
+  const script = (options.hostUpdater ? installer.replace("no_updater=1", "no_updater=0") : installer)
     .replace("tee /etc/modules-load.d/kintsugi-system.conf", "tee /dev/null")
     // Mock terminal availability and answers; these tests exercise Docker orchestration.
     .replace('{ [ -t 0 ]; } 2>/dev/null <"$prompt_input"', "true")
@@ -674,4 +675,15 @@ test("proxy setup requires explicit LAN trust and loopback-only publications",()
 test("supported proxy upgrade replaces conflicting legacy sidecar publications only",()=>{
  const result=run({installed:true,portMappings:"127.0.0.1:3000:3002/tcp\n127.0.0.1:3444:3444/tcp\n127.0.0.1:5555:5555/tcp"},["--action","update","--access-mode","proxy","--public-origin","https://agent-host.local","--acknowledge-lan-trust","--ui-publish","127.0.0.1:3000:3081","--admin-proxy-publish","127.0.0.1:3444:3082"]);
  expect(result.status).toBe(0);expect(result.output).toContain("--publish 127.0.0.1:3000:3081");expect(result.output).toContain("--publish 127.0.0.1:3444:3082");expect(result.output).not.toContain("--publish 127.0.0.1:3000:3002");expect(result.output).not.toContain("--publish 127.0.0.1:3444:3444");expect(result.output).toContain("--publish 127.0.0.1:5555:5555");
+});
+
+
+test("default host updater rejects a missing systemd manager before replacing System",()=>{
+  const result=run({hostUpdater:true,installed:true},["--non-interactive","--action","update","--confirm-replace"]);
+  expect(result.status).not.toBe(0);expect(result.output).toContain("requires a running systemd manager");expect(result.output).not.toContain("DOCKER stop");
+});
+
+test("explicit no-updater supports isolated non-systemd installs",()=>{
+  const result=run({hostUpdater:true,installed:true},["--no-updater","--non-interactive","--action","update","--confirm-replace"]);
+  expect(result.status).toBe(0);expect(result.output).not.toContain("SYSTEMCTL");
 });

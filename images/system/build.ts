@@ -11,6 +11,9 @@ for (const entry of ["supervisor", "test-app"]) {
   });
   if (!result.success) throw new AggregateError(result.logs);
 }
+const updater = await Bun.build({ entrypoints: [new URL("../updater/src/service.ts", import.meta.url).pathname], outdir: out, target: "bun", naming: "host-updater.js" });
+if (!updater.success) throw new AggregateError(updater.logs);
+await Bun.write(`${out}/install.sh`, await Bun.file(new URL("../../scripts/install.sh", import.meta.url)).text());
 const client = await Bun.build({
   entrypoints: [new URL("./src/client.ts", import.meta.url).pathname],
   outdir: out,
