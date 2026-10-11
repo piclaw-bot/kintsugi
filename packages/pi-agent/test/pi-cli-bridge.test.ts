@@ -18,6 +18,8 @@ function fixture(models: Model<Api>[], auth: Record<string, AuthResult>) {
   return {
     models, auth,
     getAvailable: async (provider?: string) => models.filter((m) => (!provider || m.provider === provider) && auth[m.provider]),
+    getAvailableOfType: async () => [],
+    getModelOfType: () => undefined,
     checkAuth: async (provider: string) => auth[provider] ? { type: auth[provider]!.source === "OAuth" ? "oauth" as const : "api_key" as const } : undefined,
     getModel: (provider: string, id: string) => models.find((m) => m.provider === provider && m.id === id),
     getAuth: async (ref: Model<Api>) => auth[ref.provider],
@@ -226,4 +228,29 @@ test("bridge-supplied Basic authentication protects the encoded credential as we
   const outbound = await hooks.onRequest(new Request("https://custom.example/v1", { headers: config.models.providers.custom!.models[0]!.headers }));
   expect(hooks.scrubResponseHeader(outbound.headers.get("authorization")!, outbound)).toBe("[REDACTED]");
   expect(hooks.scrubResponseHeader(encoded, outbound)).toBe("[REDACTED]");
+});
+
+
+test("TypeSafe classifiers reach Pi with bridged credentials, without becoming chat selections", async () => {
+  const runtime = await ModelRuntime.create({ modelsPath: null, allowModelNetwork: false, refreshOnCreate: false });
+  await runtime.setRuntimeApiKey("typesafe", "typesafe-secret");
+  const config = await createPiCliConfiguration(runtime, []);
+  expect(config.auth.typesafe!.key).toContain("agents-in-the-cloud-pi-");
+  expect(JSON.stringify(config)).not.toContain("typesafe-secret");
+  expect(config.models.providers.typesafe).toBeUndefined();
+  expect(config.enabledModels).toEqual([]);
+  expect(await piCliCredentialHosts(runtime)).toContain("api.typesafe.ai");
+  const transform = createHttpHooks({ onRequest: createPiCliCredentialTransform(async () => runtime) }).httpHooks.onRequest;
+  const request = await transform(new Request("https://api.typesafe.ai/v1/systemone", { headers: { authorization: `Bearer ${config.auth.typesafe!.key}` } }));
+  expect(request.headers.get("authorization")).toBe("Bearer typesafe-secret");
+  await expect(transform(new Request("https://other.example/v1/systemone", { headers: { authorization: `Bearer ${config.auth.typesafe!.key}` } }))).rejects.toThrow("not allowed");
+  const directory = await mkdtemp(join(tmpdir(), "pi-classifier-bridge-"));
+  try {
+    await writeFile(join(directory, "models.json"), JSON.stringify(config.models));
+    await writeFile(join(directory, "auth.json"), JSON.stringify(config.auth));
+    const imported = await ModelRuntime.create({ modelsPath: join(directory, "models.json"), authPath: join(directory, "auth.json"), modelsStorePath: join(directory, "cache.json"), allowModelNetwork: false });
+    expect(imported.getError()).toBeUndefined();
+    expect((await imported.getAvailableOfType("classifier", "typesafe")).map(m => m.id)).toContain("jev-latest");
+    expect(await imported.getAvailable("typesafe")).toEqual([]);
+  } finally { await rm(directory, { recursive: true, force: true }); }
 });

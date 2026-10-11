@@ -17,7 +17,7 @@ test("Pi configuration installation refreshes managed fields atomically and pres
       const model = { provider: "custom", id: "test", name: "Test", api: "openai-completions", baseUrl: "https://model.example/v1", reasoning: false, input: ["text"], cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }, contextWindow: 10000, maxTokens: 1000 };
       let enabledModels = [{ provider: "custom", id: "test", label: "Enabled model" }];
       mock.module("@kintsugi/llm/server", () => ({ ...config,
-        createPiModelRuntime: async () => ({ getAvailable: async () => [model], getAuth: async () => ({ auth: { apiKey: "real-secret-never-copy" } }) }),
+        createPiModelRuntime: async () => ({ getAvailable: async () => [model], getAvailableOfType: async () => [], getAuth: async () => ({ auth: { apiKey: "real-secret-never-copy" } }) }),
         getEnabledModels: async () => enabledModels,
       }));
       mock.module("@kintsugi/workspace", () => ({ ...workspace, execWorkspaceShell: async (_id, script, options) => {

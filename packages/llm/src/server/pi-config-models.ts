@@ -294,7 +294,16 @@ export async function validateModelProviderApiKey(provider: string, key: string,
   if (customModel) runtime.registerProvider(provider, { api: customModel.api, baseUrl: customModel.baseUrl, models: [customModel] });
   const models = runtime.getModels(provider);
   const model = models[Math.floor(Math.random() * models.length)];
-  if (!model) throw new Error(`No models found for provider "${provider}"`);
+  if (!model) {
+    const classifier = runtime.getModelsOfType("classifier", provider)[0];
+    if (!classifier) throw new Error(`No models found for provider "${provider}"`);
+    const response = await runtime.classify(classifier, {
+      state: { text: "ok" },
+      questions: { valid: { type: "bool", instructions: "Does the text say ok?", criteria: { true: "The text says ok", false: "The text does not say ok" } } },
+    }, { signal: AbortSignal.timeout(15_000) });
+    if (response.stopReason === "error" || response.stopReason === "aborted") throw new Error(response.errorMessage ?? "Provider rejected the API key");
+    return;
+  }
   // A probe is its own one-request conversation. OpenCode Go rejects requests without a session ID.
   const response = await runtime.completeSimple(model, { messages: [{ role: "user", content: "Reply with exactly: ok", timestamp: Date.now() }] }, { maxTokens: 1, headers: claudeCodeHeaders(model), sessionId: crypto.randomUUID(), signal: customModel ? AbortSignal.timeout(15_000) : undefined });
   if (response.stopReason === "error" || response.stopReason === "aborted") throw new Error(response.errorMessage ?? "Provider rejected the API key");

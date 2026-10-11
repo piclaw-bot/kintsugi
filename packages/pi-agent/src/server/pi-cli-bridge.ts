@@ -1,4 +1,4 @@
-import type { Api, AuthResult, Model } from "@earendil-works/pi-ai";
+import { isModelType, type Api, type AuthResult, type Model, type ClassifierModel, type ClassifierApi } from "@earendil-works/pi-ai";
 import type { ModelRuntime } from "@earendil-works/pi-coding-agent";
 import { Type, type Static } from "typebox";
 import { Value } from "typebox/value";
@@ -15,7 +15,12 @@ const markerSchema = Type.Object({
   style: Type.Union([Type.Literal("plain"), Type.Literal("codex"), Type.Literal("sk")]),
 });
 type Marker = Static<typeof markerSchema>;
-type Runtime = Pick<ModelRuntime, "getAvailable" | "getModel" | "checkAuth"> & { getAuth(model: Model<Api>): Promise<AuthResult | undefined> };
+type BridgedModel = Model<Api> | ClassifierModel<ClassifierApi>;
+type Runtime = Pick<ModelRuntime, "getAvailable" | "getAvailableOfType" | "getModel" | "getModelOfType" | "checkAuth"> & { getAuth(model: BridgedModel): Promise<AuthResult | undefined> };
+
+async function bridgedModels(runtime: Runtime, provider?: string): Promise<BridgedModel[]> {
+  return [...await availableProviderModels(runtime, provider), ...await runtime.getAvailableOfType("classifier", provider)];
+}
 const markerPattern = /kintsugi-pi-([A-Za-z0-9_-]+)-end/g;
 
 function markerToken(marker: Marker): string {
@@ -32,7 +37,7 @@ function placeholder(marker: Marker): string {
   return token;
 }
 
-function endpoint(model: Model<Api>, auth: AuthResult): URL {
+function endpoint(model: BridgedModel, auth: AuthResult): URL {
   const source = auth.auth.baseUrl ?? (model.api === "google-vertex" && auth.auth.apiKey && model.baseUrl.includes("{location}") ? "https://aiplatform.googleapis.com" : model.baseUrl);
   const url = new URL(source.replace(/\{([A-Z_]+)\}/g, (_match, name: string) => {
     const value = auth.env?.[name];
@@ -45,7 +50,7 @@ function endpoint(model: Model<Api>, auth: AuthResult): URL {
   return url;
 }
 
-function unsupportedAuth(model: Model<Api>, auth: AuthResult): string | undefined {
+function unsupportedAuth(model: BridgedModel, auth: AuthResult): string | undefined {
   // Anthropic permits Claude subscription (OAuth) tokens only in Claude Code.
   if (model.api === "anthropic-messages" && auth.auth.apiKey?.startsWith("sk-ant-oat")) return anthropicSubscriptionUnavailableReason;
   if (!auth.auth.apiKey && !Object.keys(auth.auth.headers ?? {}).length && ["bedrock-converse-stream", "google-vertex"].includes(model.api)) {
@@ -71,7 +76,7 @@ export interface PiCliConfiguration {
 /** Export resolved model configuration, never raw models.json (which may contain secrets or commands). */
 export async function createPiCliConfiguration(runtime: Runtime, enabledModels: EnabledModel[]): Promise<PiCliConfiguration> {
   const result: PiCliConfiguration = { auth: {}, models: { providers: {} }, enabledModels: [] };
-  const available = await availableProviderModels(runtime);
+  const available = await bridgedModels(runtime);
   const enabledModelLabels = new Map(enabledModels.map((model) => [modelRefValue(model), model.label]));
   for (const model of available) {
     const auth = await runtime.getAuth(model);
@@ -81,8 +86,11 @@ export async function createPiCliConfiguration(runtime: Runtime, enabledModels: 
     const baseUrl = endpoint(model, auth).href.replace(/\/$/, "");
     const style = model.api === "openai-codex-responses" ? "codex" : auth.auth.apiKey?.startsWith("sk-") ? "sk" : "plain";
     const key = auth.auth.apiKey ? placeholder({ provider: model.provider, model: model.id, field: "key", style }) : "kintsugi-pi-no-key";
-    const provider = result.models.providers[model.provider] ??= { apiKey: key, models: [] };
-    result.auth[model.provider] = { type: "api_key", key: provider.apiKey };
+    result.auth[model.provider] ??= { type: "api_key", key };
+    // Pi's custom models.json schema only defines chat models. Its built-in
+    // classifier catalogue picks up the provider credential from auth.json.
+    if (isModelType(model, "classifier")) continue;
+    const provider = result.models.providers[model.provider] ??= { apiKey: result.auth[model.provider]!.key, models: [] };
     const headers = Object.fromEntries(Object.keys(auth.auth.headers ?? {}).map((header) => [header,
       placeholder({ provider: model.provider, model: model.id, field: "header", header, style: "plain" }),
     ]));
@@ -97,7 +105,7 @@ export async function createPiCliConfiguration(runtime: Runtime, enabledModels: 
 /** Resolve current endpoints on each CONNECT, including OAuth endpoint overrides. */
 export async function piCliCredentialHosts(runtime: Runtime): Promise<string[]> {
   const hosts = new Set<string>();
-  for (const model of await availableProviderModels(runtime)) {
+  for (const model of await bridgedModels(runtime)) {
     const auth = await runtime.getAuth(model);
     if (!auth) throw new Error(`Provider disconnected while resolving Pi endpoints: ${model.provider}`);
     if (!unsupportedAuth(model, auth)) hosts.add(endpoint(model, auth).hostname);
@@ -116,13 +124,13 @@ export function createPiCliCredentialTransform(getRuntime: () => Promise<Runtime
     const values = [...request.headers.values(), ...[...url.searchParams].flat()];
     if (!values.some((value) => value.match(markerPattern) || value.includes("kintsugi-pi-no-key"))) return request;
     const runtime = await getRuntime();
-    const resolutions = new Map<string, Promise<{ model: Model<Api>; auth: AuthResult }>>();
+    const resolutions = new Map<string, Promise<{ model: BridgedModel; auth: AuthResult }>>();
     async function resolve(ref: ModelRef) {
       const key = modelRefValue(ref);
       let pending = resolutions.get(key);
       if (!pending) {
         pending = (async () => {
-          const model = runtime.getModel(ref.provider, ref.id);
+          const model = runtime.getModel(ref.provider, ref.id) ?? runtime.getModelOfType("classifier", ref.provider, ref.id);
           if (!model) throw new HttpRequestBlockedError("Pi model is no longer configured in Kintsugi");
           const auth = await runtime.getAuth(model);
           if (!auth) throw new HttpRequestBlockedError("Pi provider is no longer connected in Kintsugi");
@@ -141,7 +149,7 @@ export function createPiCliCredentialTransform(getRuntime: () => Promise<Runtime
         catch { throw new HttpRequestBlockedError("Invalid Pi credential placeholder"); }
         const { model, auth } = await resolve({ provider: marker.provider, id: marker.model });
         // Provider API keys are shared by its models, including providers with multiple API endpoints.
-        const candidates = marker.field === "header" ? [model] : await availableProviderModels(runtime, marker.provider);
+        const candidates = marker.field === "header" ? [model] : await bridgedModels(runtime, marker.provider);
         const allowed = candidates.some((candidate) => endpoint(candidate, auth).origin === url.origin);
         if (!allowed) throw new HttpRequestBlockedError(`Pi credentials are not allowed for ${url.origin}`);
         let replacement: string | null | undefined;

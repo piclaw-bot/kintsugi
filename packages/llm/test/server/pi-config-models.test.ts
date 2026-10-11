@@ -30,6 +30,25 @@ test("Copilot usage reads the stored GitHub token, never the inference or reposi
 });
 
 describe("API key validation", () => {
+  test("TypeSafe keys are validated with Jev's classifier protocol", async () => {
+    const realFetch = globalThis.fetch;
+    const requests: Request[] = [];
+    let rejectKey = false;
+    globalThis.fetch = Object.assign(async (input: URL | RequestInfo, init?: RequestInit) => {
+      requests.push(new Request(input, init));
+      return rejectKey ? Response.json({ error: "Invalid API key" }, { status: 401 })
+        : Response.json({ answers: { valid: { type: "noul", noul: 1 } } });
+    }, { preconnect: realFetch.preconnect });
+    try {
+      await validateModelProviderApiKey("typesafe", " test-key ");
+      expect(requests[0]!.url).toBe("https://api.typesafe.ai/v1/systemone");
+      expect(requests[0]!.headers.get("authorization")).toBe("Bearer test-key");
+      expect(await requests[0]!.json()).toMatchObject({ model: "jev-latest", questions: { valid: { type: "noul" } } });
+      rejectKey = true;
+      await expect(validateModelProviderApiKey("typesafe", "bad-key")).rejects.toThrow("Invalid API key");
+    } finally { globalThis.fetch = realFetch; }
+  });
+
   test("OpenCode Go probes carry the session header OpenCode requires for routing", async () => {
     const realFetch = globalThis.fetch;
     const sessions: (string | null)[] = [];
