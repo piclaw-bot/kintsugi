@@ -11,10 +11,10 @@
     "@kintsugi/cli-agent": "workspace:*",
     "@kintsugi/core": "workspace:*",
     "@kintsugi/llm": "workspace:*",
-    "@kintsugi/prompt": "workspace:*",
     "@kintsugi/shared": "workspace:*",
     "@kintsugi/workspace": "workspace:*",
     "@kintsugi/design-system": "workspace:*",
-    "typebox": "^1.0.57"
+    "typebox": "^1.0.57",
+    "@kintsugi/native-agent": "workspace:*"
   }
 }

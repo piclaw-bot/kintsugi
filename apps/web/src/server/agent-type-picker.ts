@@ -3,7 +3,7 @@ import { escapeHtml, providerBrandIconHtml } from "@kintsugi/shared";
 
 interface AgentTypeChoice { id: string; label: string; iconHtml: string }
 
-const agentOrder = ["builtin", "pi", "claude", "codex", "codex-cli"];
+const agentOrder = ["builtin", "pi", "claude", "claude-cli", "codex", "codex-cli"];
 const flexibleSubscriptions = [
   { provider: "openai", label: "ChatGPT" },
   { provider: "github-copilot", label: "GitHub Copilot" },
@@ -11,11 +11,13 @@ const flexibleSubscriptions = [
   { provider: "kimi-coding", label: "Kimi" },
 ];
 const openAISubscription = [{ provider: "openai", label: "ChatGPT" }];
+const claudeSubscription = [{ provider: "anthropic", label: "Claude" }];
 interface AgentDescription { what: string; models: string; subscriptions: typeof flexibleSubscriptions }
 const descriptions = new Map<string, AgentDescription>([
   ["builtin", { what: "Lucas' favorite! Pi Durable + Best Visualizations", models: "All", subscriptions: flexibleSubscriptions }],
   ["pi", { what: "Original Pi CLI", models: "All", subscriptions: flexibleSubscriptions }],
-  ["claude", { what: "Original Claude Code CLI", models: "Anthropic", subscriptions: [{ provider: "anthropic", label: "Claude" }] }],
+  ["claude", { what: "Claude Code harness with HTML composer and transcript", models: "Anthropic", subscriptions: claudeSubscription }],
+  ["claude-cli", { what: "Original Claude Code CLI", models: "Anthropic", subscriptions: claudeSubscription }],
   ["codex", { what: "Codex harness with HTML composer and transcript", models: "OpenAI", subscriptions: openAISubscription }],
   ["codex-cli", { what: "Original Codex CLI", models: "OpenAI", subscriptions: openAISubscription }],
 ]);

@@ -6,12 +6,20 @@
     "./server": "./src/server/index.ts"
   },
   "dependencies": {
+    "@kintsugi/agent": "workspace:*",
+    "@kintsugi/builtin-agent": "workspace:*",
+    "@kintsugi/claude-cli-agent": "workspace:*",
+    "@kintsugi/cli-agent": "workspace:*",
     "@kintsugi/core": "workspace:*",
+    "@kintsugi/design-system": "workspace:*",
     "@kintsugi/llm": "workspace:*",
+    "@kintsugi/native-agent": "workspace:*",
     "@kintsugi/shared": "workspace:*",
     "@kintsugi/workspace": "workspace:*",
-    "@kintsugi/cli-agent": "workspace:*",
-    "@kintsugi/agent": "workspace:*",
-    "typebox": "^1.0.57"
+    "@anthropic-ai/claude-agent-sdk": "0.3.296",
+    "@anthropic-ai/sdk": "0.129.0",
+    "@modelcontextprotocol/sdk": "1.30.0",
+    "typebox": "^1.0.57",
+    "zod": "4.6.5"
   }
 }

@@ -1,4 +1,4 @@
-export type SlashCommandSource = "kintsugi" | "codex";
+export type SlashCommandSource = "kintsugi" | "codex" | "claude";
 
 export interface BuiltinSlashCommand {
   source: SlashCommandSource;

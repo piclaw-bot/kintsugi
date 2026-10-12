@@ -2,7 +2,7 @@ import { afterEach, expect, test } from "bun:test";
 import { mkdtemp, mkdir, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { claudeHistoryFiles } from "../../claude-agent/src/server/transcript.ts";
+import { claudeHistoryFiles } from "../../claude-cli-agent/src/server/transcript.ts";
 import { codexHistoryFiles } from "../../codex-cli-agent/src/server/transcript.ts";
 import { piHistoryFiles } from "../../pi-agent/src/server/transcript.ts";
 import { exportCliHistory } from "../src/server/history.ts";

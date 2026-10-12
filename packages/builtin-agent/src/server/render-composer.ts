@@ -36,7 +36,7 @@ interface AgentPaneState {
   stats: AgentStatsView;
 }
 
-export async function renderAgentPane(ctx: AgentRenderContext, agent: Pick<WorkspaceAgentInfo, "agentId">, state: AgentPaneState, completionCatalogHtml = "", presentation: { moduleChannel?: string; notifications?: boolean; initialPromptDraft?: boolean } = {}): Promise<string> {
+export async function renderAgentPane(ctx: AgentRenderContext, agent: Pick<WorkspaceAgentInfo, "agentId">, state: AgentPaneState, completionCatalogHtml = "", presentation: { moduleChannel?: string; notifications?: boolean; subagents?: boolean; initialPromptDraft?: boolean } = {}): Promise<string> {
   const key = agentKey(agent.agentId);
   const draftId = agentAttachmentDraftId(ctx.workspaceId, ctx.agentId);
   const attachments = state.readOnly ? [] : await listStagedAttachments(draftId);
@@ -52,7 +52,7 @@ export async function renderAgentPane(ctx: AgentRenderContext, agent: Pick<Works
       ${composerAttachmentAttributes(draftId, attachRowId, agentComposerActions)}`}>
       ${state.readOnly || presentation.notifications === false ? "" : `<div class="agent-body-controls">${renderAgentNotifications(ctx)}</div>`}
       <div class="agent-transcript-region">
-        ${await agentDelegation?.renderControl(ctx.workspaceId, ctx.agentId) ?? ""}
+        ${presentation.subagents === false ? "" : await agentDelegation?.renderControl(ctx.workspaceId, ctx.agentId) ?? ""}
         <div class="agent-transcript" tabindex="0" role="region" aria-label="Agent transcript" data-agent-pane-target="transcript">
           <div class="agent-transcript-surface"><div class="agent-transcript-content" id="${ids.transcript(ctx)}" data-agent-pane-target="transcriptContent">${state.transcriptHtml}</div></div>
         </div>

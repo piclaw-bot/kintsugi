@@ -327,7 +327,7 @@ created=$(curl -sS -X POST http://localhost:3000/workspaces \
 id=$(jq -r '.workspace.id' <<<"$created")
 ```
 
-`source` may be `{ "type": "empty" }` or `{ "type": "workspace-template", "workspaceTemplate": "name-or-id" }`. Optional `agent` fields are `agentTypeId` (Builtin, Claude Code, Codex, Codex CLI, or Pi: `builtin`, `claude`, `codex`, `codex-cli`, or `pi`), `initialPrompt`, `model`, `thinkingLevel`, and `attachmentDraft`.
+`source` may be `{ "type": "empty" }` or `{ "type": "workspace-template", "workspaceTemplate": "name-or-id" }`. Optional `agent` fields are `agentTypeId` (Builtin, Claude Code, Claude Code CLI, Codex, Codex CLI, or Pi: `builtin`, `claude`, `claude-cli`, `codex`, `codex-cli`, or `pi`), `initialPrompt`, `model`, `thinkingLevel`, and `attachmentDraft`.
 
 Poll the same UI URL with JSON content negotiation:
 

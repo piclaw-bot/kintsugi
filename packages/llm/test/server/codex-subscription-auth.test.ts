@@ -1,6 +1,6 @@
 import { expect, spyOn, test } from "bun:test";
 import * as workspace from "@kintsugi/workspace";
-import { installCodexSubscriptionAuth } from "../../src/server/subscription-cli.ts";
+import { installClaudeSubscriptionAuth, installCodexSubscriptionAuth } from "../../src/server/subscription-cli.ts";
 
 test("an app-owned Codex home receives only llm's OAuth placeholders", async () => {
   const exec = spyOn(workspace, "execWorkspaceCommand").mockResolvedValue({ exitCode: 0, stdout: "", stderr: "", durationMs: 1 });
@@ -14,6 +14,17 @@ test("an app-owned Codex home receives only llm's OAuth placeholders", async () 
     expect(auth.tokens.account_id).toBe("kintsugi-subscription-codex-account");
     expect(auth.tokens.refresh_token).toBe("");
     expect(auth.OPENAI_API_KEY).toBeNull();
+  } finally { exec.mockRestore(); }
+});
+
+test("an app-owned Claude config directory receives only llm's OAuth placeholders", async () => {
+  const exec = spyOn(workspace, "execWorkspaceCommand").mockResolvedValue({ exitCode: 0, stdout: "", stderr: "", durationMs: 1 });
+  try {
+    await installClaudeSubscriptionAuth("workspace", "/private/claude", { listCredentials: async () => [{ providerId: "anthropic", type: "oauth" }] });
+    expect(exec.mock.calls[0]![1].join(" ")).toContain("/private/claude/.credentials.json");
+    const auth = JSON.parse(String(exec.mock.calls[0]![2]!.stdin));
+    expect(auth.claudeAiOauth).toMatchObject({ accessToken: "kintsugi-subscription-anthropic-access", refreshToken: null });
+    await expect(installClaudeSubscriptionAuth("workspace", "/private/claude", { listCredentials: async () => [{ providerId: "anthropic", type: "api_key" }] })).rejects.toThrow("Connect a Claude subscription");
   } finally { exec.mockRestore(); }
 });
 

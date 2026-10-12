@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, spyOn, test } from "bun:test";
 import * as agent from "@kintsugi/builtin-agent/server";
 import { kintsugiServerModule as codexCliModule } from "@kintsugi/codex-cli-agent/server";
 import { kintsugiServerModule as codexModule } from "@kintsugi/codex-agent/server";
+import { kintsugiServerModule as claudeModule } from "@kintsugi/claude-agent/server";
 import { createTestApp, deferred, postJson, temporaryKintsugiDataDir } from "./support/test-web-app.ts";
 
 const data = temporaryKintsugiDataDir();
@@ -13,6 +14,7 @@ describe("launch title generation", () => {
     { agentTypeId: "builtin", launch: agent.nativeAgentLaunch, model: "provider::model" },
     { agentTypeId: "codex", launch: codexModule.agentType!.launch, model: "openai-codex::gpt-5.4" },
     { agentTypeId: "codex-cli", launch: codexCliModule.agentType!.launch, model: "openai-codex::gpt-5.4" },
+    { agentTypeId: "claude", launch: claudeModule.agentType!.launch, model: "anthropic::claude-opus-5-5" },
   ])("names $agentTypeId from the launch prompt after provisioning without an Agent", async ({ agentTypeId, launch, model }) => {
     const prepare = spyOn(launch, "prepare").mockImplementation(async (parameters) => ({ agent: { initialPrompt: String(parameters?.initialPrompt ?? ""), model: String(parameters?.model ?? "") } }));
     const name = spyOn(agent, "maybeNameWorkspaceFromPrompt").mockImplementation(() => {});

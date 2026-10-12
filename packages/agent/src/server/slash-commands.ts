@@ -61,8 +61,8 @@ export function renderSlashCommandCatalog(templates: readonly PromptTemplate[], 
     // Keep existing previews for built-in actions without modelling them as Prompt templates.
     const preview = command.kind === "prompt-template" ? command.prompt : command.kind === "builtin" && command.trigger !== "/tree" ? command.trigger : undefined;
     const hasPreview = preview !== undefined;
-    const sourceLabel = command.source === "codex" ? "Codex" : "Kintsugi";
-    const sourceIcon = command.source === "codex" ? providerBrandIconHtml("openai", "Codex") : builtinAgentIconHtml;
+    const sourceLabel = command.source === "codex" ? "Codex" : command.source === "claude" ? "Claude Code" : "Kintsugi";
+    const sourceIcon = command.source === "codex" ? providerBrandIconHtml("openai", "Codex") : command.source === "claude" ? providerBrandIconHtml("anthropic", "Claude Code") : builtinAgentIconHtml;
     return contentRowHtml({
       width: "fill",
       kind: "compact",

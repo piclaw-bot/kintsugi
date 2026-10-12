@@ -126,10 +126,19 @@ fi` : `if [ -f ${path} ] && grep -qF ${shellQuote(file.marker)} ${path}; then rm
 
 /** An app-owned Codex home must use the configured subscription, never a workspace login. */
 export async function installCodexSubscriptionAuth(workspaceId: string, codexHome: string, runtime: Pick<ModelRuntime, "listCredentials">): Promise<void> {
-  await requireProviderSubscription(runtime, "openai-codex", "Codex");
-  const file = subscriptionCliFiles().find(file => file.provider === "openai-codex")!;
-  const result = await execWorkspaceCommand(workspaceId, ["sh", "-c", `set -eu\numask 077\nmkdir -p ${shellQuote(codexHome)}\ncat > ${shellQuote(`${codexHome}/auth.json`)}`], { stdin: file.content });
-  if (result.exitCode !== 0) throw new Error(`Could not configure Codex subscription: ${result.stderr}`);
+  await installAppOwnedSubscriptionAuth(workspaceId, "openai-codex", "Codex", `${codexHome}/auth.json`, runtime);
+}
+
+/** An app-owned Claude config directory must use the configured subscription, never a workspace login. */
+export async function installClaudeSubscriptionAuth(workspaceId: string, configDirectory: string, runtime: Pick<ModelRuntime, "listCredentials">): Promise<void> {
+  await installAppOwnedSubscriptionAuth(workspaceId, "anthropic", "Claude", `${configDirectory}/.credentials.json`, runtime);
+}
+
+async function installAppOwnedSubscriptionAuth(workspaceId: string, provider: string, label: string, path: string, runtime: Pick<ModelRuntime, "listCredentials">): Promise<void> {
+  await requireProviderSubscription(runtime, provider, label);
+  const file = subscriptionCliFiles().find(file => file.provider === provider)!;
+  const result = await execWorkspaceCommand(workspaceId, ["sh", "-c", `set -eu\numask 077\nmkdir -p "$(dirname ${shellQuote(path)})"\ncat > ${shellQuote(path)}`], { stdin: file.content });
+  if (result.exitCode !== 0) throw new Error(`Could not configure ${label} subscription: ${result.stderr}`);
 }
 
 export async function syncSubscriptionClis(runtime: ModelRuntime): Promise<void> {

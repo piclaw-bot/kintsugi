@@ -1,0 +1,18 @@
+{
+  "name": "@kintsugi/claude-cli-agent",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./server": "./src/server/index.ts",
+    "./transcript": "./src/server/transcript.ts"
+  },
+  "dependencies": {
+    "@kintsugi/core": "workspace:*",
+    "@kintsugi/llm": "workspace:*",
+    "@kintsugi/shared": "workspace:*",
+    "@kintsugi/workspace": "workspace:*",
+    "@kintsugi/cli-agent": "workspace:*",
+    "@kintsugi/agent": "workspace:*",
+    "typebox": "^1.0.57"
+  }
+}

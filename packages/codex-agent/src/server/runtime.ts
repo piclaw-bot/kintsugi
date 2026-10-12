@@ -4,7 +4,7 @@ import { workspaceRoot } from "@kintsugi/workspace";
 import { createLivePresentation, type WorkspaceAgentInput } from "@kintsugi/shared";
 import { parseModelRef, setAgentModelPreference } from "@kintsugi/llm/server";
 import { publishWorkspaceAgentBusy } from "@kintsugi/agent/server";
-import { revokeAgentMcp } from "@kintsugi/agent/server";
+import { createNativeAgents } from "@kintsugi/native-agent/server";
 import { renderWorkspaceCompletionCatalog } from "@kintsugi/agent/server/completion-catalog";
 import type {
   UserInput,
@@ -445,54 +445,8 @@ export class CodexRuntime {
 }
 
 export function createCodexAgents(getEvents: () => KintsugiEventBus) {
-  let metadata: ReturnType<typeof createCodexStore> | undefined;
-  function store() { return metadata ??= createCodexStore(); }
-  const runtimes = new Map<string, Promise<CodexRuntime>>();
-  const serialize = createKeyedOperationQueue();
-  async function ready(workspaceId: string, agentId: string) {
-    const record = store().get(workspaceId, agentId);
-    let runtime = runtimes.get(agentId);
-    if (!runtime) {
-      runtime = CodexRuntime.open(workspaceId, record, () => store().save(workspaceId), getEvents());
-      runtimes.set(agentId, runtime);
-      void runtime.catch(() => { if (runtimes.get(agentId) === runtime) runtimes.delete(agentId); });
-    }
-    const opened = await runtime;
-    if (opened.failure) await opened.reconnect();
-    return opened;
-  }
-  async function create(workspaceId: string, parameters: { model?: string; thinkingLevel?: string; input?: WorkspaceAgentInput } = {}) {
-    return serialize(workspaceId, async () => {
-      const selected = await settings.prepare({ model: parameters.model ?? "", thinkingLevel: parameters.thinkingLevel ?? "" });
-      const record: CodexAgentRecord = { id: crypto.randomUUID(), title: label, ...selected, submissions: [] };
-      store().add(workspaceId, record);
-      const runtime = await ready(workspaceId, record.id);
-      const input = parameters.input;
-      if (input && (input.text.trim() || input.images.length || input.attachmentNotes.length)) await runtime.send(input, `launch-${record.id}`);
-      return record.id;
-    });
-  }
-  async function close(workspaceId: string, agentId: string) {
-    return serialize(workspaceId, async () => {
-      store().get(workspaceId, agentId);
-      const runtime = runtimes.get(agentId);
-      if (runtime) await (await runtime).close();
-      runtimes.delete(agentId);
-      await revokeAgentMcp(workspaceId, agentId);
-      store().remove(workspaceId, agentId);
-    });
-  }
-  async function disposeWorkspace(workspaceId: string) {
-    for (const record of store().list(workspaceId)) {
-      const runtime = runtimes.get(record.id);
-      if (runtime) { await (await runtime).dispose(); runtimes.delete(record.id); }
-      await revokeAgentMcp(workspaceId, record.id);
-    }
-  }
-  async function disposeAll() {
-    await Promise.all([...runtimes.values()].map(async runtime => (await runtime).dispose()));
-    runtimes.clear();
-  }
-  return { list: (workspaceId: string) => store().list(workspaceId), ready, create, close, disposeWorkspace, disposeAll };
+  return createNativeAgents({
+    store: createCodexStore, settings, open: CodexRuntime.open,
+    newRecord: (selected): CodexAgentRecord => ({ id: crypto.randomUUID(), title: label, ...selected, submissions: [] }),
+  }, getEvents);
 }
-export type CodexAgents = ReturnType<typeof createCodexAgents>;

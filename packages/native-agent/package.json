@@ -1,0 +1,19 @@
+{
+  "name": "@kintsugi/native-agent",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./server": "./src/server/index.ts"
+  },
+  "dependencies": {
+    "@kintsugi/agent": "workspace:*",
+    "@kintsugi/builtin-agent": "workspace:*",
+    "@kintsugi/cli-agent": "workspace:*",
+    "@kintsugi/core": "workspace:*",
+    "@kintsugi/llm": "workspace:*",
+    "@kintsugi/prompt": "workspace:*",
+    "@kintsugi/shared": "workspace:*",
+    "@kintsugi/workspace": "workspace:*",
+    "typebox": "^1.0.57"
+  }
+}

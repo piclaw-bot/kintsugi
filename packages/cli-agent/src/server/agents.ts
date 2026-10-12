@@ -32,7 +32,7 @@ export async function checkedWorkspaceShell(workspaceId: string, command: string
 }
 
 /** Write private session files in one workspace command, keeping contents off its command line. */
-export async function writeCliSessionFiles(workspaceId: string, session: CliAgentSession, files: Record<string, string>): Promise<void> {
+export async function writeCliSessionFiles(workspaceId: string, session: Pick<CliAgentSession, "directory">, files: Record<string, string>): Promise<void> {
   const entries = Object.entries(files);
   const commands = entries.map(([name, content], index) => {
     const path = shellQuote(`${session.directory}/${name}`);
@@ -45,7 +45,7 @@ export async function writeCliSessionFiles(workspaceId: string, session: CliAgen
 export function createCliAgents(adapter: CliAgentAdapter, onTitleChanged: (workspaceId: string, id: string, title: string, workspaceNamed: boolean) => Promise<void>) {
   let state: ReturnType<typeof createStore> | undefined;
   function createStore() {
-    return createWorkspaceMetadataState(`${adapter.id}-agents.json`, (value) => {
+    return createWorkspaceMetadataState(`${adapter.legacyId ?? adapter.id}-agents.json`, (value) => {
       // Previous saved CLI Agent metadata called its Agent collection "sessions".
       if (Value.Check(previousStateSchema, value)) return { agents: value.sessions };
       return Value.Parse(stateSchema, value);
@@ -150,7 +150,7 @@ exec curl --noproxy '*' --fail --silent --show-error --max-time 10 -X POST -H ${
       for (const agent of list(workspaceId)) {
         // Legacy placeholders are not runnable agents. Existing (including dead)
         // panes belong to the current runtime and must not be relaunched.
-        if (agent.kind !== adapter.id || (await terminalState(workspaceId, agent)).exists) continue;
+        if ((agent.kind !== adapter.id && agent.kind !== adapter.legacyId) || (await terminalState(workspaceId, agent)).exists) continue;
         await start(workspaceId, agent, { model: agent.model, thinkingLevel: agent.thinkingLevel });
       }
     });

@@ -9,7 +9,7 @@ export { recordSubscriptionInference, providersInLastInferenceWindow, selectSubs
 export type { ReportedAllowance } from "./subscription-usage.ts";
 export { connectedUsageProviders, getProviderUsageOverview, providerUsageFrameId, supportedUsageProviders, type ProviderUsageOverview } from "./provider-usage.ts";
 
-export { installSubscriptionCli, installCodexSubscriptionAuth } from "./subscription-cli.ts";
+export { installSubscriptionCli, installCodexSubscriptionAuth, installClaudeSubscriptionAuth } from "./subscription-cli.ts";
 export { renderSharedComposerSelections, renderLaunchModelSettings, renderReadOnlyLaunchModelSettings, modelThinkingLevels, type ComposerModelOption } from "./model-picker.ts";
 export { modelUnavailableReason, providerAvailability } from "./provider-availability.ts";
 export { anthropicSubscriptionUnavailableReason, requireProviderSubscription, usesProviderSubscription } from "./subscription.ts";

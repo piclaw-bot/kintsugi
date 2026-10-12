@@ -26,6 +26,7 @@
         "@kintsugi/builtin-agent": "workspace:*",
         "@kintsugi/changes": "workspace:*",
         "@kintsugi/claude-agent": "workspace:*",
+        "@kintsugi/claude-cli-agent": "workspace:*",
         "@kintsugi/cli-agent": "workspace:*",
         "@kintsugi/codex-agent": "workspace:*",
         "@kintsugi/codex-cli-agent": "workspace:*",
@@ -140,6 +141,26 @@
     "packages/claude-agent": {
       "name": "@kintsugi/claude-agent",
       "dependencies": {
+        "@anthropic-ai/claude-agent-sdk": "0.3.296",
+        "@anthropic-ai/sdk": "0.129.0",
+        "@kintsugi/agent": "workspace:*",
+        "@kintsugi/builtin-agent": "workspace:*",
+        "@kintsugi/claude-cli-agent": "workspace:*",
+        "@kintsugi/cli-agent": "workspace:*",
+        "@kintsugi/core": "workspace:*",
+        "@kintsugi/design-system": "workspace:*",
+        "@kintsugi/llm": "workspace:*",
+        "@kintsugi/native-agent": "workspace:*",
+        "@kintsugi/shared": "workspace:*",
+        "@kintsugi/workspace": "workspace:*",
+        "@modelcontextprotocol/sdk": "1.30.0",
+        "typebox": "^1.0.57",
+        "zod": "4.6.5",
+      },
+    },
+    "packages/claude-cli-agent": {
+      "name": "@kintsugi/claude-cli-agent",
+      "dependencies": {
         "@kintsugi/agent": "workspace:*",
         "@kintsugi/cli-agent": "workspace:*",
         "@kintsugi/core": "workspace:*",
@@ -173,7 +194,7 @@
         "@kintsugi/core": "workspace:*",
         "@kintsugi/design-system": "workspace:*",
         "@kintsugi/llm": "workspace:*",
-        "@kintsugi/prompt": "workspace:*",
+        "@kintsugi/native-agent": "workspace:*",
         "@kintsugi/shared": "workspace:*",
         "@kintsugi/workspace": "workspace:*",
         "typebox": "^1.0.57",
@@ -331,6 +352,20 @@
       },
       "devDependencies": {
         "@types/markdown-it": "14.1.2",
+      },
+    },
+    "packages/native-agent": {
+      "name": "@kintsugi/native-agent",
+      "dependencies": {
+        "@kintsugi/agent": "workspace:*",
+        "@kintsugi/builtin-agent": "workspace:*",
+        "@kintsugi/cli-agent": "workspace:*",
+        "@kintsugi/core": "workspace:*",
+        "@kintsugi/llm": "workspace:*",
+        "@kintsugi/prompt": "workspace:*",
+        "@kintsugi/shared": "workspace:*",
+        "@kintsugi/workspace": "workspace:*",
+        "typebox": "^1.0.57",
       },
     },
     "packages/observable-terminal": {
@@ -503,6 +538,24 @@
     "@gespenst/core": "0.1.1",
   },
   "packages": {
+    "@anthropic-ai/claude-agent-sdk": ["@anthropic-ai/claude-agent-sdk@0.3.296", "", { "optionalDependencies": { "@anthropic-ai/claude-agent-sdk-darwin-arm64": "0.3.296", "@anthropic-ai/claude-agent-sdk-darwin-x64": "0.3.296", "@anthropic-ai/claude-agent-sdk-linux-arm64": "0.3.296", "@anthropic-ai/claude-agent-sdk-linux-arm64-musl": "0.3.296", "@anthropic-ai/claude-agent-sdk-linux-x64": "0.3.296", "@anthropic-ai/claude-agent-sdk-linux-x64-musl": "0.3.296", "@anthropic-ai/claude-agent-sdk-win32-arm64": "0.3.296", "@anthropic-ai/claude-agent-sdk-win32-x64": "0.3.296" }, "peerDependencies": { "@anthropic-ai/sdk": ">=0.93.0", "@modelcontextprotocol/sdk": "^1.29.0", "zod": "^4.0.0" } }, "sha512-Y+cZ2BT8X94mQ9GJOVyIqhjC/nWGvwozUVLjdkzX7aSt+zuo5tgk7Hdv9V7tEUQ9fKnEuiL6moYNWDeHqCD4Lw=="],
+
+    "@anthropic-ai/claude-agent-sdk-darwin-arm64": ["@anthropic-ai/claude-agent-sdk-darwin-arm64@0.3.296", "", { "os": "darwin", "cpu": "arm64" }, "sha512-Wrhy7rxQVUNowQRDpSZD+3MFSBAlN4TINZSpKD8PKpEValCG6x05N855MuITvwgkH0EeoyNLRCsowJaIHa8V9Q=="],
+
+    "@anthropic-ai/claude-agent-sdk-darwin-x64": ["@anthropic-ai/claude-agent-sdk-darwin-x64@0.3.296", "", { "os": "darwin", "cpu": "x64" }, "sha512-klMOQ1TdA7u6sWZJYw9l5byWYxMiWzbuPhzCgVVY+LJOs4FlhsS3qLXn2RZmIFhQv1u65zwX+2CRSWEJddqfVQ=="],
+
+    "@anthropic-ai/claude-agent-sdk-linux-arm64": ["@anthropic-ai/claude-agent-sdk-linux-arm64@0.3.296", "", { "os": "linux", "cpu": "arm64" }, "sha512-+tC1KlUlp/3BQS+EfG8RBrmru4xKwF6hNEm15gNct8k9tNVRLYOftbkNCGJPTKkoBoq0sQ+Omojzwr/W2Dg60A=="],
+
+    "@anthropic-ai/claude-agent-sdk-linux-arm64-musl": ["@anthropic-ai/claude-agent-sdk-linux-arm64-musl@0.3.296", "", { "os": "linux", "cpu": "arm64" }, "sha512-8DEazoBU4I8HsPrXgSJ1Vq30nCBF7PaKjHz1o/igCz+HZu3qepHztWpoKJKQee5Mt4XsvZLwtKuxQo1F+SC6yQ=="],
+
+    "@anthropic-ai/claude-agent-sdk-linux-x64": ["@anthropic-ai/claude-agent-sdk-linux-x64@0.3.296", "", { "os": "linux", "cpu": "x64" }, "sha512-TStCnbg2iBtWJBQeMdO7Xwpx5IYWICmdcf7J9eXhIi4JbahWD+VLRaH5sxB+LLZjdBXekp8piKv6Ne2+arag0w=="],
+
+    "@anthropic-ai/claude-agent-sdk-linux-x64-musl": ["@anthropic-ai/claude-agent-sdk-linux-x64-musl@0.3.296", "", { "os": "linux", "cpu": "x64" }, "sha512-lMquemenM5CDNZv6g1+xBSfQpat2xiwOQUnY2mwSQKjT+IfE5/F8CgRd38ZBljwGnedPIuKs/DAZMt4YslLF5w=="],
+
+    "@anthropic-ai/claude-agent-sdk-win32-arm64": ["@anthropic-ai/claude-agent-sdk-win32-arm64@0.3.296", "", { "os": "win32", "cpu": "arm64" }, "sha512-/epluPyoLm1NQAcHV0LUierKog7c9yyU8BgpZOtGWiM54nqTZKKBuCwANraV3ROfXYFfJdMV4Vehk/8fqxoOqQ=="],
+
+    "@anthropic-ai/claude-agent-sdk-win32-x64": ["@anthropic-ai/claude-agent-sdk-win32-x64@0.3.296", "", { "os": "win32", "cpu": "x64" }, "sha512-T71Y/hp0v7VtRzTOoxAsIkPa68JpB1d/VvCKTTE9GzTkbjQZHjs3S1DM06LDxSpwjITF7OCVJq14+XjN8M9t/g=="],
+
     "@anthropic-ai/sdk": ["@anthropic-ai/sdk@0.129.0", "", { "dependencies": { "json-schema-to-ts": "^3.1.1", "standardwebhooks": "^1.0.0" }, "peerDependencies": { "zod": "^3.25.0 || ^4.0.0" }, "optionalPeers": ["zod"], "bin": { "anthropic-ai-sdk": "bin/cli" } }, "sha512-MH7LB20kNpGLUpPTe2OG5XvL/KhX8HUO9XyBaFjgFk6TLS4Xjt0VPIuMKywe7POKKPslX+QxSlVok9e+8kG5Nw=="],
 
     "@aws-sdk/client-bedrock-runtime": ["@aws-sdk/client-bedrock-runtime@3.1127.0", "", { "dependencies": { "@aws-sdk/core": "^3.977.9", "@aws-sdk/credential-provider-node": "^3.972.82", "@aws-sdk/eventstream-handler-node": "^3.972.34", "@aws-sdk/middleware-eventstream": "^3.972.29", "@aws-sdk/middleware-websocket": "^3.972.52", "@aws-sdk/token-providers": "3.1127.0", "@aws-sdk/types": "^3.974.5", "@smithy/core": "^3.33.3", "@smithy/fetch-http-handler": "^5.7.2", "@smithy/node-http-handler": "^4.11.3", "@smithy/types": "^4.17.2", "tslib": "^2.6.2" } }, "sha512-IDl/lrPb90aH+pZFHGNDmgH9nAUQj5PlZH1sJ3w7RikctyjHSnY3oNjZhrLoaBoQn/rNK0zsP6OHEqEhj2tdLA=="],
@@ -673,6 +726,8 @@
 
     "@kintsugi/claude-agent": ["@kintsugi/claude-agent@workspace:packages/claude-agent"],
 
+    "@kintsugi/claude-cli-agent": ["@kintsugi/claude-cli-agent@workspace:packages/claude-cli-agent"],
+
     "@kintsugi/cli-agent": ["@kintsugi/cli-agent@workspace:packages/cli-agent"],
 
     "@kintsugi/codex-agent": ["@kintsugi/codex-agent@workspace:packages/codex-agent"],
@@ -700,6 +755,8 @@
     "@kintsugi/llm": ["@kintsugi/llm@workspace:packages/llm"],
 
     "@kintsugi/markdown": ["@kintsugi/markdown@workspace:packages/markdown"],
+
+    "@kintsugi/native-agent": ["@kintsugi/native-agent@workspace:packages/native-agent"],
 
     "@kintsugi/observable-terminal": ["@kintsugi/observable-terminal@workspace:packages/observable-terminal"],
 
@@ -1320,12 +1377,6 @@
     "@aws-sdk/credential-provider-sso/@aws-sdk/token-providers": ["@aws-sdk/token-providers@3.1138.0", "", { "dependencies": { "@aws-sdk/core": "^3.978.1", "@aws-sdk/nested-clients": "^3.997.46", "@aws-sdk/types": "^3.974.6", "@smithy/core": "^3.35.0", "@smithy/types": "^4.19.0", "tslib": "^2.6.2" } }, "sha512-GpyAr0DD63YOEmYFM6Df+gJuIgC92MMTiBK4FTKfxii5MJ9ge20epR7LyroulscYlG89J+ZB2ivFDPjvfQhzdw=="],
 
     "@earendil-works/pi-ai/https-proxy-agent": ["https-proxy-agent@9.1.0", "", { "dependencies": { "agent-base": "9.0.0", "debug": "^4.3.4", "proxy-agent-negotiate": "1.1.0" } }, "sha512-ag87y7cJJ9/3+GxFr8Oy4O5faDsGRGnBGsJj/YjOSsSx/5eadKLYTMPlzuR6obgoCDDm0abAAZitXXQkMOPSpA=="],
-
-    "@kintsugi/desktop/@hotwired/stimulus": ["@hotwired/stimulus@github:hotwired/dev-builds#339df54", {}, "hotwired-dev-builds-339df54", "sha512-mHNF9l1AaFMwHph9F+E6H9/MOtt8gIPSyNKMJELZOfYlh9rdmfmgXu6+EmC1NfjcA0tc6u+xn8PDoOjSzc9SGw=="],
-
-    "@kintsugi/inline-content/@hotwired/stimulus": ["@hotwired/stimulus@github:hotwired/dev-builds#339df54", {}, "hotwired-dev-builds-339df54", "sha512-mHNF9l1AaFMwHph9F+E6H9/MOtt8gIPSyNKMJELZOfYlh9rdmfmgXu6+EmC1NfjcA0tc6u+xn8PDoOjSzc9SGw=="],
-
-    "@kintsugi/web/@hotwired/stimulus": ["@hotwired/stimulus@github:hotwired/dev-builds#339df54", {}, "hotwired-dev-builds-339df54", "sha512-mHNF9l1AaFMwHph9F+E6H9/MOtt8gIPSyNKMJELZOfYlh9rdmfmgXu6+EmC1NfjcA0tc6u+xn8PDoOjSzc9SGw=="],
 
     "@pierre/diffs/diff": ["diff@9.0.0", "", {}, "sha512-svtcdpS8CgJyqAjEQIXdb3OjhFVVYjzGAPO8WGCmRbrml64SPw/jJD4GoE98aR7r25A0XcgrK3F02yw9R/vhQw=="],
 

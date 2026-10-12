@@ -43,6 +43,7 @@
     "@kintsugi/builtin-agent": "workspace:*",
     "@kintsugi/changes": "workspace:*",
     "@kintsugi/codex-agent": "workspace:*",
-    "@kintsugi/drawio": "workspace:*"
+    "@kintsugi/drawio": "workspace:*",
+    "@kintsugi/claude-cli-agent": "workspace:*"
   }
 }

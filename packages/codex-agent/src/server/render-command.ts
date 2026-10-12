@@ -8,10 +8,10 @@ import { escapeHtml } from "@kintsugi/shared";
 import { agentPath } from "@kintsugi/agent/server/render-context";
 import type { CodexCommandResult } from "./commands.ts";
 import type { CodexRuntime } from "./runtime.ts";
-import { renderContext } from "./render.ts";
+import { rendering } from "./render.ts";
 
 export function renderCommandDialog(runtime: CodexRuntime, result: Exclude<CodexCommandResult, { kind: "done" }>): string {
-  const action = agentPath(renderContext(runtime), "/commands");
+  const action = agentPath(rendering.renderContext(runtime), "/commands");
   const form = (command: string, content: string, extra = "") => `<form class="form-section" method="post" action="${escapeHtml(action)}"><input type="hidden" name="text" value="${escapeHtml(command)}">${extra}${content}</form>`;
   const button = (caption: string, disabled = false) => buttonHtml({ type: "submit", variant: "secondary", disabled, content: { kind: "caption", caption } });
   const row = (label: string, description: string, actions = "") => `<div class="managed-list__item"><div class="managed-list__content"><div class="managed-list__label">${escapeHtml(label)}</div><div class="managed-list__description" title="${escapeHtml(description)}">${escapeHtml(description)}</div></div>${actions ? `<div class="managed-list__actions">${actions}</div>` : ""}</div>`;

@@ -1,147 +1,111 @@
-import { nativeJsonlRows, nativeImageTypes, nativeImageResponse, nativeTimestamp } from "@kintsugi/cli-agent/server";
-import { join } from "node:path";
-import { getKintsugiRuntimeContext, readTextIfExists } from "@kintsugi/core";
-import type { TranscriptRecord } from "@kintsugi/agent/server/transcript";
-import { workspaceRoot } from "@kintsugi/workspace";
-import { Type, type Static } from "typebox";
-import { Value } from "typebox/value";
+import type { ToolView, TranscriptItem, WorkingTranscriptItem } from "@kintsugi/agent/server/transcript";
+import { claudeToolCall } from "@kintsugi/claude-cli-agent/transcript";
+import { claudeImageSources, claudeText, claudeUserIntent, type ClaudeBlock } from "./rows.ts";
+import type { ClaudeState } from "./state.ts";
 
-const imageSourceSchema = Type.Object({ type: Type.Literal("base64"), media_type: Type.String(), data: Type.String() });
-const resultBlockSchema = Type.Object({ type: Type.String(), text: Type.Optional(Type.String()), source: Type.Optional(imageSourceSchema) });
-const editInputSchema = Type.Object({ file_path: Type.String(), old_string: Type.String(), new_string: Type.String(), replace_all: Type.Optional(Type.Boolean()) });
-const blockSchema = Type.Object({
-  type: Type.String(), text: Type.Optional(Type.String()), thinking: Type.Optional(Type.String()),
-  source: Type.Optional(imageSourceSchema),
-  id: Type.Optional(Type.String()), name: Type.Optional(Type.String()), input: Type.Optional(Type.Unknown()),
-  tool_use_id: Type.Optional(Type.String()), is_error: Type.Optional(Type.Boolean()),
-  content: Type.Optional(Type.Union([Type.String(), Type.Array(resultBlockSchema)])),
-});
-const messageSchema = Type.Object({
-  content: Type.Union([Type.String(), Type.Array(blockSchema)]),
-  stop_reason: Type.Optional(Type.Union([Type.String(), Type.Null()])),
-});
-const rowSchema = Type.Object({
-  type: Type.String(), uuid: Type.Optional(Type.String()), parentUuid: Type.Optional(Type.Union([Type.String(), Type.Null()])),
-  timestamp: Type.Optional(Type.String()), isSidechain: Type.Optional(Type.Boolean()), isMeta: Type.Optional(Type.Boolean()),
-  subtype: Type.Optional(Type.String()), message: Type.Optional(messageSchema),
-});
-type ClaudeBlock = Static<typeof blockSchema>;
-
-type ProjectedToolCall = { name: string; args: unknown };
-function toolCall(block: ClaudeBlock): ProjectedToolCall {
-  if (block.name === "Bash") return { name: "bash", args: block.input };
-  if (block.name === "Read") return { name: "read", args: block.input };
-  if (block.name === "Write") return { name: "write", args: block.input };
-  if (block.name === "Edit" && Value.Check(editInputSchema, block.input) && block.input.replace_all !== true) {
-    const { old_string, new_string, ...args } = block.input;
-    return { name: "edit", args: { ...args, oldText: old_string, newText: new_string } };
-  }
-  return { name: block.name ?? "", args: block.input };
-}
-function imageSources(blocks: ClaudeBlock[]): Array<Static<typeof imageSourceSchema>> {
-  return blocks.flatMap((block) => {
-    if (block.type === "image" && block.source && nativeImageTypes.has(block.source.media_type)) return [block.source];
-    if (block.type === "tool_result" && Array.isArray(block.content)) return block.content.flatMap((part) => part.type === "image" && part.source && nativeImageTypes.has(part.source.media_type) ? [part.source] : []);
-    return [];
-  });
-}
-function resultText(value: ClaudeBlock["content"]): string {
-  if (!Array.isArray(value)) return value ?? "";
-  return value.filter((block) => block.type === "text").map((block) => block.text ?? "").filter(Boolean).join("\n");
+function resultText(block: ClaudeBlock): string {
+  if (!Array.isArray(block.content)) return block.content ?? "";
+  return block.content.filter(part => part.type === "text").map(part => part.text ?? "").filter(Boolean).join("\n");
 }
 
-/** Claude Code's native JSONL is untrusted, append-only input; never turn it into a Pi session. */
-export function claudeTranscriptRecords(jsonl: string): TranscriptRecord[] {
-  const rows = Array.from(nativeJsonlRows(jsonl, rowSchema));
-  // Claude can rewind and fork. Display the ancestry of the last mainline message,
-  // not abandoned alternatives or independent subagents.
-  const byId = new Map(rows.flatMap((row) => row.uuid ? [[row.uuid, row] as const] : []));
-  const leaf = rows.findLast((row) => (row.type === "user" || row.type === "assistant") && row.isSidechain !== true && row.uuid);
-  const lineage = new Set<string>();
-  let current = leaf;
-  while (current?.uuid && !lineage.has(current.uuid)) {
-    lineage.add(current.uuid);
-    current = byId.get(current.parentUuid ?? "");
-  }
-  const records: TranscriptRecord[] = [];
-  for (const row of rows) {
-    const id = row.uuid;
-    if (!id || !lineage.has(id)) continue;
-    const message = row.message;
-    const time = nativeTimestamp(row.timestamp);
-    if (row.type === "user" && message) {
-      const blocks = Array.isArray(message.content) ? message.content : [];
-      const images: Extract<TranscriptRecord, { kind: "user" }>["images"] = [];
-      let imageIndex = 0;
-      for (const block of blocks) {
-        const refs = imageSources([block]).map((source) => ({ entryId: id, contentIndex: imageIndex++, mimeType: source.media_type }));
-        if (block.type === "image") images.push(...refs);
-        if (block.type === "tool_result" && block.tool_use_id) {
-          records.push({ kind: "toolResult", callId: block.tool_use_id, text: resultText(block.content), images: refs, isError: block.is_error === true, timestamp: time });
-        }
-      }
-      const text = Array.isArray(message.content) ? blocks.filter((block) => block.type === "text").map((block) => block.text ?? "").join("\n") : message.content;
-      if ((text || images.length) && row.isMeta !== true) records.push({ kind: "user", id, text, images, timestamp: time, rewindable: false });
-    } else if (row.type === "assistant" && message) {
-      const content: Extract<TranscriptRecord, { kind: "assistant" }>["parts"] = [];
-      for (const block of Array.isArray(message.content) ? message.content : []) {
-        if (block.type === "thinking") content.push({ type: "thinking", text: block.thinking ?? "" });
-        else if (block.type === "text") content.push({ type: "text", text: block.text ?? "" });
-        else if (block.type === "tool_use" && block.id && block.name) content.push({ type: "toolCall", callId: block.id, ...toolCall(block) });
-      }
-      if (content.length) records.push({ kind: "assistant", id, parts: content, stopReason: message.stop_reason === "end_turn" ? "stop" : "toolUse", timestamp: time });
-    } else if (row.type === "system" && row.subtype === "compact_boundary") {
-      records.push({ kind: "note", id, text: "Context compacted", tone: "system", timestamp: time });
+/** Claude retries failed requests itself and records an error only once it gives up, ending the turn. */
+interface Turn { prompt?: TranscriptItem; working: WorkingTranscriptItem; endedAt: number; interrupted: boolean; error?: TranscriptItem; live: boolean }
+
+/** Claude rows and the block it is streaming, grouped like every other Agent's turns. */
+export function projectClaudeTranscript(state: Pick<ClaudeState, "rows" | "streaming">, busy: boolean): TranscriptItem[] {
+  const items: TranscriptItem[] = [];
+  const tools = new Map<string, ToolView>();
+  const positions = new Map<string, number>();
+  let turn: Turn | undefined;
+  const finish = () => {
+    if (!turn) return;
+    const { working } = turn;
+    // The last reply after its final tool call answers the prompt; earlier text was commentary.
+    const index = working.items.findLastIndex(item => item.type !== "note");
+    const final = !turn.live && !turn.error && working.items[index]?.type === "text" ? working.items.splice(index, 1)[0] : undefined;
+    if (final?.type === "text") final.final = true;
+    working.hasFinalAnswer = Boolean(final);
+    working.live = turn.live;
+    if (!turn.live) {
+      if (turn.interrupted || turn.error) working.stoppedAt = turn.endedAt;
+      else working.completedAt = turn.endedAt;
     }
+    items.push(...turn.prompt ? [turn.prompt] : [], working, ...final ? [final] : [], ...turn.error ? [turn.error] : []);
+    turn = undefined;
+  };
+  const activity = (item: TranscriptItem, timestamp: number) => {
+    if (!turn) { items.push(item); return; }
+    turn.working.items.push(item);
+    turn.endedAt = Math.max(turn.endedAt, timestamp);
+  };
+  const assistantBlock = (block: { type: string; text: string; id?: string; name?: string; input?: unknown }, key: string, timestamp: number, live: boolean) => {
+    if (block.type === "thinking") {
+      if (block.text.trim()) activity({ type: "thinking", key, text: block.text, live }, timestamp);
+    } else if (block.type === "text") {
+      if (block.text.trim()) activity({ type: "text", key, text: block.text, final: false, live }, timestamp);
+    } else if (block.type === "tool_use" && block.id) {
+      const call = claudeToolCall({ name: block.name, input: block.input });
+      const tool: ToolView = { callId: block.id, name: call.name, args: call.args ?? {}, status: live ? "streaming" : "running", issuedAt: timestamp };
+      tools.set(block.id, tool);
+      activity({ type: "tool", key: `tool:${block.id}`, tool }, timestamp);
+    }
+  };
+  const rows = state.rows;
+  // Claude records a manual compaction before the /compact command that caused it.
+  let compaction: TranscriptItem | undefined;
+  // A control command's output, such as "Set model to …", already shows in the footer.
+  let controlOutput = false;
+  rows.forEach((row, index) => {
+    if (row.kind === "user") {
+      const intent = claudeUserIntent(row);
+      if (intent?.kind === "prompt") {
+        finish();
+        const live = busy && !rows.slice(index + 1).some(next => next.kind === "user" && claudeUserIntent(next)?.kind === "prompt");
+        turn = { prompt: { type: "user", key: row.uuid, text: intent.text, images: intent.images }, working: { type: "working", key: `${row.uuid}:working`, startedAt: row.timestamp, items: compaction ? [compaction] : [] }, endedAt: row.timestamp, interrupted: false, live };
+        compaction = undefined;
+      } else if (intent?.kind === "control") controlOutput = true;
+      else if (intent?.kind === "output" && controlOutput) controlOutput = false;
+      else if (intent?.kind === "output") activity({ type: "note", key: `${row.uuid}:output`, text: intent.text, tone: "system" }, row.timestamp);
+      else if (intent?.kind === "interrupted" && turn) { turn.interrupted = true; turn.endedAt = Math.max(turn.endedAt, row.timestamp); }
+      for (const block of row.content) {
+        const tool = block.type === "tool_result" && block.tool_use_id ? tools.get(block.tool_use_id) : undefined;
+        if (!tool) continue;
+        tool.status = block.is_error ? "error" : "ok";
+        tool.resultText = resultText(block);
+        const images = claudeImageSources([block]);
+        if (images.length) {
+          const offset = claudeImageSources(row.content.slice(0, row.content.indexOf(block))).length;
+          tool.resultImages = images.map((source, imageIndex) => ({ entryId: row.uuid, contentIndex: offset + imageIndex, mimeType: source.media_type }));
+        }
+        if (tool.issuedAt) tool.durationMs = Math.max(0, row.timestamp - tool.issuedAt);
+        if (turn) turn.endedAt = Math.max(turn.endedAt, row.timestamp);
+      }
+    } else if (row.kind === "assistant") {
+      if (row.error) {
+        const error: TranscriptItem = { type: "error", key: `${row.uuid}:error`, text: claudeText(row.content) || "Claude could not reply." };
+        if (!turn) { items.push(error); return; }
+        turn.error = error;
+        turn.endedAt = Math.max(turn.endedAt, row.timestamp);
+        return;
+      }
+      let position = positions.get(row.messageId) ?? 0;
+      for (const block of row.content) assistantBlock({ ...block, text: block.thinking ?? block.text ?? "" }, `${row.messageId}:${position++}`, row.timestamp, false);
+      positions.set(row.messageId, position);
+    } else if (row.kind === "steer") {
+      activity({ type: "user", key: row.uuid, text: row.text, images: [], steering: true }, row.timestamp);
+    } else if (row.kind === "compact") {
+      const note: TranscriptItem = { type: "note", key: row.uuid, text: "Claude compacted the conversation.", tone: "summary" };
+      const next = rows.slice(index + 1).find(next => next.kind === "assistant" || (next.kind === "user" && claudeUserIntent(next)?.kind === "prompt"));
+      if (next?.kind === "user" && claudeUserIntent(next)?.text?.startsWith("/compact")) compaction = note;
+      else activity(note, row.timestamp);
+    }
+  });
+  const streaming = state.streaming;
+  if (streaming) for (const [index, block] of [...streaming.blocks].sort(([left], [right]) => left - right)) {
+    assistantBlock(block, `${streaming.messageId}:${index}`, streaming.startedAt, true);
   }
-  return records;
-}
-
-/**
- * Claude's Stop hook fires before the turn's final messages leave its batched write queue.
- * After the Stop hooks finish it queues a stop_hook_summary behind them, so the turn is
- * complete on disk once that summary follows the last message.
- */
-export function claudeTurnSettled(jsonl: string): boolean {
-  let settled = false;
-  for (const row of nativeJsonlRows(jsonl, rowSchema)) {
-    if (row.isSidechain === true) continue;
-    if (row.type === "user" || row.type === "assistant") settled = false;
-    else if (row.type === "system" && row.subtype === "stop_hook_summary") settled = true;
-  }
-  return settled;
-}
-
-function nativeSessionPath(sessionId: string): string {
-  return join(getKintsugiRuntimeContext().kintsugiDataDir, "home", ".claude", "projects", workspaceRoot.replaceAll("/", "-"), `${sessionId}.jsonl`);
-}
-export async function loadClaudeTranscript(_workspaceId: string, sessionId: string): Promise<TranscriptRecord[] | undefined> {
-  const text = await readTextIfExists(nativeSessionPath(sessionId));
-  return text === undefined ? undefined : claudeTranscriptRecords(text);
-}
-
-export async function hasClaudeTurnSettled(_workspaceId: string, sessionId: string): Promise<boolean> {
-  const text = await readTextIfExists(nativeSessionPath(sessionId));
-  return text !== undefined && claudeTurnSettled(text);
-}
-
-export async function loadClaudeTranscriptImage(_workspaceId: string, sessionId: string, entryId: string, contentIndex: number): Promise<Response> {
-  const text = await readTextIfExists(nativeSessionPath(sessionId));
-  if (text === undefined) return new Response("Not found", { status: 404 });
-  for (const row of nativeJsonlRows(text, rowSchema)) {
-    if (row.uuid !== entryId || !row.message || !Array.isArray(row.message.content)) continue;
-    const source = imageSources(row.message.content)[contentIndex];
-    if (!source) break;
-    return nativeImageResponse(source.data, source.media_type);
-  }
-  return new Response("Not found", { status: 404 });
-}
-
-export async function claudeHistoryFiles(_workspaceId: string, sessionId: string): Promise<string[]> {
-  const path = nativeSessionPath(sessionId);
-  return await Bun.file(path).exists() ? [path] : [];
-}
-
-export async function hasClaudeSession(sessionId: string): Promise<boolean> {
-  return Bun.file(nativeSessionPath(sessionId)).exists();
+  finish();
+  // Tool calls of a finished turn that never reported a result were cut short.
+  for (const tool of tools.values()) if ((tool.status === "running" || tool.status === "streaming") && !busy) tool.status = "error";
+  return items;
 }

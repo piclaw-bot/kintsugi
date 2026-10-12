@@ -16,6 +16,8 @@ export interface CliAgentSession {
 export interface CliAgentAdapter {
   /** Stable slug: also owns <id>-agents.json, <id>-agents routes and tmux names. */
   id: string;
+  /** Slug before a rename. Its <legacyId>-agents.json and agent kinds stay this adapter's. */
+  legacyId?: string;
   label: string;
   iconHtml: string;
   requireSetup(): Promise<void>;

@@ -1,25 +1,24 @@
-import { createCliAgentModule, emptyAgentInput, createCliModelSettings } from "@kintsugi/cli-agent/server";
-import { createPiModelRuntime, installSubscriptionCli, requireProviderSubscription } from "@kintsugi/llm/server";
 import { providerBrandIconHtml } from "@kintsugi/shared";
-import { claudeLaunchScript } from "./launch-command.ts";
-import { prepareClaudeSession } from "./session.ts";
-import { loadClaudeTranscript, loadClaudeTranscriptImage, hasClaudeSession, hasClaudeTurnSettled, claudeHistoryFiles } from "./transcript.ts";
+import { createNativeAgentModule, nativeAgentParameters as agentParameters } from "@kintsugi/native-agent/server";
+import { createClaudeAgents } from "./runtime.ts";
+import { claudeRoutes } from "./routes.ts";
+import { rendering } from "./render.ts";
+import { agentTypeId, label, requireSetup, settings } from "./setup.ts";
 
-const claudeModelSettings = createCliModelSettings({
-  agentTypeId: "claude", provider: "anthropic", label: "Claude",
-  mapThinkingLevel: (level, mapped) => mapped !== null && ["low", "medium", "high", "xhigh", "max"].includes(mapped ?? level) ? mapped ?? level : undefined,
-});
-
-export const kintsugiServerModule = createCliAgentModule({
-  id: "claude", label: "Claude Code", iconHtml: providerBrandIconHtml("anthropic"),
-  requireSetup: async () => requireProviderSubscription(await createPiModelRuntime(), "anthropic", "Claude"),
-  settings: claudeModelSettings,
-  prepareWorkspace: async (workspaceId) => installSubscriptionCli(workspaceId, await createPiModelRuntime()),
-  prepareSession: prepareClaudeSession,
-  launchScript: claudeLaunchScript,
-  resumeScript: async (_workspaceId, settings, session) => claudeLaunchScript(emptyAgentInput(), [], settings, session, await hasClaudeSession(session.id)),
-  loadTranscript: loadClaudeTranscript,
-  loadTranscriptImage: loadClaudeTranscriptImage,
-  turnSettled: hasClaudeTurnSettled,
-  historyFiles: claudeHistoryFiles,
+export const kintsugiServerModule = createNativeAgentModule({
+  id: "claude-agent", agentTypeId, label, iconHtml: providerBrandIconHtml("anthropic"),
+  createAgents: createClaudeAgents, rendering, routes: claudeRoutes, requireSetup, settings,
+  openApiPaths: {
+    "/workspaces/{id}/claude-code-agents/{agentId}/messages": { post: { summary: "Send or steer a prompt, or run a Claude Code slash command", parameters: agentParameters, requestBody: { required: true, content: { "application/json": { schema: { type: "object", required: ["text"], properties: { text: { type: "string" }, requestId: { type: "string" } } } } } }, responses: { "200": { description: "Command picker data" }, "202": { description: "Claude Code accepted the message or command" } } } },
+    "/workspaces/{id}/claude-code-agents/{agentId}/commands": {
+      post: {
+        summary: "Run /new, /fork or /resume for a Claude Code Agent", parameters: agentParameters,
+        requestBody: { required: true, content: { "application/json": { schema: { type: "object", required: ["text"], properties: { text: { type: "string" }, argument: { type: "string" } } } } } },
+        responses: { "200": { description: "Saved conversations to resume" }, "202": { description: "Command accepted" } },
+      },
+    },
+    "/workspaces/{id}/claude-code-agents/{agentId}/abort": { post: { summary: "Interrupt Claude Code's active turn", parameters: agentParameters, responses: { "200": { description: "Interrupt requested" } } } },
+    "/workspaces/{id}/claude-code-agents/{agentId}/model": { post: { summary: "Choose a model from Claude Code's catalog", parameters: agentParameters, requestBody: { required: true, content: { "application/json": { schema: { type: "object", required: ["model"], properties: { model: { type: "string" } } } } } }, responses: { "200": { description: "Model selected" }, "422": { description: "Unsupported model or Agent is working" } } } },
+    "/workspaces/{id}/claude-code-agents/{agentId}/thinking-level": { post: { summary: "Choose Claude Code's effort level", parameters: agentParameters, requestBody: { required: true, content: { "application/json": { schema: { type: "object", required: ["thinkingLevel"], properties: { thinkingLevel: { type: "string" } } } } } }, responses: { "200": { description: "Effort level selected" }, "422": { description: "Unsupported effort or Agent is working" } } } },
+  },
 });
