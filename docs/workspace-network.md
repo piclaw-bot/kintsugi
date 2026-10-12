@@ -20,6 +20,36 @@ Limits are 64 CIDRs, three DNS forwarder IP addresses and six search domains. Fo
 
 The operator supplies reachable DNS forwarders for LAN names, public queries and `.local` names through mDNS, for example `rcarmo/mdnsbridge`. Kintsugi provides hostname resolution through ordinary DNS; it does not relay multicast or provide Bonjour service browsing.
 
+## Ingress and egress by LAN setting
+
+Each scenario has one standalone diagram and one editable Draw.io source. These show logical routing and policy paths, not process placement. The ingress paths stay the same across modes: changing workspace LAN permissions does not publish ports or change who can reach the UI. Preview endpoints still require the existing connection-mode configuration.
+
+### Off
+
+Public-internet egress and Docker/OS DNS remain available. No workspace LAN permission or managed DNS view is added, even if the installation has LAN DNS settings.
+
+![Off: existing UI and preview ingress, public-internet egress, denied private and management destinations, and default DNS](diagrams/network-off.svg)
+
+[Editable Draw.io source](diagrams/network-off.drawio).
+
+### Local LAN
+
+Egress adds the configured LAN CIDRs, subject to protected-destination checks and existing host routes. This example has upstream DNS configured; `dns: []` instead retains Docker/OS defaults without allocating a System DNS view.
+
+![Local LAN: unchanged UI and preview ingress, public and configured-CIDR egress, management denial, and optional isolated DNS with ordered fallback](diagrams/network-lan.svg)
+
+[Editable Draw.io source](diagrams/network-lan.drawio).
+
+### Routed private networks
+
+Egress adds RFC1918 IPv4 and IPv6 ULA destinations, with management and peer isolation preserved. DNS remains optional, just as in Local LAN mode; the example shows two explicitly configured upstreams.
+
+![Routed private networks: unchanged UI and preview ingress, public and RFC1918 or ULA egress, management denial, and optional isolated DNS with ordered fallback](diagrams/network-private.svg)
+
+[Editable Draw.io source](diagrams/network-private.drawio).
+
+Edit the relevant `.drawio` file and re-export its SVG preview together. The Draw.io files are canonical; the SVGs are exported previews, not independently maintained drawings. The `1.1.1.1` secondary in the examples is illustrative, not an automatic fallback. Only configure upstreams trusted to receive LAN names and search suffixes. An external mDNS bridge handles `.local` names; System does not relay multicast or browse Bonjour services.
+
 ### System resolver and fallback
 
 System creates a separate DNS view for each enabled workspace with configured upstreams. The workspace's `/etc/resolv.conf` and egress proxy both point to that view. There are no listeners or internal interface when no applied workspace policy needs the service. Clearing desired settings takes effect after the usual workspace restart; running views retain their applied snapshot until then.

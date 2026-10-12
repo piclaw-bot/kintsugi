@@ -33,6 +33,12 @@ The check uses the request URL's hostname and port, not forwarded-host/public-or
 
 This is CSRF protection, not authentication. Keep management unreachable from untrusted containers and untrusted HTML on separate origins or opaque-origin sandboxes. Token-authenticated agent MCP and turn-boundary endpoints retain their separate policy.
 
+## Installation networking
+
+UI access and workspace outbound permissions are configured separately. Localhost access limits UI entry to the installation computer; Tailscale provides tailnet access; proxy mode trusts clients that can reach the configured LAN reverse proxy. Optional admin bindings use their own bearer-token and scope checks.
+
+See the [ingress and egress diagrams for each LAN setting](workspace-network.md#ingress-and-egress-by-lan-setting): Off, Local LAN and Routed private networks. Each has its own editable Draw.io source and shows UI/preview ingress alongside workspace outbound access and DNS. Admin port publication does not enable workspace LAN egress.
+
 ## Optional authenticated admin bindings
 
 Admin bindings are a separate JSON-only management API for host-local or LAN automation without Tailscale. They are disabled by default. Every request, including `GET /openapi.json`, requires `Authorization: Bearer <token>`. These listeners do not use browser `Origin` authentication; the existing UI ingress retains its CSRF policy.
