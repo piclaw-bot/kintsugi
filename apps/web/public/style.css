@@ -518,6 +518,7 @@ html.software-keyboard-visible .composer.launch-composer :is(.agent-attach-row, 
 #app_settings_host { display: contents; }
 .app-settings-content .settings-sec { min-width: 0; padding: 0; border-bottom: 0; }
 .app-settings-overview { display: grid; min-width: 0; gap: 24px; }
+.app-settings-version { justify-self: end; color: var(--text-muted); font-size: var(--text-code); }
 .app-settings-content .settings-sec h2 { margin: 0; font-weight: var(--weight-medium); }
 .app-settings-content .settings-commit-identity { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
 .app-settings-content .settings-commit-identity .settings-field { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; padding: 0; }

@@ -1,5 +1,5 @@
 import { createKintsugiEventBus } from "@kintsugi/core";
-import { expect, test } from "bun:test";
+import { expect, spyOn, test } from "bun:test";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -54,6 +54,59 @@ function manager(extra: UpdateManagerDeps = {}) {
     setInterval: noInterval, ...extra,
   });
 }
+test("automatic release checks run once a day after the startup check", async () => {
+  let tick: (() => void) | undefined;
+  let interval = 0;
+  let checks = 0;
+  const instance = manager({
+    fetchMetadata: async () => { checks += 1; return { digest: newDigest }; },
+    setInterval: (callback, ms) => { tick = callback; interval = ms; },
+  });
+  await instance.initialize(context().ctx);
+  expect(checks).toBe(1);
+  expect(interval).toBe(24 * 60 * 60 * 1000);
+  tick!();
+  await Bun.sleep(0);
+  expect(checks).toBe(2);
+});
+
+test("installation release checks wait a day while manual checks remain immediate", async () => {
+  const day = 24 * 60 * 60 * 1000;
+  let now = 1_000_000;
+  const clock = spyOn(Date, "now").mockImplementation(() => now);
+  let tick: (() => void) | undefined;
+  let checks = 0;
+  const status = async () => ({ phase: "idle" as const, message: "Up to date" });
+  const instance = manager({
+    installationClient: {
+      installed: async () => true, status,
+      check: async () => { checks += 1; return status(); },
+      prepare: status, apply: status, rollback: status,
+    },
+    setInterval: callback => { tick = callback; },
+  });
+  try {
+    await instance.initialize(context().ctx);
+    expect(checks).toBe(1);
+    now += 5 * 60 * 1000;
+    tick!();
+    await Bun.sleep(0);
+    expect(checks).toBe(1);
+    await instance.checkNow();
+    expect(checks).toBe(2);
+    now += day - 1;
+    tick!();
+    await Bun.sleep(0);
+    expect(checks).toBe(2);
+    now += 1;
+    tick!();
+    await Bun.sleep(0);
+    expect(checks).toBe(3);
+  } finally {
+    clock.mockRestore();
+  }
+});
+
 test("non-System installations neither discover updates nor accept update operations", async () => {
   const instance = manager({ detectRuntime: async () => undefined, fetchMetadata: async () => { throw new Error("must not check"); } });
   await instance.initialize(context().ctx);

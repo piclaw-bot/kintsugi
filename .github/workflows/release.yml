@@ -27,6 +27,8 @@ jobs:
           [[ "$RELEASE_TAG" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]
           test "$(git rev-parse HEAD)" = "$(git rev-parse "refs/tags/$RELEASE_TAG^{commit}")"
           git merge-base --is-ancestor HEAD origin/main
+          version=$(sed -n 's/^export const kintsugiVersion = "\(.*\)";$/\1/p' apps/web/src/version.ts)
+          test "$version" = "$RELEASE_TAG"
 
   checks:
     name: Full release checks

@@ -7,7 +7,7 @@ import { seedConfigInstallScript } from "./startup-scripts.ts";
 
 export async function applySeedConfigManifest(manifest: RepoWorkspaceManifest, plan: WorkspaceDockerPlan, runtime: KintsugiRuntimeContext, seedDirectory: string): Promise<void> {
   if ((manifest.seedPiConfig || manifest.seedKintsugiConfig) && !plan.seedConfigEnabled) {
-    throw new KintsugiCoreError("workspace_seed_config_disabled", "This repository requests Atelier-in-Atelier seeding. Enable it in the workspace template’s Developer Settings (hold Alt in template settings), then create a new workspace.");
+    throw new KintsugiCoreError("workspace_seed_config_disabled", "This repository requests Kintsugi-in-Kintsugi seeding. Enable it in the workspace template’s Developer Settings (hold Alt in template settings), then create a new workspace.");
   }
   const entries: Array<{ source: string; staging: string; target: string }> = [];
   for (const [name, target] of [

@@ -18,7 +18,8 @@ import { Value } from "typebox/value";
 import { requestSupervisorUpdate, checkSupervisorRelease, prepareSupervisorRelease, supervisorRegistryRequest, requestSupervisorRollback } from "./supervisor.ts";
 
 const updateSidebarContributionId = "kintsugi-update";
-const pollIntervalMs = 5 * 60 * 1000;
+const updateCheckIntervalMs = 24 * 60 * 60 * 1000;
+const installationStatusPollIntervalMs = 2000;
 
 type UpdateState = "idle" | "checking" | "available" | "pulling" | "ready_to_restart" | "failed" | "restarting";
 
@@ -104,11 +105,11 @@ export class UpdateManager {
         if (this.state === "restarting" || this.state === "pulling" || this.installationUnavailable) {
           void this.installationClient.status().then(status=>this.acceptInstallation(status)).catch(error=>{ this.installationUnavailable = true; this.setState("failed",{error:errorMessage(error)}); }); return;
         }
-        if(this.state === "failed" || Date.now()-this.lastInstallationCheck < pollIntervalMs) return;
+        if(this.state === "failed" || Date.now()-this.lastInstallationCheck < updateCheckIntervalMs) return;
       }
       void this.checkNow().catch((error) => console.error("Update check failed", error));
     };
-    const intervalMs = this.installationClient ? 2000 : pollIntervalMs;
+    const intervalMs = this.installationClient ? installationStatusPollIntervalMs : updateCheckIntervalMs;
     if (this.deps.setInterval) {
       this.deps.setInterval(checkForUpdate, intervalMs);
     } else {

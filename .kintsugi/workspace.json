@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "seedPiConfig": {
+    "authJson": "/home/agent/.local/share/kintsugi-host/pi-config/auth.json",
+    "modelsJson": "/home/agent/.local/share/kintsugi-host/pi-config/models.json",
+    "modelsStoreJson": "/home/agent/.local/share/kintsugi-host/pi-config/models-store.json"
+  },
+  "seedKintsugiConfig": {
+    "projectsJson": "/home/agent/.local/share/kintsugi-host/projects.json"
+  }
+}

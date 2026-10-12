@@ -20,6 +20,7 @@ import { remove, replace, response, stream, update, wantsStream } from "@kintsug
 import { listSettingsContributions, registerSettingsContribution } from "./registry.ts";
 import { renderThemeSettings } from "./theme.ts";
 import { globalWorkspaceSettingsSectionId, renderGlobalWorkspaceSettings } from "../template-settings.ts";
+import { kintsugiVersion } from "../../version.ts";
 
 function forceDeleteWorkspacesEnabled(): boolean {
   return process.env.NODE_ENV !== "production";
@@ -133,7 +134,7 @@ export async function renderSettingsFrame(request: Request, sectionId?: string):
     ${connectionModeManaged() ? "" : `<section class="settings-sec settings-sec-url" id="settings-sec-url"><h2>Kintsugi URL</h2>${kintsugiUrlHtml(kintsugiUrl(request), "settings_kintsugi_url_qr")}</section>`}
     ${take(...inline.keys())}
     <div class="app-settings-disclosures">${disclosure("network", "Network")}${disclosure("models", "Models")}${disclosure(globalWorkspaceSettingsSectionId, "Global workspace settings that apply to all new workspaces")}${disclosure("host", "Host")}${disclosure("developer-tools", "Developer tools")}</div>
-  </div>`;
+  </div><footer class="app-settings-version" aria-label="Kintsugi version">${escapeHtml(kintsugiVersion)}</footer>`;
   const header = `<h1 class="panel__title" tabindex="-1" data-app-settings-heading>${Icons.Settings}<span>Settings</span></h1>${buttonHtml({ type: "button", variant: "secondary", content: { kind: "icon-only", iconHtml: Icons.Close, label: "Close settings" }, attributesHtml: 'data-action="app-settings#close"' })}`;
   return `<turbo-frame id="${appSettingsFrameId}" data-app-settings-target="frame">${panelHtml({ element: { tag: "section", attributesHtml: 'aria-label="Settings"' }, headerHtml: header, bodyHtml: `<div class="template-settings-content app-settings-content"${sectionId ? ` data-app-settings-anchor="settings-sec-${escapeHtml(sectionId)}"` : ""} data-app-settings-location="/settings${sectionId ? `?section=${encodeURIComponent(sectionId)}` : ""}">${content}</div>`, bodyLayout: "full-bleed", bodyOverflow: "scroll" })}</turbo-frame>`;
 }
