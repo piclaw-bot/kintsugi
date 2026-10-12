@@ -19,7 +19,7 @@ export async function renderNetworkSettings(error = "", saved = false): Promise<
     <label class="settings-field"><span class="settings-field-label">Local LAN CIDRs</span><textarea class="textarea" name="cidrs" rows="4" placeholder="192.168.1.0/24&#10;fd12:3456::/64">${escapeHtml(config.cidrs.join("\n"))}</textarea></label>
     <p>One subnet per line. Include IPv4 and IPv6 networks you want the Local LAN option to allow.</p>
     <label class="settings-field"><span class="settings-field-label">DNS forwarder addresses</span><textarea class="textarea" name="dns" rows="2" placeholder="192.168.1.1">${escapeHtml(config.dns.join("\n"))}</textarea></label>
-    <p>Up to three IP addresses, on port 53. Use a forwarder that resolves LAN names and sends .local queries to an mDNS bridge. Kintsugi does not run that service.</p>
+    <p>Up to three upstream IP addresses, on port 53. Leave empty to keep Docker’s default DNS. When configured, System runs a workspace-only resolver that retries the next upstream for missing names. Supply an external mDNS bridge for .local names.</p>
     <label class="settings-field"><span class="settings-field-label">DNS search domains</span><input class="text-field" name="search" value="${escapeHtml(config.search.join(" "))}" placeholder="home.arpa"></label>
     ${save()}</form></section>`;
 }
@@ -54,7 +54,7 @@ export async function renderWorkspaceNetwork(id: string, title: string, error = 
     ${error ? `<p class="settings-error" role="alert">${escapeHtml(error)}</p>` : ""}
     <label class="settings-field"><span class="settings-field-label">LAN access</span><select name="mode" class="popup-select" data-controller="popup-select">${options}</select></label>
     <p>Applies to every process and agent in this workspace. Other workspaces and Kintsugi management services stay isolated. Tailnet, link-local and multicast traffic are not enabled.</p>
-    <p>LAN-enabled modes use the configured DNS forwarder for LAN names and .local resolution. This is hostname resolution, not Bonjour service browsing.</p>
+    <p>Configured DNS forwarders enable LAN names and .local resolution through System. With no forwarders, Docker’s default DNS stays in use. Bonjour service browsing is not enabled.</p>
     <p>${pending ? "Restart needed. Park and unpark this workspace to apply changes; parking closes terminal and VS Code views." : "Changes apply after you park and unpark this workspace."} Current access: ${escapeHtml(labels[applied.mode])}.</p>
     <p><a href="/settings?section=network" data-turbo-frame="_top">Installation network settings</a></p>${save()}</form>` });
 }

@@ -16,7 +16,7 @@ import { applySeedConfigManifest } from "./seed-config.ts";
 import type { WorkspaceCreationContext, WorkspaceDockerMount, WorkspaceDockerPlan, WorkspaceInitInstruction } from "./types.ts";
 export type { WorkspaceCreationContext, WorkspaceDockerMount, WorkspaceDockerPlan, WorkspaceInitInstruction, WorkspaceInitInstructionMap } from "./types.ts";
 
-import { prepareWorkspaceNetwork, configureWorkspaceDns } from "./network.ts";
+import { prepareWorkspaceNetwork, configureWorkspaceDns, revokeWorkspaceNetwork } from "./network.ts";
 export { getNetworkConfiguration, setNetworkConfiguration, getWorkspaceNetworkMode, setWorkspaceNetworkMode, getAppliedWorkspaceNetwork, workspaceNetworkRestartRequired } from "./network.ts";
 export { createWorkspaceMetadataState, type WorkspaceMetadataState } from "./metadata-state.ts";
 export { ensureHostInotifyLimit } from "./host-inotify.ts";
@@ -588,6 +588,7 @@ export async function deleteWorkspace(id: string, options: DeleteWorkspaceOption
   if (containerExists) await requireDocker(["rm", "-f", "--volumes", workspaceContainerName(id)]);
   const networks = await requireDocker(["network", "ls", "--quiet", "--filter", `name=^${workspaceNetworkName(id).replaceAll(".", "\\.")}$`]);
   if (networks.stdout.trim()) await requireDocker(["network", "rm", workspaceNetworkName(id)]);
+  await revokeWorkspaceNetwork(id);
   await retireWorkspaceId(id);
   workspaceGatewayCache.delete(workspaceGatewayCacheKey(id));
   await options.events?.emit("workspace_deleted", { workspaceId: id });

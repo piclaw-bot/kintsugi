@@ -37,7 +37,6 @@ export function getAppliedWorkspaceNetwork(id: string): WorkspaceNetworkPolicy {
 export async function setWorkspaceNetworkMode(id: string, mode: WorkspaceNetworkMode): Promise<void> {
   const parsed = Value.Parse(networkModeSchema, mode);
   const config = await getNetworkConfiguration();
-  if (parsed !== "off" && !config.dns.length) throw new NetworkConfigurationError("Configure a LAN DNS forwarder in Network settings first");
   if (parsed === "lan" && !config.cidrs.length) throw new NetworkConfigurationError("Configure local LAN CIDRs in Network settings first");
   state(id).write(id, { ...state(id).read(id), mode: parsed });
 }
@@ -46,6 +45,7 @@ export async function workspaceNetworkRestartRequired(id: string): Promise<boole
   const applied = getAppliedWorkspaceNetwork(id);
   if (mode !== applied.mode) return true;
   if (mode === "off") return false;
+  if (applied.dns.length && !applied.resolver) return true; // Older snapshots need the System DNS bootstrap.
   const config = await getNetworkConfiguration();
   return JSON.stringify([mode === "private" ? privateNetworkCidrs : config.cidrs, config.dns, config.search]) !== JSON.stringify([applied.cidrs, applied.dns, applied.search]);
 }
@@ -64,6 +64,11 @@ export async function prepareWorkspaceNetwork(id: string): Promise<WorkspaceNetw
   // A settings edit during the privileged RPC remains pending, not overwritten.
   state(id).write(id, { ...state(id).read(id), applied });
   return applied;
+}
+
+export async function revokeWorkspaceNetwork(id: string): Promise<void> {
+  state(id);
+  if (hostAvailable()) await hostRequest({ operation: "network", workspaceId: id, mode: "off", configuration: emptyNetworkConfiguration() });
 }
 
 /** Install before start so DNS is ready before repository hooks. The unit

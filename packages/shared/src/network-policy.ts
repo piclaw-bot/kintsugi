@@ -1,3 +1,5 @@
+import { networkInterfaces } from "node:os";
+import { existsSync } from "node:fs";
 import type { JsonValue } from "@kintsugi/core";
 import { BlockList, isIP } from "node:net";
 import { Type, type Static } from "typebox";
@@ -20,6 +22,7 @@ export const networkPolicySchema = Type.Object({
   dns: Type.Array(Type.String(), { maxItems: 3 }),
   search: Type.Array(Type.String(), { maxItems: 6 }),
   denied: Type.Array(Type.String()),
+  resolver: Type.Optional(Type.String()),
 }, { additionalProperties: false });
 export type WorkspaceNetworkPolicy = Static<typeof networkPolicySchema>;
 export const emptyNetworkConfiguration = (): NetworkConfiguration => ({ cidrs: [], dns: [], search: [] });
@@ -88,6 +91,7 @@ export function parseNetworkPolicy(value: JsonValue): WorkspaceNetworkPolicy {
   const policy = Value.Parse(networkPolicySchema, value);
   parseNetworkConfiguration({ cidrs: policy.mode === "private" ? [] : policy.cidrs, dns: policy.dns, search: policy.search });
   for (const cidr of [...policy.cidrs, ...policy.denied]) parseNetworkCidr(cidr);
+  if (policy.resolver !== undefined && (policy.mode === "off" || !policy.dns.length || isIP(policy.resolver) !== 4 || !addressInCidrs(policy.resolver, [workspaceResolverCidr]))) throw new NetworkConfigurationError("Invalid System workspace resolver address");
   return policy;
 }
 
@@ -97,6 +101,18 @@ export function workspaceNetworkAddressAllowed(ip: string, policy: WorkspaceNetw
   return policy.mode !== "off" && !addressInCidrs(ip, protectedNetworkCidrs) && addressInCidrs(ip, policy.cidrs);
 }
 
+export const workspaceResolverCidr = "198.18.0.0/15";
+
 export function networkResolvConf(policy: WorkspaceNetworkPolicy): string {
-  return `${policy.search.length ? `search ${policy.search.join(" ")}\n` : ""}${policy.dns.map(address => `nameserver ${address}\n`).join("")}`;
+  if (policy.mode === "off" || !policy.dns.length) return "";
+  return `${policy.search.length ? `search ${policy.search.join(" ")}\n` : ""}${(policy.resolver ? [policy.resolver] : policy.dns).map(address => `nameserver ${address}\n`).join("")}`;
+}
+
+/** Refresh control addresses and bridge ranges independently of saved snapshots. */
+export function withHostNetworkBoundary(policy: WorkspaceNetworkPolicy): WorkspaceNetworkPolicy {
+  const local = Object.entries(networkInterfaces()).flatMap(([name, addresses]) => (addresses ?? []).map(address => {
+    const bridge = name.startsWith("atw-") || existsSync(`/sys/class/net/${name}/bridge`);
+    return bridge && address.cidr ? address.cidr : `${address.address}/${address.family === "IPv6" ? 128 : 32}`;
+  }));
+  return { ...policy, denied: [...policy.denied, ...local] };
 }

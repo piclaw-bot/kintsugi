@@ -23,7 +23,7 @@ test("persistent settings are off by default and edits do not grant runtime acce
 test("applied snapshots survive recovery and global edits require restart", async () => {
   await setNetworkConfiguration(config);
   const id = "network-applied";
-  const applied: WorkspaceNetworkPolicy = { mode: "lan", ...config, denied: ["172.18.0.0/16"] };
+  const applied: WorkspaceNetworkPolicy = { mode: "lan", ...config, resolver: "198.18.0.1", denied: ["172.18.0.0/16"] };
   // A replacement app process starts from this persisted snapshot, not settings.
   const store = createWorkspaceMetadataState<{ mode: "lan"; applied: WorkspaceNetworkPolicy }>("network.json", () => ({ mode: "lan", applied }), () => ({ mode: "lan", applied }));
   store.write(id, { mode: "lan", applied });
@@ -47,5 +47,16 @@ test("DNS startup configuration runs before init and can be disabled without cha
     expect(await readFile(join(directory, "systemd", "system", "kintsugi-network-dns.service"), "utf8")).toContain("Before=kintsugi-init.service");
     await writeWorkspaceNetworkBootstrap(directory, { mode: "off", cidrs: [], dns: [], search: [], denied: [] });
     expect(await readFile(path, "utf8")).toBe("");
+  } finally { await rm(directory, { recursive: true, force: true }); }
+});
+
+test("LAN access without configured resolvers preserves Docker DNS and activates no bootstrap", async () => {
+  await setNetworkConfiguration({ ...config, dns: [] });
+  await setWorkspaceNetworkMode("network-default-dns", "lan");
+  expect(getWorkspaceNetworkMode("network-default-dns")).toBe("lan");
+  const directory = await mkdtemp(join(tmpdir(), "network-default-dns-"));
+  try {
+    await writeWorkspaceNetworkBootstrap(directory, { mode: "lan", ...config, dns: [], resolver: undefined, denied: [] });
+    expect(await readFile(join(directory, "kintsugi", "network-resolv.conf"), "utf8")).toBe("");
   } finally { await rm(directory, { recursive: true, force: true }); }
 });
