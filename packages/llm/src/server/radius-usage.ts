@@ -2,7 +2,7 @@ import { Type } from "typebox";
 import { fetchSubscriptionUsageJson, type Fetcher, type SubscriptionUsage } from "./subscription-usage.ts";
 
 const payloadSchema = Type.Object({
-  currency: Type.String({ minLength: 1 }),
+  currency: Type.String({ pattern: "^[A-Za-z]{3}$" }),
   balance: Type.Object({ available: Type.Number() }),
   current_period: Type.Object({ ends_at: Type.String(), actual_charged: Type.Number({ minimum: 0 }) }),
 });

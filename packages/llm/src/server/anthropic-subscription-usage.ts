@@ -1,11 +1,11 @@
 import { Type } from "typebox";
 import { Value } from "typebox/value";
-import { readSubscriptionUsageJson, requestSubscriptionUsage, SubscriptionUsageError, type Fetcher, type SubscriptionUsage } from "./subscription-usage.ts";
+import { readSubscriptionUsageJson, parseSubscriptionUsageDate, requestSubscriptionUsage, SubscriptionUsageError, type Fetcher, type SubscriptionUsage } from "./subscription-usage.ts";
 type UsageWindow = SubscriptionUsage["windows"][number];
 
 const accountWindowSchema = Type.Object({
   // Null for a bucket the plan has but doesn't meter; it can pass 100 once exhausted.
-  utilization: Type.Union([Type.Number({ minimum: 0 }), Type.Null()]),
+  utilization: Type.Optional(Type.Union([Type.Number({ minimum: 0 }), Type.Null()])),
   resets_at: Type.Optional(Type.Union([Type.String(), Type.Null()])),
 });
 /** Newer responses list model-scoped weekly limits here, e.g. a promotional model's own allowance. */
@@ -26,9 +26,9 @@ const numberWords = new Map(["one", "two", "three", "four", "five", "six", "seve
  * "5h" or "7d_opus" in headers, "five_hour" or "seven_day_opus" from the account
  * endpoint. The shortest reported window is the primary one. Windows whose names
  * don't state a length can't be paced, so they are left out. */
-function namedWindows(reported: Array<{ count: number; unit: string; feature: string | undefined; usedPercent: number; resetsAt: string | null }>): UsageWindow[] {
-  const windows = reported.map(({ count, unit, feature, usedPercent, resetsAt }) => ({
-    limitName: feature ? feature.replaceAll("_", " ").replace(/^./, (first) => first.toUpperCase()) : "Claude",
+function namedWindows(reported: Array<{ count: number; unit: string; feature: string | undefined; label?: string; usedPercent: number; resetsAt: string | null }>): UsageWindow[] {
+  const windows = reported.map(({ count, unit, feature, label, usedPercent, resetsAt }) => ({
+    limitName: label ?? (feature ? feature.replaceAll("_", " ").replace(/^./, (first) => first.toUpperCase()) : "Claude"),
     meteredFeature: feature ?? null,
     usedPercent,
     durationSeconds: count * unitSeconds.get(unit)!,
@@ -60,29 +60,29 @@ export async function fetchAnthropicAccountUsage(accessToken: string, fetcher: F
     invalid: "Anthropic returned an invalid usage response.",
     unrecognized: unrecognizedAccountUsageMessage,
   });
-  const resetTime = (value: string | null | undefined) => {
-    // A reported bucket is still meaningful without reset timing.
-    const reset = value == null ? null : new Date(value);
-    if (reset !== null && !Number.isFinite(reset.getTime())) throw unrecognizedAccountUsage();
-    return reset?.toISOString() ?? null;
-  };
+  const resetTime = (value: string | null | undefined) => parseSubscriptionUsageDate(value, unrecognizedAccountUsageMessage)?.toISOString() ?? null;
   const named = Object.entries(payload).flatMap(([key, window]) => {
     const name = key.match(/^([a-z]+)_(hour|day)(?:_(.+))?$/);
     const count = name && numberWords.get(name[1]!);
     // A null bucket is one the account doesn't have.
     if (!count || window === null) return [];
     if (!Value.Check(accountWindowSchema, window)) throw unrecognizedAccountUsage();
-    if (window.utilization === null) return [];
-    return [{ count, unit: name[2]!, feature: name[3], usedPercent: Math.min(100, window.utilization), resetsAt: resetTime(window.resets_at) }];
+    if (window.utilization == null) return [];
+    return [{ count, unit: name[2]!, feature: name[3], usedPercent: window.utilization, resetsAt: resetTime(window.resets_at) }];
   });
   const features = new Set(named.map((window) => `${window.count}${window.unit} ${window.feature}`));
   // Entries of other kinds repeat the windows above, so only model-scoped ones add anything.
   const scoped = (Array.isArray(payload.limits) ? payload.limits : []).flatMap((limit) => {
     if (!Value.Check(scopedLimitSchema, limit)) return [];
-    const feature = limit.scope.model.display_name.trim().toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "");
-    if (!feature || feature === "all_models" || features.has(`7day ${feature}`)) return [];
+    const label = limit.scope.model.display_name.trim();
+    const feature = label.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "_").replace(/^_|_$/g, "");
+    const modelID = (limit.scope.model.id ?? "").toLowerCase().replace(/[^a-z0-9]+/g, "_");
+    if (!feature || feature === "all_models" || modelID === "all_models" || modelID.endsWith("_all_models") || features.has(`7day ${feature}`)) return [];
+    let reset: Date | null;
+    try { reset = parseSubscriptionUsageDate(limit.resets_at, unrecognizedAccountUsageMessage); }
+    catch (error) { if (error instanceof SubscriptionUsageError) return []; throw error; }
     features.add(`7day ${feature}`);
-    return [{ count: 7, unit: "day", feature, usedPercent: Math.min(100, limit.percent), resetsAt: resetTime(limit.resets_at) }];
+    return [{ count: 7, unit: "day", feature, label, usedPercent: limit.percent, resetsAt: reset?.toISOString() ?? null }];
   });
   return namedWindows([...named, ...scoped]);
 }
@@ -97,11 +97,12 @@ export function anthropicUsageFromHeaders(headers: Headers, checkedAt: Date): Su
     if (!name) return [];
     // A fraction of the allowance; it can pass 1 once the allowance is exhausted.
     const used = Number(utilization);
-    if (utilization.trim() === "" || !Number.isFinite(used) || used < 0) throw unrecognizedHeaders();
+    const count = Number(name[1]);
+    if (utilization.trim() === "" || !Number.isFinite(used * 100) || used < 0 || !Number.isSafeInteger(count) || count <= 0 || count * unitSeconds.get(name[2]!)! > 8640000000000) throw unrecognizedHeaders();
     const resetHeader = headers.get(header.replace(/-utilization$/, "-reset"));
     const reset = resetHeader === null ? null : Number(resetHeader);
-    if (reset !== null && (resetHeader!.trim() === "" || !Number.isInteger(reset) || reset <= 0)) throw unrecognizedHeaders();
-    return [{ count: Number(name[1]), unit: name[2]!, feature: name[3], usedPercent: used * 100, resetsAt: reset === null ? null : new Date(reset * 1000).toISOString() }];
+    if (reset !== null && (resetHeader!.trim() === "" || !Number.isInteger(reset) || reset <= 0 || reset > 8640000000000)) throw unrecognizedHeaders();
+    return [{ count, unit: name[2]!, feature: name[3], usedPercent: used * 100, resetsAt: reset === null ? null : new Date(reset * 1000).toISOString() }];
   }));
   return { plan: null, checkedAt: checkedAt.toISOString(), allowed: status !== "rejected", limitReached: status === "rejected", windows };
 }
@@ -121,7 +122,7 @@ export async function probeAnthropicSubscriptionUsage(accessToken: string, model
   await response.body?.cancel();
   // Limited responses still carry the headers, and say the limit was reached.
   const usage = anthropicUsageFromHeaders(response.headers, new Date());
-  if (!usage) throw anthropicHttpError(response);
+  if (!usage) throw response.ok ? new SubscriptionUsageError("Anthropic did not report usage limits in its response.") : anthropicHttpError(response);
   return usage;
 }
 

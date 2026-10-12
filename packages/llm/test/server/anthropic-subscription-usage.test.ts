@@ -51,7 +51,7 @@ test("unmetered buckets are skipped, exhausted ones stay full, and model-scoped 
       { kind: "weekly_scoped", group: "weekly", percent: 1, scope: { model: { id: "all-models", display_name: "All models" } } },
     ],
   }));
-  expect(windows.map((entry) => `${entry.limitName} ${entry.usedPercent} ${entry.durationSeconds}`)).toEqual(["Claude 100 18000", "Claude 20 604800", "Opus 3 604800", "Fable 5 604800"]);
+  expect(windows.map((entry) => `${entry.limitName} ${entry.usedPercent} ${entry.durationSeconds}`)).toEqual(["Claude 104 18000", "Claude 20 604800", "Opus 3 604800", "Fable 5 604800"]);
 });
 
 test("HTTP failures are actionable, carry retry-after, and don't leak response bodies", async () => {
@@ -187,4 +187,41 @@ test("account usage only adds windows the headers lack, keeps them on failure, a
   advance(60_000);
   await labels(true);
   expect(accountCalls()).toBe(3);
+});
+
+test("absent utilization and bad additive scoped entries do not discard known account windows", async () => {
+  const windows = await fetchAnthropicAccountUsage("secret", fetcher({
+    ...payload, seven_day_oauth_apps: { resets_at: null },
+    limits: [
+      { kind: "weekly_scoped", group: "weekly", percent: 5, resets_at: "bad", scope: { model: { display_name: "Fable" } } },
+      { kind: "weekly_scoped", group: "weekly", percent: 5, scope: { model: { id: "scope-all-models", display_name: "Everything" } } },
+    ],
+  }));
+  expect(windows).toHaveLength(2);
+});
+
+test("invalid header periods and out-of-range reset epochs are safe usage errors", () => {
+  for (const [key, value] of [
+    ["anthropic-ratelimit-unified-0h-utilization", "0.13"],
+    ["anthropic-ratelimit-unified-9999999999999999999999h-utilization", "0.13"],
+    ["anthropic-ratelimit-unified-5h-reset", "9999999999999999"],
+    ["anthropic-ratelimit-unified-5h-utilization", "1e308"],
+  ]) {
+    expect(() => anthropicUsageFromHeaders(new Headers({ ...unified, [key]: value }), checkedAt)).toThrow("unrecognized rate limit headers");
+  }
+});
+
+test("a successful probe without usage headers reports missing limits, not HTTP 200 as an error", async () => {
+  await expect(probeAnthropicSubscriptionUsage("secret", "model", async () => Response.json({}))).rejects.toThrow("did not report usage limits");
+});
+
+test("reset dates never depend on the host timezone or silently roll impossible calendar dates", async () => {
+  for (const resets_at of ["2026-02-30T00:00:00Z", "2026-11-01T00:00:00"]) {
+    await expect(fetchAnthropicAccountUsage("secret", fetcher({ five_hour: { utilization: 13, resets_at } }))).rejects.toThrow("unrecognized usage response");
+  }
+});
+
+test("scoped model labels preserve the provider's name, including non-Latin characters", async () => {
+  const windows = await fetchAnthropicAccountUsage("secret", fetcher({ limits: [{ kind: "weekly_scoped", group: "weekly", percent: 13, scope: { model: { display_name: "モデル 5.6" } } }] }));
+  expect(windows[0]).toMatchObject({ limitName: "モデル 5.6", usedPercent: 13, durationSeconds: 7 * 86400 });
 });

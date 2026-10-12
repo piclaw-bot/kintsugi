@@ -2,7 +2,28 @@ import type { WorkspaceClientControllerConstructor } from "@kintsugi/shared";
 
 export function createUsageControllers(Controller: WorkspaceClientControllerConstructor) {
   class UsageSnapshotController extends Controller {
-    connect(): void { this.element.dispatchEvent(new CustomEvent("kintsugi:usage:refreshed", { bubbles: true })); }
+    declare readonly element: HTMLElement;
+    private timer?: ReturnType<typeof setInterval>;
+
+    connect(): void {
+      this.element.dispatchEvent(new CustomEvent("kintsugi:usage:refreshed", { bubbles: true }));
+      this.timer = setInterval(this.refresh, 60_000);
+      document.addEventListener("visibilitychange", this.refresh);
+      window.addEventListener("focus", this.refresh);
+    }
+
+    disconnect(): void {
+      clearInterval(this.timer);
+      document.removeEventListener("visibilitychange", this.refresh);
+      window.removeEventListener("focus", this.refresh);
+    }
+
+    private readonly refresh = (): void => {
+      // Closed disclosures/dialogs and background tabs don't poll. Turbo owns the fetch and replacement.
+      if (document.hidden || !this.element.checkVisibility()) return;
+      const frame = this.element.closest<HTMLElement & { reload(): void }>("turbo-frame")!;
+      frame.reload();
+    };
   }
 
   class UsageButtonController extends Controller {

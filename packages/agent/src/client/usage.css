@@ -9,7 +9,6 @@
 .usage-comparison__time { background: var(--success); }
 .usage-comparison__usage { background: var(--danger); }
 .usage-comparison__shared { background: var(--text-muted); }
-.usage-comparison--inactive > span { background: var(--text-muted); }
 .usage-unused { font-size: var(--text-small); }
 
 .usage-unused > .usage-section { margin-top: 8px; }

@@ -8,8 +8,8 @@ const claimsSchema = Type.Object({ "https://api.openai.com/auth": Type.Optional(
 const windowSchema = Type.Object({
   // Can pass 100 once an allowance is exhausted.
   used_percent: Type.Number({ minimum: 0 }),
-  limit_window_seconds: Type.Integer({ minimum: 1 }),
-  reset_at: Type.Integer({ minimum: 0, maximum: 8640000000000 }),
+  limit_window_seconds: Type.Optional(Type.Union([Type.Integer({ minimum: 0, maximum: 8640000000000 }), Type.Null()])),
+  reset_at: Type.Optional(Type.Union([Type.Integer({ minimum: 0, maximum: 8640000000000 }), Type.Null()])),
 });
 // Numbers sometimes arrive as strings, as CodexBar also handles.
 const amountSchema = Type.Union([Type.Number(), Type.String({ pattern: "^\\s*-?\\d+(?:\\.\\d+)?\\s*$" }), Type.Null()]);
@@ -27,30 +27,37 @@ const limitsSchema = Type.Object({
   allowed: Type.Optional(Type.Boolean()),
   limit_reached: Type.Optional(Type.Boolean()),
   individual_limit: Type.Optional(individualLimitSchema),
+  individualLimit: Type.Optional(individualLimitSchema),
   primary_window: Type.Optional(Type.Union([windowSchema, Type.Null()])),
   secondary_window: Type.Optional(Type.Union([windowSchema, Type.Null()])),
 });
+const spendControlSchema = Type.Union([Type.Object({ individual_limit: Type.Optional(individualLimitSchema), individualLimit: Type.Optional(individualLimitSchema) }), Type.Null()]);
 const payloadSchema = Type.Object({
-  plan_type: Type.Optional(Type.String()),
+  plan_type: Type.Optional(Type.Union([Type.String(), Type.Null()])),
   credits: Type.Optional(Type.Union([Type.Object({
     unlimited: Type.Optional(Type.Boolean()),
     balance: Type.Optional(amountSchema),
   }), Type.Null()])),
   individual_limit: Type.Optional(individualLimitSchema),
-  spend_control: Type.Optional(Type.Union([Type.Object({ individual_limit: Type.Optional(individualLimitSchema) }), Type.Null()])),
+  individualLimit: Type.Optional(individualLimitSchema),
+  spend_control: Type.Optional(spendControlSchema),
+  spendControl: Type.Optional(spendControlSchema),
   rate_limit_reset_credits: Type.Optional(Type.Union([Type.Object({
     available_count: Type.Integer({ minimum: 0 }),
   }), Type.Null()])),
-  chatpass: Type.Optional(Type.Union([Type.Object({ windows: Type.Array(windowSchema) }), Type.Null()])),
+  chatpass: Type.Optional(Type.Unknown()),
   rate_limit: Type.Optional(Type.Union([limitsSchema, Type.Null()])),
-  code_review_rate_limit: Type.Optional(Type.Union([limitsSchema, Type.Null()])),
+  code_review_rate_limit: Type.Optional(Type.Unknown()),
   // Checked per entry, so one unfamiliar model limit can't hide the main windows.
-  additional_rate_limits: Type.Optional(Type.Union([Type.Array(Type.Unknown()), Type.Null()])),
+  additional_rate_limits: Type.Optional(Type.Unknown()),
 });
 const additionalLimitSchema = Type.Object({
-  limit_name: Type.String(), metered_feature: Type.String(),
-  rate_limit: Type.Optional(Type.Union([limitsSchema, Type.Null()])),
+  limit_name: Type.Optional(Type.Union([Type.String(), Type.Null()])),
+  metered_feature: Type.Optional(Type.Union([Type.String(), Type.Null()])),
+  rate_limit: Type.Optional(Type.Unknown()),
 });
+const additionalWindowsSchema = Type.Object({ primary_window: Type.Optional(Type.Unknown()), secondary_window: Type.Optional(Type.Unknown()) });
+const chatpassSchema = Type.Object({ windows: Type.Optional(Type.Unknown()) });
 
 /** ChatGPT's account endpoint, also used by the Codex CLI. Not a public, versioned API. */
 export async function fetchCodexSubscriptionUsage(accessToken: string, fetcher: Fetcher = fetch): Promise<SubscriptionUsage> {
@@ -66,7 +73,25 @@ export async function fetchCodexSubscriptionUsage(accessToken: string, fetcher: 
   return normalizeUsage(await fetchSubscriptionUsageJson("https://chatgpt.com/backend-api/wham/usage", { headers }, payloadSchema, subscriptionUsageMessages("OpenAI", "OpenAI Codex"), fetcher));
 }
 
-const amount = (value: Static<typeof amountSchema> | undefined) => value === null || value === undefined ? undefined : Number(value);
+function amount(value: Static<typeof amountSchema> | undefined): number | undefined {
+  if (value === null || value === undefined) return undefined;
+  const number = Number(value);
+  if (!Number.isFinite(number)) throw new SubscriptionUsageError("OpenAI returned an unrecognized usage response.");
+  return number;
+}
+
+function normalizeWindow(window: Static<typeof windowSchema>, limitName: string, meteredFeature: string | null, kind: "primary" | "secondary"): SubscriptionUsage["windows"][number] {
+  return { limitName, meteredFeature, kind, usedPercent: window.used_percent, durationSeconds: window.limit_window_seconds || null, resetsAt: window.reset_at ? new Date(window.reset_at * 1000).toISOString() : null };
+}
+
+/** Additive categories must not discard valid headline windows or valid siblings. */
+function additionalWindows(raw: Static<typeof additionalWindowsSchema> | null | undefined, limitName: string, meteredFeature: string | null): SubscriptionUsage["windows"] {
+  if (!raw) return [];
+  return (["primary", "secondary"] as const).flatMap((kind) => {
+    const window = raw[`${kind}_window`];
+    return Value.Check(windowSchema, window) ? [normalizeWindow(window, limitName, meteredFeature, kind)] : [];
+  });
+}
 
 /** Monthly credit pools report used/limit or a remaining percentage rather than a window. */
 function creditLimitWindow(limit: Static<typeof individualLimitSchema> | undefined): SubscriptionUsage["windows"] {
@@ -81,36 +106,34 @@ function creditLimitWindow(limit: Static<typeof individualLimitSchema> | undefin
   const resetSeconds = amount(limit.resets_at ?? limit.reset_at ?? limit.resetsAt);
   if (resetSeconds !== undefined && (!Number.isFinite(resetSeconds) || resetSeconds < 0 || resetSeconds > 8640000000000)) throw new SubscriptionUsageError("OpenAI returned an unrecognized usage response.");
   const reset = resetSeconds === undefined || resetSeconds <= 0 ? null : new Date(Math.floor(resetSeconds) * 1000);
-  return [{ periodBasis: "calendar-month-estimate", limitName: "Monthly credits", meteredFeature: "credits", kind: "primary", usedPercent: Math.max(0, Math.min(100, usedPercent)), durationSeconds: monthlyDurationSeconds(reset), resetsAt: reset?.toISOString() ?? null }];
+  return [{ periodBasis: "calendar-month-estimate", limitName: "Monthly credits", meteredFeature: "credits", kind: "primary", usedPercent: Math.max(0, usedPercent), durationSeconds: monthlyDurationSeconds(reset), resetsAt: reset?.toISOString() ?? null }];
 }
 
 function normalizeUsage(payload: Static<typeof payloadSchema>): SubscriptionUsage {
-  if (!Object.keys(payload).some((key) => ["plan_type", "rate_limit", "credits", "code_review_rate_limit", "additional_rate_limits", "individual_limit", "spend_control", "chatpass"].includes(key))) throw new SubscriptionUsageError("OpenAI returned an unrecognized usage response.");
+  if (!Object.keys(payload).some((key) => ["plan_type", "rate_limit", "credits", "code_review_rate_limit", "additional_rate_limits", "individual_limit", "individualLimit", "spend_control", "spendControl", "chatpass", "rate_limit_reset_credits"].includes(key))) throw new SubscriptionUsageError("OpenAI returned an unrecognized usage response.");
   const limits = payload.rate_limit;
-  const additional = (payload.additional_rate_limits ?? []).filter((entry) => Value.Check(additionalLimitSchema, entry));
+  const additional = (Array.isArray(payload.additional_rate_limits) ? payload.additional_rate_limits : []).flatMap((entry) => {
+    if (!Value.Check(additionalLimitSchema, entry) || !Value.Check(additionalWindowsSchema, entry.rate_limit)) return [];
+    return additionalWindows(entry.rate_limit, entry.limit_name ?? entry.metered_feature ?? "Additional allowance", entry.metered_feature ?? null);
+  });
+  const review = Value.Check(additionalWindowsSchema, payload.code_review_rate_limit) ? additionalWindows(payload.code_review_rate_limit, "Code review", "code_review") : [];
+  const chatpass = Value.Check(chatpassSchema, payload.chatpass) && Array.isArray(payload.chatpass.windows) ? payload.chatpass.windows.filter((window) => Value.Check(windowSchema, window)) : [];
   const usage: SubscriptionUsage = {
     plan: payload.plan_type ?? null,
     checkedAt: new Date().toISOString(),
     allowed: limits?.allowed ?? null,
     limitReached: limits?.limit_reached ?? null,
-    windows: [
-      { limit_name: "Codex", metered_feature: null, rate_limit: limits },
-      ...(payload.code_review_rate_limit ? [{ limit_name: "Code review", metered_feature: "code_review", rate_limit: payload.code_review_rate_limit }] : []),
-      ...additional,
-    ].flatMap((group) => (["primary", "secondary"] as const).flatMap((kind) => {
-      const window = group.rate_limit?.[`${kind}_window`];
-      return window ? [{ limitName: group.limit_name, meteredFeature: group.metered_feature, kind, usedPercent: Math.min(100, window.used_percent), durationSeconds: window.limit_window_seconds, resetsAt: new Date(window.reset_at * 1000).toISOString() }] : [];
-    })).concat((payload.chatpass?.windows ?? []).map((window) => ({
-      limitName: "Chatpass", meteredFeature: "chatpass", kind: "primary" as const,
-      usedPercent: Math.min(100, window.used_percent), durationSeconds: window.limit_window_seconds,
-      resetsAt: new Date(window.reset_at * 1000).toISOString(),
-    }))),
+    windows: additionalWindows(limits, "Codex", null).concat(review).concat(additional).concat(chatpass.map((window) => normalizeWindow(window, "Chatpass", "chatpass", "primary"))),
   };
-  usage.windows.push(...creditLimitWindow(payload.individual_limit ?? limits?.individual_limit ?? payload.spend_control?.individual_limit));
-  if (payload.credits) usage.credits = {
-    unlimited: payload.credits.unlimited ?? false,
-    balance: payload.credits.balance === null || payload.credits.balance === undefined ? null : String(payload.credits.balance).trim(),
-  };
+  const spendControl = payload.spend_control ?? payload.spendControl;
+  usage.windows.push(...creditLimitWindow(payload.individual_limit ?? payload.individualLimit ?? limits?.individual_limit ?? limits?.individualLimit ?? spendControl?.individual_limit ?? spendControl?.individualLimit));
+  if (payload.credits) {
+    amount(payload.credits.balance); // Validate numeric strings too, including overflow.
+    usage.credits = {
+      unlimited: payload.credits.unlimited ?? false,
+      balance: payload.credits.balance === null || payload.credits.balance === undefined ? null : String(payload.credits.balance).trim(),
+    };
+  }
   if (payload.rate_limit_reset_credits) usage.resets = {
     available: payload.rate_limit_reset_credits.available_count,
   };

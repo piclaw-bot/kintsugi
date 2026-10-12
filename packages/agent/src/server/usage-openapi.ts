@@ -8,7 +8,7 @@ const jsonResponse = (description: string, schema: JsonObject) => ({ "200": { de
 const reportedUsageWindowSchema = {
   type: "object",
   properties: {
-    periodBasis: { enum: ["calendar-month-estimate"], description: "Copilot calendar-month pacing is inferred, not a provider-reported period length." },
+    periodBasis: { enum: ["calendar-month-estimate"], description: "Monthly pacing for Copilot allowances and Codex workspace credits is inferred, not a provider-reported period length." },
     limitName: { type: "string" }, meteredFeature: { type: ["string", "null"] }, kind: { enum: ["primary", "secondary"] },
     usedPercent: { type: "number" }, durationSeconds: { type: ["integer", "null"], description: "Null when a window duration cannot be established; pacing is unavailable." }, resetsAt: { type: ["string", "null"], format: "date-time", description: "Null when the provider has not reported reset timing; usage is still reported." },
   },
@@ -16,10 +16,11 @@ const reportedUsageWindowSchema = {
 const providerUsageSchema = {
   type: "object",
   properties: {
-    provider: { type: "object", properties: { id: { type: "string" }, label: { type: "string" } } }, connected: { type: "boolean" }, error: { type: ["string", "null"] },
+    provider: { type: "object", properties: { id: { type: "string" }, label: { type: "string" } } }, connected: { type: "boolean" }, error: { type: ["string", "null"] }, timingAt: { type: "string", format: "date-time", description: "When pacing was calculated. Consumption can be an older observed snapshot." },
     reported: { type: ["object", "null"], properties: {
       plan: { type: ["string", "null"], description: "Null when the provider does not report the subscription plan." }, checkedAt: { type: "string", format: "date-time" }, allowed: { type: ["boolean", "null"] }, limitReached: { type: ["boolean", "null"] },
       credits: { type: "object", properties: { unlimited: { type: "boolean" }, balance: { type: ["string", "null"], description: "Provider-reported units, not dollars." } } },
+      balance: { type: "object", properties: { currency: { type: "string" }, available: { type: "number", description: "Prepaid balance in currency units, not cents or provider credits." }, monthSpend: { type: ["number", "null"], description: "Null when the provider does not report this month's spend." } } },
       resets: { type: "object", properties: { available: { type: "integer", minimum: 0 } } },
       allowances: { type: "array", description: "Reported Copilot account categories, including unlimited and unknown amounts. Only the selected category drives pacing; these are not session charges.", items: { type: "object", properties: {
         quotaId: { type: "string" }, sourceQuotaId: { type: ["string", "null"] }, label: { type: "string" }, unit: { enum: ["requests", "credits", "completions", "unknown"] }, selected: { type: "boolean" },
@@ -31,7 +32,7 @@ const providerUsageSchema = {
     } },
     windows: { type: "array", items: { type: "object", properties: {
       reported: reportedUsageWindowSchema,
-      timing: { type: "object", description: "Linear pacing reference at reported.checkedAt. Start is inferred from reset minus duration, not explicitly reported by the provider. When reset timing or window duration is unknown, state is unknown and all timing values are null.", properties: {
+      timing: { type: "object", description: "Linear pacing reference at timingAt. Start is inferred from reset minus duration, not explicitly reported by the provider. When reset timing or window duration is unknown, state is unknown and all timing values are null.", properties: {
         startsAt: { type: ["string", "null"], format: "date-time" }, elapsedPercent: { type: ["number", "null"], minimum: 0, maximum: 100 },
         paceDifferenceSeconds: { type: ["number", "null"], description: "Signed distance along the linear allowance schedule: paceDifferencePoints / 100 × durationSeconds. Positive means usage is ahead of pace; negative means behind. Not a forecast. Null outside an active window." },
         state: { enum: ["unknown", "not-started", "active", "reset-due"] }, paceDifferencePoints: { type: ["number", "null"], description: "Usage minus elapsed-time percentage, in percentage points. Positive is above linear pace. Null outside an active window." },

@@ -19,3 +19,7 @@ test("Radius reports its credit balance and this month's spend without windows",
 test("rejected Radius credentials ask for a reconnect", async () => {
   await expect(fetchRadiusUsage("token", async () => new Response("", { status: 401 }))).rejects.toThrow("Reconnect Radius");
 });
+
+test("invalid currency codes are rejected before money formatting", async () => {
+  await expect(fetchRadiusUsage("token", async () => Response.json({ currency: "NOT_A_CURRENCY", balance: { available: 1 }, current_period: { ends_at: "2026-11-01", actual_charged: 0 } }))).rejects.toThrow("unrecognized billing response");
+});

@@ -50,16 +50,18 @@ function renderUsageWindow(paced: PacedUsageWindow, allowance?: ReportedAllowanc
   const inferred = window.periodBasis === "calendar-month-estimate";
   const label = window.durationSeconds === null ? window.limitName : `${window.limitName} · ${usageDuration(window.durationSeconds)}${inferred ? " (estimated)" : ""}`;
   const remaining = window.resetsAt === null ? null : (new Date(window.resetsAt).getTime() - Date.now()) / 1000;
-  const reset = remaining === null ? "Reset time unavailable" : remaining > 0 ? `Resets in ${usageDuration(remaining)}` : "Reset due";
+  const reset = remaining === null ? "Reset time unavailable" : remaining > 0 ? `Resets in ${usageDuration(remaining)}` : "Reported reset has passed";
   const difference = timing.paceDifferenceSeconds;
   const pace = difference === null ? "—" : Math.abs(difference) < 1 ? "on pace" : `${usageDuration(Math.abs(difference))} ${difference > 0 ? "ahead" : "behind"}`;
   const estimatedTimeToHitLimitSecondsValue = estimatedTimeToHitLimitSeconds(paced);
   const estimatedTimeToHitLimit = window.usedPercent >= 100 ? "Already exhausted" : timing.state !== "active" || (timing.elapsedPercent === 0 && window.usedPercent > 0 && window.usedPercent < 100)
     ? "Unavailable" : estimatedTimeToHitLimitSecondsValue === Infinity ? "Not before reset at this rate" : usageDuration(estimatedTimeToHitLimitSecondsValue);
-  const elapsed = timing.elapsedPercent;
+  // Expired/future periods are not a pacing reference for current consumption. In particular,
+  // a full expired time track must never obscure a partially used allowance.
+  const elapsed = timing.state === "active" ? timing.elapsedPercent : null;
   return `<article class="usage-limit${allowance ? " usage-limit--allowance" : ""}">
     <div class="usage-limit-title"><h3>${escapeHtml(label)}</h3>
-      ${elapsed === null ? usageBarHtml(window.usedPercent) : `<div class="usage-comparison${difference === null ? " usage-comparison--inactive" : ""}" aria-hidden="true">
+      ${elapsed === null ? usageBarHtml(window.usedPercent) : `<div class="usage-comparison" aria-hidden="true">
         <span class="usage-comparison__time" style="width:${elapsed}%"></span>
         <span class="usage-comparison__usage" style="width:${Math.min(100, window.usedPercent)}%"></span>
         <span class="usage-comparison__shared" style="width:${Math.min(elapsed, window.usedPercent)}%"></span>
@@ -85,6 +87,15 @@ function usageBarHtml(usedPercent: number): string {
   return `<div class="usage-comparison" aria-hidden="true"><span class="usage-comparison__usage" style="width:${Math.max(0, Math.min(100, usedPercent))}%"></span></div>`;
 }
 
+function hasCreditSignal(allowance: ReportedAllowance): boolean {
+  return allowance.creditsUsed !== null && (allowance.creditsUsed > 0 || allowance.unit === "credits" || allowance.quotaId.startsWith("premium_") && (allowance.unlimited || allowance.entitlement === 0));
+}
+
+function reportedCreditAllowance(reported: ProviderUsageOverview["reported"]): ReportedAllowance | undefined {
+  const selected = reported?.allowances?.find((allowance) => allowance.selected);
+  return selected && hasCreditSignal(selected) ? selected : reported?.allowances?.find(hasCreditSignal);
+}
+
 function creditsUsedCaption({ creditsUsed }: ReportedAllowance): string {
   return creditsUsed === null ? "" : `<p class="usage-caption">Credits used this period: ${allowanceNumber(creditsUsed)}</p>`;
 }
@@ -92,7 +103,7 @@ function creditsUsedCaption({ creditsUsed }: ReportedAllowance): string {
 function renderAllowanceDetails(allowance: ReportedAllowance): string {
   const { remaining, entitlement, unit, unlimited, overageCount, overagePermitted } = allowance;
   // GitHub reports 0 credits on most request-billed seats too; only show the counter when it says something.
-  const credits = allowance.creditsUsed !== null && (allowance.creditsUsed > 0 || unlimited || entitlement === 0) ? creditsUsedCaption(allowance) : "";
+  const credits = hasCreditSignal(allowance) ? creditsUsedCaption(allowance) : "";
   if (unlimited) return `${credits}${overageCount !== null && overageCount > 0 ? `<p class="usage-caption">Reported additional usage: ${allowanceNumber(overageCount)}</p>` : ""}`;
   const quantity = remaining !== null && remaining >= 0 && entitlement !== null && entitlement >= 0
     ? `<p class="usage-caption">Remaining ${allowanceNumber(remaining)} of ${allowanceNumber(entitlement)}${unit === "unknown" ? "" : ` ${unit}`} ${helpTipHtml({ label: "What does remaining mean?", text: "The quantity GitHub reported for this account allowance. It is not reconstructed from a rounded percentage or attributed to this session." })}</p>` : "";
@@ -102,7 +113,7 @@ function renderAllowanceDetails(allowance: ReportedAllowance): string {
   return `${quantity}${credits}${exhausted}<p class="usage-caption">${policy}${extra} ${helpTipHtml({ label: "What is overage?", text: "Usage beyond the included allowance. GitHub’s permission is separate from the balance; extra charges or other limits may still apply. Reported additional usage is not added to the allowance percentage." })}</p>`;
 }
 
-function renderCopilotAllowances({ reported, windows }: ProviderUsageOverview): string {
+function renderCopilotAllowances({ reported, windows }: Pick<ProviderUsageOverview, "reported" | "windows">): string {
   if (!reported) return "";
   const allowances = reported.allowances ?? [];
   const render = (allowance: ReportedAllowance) => {
@@ -127,10 +138,10 @@ function shownUsageWindows(windows: PacedUsageWindow[]) {
 }
 
 /** A failed usage check says nothing about whether the provider's models work, so it reads as a note, not an alert. */
-function renderUsageLimits({ reported, error, windows, provider, connected }: ProviderUsageOverview): string {
+function renderUsageLimits({ reported, error, windows }: ProviderUsageOverview): string {
   if (error) return `<div class="usage-unavailable" role="status"><p>Couldn’t check usage limits. This only affects the usage shown here; models may still work fine.</p><p class="usage-caption">${escapeHtml(error)}</p></div>`;
   if (!reported) return "<p>Disconnected.</p>";
-  if (reported.allowances) return renderCopilotAllowances({ reported, error, windows, provider, connected });
+  if (reported.allowances) return renderCopilotAllowances({ reported, windows });
   const { used, unused } = shownUsageWindows(windows);
   return `${reported.limitReached || reported.allowed === false ? '<p class="usage-error" role="status">Subscription limit reached.</p>' : ""}${used.map((window) => renderUsageWindow(window)).join("")}${unused.length ? disclosureHtml({ summary: { kind: "compact", label: { kind: "text", text: `Unused limits (${unused.length})` } }, open: !used.length, bodyHtml: `<div class="usage-section">${unused.map((window) => renderUsageWindow(window)).join("")}</div>` }) : ""}${used.length || unused.length || reported.balance ? "" : '<p>No limits reported.</p>'}`;
 }
@@ -143,7 +154,10 @@ function renderUsageAccount({ reported, error }: ProviderUsageOverview): string 
   if (!reported || error) return "";
   const { credits, resets, balance } = reported;
   const rows: string[] = [];
-  if (balance) rows.push(`<div class="usage-limit-heading"><dt>Available credit</dt><dd><strong>${money(balance.available, balance.currency)}</strong></dd></div>`, `<div class="usage-limit-heading"><dt>Spent this month</dt><dd><strong>${money(balance.monthSpend, balance.currency)}</strong></dd></div>`);
+  if (balance) {
+    rows.push(`<div class="usage-limit-heading"><dt>Available credit</dt><dd><strong>${money(balance.available, balance.currency)}</strong></dd></div>`);
+    if (balance.monthSpend !== null) rows.push(`<div class="usage-limit-heading"><dt>Spent this month</dt><dd><strong>${money(balance.monthSpend, balance.currency)}</strong></dd></div>`);
+  }
   if (resets) rows.push(`<div class="usage-limit-heading"><dt>Available resets</dt><dd><strong>${number(resets.available)}</strong></dd></div>`);
   if (credits) rows.push(`<div class="usage-limit-heading"><dt>Credit balance</dt><dd><strong>${credits.unlimited ? "Unlimited" : credits.balance !== null ? Number(credits.balance).toLocaleString("en-US", { maximumFractionDigits: 0 }) : "Not reported"}</strong></dd></div>`);
   if (!rows.length) return "";
@@ -151,7 +165,12 @@ function renderUsageAccount({ reported, error }: ProviderUsageOverview): string 
 }
 
 function usageWindowCaption(window: PacedUsageWindow["reported"]): string {
-  return window.meteredFeature === null ? usageDuration(window.durationSeconds).split(" ")[0]! : window.limitName.slice(0, 2);
+  const duration = window.durationSeconds === null ? null : usageDuration(window.durationSeconds).split(" ")[0]!;
+  // The ring accepts at most three characters. Unknown or unusually long periods use the limit name.
+  if (window.meteredFeature === null && duration !== null && duration.length <= 3) return duration;
+  const characters = Array.from(window.limitName);
+  const name = characters.slice(0, 2).join("");
+  return name.length <= 3 ? name : characters[0] ?? "";
 }
 
 /** Prepaid providers show their balance instead. One small ring per limit: its length for main allowances ("5h"), the first letters of a feature's name ("Op") otherwise. */
@@ -159,13 +178,14 @@ function renderUsageRings({ provider, reported, error, windows }: ProviderUsageO
   const { used, unused } = shownUsageWindows(windows);
   const rings = reported && !error ? [...used, ...unused].map(({ reported: window, timing }) => comparisonRingHtml({
     caption: usageWindowCaption(window),
-    referencePercent: timing.elapsedPercent ?? 0,
+    referencePercent: timing.state === "active" ? timing.elapsedPercent : 0,
     valuePercent: Math.min(100, window.usedPercent),
-    label: `${window.limitName} · ${usageDuration(window.durationSeconds)}: ${timing.elapsedPercent === null ? "Pacing unavailable" : `Period elapsed${window.periodBasis ? " (est.)" : ""} ${number(timing.elapsedPercent)}%`}, Allowance used ${number(window.usedPercent)}%`,
+    label: `${window.limitName} · ${usageDuration(window.durationSeconds)}: ${timing.state !== "active" ? "Pacing unavailable" : `Period elapsed${window.periodBasis ? " (est.)" : ""} ${number(timing.elapsedPercent)}%`}, Allowance used ${number(window.usedPercent)}%`,
   })).join("") : "";
   const selectedAllowance = reported?.allowances?.find((allowance) => allowance.selected);
-  const creditsUsed = Math.max(0, ...(reported?.allowances ?? []).map((allowance) => allowance.creditsUsed ?? 0));
-  const allowanceStatus = creditsUsed > 0 ? `${allowanceNumber(creditsUsed)} credits used` : selectedAllowance?.unlimited ? "Unlimited" : selectedAllowance?.entitlement === 0 ? "No included allowance" : "Usage not reported";
+  const creditAllowance = reportedCreditAllowance(reported);
+  const creditsUsed = creditAllowance?.creditsUsed ?? null;
+  const allowanceStatus = creditsUsed !== null ? `${allowanceNumber(creditsUsed)} credits used` : selectedAllowance?.unlimited ? "Unlimited" : selectedAllowance?.entitlement === 0 ? "No included allowance" : "Usage not reported";
   const balance = reported?.balance && !error ? `<span class="usage-caption">${money(reported.balance.available, reported.balance.currency)} left</span>` : "";
   return `<turbo-frame class="usage-rings" id="${providerUsageFrameId("rings", provider.id, scope)}">${rings || balance || (reported?.allowances && !error ? `<span class="usage-caption">${allowanceStatus}</span>` : "") || `<span class="usage-caption"${error ? ` title="${escapeHtml(error)}"` : ""}>Usage unavailable</span>`}</turbo-frame>`;
 }
@@ -188,6 +208,14 @@ async function renderUsageButton(): Promise<string> {
   const overviews = await Promise.all(supportedUsageProviders.filter((provider) => activity.includes(provider.id)).map((provider) => getProviderUsageOverview(provider)));
   const selected = selectSubscriptionLimit(overviews);
   if (!selected) {
+    // Pacing may be unavailable while the account still reports real consumption. Keep it visible.
+    const unpaced = overviews.flatMap((overview) => overview.windows.map((window) => ({ provider: overview.provider, window }))).filter(({ window }) => window.reported.meteredFeature !== "chatpass" || window.reported.usedPercent > 0).sort((a, b) => b.window.reported.usedPercent - a.window.reported.usedPercent)[0];
+    if (unpaced) return usageButtonHtml({ referencePercent: 0, valuePercent: Math.min(100, unpaced.window.reported.usedPercent) }, `Usage — ${unpaced.provider.label}: Allowance used ${number(unpaced.window.reported.usedPercent)}% · Pacing unavailable`, usageWindowCaption(unpaced.window.reported), unpaced.provider.id);
+    const creditOverview = overviews.find((overview) => reportedCreditAllowance(overview.reported));
+    if (creditOverview) {
+      const allowance = reportedCreditAllowance(creditOverview.reported)!;
+      return usageButtonHtml(undefined, `Usage — ${creditOverview.provider.label}: ${allowanceNumber(allowance.creditsUsed!)} credits used this period · Percentage unavailable`, undefined, creditOverview.provider.id);
+    }
     const unlimited = overviews.find((overview) => overview.reported?.allowances?.some((allowance) => allowance.selected && allowance.unlimited));
     return unlimited ? usageButtonHtml(undefined, `Usage — ${unlimited.provider.label}: Unlimited allowance`, undefined, unlimited.provider.id) : usageButtonHtml(undefined, "Usage — selected subscription limits unavailable");
   }

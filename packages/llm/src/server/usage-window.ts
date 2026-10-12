@@ -26,7 +26,8 @@ export function usageWindowTiming(window: SubscriptionUsage["windows"][number], 
   const elapsedPercent = Math.max(0, Math.min(100, (at.getTime() - start) / duration * 100));
   const state = at.getTime() < start ? "not-started" : at.getTime() >= reset ? "reset-due" : "active";
   const paceDifferencePoints = state === "active" ? window.usedPercent - elapsedPercent : null;
-  return { startsAt: new Date(start).toISOString(), elapsedPercent, state, paceDifferencePoints, paceDifferenceSeconds: paceDifferencePoints === null ? null : paceDifferencePoints / 100 * window.durationSeconds };
+  const scheduleDistance = paceDifferencePoints === null ? null : paceDifferencePoints / 100 * window.durationSeconds;
+  return { startsAt: new Date(start).toISOString(), elapsedPercent, state, paceDifferencePoints, paceDifferenceSeconds: scheduleDistance !== null && Number.isFinite(scheduleDistance) ? scheduleDistance : null };
 }
 
 export interface PacedUsageWindow {
@@ -65,10 +66,12 @@ export function selectPacingWindow(windows: readonly PacedUsageWindow[]): PacedU
  * and Codex workspace credits. Most reset on the 1st, but billing-anniversary resets are monthly too. */
 export function monthlyDurationSeconds(reset: Date | null): number | null {
   if (!reset) return null;
-  const year = reset.getUTCFullYear();
-  const month = reset.getUTCMonth() - 1;
-  // Keep the day of month, clamped so March 31 starts on the last day of February.
-  const lastDay = new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
-  const start = Date.UTC(year, month, Math.min(reset.getUTCDate(), lastDay), reset.getUTCHours(), reset.getUTCMinutes(), reset.getUTCSeconds(), reset.getUTCMilliseconds());
-  return (reset.getTime() - start) / 1000;
+  const start = new Date(reset);
+  // Move from the 1st to avoid rolling March 31 into March again when subtracting a month.
+  start.setUTCDate(1);
+  start.setUTCMonth(start.getUTCMonth() - 1);
+  const lastDay = new Date(start);
+  lastDay.setUTCMonth(lastDay.getUTCMonth() + 1, 0);
+  start.setUTCDate(Math.min(reset.getUTCDate(), lastDay.getUTCDate()));
+  return (reset.getTime() - start.getTime()) / 1000;
 }

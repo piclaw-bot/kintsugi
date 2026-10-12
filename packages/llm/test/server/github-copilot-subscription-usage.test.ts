@@ -311,3 +311,38 @@ test("string percentages and renamed premium buckets are metered", async () => {
   expect(usage.windows[0]!.usedPercent).toBe(29.5);
   expect(usage.allowances?.[0]!.sourceQuotaId).toBe("premium_requests");
 });
+
+for (const quotaReset of [0, Date.parse("2000-01-01") / 1000]) {
+  test(`missing/stale per-quota reset ${quotaReset} doesn't override a future account reset`, async () => {
+    const usage = await fetchGitHubCopilotSubscriptionUsage("token", async () => Response.json({
+      copilot_plan: "individual", token_based_billing: true, quota_reset_date_utc: "2100-11-01T00:00:00Z",
+      quota_snapshots: { premium_models: { entitlement: 1_000_000, remaining: 870496.6, percent_remaining: 87, credits_used: 129503, quota_reset_at: quotaReset } },
+    }));
+    expect(usage.windows[0]).toMatchObject({ usedPercent: 13, resetsAt: "2100-11-01T00:00:00.000Z", durationSeconds: 31 * 86400 });
+    expect(usage.allowances?.[0]).toMatchObject({ creditsUsed: 129503, remaining: 870496.6, resetsAt: "2100-11-01T00:00:00.000Z" });
+  });
+}
+
+test("a zero per-quota reset without account timing leaves pacing unknown", async () => {
+  const usage = await fetchGitHubCopilotSubscriptionUsage("token", async () => Response.json({ quota_snapshots: { premium_models: { percent_remaining: 87, quota_reset_at: 0 } } }));
+  expect(usage.windows[0]).toMatchObject({ usedPercent: 13, resetsAt: null, durationSeconds: null });
+  expect(usageWindowTiming(usage.windows[0]!, new Date(usage.checkedAt)).state).toBe("unknown");
+});
+
+test("when all reset dates are past, preserve reported timing without rolling it forward", async () => {
+  const usage = await fetchGitHubCopilotSubscriptionUsage("token", async () => Response.json({ quota_reset_date: "2000-02-01", quota_snapshots: { premium_models: { percent_remaining: 87, quota_reset_at: Date.parse("2000-01-01") / 1000 } } }));
+  expect(usage.windows[0]).toMatchObject({ usedPercent: 13, resetsAt: "2000-01-01T00:00:00.000Z" });
+  const paced = { reported: usage.windows[0]!, timing: usageWindowTiming(usage.windows[0]!, new Date(usage.checkedAt)) };
+  expect(paced.timing.state).toBe("reset-due");
+  expect(paced.timing.paceDifferenceSeconds).toBeNull();
+});
+
+test("known premium placeholders don't suppress renamed buckets carrying real consumption", async () => {
+  const usage = await fetchGitHubCopilotSubscriptionUsage("token", async () => Response.json({ token_based_billing: true, quota_snapshots: {
+    premium_models: { entitlement: 0, remaining: 0, percent_remaining: 100 },
+    premium_interactions: { entitlement: 0, remaining: 0, percent_remaining: 100, credits_used: 31 },
+    premium_new_credits: { entitlement: 1000, remaining: 870, percent_remaining: 87 },
+  } }));
+  expect(usage.windows[0]!.usedPercent).toBe(13);
+  expect(usage.allowances?.find((allowance) => allowance.selected)).toMatchObject({ sourceQuotaId: "premium_new_credits", creditsUsed: 31 });
+});

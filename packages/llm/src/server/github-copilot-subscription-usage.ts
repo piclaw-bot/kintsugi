@@ -1,7 +1,7 @@
 import { Type, type Static } from "typebox";
 import { Value } from "typebox/value";
 import { monthlyDurationSeconds } from "./usage-window.ts";
-import { fetchSubscriptionUsageJson, subscriptionUsageMessages, SubscriptionUsageError, type Fetcher, type SubscriptionUsage, type ReportedAllowance } from "./subscription-usage.ts";
+import { fetchSubscriptionUsageJson, parseSubscriptionUsageDate, subscriptionUsageMessages, SubscriptionUsageError, type Fetcher, type SubscriptionUsage, type ReportedAllowance } from "./subscription-usage.ts";
 
 const countSchema = Type.Union([Type.Number(), Type.String({ pattern: "^-?\\d+(?:\\.\\d+)?$" })]);
 const dateSchema = Type.Optional(Type.Union([Type.String(), Type.Null()]));
@@ -38,19 +38,6 @@ type Feature = typeof knownFeatures[number];
 const knownFeatureNames = new Set<string>(knownFeatures);
 type Snapshots = { premium_models?: Quota; premium_interactions?: Quota; chat?: Quota; completions?: Quota };
 
-function parseReset(value: string | undefined | null, invalid: string): Date | null {
-  if (value == null) return null;
-  // Date-only values are UTC. Reject timezone-less timestamps rather than using host time.
-  if (!/^\d{4}-\d{2}-\d{2}(?:T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2}))?$/.test(value)) throw new SubscriptionUsageError(invalid);
-  const calendarDate = value.slice(0, 10);
-  const day = new Date(`${calendarDate}T00:00:00Z`);
-  // JavaScript rolls e.g. February 30 into March, including in full timestamps.
-  if (!Number.isFinite(day.getTime()) || day.toISOString().slice(0, 10) !== calendarDate) throw new SubscriptionUsageError(invalid);
-  const reset = new Date(value);
-  if (!Number.isFinite(reset.getTime())) throw new SubscriptionUsageError(invalid);
-  return reset;
-}
-
 /** Known categories must parse; unfamiliar ones fill a missing known category by name, as GitHub has renamed them before. */
 function quotaSnapshots(raw: Static<typeof payloadSchema>["quota_snapshots"], unrecognized: string): Snapshots {
   const snapshots: Snapshots = {};
@@ -60,11 +47,20 @@ function quotaSnapshots(raw: Static<typeof payloadSchema>["quota_snapshots"], un
     if (!Value.Check(quotaSchema, quota)) throw new SubscriptionUsageError(unrecognized);
     snapshots[feature] = quota;
   }
+  const meteredQuota = (quota: Quota) => {
+    const entitlement = quota.entitlement === undefined ? undefined : Number(quota.entitlement);
+    const remaining = quota.percent_remaining === undefined ? undefined : Number(quota.percent_remaining);
+    const quantity = quota.quota_remaining ?? quota.remaining ?? quota.credits_used;
+    return !quota.unlimited && entitlement !== 0 && entitlement !== -1 && (remaining !== undefined && Number.isFinite(remaining) || entitlement !== undefined && entitlement > 0 && Number.isFinite(entitlement) && quantity !== undefined && Number.isFinite(Number(quantity)));
+  };
   for (const [key, quota] of Object.entries(raw ?? {})) {
     if (knownFeatureNames.has(key) || !Value.Check(quotaSchema, quota)) continue;
     const name = key.toLowerCase();
-    const feature: Feature | undefined = name.includes("chat") ? "chat" : name.includes("premium") ? (snapshots.premium_models ? undefined : "premium_interactions") : name.includes("completion") || name.includes("code") ? "completions" : undefined;
-    if (feature && !snapshots[feature]) snapshots[feature] = { quota_id: key, ...quota };
+    const feature: Feature | undefined = name.includes("chat") ? "chat" : name.includes("premium") ? "premium_interactions" : name.includes("completion") || name.includes("code") ? "completions" : undefined;
+    if (!feature) continue;
+    const existing = snapshots[feature];
+    // A renamed bucket with actual numbers is preferable to a known zero-entitlement placeholder.
+    if (!existing || !meteredQuota(existing) && meteredQuota(quota)) snapshots[feature] = { quota_id: key, ...quota, credits_used: quota.credits_used ?? existing?.credits_used };
   }
   return snapshots;
 }
@@ -80,7 +76,8 @@ export async function fetchGitHubCopilotSubscriptionUsage(githubToken: string, f
       "User-Agent": "GitHubCopilotChat/0.26.7", "X-Github-Api-Version": "2025-04-01",
     },
   }, payloadSchema, { ...messages, unavailable: (status) => status === 403 ? "GitHub denied the usage check (HTTP 403). Check your account access or policy." : status === 429 ? "GitHub rate-limited usage checks (HTTP 429). Try again later." : messages.unavailable(status) }, fetcher);
-  const accountReset = parseReset(payload.quota_reset_date_utc ?? payload.quota_reset_date ?? payload.limited_user_reset_date, messages.unrecognized);
+  const accountReset = parseSubscriptionUsageDate(payload.quota_reset_date_utc ?? payload.quota_reset_date ?? payload.limited_user_reset_date, messages.unrecognized);
+  const checkedAt = new Date();
   const snapshots = quotaSnapshots(payload.quota_snapshots, messages.unrecognized);
   const free = payload.copilot_plan === "free" || payload.access_type_sku === "free_limited_copilot";
   const premiumLabel = payload.token_based_billing === true ? "AI credits" : payload.token_based_billing === false ? "Premium requests" : "Premium allowance";
@@ -98,8 +95,13 @@ export async function fetchGitHubCopilotSubscriptionUsage(githubToken: string, f
     const overageCount = quota.overage_count === undefined ? null : Number(quota.overage_count);
     const creditsUsed = quota.credits_used === undefined ? null : Number(quota.credits_used);
     if ((remaining !== undefined && !Number.isFinite(remaining)) || (remainingQuantity !== null && !Number.isFinite(remainingQuantity)) || (overageCount !== null && (!Number.isFinite(overageCount) || overageCount < 0)) || (creditsUsed !== null && (!Number.isFinite(creditsUsed) || creditsUsed < 0))) throw new SubscriptionUsageError(messages.unrecognized);
-    // Per-quota epoch seconds take priority over account-level dates, as in VS Code.
-    const reset = quota.quota_reset_at != null ? new Date(Math.floor(quota.quota_reset_at) * 1000) : accountReset;
+    // A zero epoch is missing timing, not January 1970. Prefer per-quota timing unless it has
+    // expired while the account reports a future reset; that is the only newer timing we can use
+    // without inventing a period. If both have expired, retain that fact and show usage without pacing.
+    const quotaReset = quota.quota_reset_at != null && quota.quota_reset_at > 0 ? new Date(Math.floor(quota.quota_reset_at) * 1000) : null;
+    const staleQuota = quotaReset !== null && quotaReset.getTime() <= checkedAt.getTime();
+    const futureAccount = accountReset !== null && accountReset.getTime() > checkedAt.getTime();
+    const reset = staleQuota && futureAccount ? accountReset : quotaReset ?? accountReset;
     const label = feature === "chat" ? "Chat requests" : feature === "completions" ? "Code completions" : premiumLabel;
     return {
       quotaId: feature, sourceQuotaId: quota.quota_id ?? null, label,
@@ -148,7 +150,7 @@ export async function fetchGitHubCopilotSubscriptionUsage(githubToken: string, f
     windows.push({ periodBasis: "calendar-month-estimate", limitName: primary.label, meteredFeature: primary.quotaId, kind: "primary", usedPercent: 100 - primary.remainingPercent!, durationSeconds: monthlyDurationSeconds(reset), resetsAt: primary.resetsAt });
   }
   return {
-    plan: payload.copilot_plan ?? null, checkedAt: new Date().toISOString(),
+    plan: payload.copilot_plan ?? null, checkedAt: checkedAt.toISOString(),
     allowed: null, limitReached: null, allowances, windows,
   };
 }

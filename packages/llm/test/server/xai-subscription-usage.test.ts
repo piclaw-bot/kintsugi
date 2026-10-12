@@ -53,10 +53,10 @@ test("billing-period dates and on-demand amounts stand in for missing fields", a
   expect(usage.windows[0]).toMatchObject({ usedPercent: 25, durationSeconds: 31 * 86400, resetsAt: "2026-11-01T00:00:00.000Z" });
 });
 
-test("over-limit usage is reached and shown as full", async () => {
+test("over-limit usage is reached and preserves the reported percentage", async () => {
   const usage = await fetchXaiSubscriptionUsage("token", async () => Response.json(billing(120)));
   expect(usage.limitReached).toBe(true);
-  expect(usage.windows[0]!.usedPercent).toBe(100);
+  expect(usage.windows[0]!.usedPercent).toBe(120);
 });
 
 
@@ -64,4 +64,43 @@ test("billing dates alone never invent zero consumption", async () => {
   const usage = await fetchXaiSubscriptionUsage("token", async () => Response.json({ config: { currentPeriod: billing(0).config.currentPeriod } }));
   expect(usage.windows).toEqual([]);
   expect(usage.limitReached).toBeNull();
+});
+
+test("a known percentage survives absent or null billing-period metadata", async () => {
+  for (const extra of [{}, { currentPeriod: null }]) {
+    const usage = await fetchXaiSubscriptionUsage("token", async () => Response.json({ config: { creditUsagePercent: 13, ...extra } }));
+    expect(usage.windows[0]).toMatchObject({ usedPercent: 13, resetsAt: null, durationSeconds: null });
+  }
+});
+
+test("prepaid wallet values are cents, can stand alone, and don't invent monthly spend", async () => {
+  for (const [wallet, expected] of [[{ val: "1234" }, 12.34], [{}, 0]] as const) {
+    const usage = await fetchXaiSubscriptionUsage("token", async () => Response.json({ config: { prepaidBalance: wallet } }));
+    expect(usage.balance).toEqual({ currency: "USD", available: expected, monthSpend: null });
+    expect(usage.windows).toEqual([]);
+    expect(usage.limitReached).toBeNull();
+  }
+});
+
+test("bad optional wallets cannot hide otherwise valid allowance usage", async () => {
+  for (const prepaidBalance of [{ val: "bad" }, { val: -1 }, { val: 12.34 }, { val: "9".repeat(400) }]) {
+    const usage = await fetchXaiSubscriptionUsage("token", async () => Response.json({ config: { creditUsagePercent: 13, prepaidBalance } }));
+    expect(usage.balance).toBeUndefined();
+    expect(usage.windows[0]!.usedPercent).toBe(13);
+  }
+});
+
+test("overflowing on-demand amounts cannot turn into zero consumption", async () => {
+  await expect(fetchXaiSubscriptionUsage("token", async () => Response.json({ config: { onDemandCap: { val: "9".repeat(400) }, onDemandUsed: { val: 500 }, billingPeriodEnd: "2026-11-01T00:00:00Z" } }))).rejects.toThrow("unrecognized");
+});
+
+test("sub-second periods have no zero-duration pacing window", async () => {
+  const usage = await fetchXaiSubscriptionUsage("token", async () => Response.json({ config: { creditUsagePercent: 13, currentPeriod: { start: "2026-10-01T00:00:00Z", end: "2026-10-01T00:00:00.100Z" } } }));
+  expect(usage.windows[0]!.durationSeconds).toBeNull();
+});
+
+test("ambiguous billing timestamps and impossible dates are rejected consistently", async () => {
+  for (const end of ["2026-02-30T00:00:00Z", "2026-11-01T00:00:00"]) {
+    await expect(fetchXaiSubscriptionUsage("token", async () => Response.json({ config: { creditUsagePercent: 13, currentPeriod: { end } } }))).rejects.toThrow("unrecognized");
+  }
 });

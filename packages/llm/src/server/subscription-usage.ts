@@ -27,7 +27,7 @@ export type SubscriptionUsage = {
   credits?: { unlimited: boolean; balance: string | null };
   resets?: { available: number };
   /** Prepaid money rather than allowance windows; amounts are in currency units. */
-  balance?: { currency: string; available: number; monthSpend: number };
+  balance?: { currency: string; available: number; monthSpend: number | null };
   /** Account snapshots, distinct from per-call charges or session usage. */
   allowances?: ReportedAllowance[];
   windows: { periodBasis?: "calendar-month-estimate"; limitName: string; meteredFeature: string | null; kind: "primary" | "secondary"; usedPercent: number; durationSeconds: number | null; resetsAt: string | null }[];
@@ -37,6 +37,20 @@ export type SubscriptionUsage = {
 export class SubscriptionUsageError extends Error {
   /** Seconds the provider asked us to wait before asking again, when it said. */
   constructor(message: string, readonly retryAfterSeconds: number | null = null) { super(message); }
+}
+
+/** Parse external reset dates consistently, without local-time or rolled-calendar guesses. */
+export function parseSubscriptionUsageDate(value: string | undefined | null, invalid: string): Date | null {
+  if (value == null) return null;
+  // Date-only values are UTC. Reject timezone-less timestamps rather than using host time.
+  if (!/^\d{4}-\d{2}-\d{2}(?:T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2}))?$/.test(value)) throw new SubscriptionUsageError(invalid);
+  const calendarDate = value.slice(0, 10);
+  const day = new Date(`${calendarDate}T00:00:00Z`);
+  // JavaScript rolls e.g. February 30 into March, including in full timestamps.
+  if (!Number.isFinite(day.getTime()) || day.toISOString().slice(0, 10) !== calendarDate) throw new SubscriptionUsageError(invalid);
+  const reset = new Date(value);
+  if (!Number.isFinite(reset.getTime())) throw new SubscriptionUsageError(invalid);
+  return reset;
 }
 
 export type Fetcher = (url: string, init: RequestInit) => Promise<Response>;

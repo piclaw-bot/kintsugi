@@ -139,3 +139,17 @@ test("no-projected-hit ties prefer higher usage", () => {
   const higher = pacedWindow("Higher", 70, 90);
   expect(selectPacingWindow([lower, higher])).toBe(higher);
 });
+
+test("monthly estimates handle early ISO years and month-end rollover in UTC", async () => {
+  const { monthlyDurationSeconds } = await import("../../src/server/usage-window.ts");
+  expect(monthlyDurationSeconds(new Date("0000-03-31T00:00:00Z"))).toBe(31 * 86400);
+  expect(monthlyDurationSeconds(new Date("2026-03-31T12:00:00Z"))).toBe(31 * 86400);
+});
+
+test("unrepresentable schedule distances stay unavailable rather than becoming infinity", () => {
+  const timing = usageWindowTiming({ ...window, usedPercent: 1e308, durationSeconds: 604800 }, new Date(window.resetsAt));
+  expect(timing.paceDifferenceSeconds).toBeNull();
+  const active = usageWindowTiming({ ...window, usedPercent: 1e308, durationSeconds: 604800 }, new Date(new Date(window.resetsAt).getTime() - 86400000));
+  expect(active.state).toBe("active");
+  expect(active.paceDifferenceSeconds).toBeNull();
+});

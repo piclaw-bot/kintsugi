@@ -123,7 +123,6 @@ test("rejects invalid reset counts and account details", async () => {
     { rate_limit_reset_credits: { available_count: -1 } },
     { rate_limit_reset_credits: { available_count: 1.5 } },
     { credits: { has_credits: true, unlimited: false, balance: "lots" } },
-    { chatpass: { windows: [{ ...window, used_percent: -1 }] } },
   ];
   for (const extra of invalidDetails) {
     await expect(fetchCodexSubscriptionUsage(token, fetcher({ ...payload, ...extra }))).rejects.toThrow("unrecognized usage response");
@@ -174,13 +173,57 @@ test("an unfamiliar additional limit doesn't hide the main windows", async () =>
   expect(usage.windows.map((entry) => entry.limitName)).toEqual(["Codex", "Codex", "Long context"]);
 });
 
-test("over-limit usage is shown as exhausted", async () => {
+test("over-limit usage retains the reported percentage", async () => {
   const usage = await fetchCodexSubscriptionUsage(token, fetcher({ ...payload, rate_limit: { primary_window: { ...window, used_percent: 104 } } }));
-  expect(usage.windows[0]!.usedPercent).toBe(100);
+  expect(usage.windows[0]!.usedPercent).toBe(104);
 });
 
 test("missing plan metadata doesn't hide reported limits", async () => {
   const usage = await fetchCodexSubscriptionUsage(token, fetcher({ rate_limit: { primary_window: window } }));
   expect(usage.plan).toBeNull();
   expect(usage.windows[0]!.usedPercent).toBe(72);
+});
+
+test("valid additional windows survive absent labels and malformed siblings", async () => {
+  const usage = await fetchCodexSubscriptionUsage(token, fetcher({ ...payload, additional_rate_limits: [
+    { metered_feature: "codex_spark", rate_limit: { primary_window: window, secondary_window: { used_percent: "broken" } } },
+    { limit_name: "Review", rate_limit: { primary_window: { used_percent: 5 } } },
+  ] }));
+  expect(usage.windows.slice(2)).toEqual([
+    { limitName: "codex_spark", meteredFeature: "codex_spark", kind: "primary", usedPercent: 72, durationSeconds: 18000, resetsAt: new Date(window.reset_at * 1000).toISOString() },
+    { limitName: "Review", meteredFeature: null, kind: "primary", usedPercent: 5, durationSeconds: null, resetsAt: null },
+  ]);
+});
+
+test("missing, zero and null timing retain usage without pacing", async () => {
+  for (const timing of [{}, { reset_at: 0, limit_window_seconds: 0 }, { reset_at: null, limit_window_seconds: null }]) {
+    const usage = await fetchCodexSubscriptionUsage(token, async () => Response.json({ rate_limit: { primary_window: { used_percent: 13, ...timing } } }));
+    expect(usage.windows[0]).toMatchObject({ usedPercent: 13, durationSeconds: null, resetsAt: null });
+  }
+});
+
+test("camel-case workspace credit cap fields are recognized without inventing consumption", async () => {
+  for (const data of [{ individualLimit: { limit: "400", used: "300" } }, { rate_limit: { individualLimit: { limit: 400, used: 300 } } }, { spendControl: { individualLimit: { limit: 400, used: 300 } } }]) {
+    const usage = await fetchCodexSubscriptionUsage(token, async () => Response.json(data));
+    expect(usage.windows[0]!.usedPercent).toBe(75);
+  }
+  const unknown = await fetchCodexSubscriptionUsage(token, fetcher({ individual_limit: { limit: 400 } }));
+  expect(unknown.windows).toEqual([]);
+});
+
+test("overflowing numeric balances are rejected before they reach settings", async () => {
+  await expect(fetchCodexSubscriptionUsage(token, fetcher({ ...payload, credits: { balance: "9".repeat(400) } }))).rejects.toThrow("unrecognized usage response");
+});
+
+test("an unfamiliar additional-limits container does not discard headline usage", async () => {
+  const usage = await fetchCodexSubscriptionUsage(token, fetcher({ ...payload, additional_rate_limits: "unfamiliar" }));
+  expect(usage.windows).toHaveLength(2);
+});
+
+test("bad optional code-review and Chatpass entries cannot discard headline or valid sibling windows", async () => {
+  const usage = await fetchCodexSubscriptionUsage(token, fetcher({ ...payload,
+    code_review_rate_limit: { primary_window: { ...window, used_percent: -1 }, secondary_window: window },
+    chatpass: { windows: [{ ...window, used_percent: -1 }, { ...window, used_percent: 13 }] },
+  }));
+  expect(usage.windows.map((entry) => `${entry.limitName} ${entry.usedPercent}`)).toEqual(["Codex 72", "Codex 0", "Code review 72", "Chatpass 13"]);
 });
