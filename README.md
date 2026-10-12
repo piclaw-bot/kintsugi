@@ -2,6 +2,8 @@
 
 [![Kintsugi](docs/icon-256.png)](docs/icon.png)
 
+Kintsugi derives from [AgentsInTheCloud](https://github.com/lucasmeijer/AgentsInTheCloud), originally created by Lucas Meijer. The original copyright and [MIT licence](LICENSE) are retained. Third-party attributions are in [NOTICE](NOTICE).
+
 Kintsugi is a self-hosted platform for running coding agents on your own infrastructure, with your choice of model providers and tools for evaluating their work.
 
 Kintsugi adds:
@@ -62,7 +64,3 @@ bun run web
 ```
 
 Internal packages use `@kintsugi/*`. Container accounts are `agent:agent`, with `/home/agent` as their home. The app uses UID/GID 1000; workspace startup aligns the numeric IDs with the host process to preserve shared-volume ownership. Existing `ATELIER_*` environment variables keep their names for compatibility.
-
-## Attribution and licence
-
-Kintsugi derives from [AgentsInTheCloud](https://github.com/lucasmeijer/AgentsInTheCloud), originally created by Lucas Meijer. The original copyright and [MIT licence](LICENSE) are retained. Third-party attributions are in [NOTICE](NOTICE).
