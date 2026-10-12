@@ -13,4 +13,4 @@ Write release notes that cover the complete set of user-impacting changes in sco
 
 Write each note through the eyes of the user: explain what changed and how it affects them. Omit changes that have no meaningful user impact. Some changes may only need a one-line note; others may be small in code but significant for users and deserve a more extensive explanation.
 
-First write out the full release notes. Only after the release notes are written, identify notes that would benefit from media. For each note where a video would be useful, create a new AgentsInTheCloud workspace and prompt it to make a video for that feature. Do the same for notes where a screenshot would be useful.
+First write out the full release notes. Only after the release notes are written, identify notes that would benefit from media. For each note where a video would be useful, create a new Kintsugi workspace and prompt it to make a video for that feature. Do the same for notes where a screenshot would be useful.
