@@ -65,4 +65,4 @@ Internal packages use `@kintsugi/*`. Container accounts are `agent:agent`, with 
 
 ## Attribution and licence
 
-Kintsugi retains the original copyright and [MIT licence](LICENSE). See [NOTICE](NOTICE) for source provenance and third-party attributions.
+Kintsugi derives from [AgentsInTheCloud](https://github.com/lucasmeijer/AgentsInTheCloud), originally created by Lucas Meijer. The original copyright and [MIT licence](LICENSE) are retained. Third-party attributions are in [NOTICE](NOTICE).
