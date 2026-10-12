@@ -1,6 +1,5 @@
 /* Product art is distinct from the monochrome functional SVG vocabulary. */
-.kintsugi-brand-icon, .builtin-agent-icon { display: block; width: 24px; height: 24px; flex: 0 0 auto; object-fit: contain; }
-.builtin-agent-icon { width: auto; }
+.kintsugi-brand-icon { display: block; width: 24px; height: 24px; flex: 0 0 auto; object-fit: contain; }
 
 /* Heading symbols must retain their size when a header has several actions. */
 .panel__title > svg { flex: 0 0 auto; }
