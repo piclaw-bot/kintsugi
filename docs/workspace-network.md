@@ -60,6 +60,14 @@ UDP and TCP are supported. Truncated upstream UDP responses are retried over TCP
 
 Native clients and the proxy now get the same upstream fallback through System, independently of client-library NXDOMAIN behaviour. Native clients apply their own search-domain rules; the proxy tries search candidates before the bare name. Fallback can disclose LAN names and search suffixes to later upstreams, so only configure resolvers trusted to receive them. Upstream addresses are checked against live control/bridge boundaries on every query.
 
+#### DNS view isolation
+
+Each enabled workspace with configured upstreams gets its own applied DNS view. Other workspaces cannot query that view, and DNS-only access does not open management services or non-DNS ports.
+
+![DNS isolation: independent applied views and upstream lists, owning-workspace port-53 grants and denied cross-workspace DNS queries](diagrams/dns-isolation.svg)
+
+[Editable Draw.io source](diagrams/dns-isolation.drawio).
+
 ## Desired and applied state
 
 Saving a workspace mode or installation configuration does not change running workspace permissions. A workspace stores its desired mode separately from its applied policy snapshot. `restartRequired` compares the desired mode and current installation configuration against that snapshot; Off ignores installation DNS/CIDR edits.
@@ -69,6 +77,10 @@ Apply changes by parking and unparking the workspace through Kintsugi. Parking c
 The lifecycle `beforeStart` hook prepares the policy through private host control, records the applied snapshot and copies the DNS bootstrap into the stopped container before Docker starts it. Settings edits made while the host request is in flight remain pending. Enabled modes fail startup without System; Off retains direct-development support.
 
 The bootstrap adds `kintsugi-network-dns.service` before `kintsugi-init.service`, making DNS available to repository hooks. Docker regenerates `/etc/resolv.conf` on restart, so the unit reapplies the snapshot at each boot. Applying Off or an empty upstream list restores Docker's resolver configuration. Older enabled snapshots with direct upstream DNS report restart-needed until the System resolver bootstrap is applied.
+
+![Policy lifecycle: immediate desired-state persistence, park and unpark to apply changes, and applied-snapshot restoration on Docker or System restart](diagrams/policy-lifecycle.svg)
+
+[Editable Draw.io source](diagrams/policy-lifecycle.drawio).
 
 ## Enforcement and isolation
 
