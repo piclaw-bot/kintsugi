@@ -21,6 +21,7 @@ export function createAgentComposerController(Controller: WorkspaceClientControl
     private pane!: HTMLElement;
     private longPress?: ReturnType<typeof setTimeout>;
     private suppressNextClick = false;
+    private resizing?: { pointerId: number; y: number; height: number };
 
     connect(): void {
       this.pane = this.element.closest<HTMLElement>('[data-workspace-pane-role="agent"]')!;
@@ -32,6 +33,7 @@ export function createAgentComposerController(Controller: WorkspaceClientControl
     disconnect(): void {
       this.activeSelection = false;
       clearTimeout(this.longPress);
+      this.resizing = undefined;
       this.blurInput();
     }
 
@@ -147,7 +149,35 @@ export function createAgentComposerController(Controller: WorkspaceClientControl
     autosize(): void {
       const composer = this.composer;
       if (!composer || !this.input || !this.isOpen) return;
-      sizeComposer(composer, Math.floor(composerViewportHeight() * composerMaxShare));
+      sizeComposer(composer, Math.floor(composerViewportHeight() * (composer.dataset.userHeight ? 0.8 : composerMaxShare)));
+    }
+
+    resizeStart(event: PointerEvent): void {
+      if (event.button !== 0) return;
+      event.preventDefault();
+      const divider = this.composer!.querySelector<HTMLElement>(".composer-divider")!;
+      divider.focus({ preventScroll: true });
+      divider.setPointerCapture(event.pointerId);
+      this.resizing = { pointerId: event.pointerId, y: event.clientY, height: this.composer!.getBoundingClientRect().height };
+    }
+
+    resizeMove(event: PointerEvent): void {
+      if (!this.resizing || event.pointerId !== this.resizing.pointerId) return;
+      event.preventDefault();
+      this.composer!.dataset.userHeight = String(this.resizing.height + this.resizing.y - event.clientY);
+      this.autosize();
+    }
+
+    resizeEnd(): void {
+      this.resizing = undefined;
+    }
+
+    resizeKey(event: KeyboardEvent): void {
+      if (event.key !== "ArrowUp" && event.key !== "ArrowDown") return;
+      event.preventDefault();
+      const composer = this.composer!;
+      composer.dataset.userHeight = String(composer.getBoundingClientRect().height + (event.key === "ArrowUp" ? 20 : -20));
+      this.autosize();
     }
 
     private updateDraftIndicator(): void {
