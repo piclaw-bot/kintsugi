@@ -2,9 +2,9 @@
 
 [![Kintsugi](docs/icon-256.png)](docs/icon.png)
 
-Kintsugi is an opinionated fork of [AgentsInTheCloud](https://github.com/lucasmeijer/AgentsInTheCloud), originally created by Lucas Meijer. It runs coding agents on your own infrastructure, with your choice of model providers and tools for evaluating their work.
+Kintsugi is a self-hosted platform for running coding agents on your own infrastructure, with your choice of model providers and tools for evaluating their work.
 
-This fork adds:
+Kintsugi adds:
 
 - An embedded Draw.io editor and diagram previews.
 - A scoped, token-authenticated management API.
@@ -65,4 +65,4 @@ Internal packages use `@kintsugi/*`. Container accounts are `agent:agent`, with 
 
 ## Attribution and licence
 
-Kintsugi derives from [AgentsInTheCloud](https://github.com/lucasmeijer/AgentsInTheCloud), originally created by Lucas Meijer. The original copyright and [MIT licence](LICENSE) are retained. Third-party attributions are in [NOTICE](NOTICE).
+Kintsugi retains the original copyright and [MIT licence](LICENSE). See [NOTICE](NOTICE) for source provenance and third-party attributions.
