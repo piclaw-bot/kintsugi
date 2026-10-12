@@ -74,7 +74,7 @@ test("all network reads and writes require security scope and reject malformed p
   for (const body of [{}, { ...config, extra: true }, { ...config, dns: "192.168.10.53" }, { ...config, cidrs: ["192.168.10.0/33"] }, { ...config, cidrs: ["0.0.0.0/0"] }, { ...config, dns: ["dns.home"] }, { ...config, dns: ["127.0.0.1"] }]) expect((await call("/settings/network", "POST", body)).status).toBe(400);
   const invalidWorkspaceBodies: JsonObject[] = [{}, { mode: "temporary" }, { mode: "lan", runtime: true }, { mode: "lan", cidrs: ["0.0.0.0/0"] }];
   for (const body of invalidWorkspaceBodies) expect((await call("/workspaces/network-one/network", "POST", body)).status).toBe(400);
-  // Missing forwarder/CIDRs cannot grant LAN access.
+  // Missing CIDRs cannot grant Local LAN access.
   expect((await call("/workspaces/network-one/network", "POST", { mode: "lan" })).status).toBe(400);
   expect((await (await call("/workspaces/network-one/network")).json()).network.mode).toBe("off");
 }));

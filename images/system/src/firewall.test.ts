@@ -100,3 +100,13 @@ test("off mode cannot accidentally install a saved LAN exception", () => {
   const policy = { mode: "off", cidrs: ["192.168.10.0/24"], dns: ["192.168.10.53"], search: [], denied: [] } as const;
   expect(workspaceFirewallRules("/system/build", [], false, [{ bridge: "atw-123456789ab", policy: { ...policy, cidrs: [...policy.cidrs], dns: [...policy.dns], search: [], denied: [] } }])).not.toContain('iifname "atw-');
 });
+
+test("System resolver input grants only the owning enabled bridge's TCP/UDP port 53", () => {
+  const policy = { mode: "lan", cidrs: ["192.168.10.0/24"], dns: ["192.168.10.53"], search: [], denied: [], resolver: "198.18.0.1" } as const;
+  const rules = workspaceFirewallRules("/system/build", [], false, [{ bridge: "atw-123456789ab", policy: { ...policy, cidrs: [...policy.cidrs], dns: [...policy.dns], search: [], denied: [] } }]);
+  const input = rules.slice(rules.indexOf("  chain input"), rules.indexOf("  chain forward"));
+  expect(input).toContain('iifname "atw-123456789ab" ip daddr 198.18.0.1 meta l4proto { tcp, udp } th dport 53 counter accept');
+  expect(input.indexOf("th dport 53")).toBeLessThan(input.indexOf('iifname != "lo" ip daddr 198.18.0.0/15 counter drop'));
+  expect(input.indexOf("198.18.0.0/15 counter drop")).toBeLessThan(input.indexOf("ct state established,related"));
+  expect(input).not.toContain("th dport 8080");
+});

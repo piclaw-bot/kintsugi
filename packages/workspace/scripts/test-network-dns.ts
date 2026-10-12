@@ -25,7 +25,7 @@ async function waitReady() {
 }
 try {
   await docker(["create", "--name", name, "--security-opt", "writable-cgroups=true", "--cgroupns=private", "--tmpfs", "/run", "--stop-signal", "SIGRTMIN+3", image]);
-  await writeWorkspaceNetworkBootstrap(directory, { mode: "lan", cidrs: ["192.168.10.0/24"], dns: ["192.168.10.53"], search: ["home.arpa"], denied: [] });
+  await writeWorkspaceNetworkBootstrap(directory, { mode: "lan", resolver: "198.18.0.1", cidrs: ["192.168.10.0/24"], dns: ["192.168.10.53"], search: ["home.arpa"], denied: [] });
   await docker(["cp", directory + "/.", `${name}:/etc`]);
   const token = join(directory, "token");
   await writeFile(token, crypto.randomUUID() + crypto.randomUUID());
@@ -35,9 +35,9 @@ try {
   await docker(["cp", init, `${name}:/.kintsugi/init.sh`]);
   await docker(["start", name]);
   await waitReady();
-  const expected = "search home.arpa\nnameserver 192.168.10.53";
+  const expected = "search home.arpa\nnameserver 198.18.0.1";
   assert.equal(await docker(["exec", name, "cat", "/tmp/network-dns-before-init"]), expected);
-  console.log("PASS external DNS applied before workspace init");
+  console.log("PASS System resolver applied before workspace init");
   await docker(["restart", name]);
   await waitReady();
   assert.equal(await docker(["exec", name, "cat", "/etc/resolv.conf"]), expected);

@@ -1,4 +1,4 @@
-import { canonicalNetworkCidr, parseNetworkPolicy, parseNetworkCidr, protectedNetworkCidrs, type WorkspaceNetworkPolicy } from "../../../packages/shared/src/network-policy.ts";
+import { canonicalNetworkCidr, parseNetworkPolicy, parseNetworkCidr, protectedNetworkCidrs, workspaceResolverCidr, type WorkspaceNetworkPolicy } from "../../../packages/shared/src/network-policy.ts";
 import { isIP } from "node:net";
 import { allowedEgressIpv6Range, blockedEgressIpv6Ranges, workspaceEgressNftIpv4Elements } from "../../../packages/shared/src/egress-policy.ts";
 
@@ -26,6 +26,7 @@ export function workspaceFirewallRules(buildClientsCgroup: string, nameservers: 
     const dns = policy.dns.map(address => `    iifname "${bridge}" ${isIP(address) === 4 ? "ip" : "ip6"} daddr ${address} meta l4proto { tcp, udp } th dport 53 counter accept`);
     return [...dns, ...subnetRules([...protectedNetworkCidrs, ...policy.denied], "drop"), ...subnetRules(policy.cidrs, "accept")];
   });
+  const resolverInput = networks.flatMap(({ bridge, policy }) => policy.mode !== "off" && policy.dns.length && policy.resolver ? [`    iifname "${bridge}" ip daddr ${policy.resolver} meta l4proto { tcp, udp } th dport 53 counter accept`] : []);
   return `add table inet kintsugi_workspaces
 flush table inet kintsugi_workspaces
 table inet kintsugi_workspaces {
@@ -48,6 +49,8 @@ ${protectBuildClients ? `    ${selector} jump public_egress` : ""}
   }
   chain input {
     type filter hook input priority -10; policy accept;
+${resolverInput.join("\n")}
+${resolverInput.length ? `    iifname != "lo" ip daddr ${workspaceResolverCidr} counter drop` : ""}
     meta iifkind "bridge" ct state established,related counter accept
     meta iifkind "bridge" ip6 hoplimit 255 icmpv6 type { nd-neighbor-solicit, nd-neighbor-advert } counter accept
     meta iifkind "bridge" counter drop
