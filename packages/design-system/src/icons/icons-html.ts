@@ -5,9 +5,6 @@ function iconHtml(paths: string): string {
 /** Product mark for app branding. Accessible names belong on the containing UI. */
 export const kintsugiBrandIconHtml = '<img class="kintsugi-brand-icon" src="/kintsugi-brand.png" width="24" height="24" alt="" aria-hidden="true">';
 
-/** The social-card A robot identifies Builtin agents, distinct from app branding. */
-export const builtinAgentIconHtml = '<img class="builtin-agent-icon" src="/builtin-agent.svg" width="20" height="24" alt="" aria-hidden="true">';
-
 /** Canonical decorative icons. Accessible names belong on the control or content that contains them. */
 export const Icons = {
   Agent: iconHtml('<path d="M9 4h6M12 4V2M6 8h12a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2z"/><circle cx="9" cy="13" r="1"/><circle cx="15" cy="13" r="1"/>'),
@@ -51,3 +48,6 @@ export const Icons = {
   Usage: iconHtml('<path d="M4 20h16M7 16v-5M12 16V4M17 16V8"/>'),
   Workspace: iconHtml('<path d="M4 5h16v14H4zM8 9h8M8 13h5"/>'),
 } as const;
+
+/** Builtin agents use the same monochrome robot as the canonical Agent icon. */
+export const builtinAgentIconHtml = Icons.Agent;

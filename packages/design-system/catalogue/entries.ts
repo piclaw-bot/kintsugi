@@ -1207,7 +1207,7 @@ export const entries: CatalogueEntry[] = [
     title: "Icons",
     when: "Shared decorative vocabulary. Use icon-only Button for standalone icon actions.",
     contract:
-      "Icons exports trusted decorative SVG strings. WorkspaceTemplates uses a repository/book outline; Files uses a folder; Server uses a single rack for host diagnostics and administration. kintsugiBrandIconHtml is the compact raster product mark for app branding. builtinAgentIconHtml is the transparent A robot from the social card, used for Builtin agent tabs and launchers. Put the accessible name on the containing control. Never use an unlabeled icon as an action.",
+      "Icons exports trusted decorative SVG strings. WorkspaceTemplates uses a repository/book outline; Files uses a folder; Server uses a single rack for host diagnostics and administration. kintsugiBrandIconHtml is the compact raster product mark for app branding. builtinAgentIconHtml reuses the monochrome Agent SVG for Builtin agent tabs and launchers. Put the accessible name on the containing control. Never use an unlabeled icon as an action.",
     imports: { icons: "Icons" },
     examples: [
       {
