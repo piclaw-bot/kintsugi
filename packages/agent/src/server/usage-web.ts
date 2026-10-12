@@ -59,16 +59,16 @@ function renderUsageWindow(paced: PacedUsageWindow, allowance?: ReportedAllowanc
   const elapsed = timing.elapsedPercent;
   return `<article class="usage-limit${allowance ? " usage-limit--allowance" : ""}">
     <div class="usage-limit-title"><h3>${escapeHtml(label)}</h3>
-      ${elapsed === null ? "" : `<div class="usage-comparison${difference === null ? " usage-comparison--inactive" : ""}" aria-hidden="true">
+      ${elapsed === null ? usageBarHtml(window.usedPercent) : `<div class="usage-comparison${difference === null ? " usage-comparison--inactive" : ""}" aria-hidden="true">
         <span class="usage-comparison__time" style="width:${elapsed}%"></span>
-        <span class="usage-comparison__usage" style="width:${window.usedPercent}%"></span>
+        <span class="usage-comparison__usage" style="width:${Math.min(100, window.usedPercent)}%"></span>
         <span class="usage-comparison__shared" style="width:${Math.min(elapsed, window.usedPercent)}%"></span>
       </div>`}
     </div>
     ${allowance ? renderAllowanceDetails(allowance) : ""}
     <div class="usage-metrics usage-caption" tabindex="0" role="group" aria-label="Limit metrics">
       <div class="usage-metrics-row">
-      <span>Period elapsed${inferred ? " (est.)" : ""} ${elapsed === null ? "Unknown" : `${number(elapsed)}%`} ${helpTipHtml({ label: "What is period elapsed?", text: inferred ? "For pacing, we assume a UTC calendar month ending at the reported reset. GitHub does not supply the period start, so the elapsed time is estimated." : "How much of this allowance period has passed, based on its reset time and duration." })}</span>
+      <span>Period elapsed${inferred ? " (est.)" : ""} ${elapsed === null ? "Unknown" : `${number(elapsed)}%`} ${helpTipHtml({ label: "What is period elapsed?", text: inferred ? "For pacing, we assume a one-month period ending at the reported reset. The provider does not supply the period start, so the elapsed time is estimated." : "How much of this allowance period has passed, based on its reset time and duration." })}</span>
       <span>Allowance used ${number(window.usedPercent)}% ${helpTipHtml({ label: "What is allowance used?", text: allowance ? `${allowance.remainingPercentSource === "reported" ? "Based on GitHub’s remaining percentage, which may be rounded." : "Estimated from the allowance quantities GitHub returned."} Includes usage across tools and sessions, not this agent’s token usage or a dollar charge.` : "The share of this account allowance used across tools and sessions. It is not this agent’s token usage or a dollar charge." })}</span>
       <span title="${escapeHtml(window.resetsAt ?? "Reset time not reported")}">${reset}</span>
       </div>
@@ -80,15 +80,26 @@ function renderUsageWindow(paced: PacedUsageWindow, allowance?: ReportedAllowanc
   </article>`;
 }
 
+/** Usage alone, for allowances whose period can't be placed on a schedule. */
+function usageBarHtml(usedPercent: number): string {
+  return `<div class="usage-comparison" aria-hidden="true"><span class="usage-comparison__usage" style="width:${Math.max(0, Math.min(100, usedPercent))}%"></span></div>`;
+}
+
+function creditsUsedCaption({ creditsUsed }: ReportedAllowance): string {
+  return creditsUsed === null ? "" : `<p class="usage-caption">Credits used this period: ${allowanceNumber(creditsUsed)}</p>`;
+}
+
 function renderAllowanceDetails(allowance: ReportedAllowance): string {
   const { remaining, entitlement, unit, unlimited, overageCount, overagePermitted } = allowance;
-  if (unlimited) return overageCount !== null && overageCount > 0 ? `<p class="usage-caption">Reported additional usage: ${allowanceNumber(overageCount)}</p>` : "";
+  // GitHub reports 0 credits on most request-billed seats too; only show the counter when it says something.
+  const credits = allowance.creditsUsed !== null && (allowance.creditsUsed > 0 || unlimited || entitlement === 0) ? creditsUsedCaption(allowance) : "";
+  if (unlimited) return `${credits}${overageCount !== null && overageCount > 0 ? `<p class="usage-caption">Reported additional usage: ${allowanceNumber(overageCount)}</p>` : ""}`;
   const quantity = remaining !== null && remaining >= 0 && entitlement !== null && entitlement >= 0
     ? `<p class="usage-caption">Remaining ${allowanceNumber(remaining)} of ${allowanceNumber(entitlement)}${unit === "unknown" ? "" : ` ${unit}`} ${helpTipHtml({ label: "What does remaining mean?", text: "The quantity GitHub reported for this account allowance. It is not reconstructed from a rounded percentage or attributed to this session." })}</p>` : "";
   const policy = overagePermitted === null ? "Overage policy not reported" : overagePermitted ? "Overage permitted" : "Overage not permitted";
   const extra = overageCount === null ? "" : ` · Additional usage reported: ${allowanceNumber(overageCount)}${unit === "unknown" ? "" : ` ${unit}`}`;
   const exhausted = allowance.entitlement !== 0 && allowance.remainingPercent === 0 ? '<p class="usage-caption">Included allowance exhausted.</p>' : "";
-  return `${quantity}${exhausted}<p class="usage-caption">${policy}${extra} ${helpTipHtml({ label: "What is overage?", text: "Usage beyond the included allowance. GitHub’s permission is separate from the balance; extra charges or other limits may still apply. Reported additional usage is not added to the allowance percentage." })}</p>`;
+  return `${quantity}${credits}${exhausted}<p class="usage-caption">${policy}${extra} ${helpTipHtml({ label: "What is overage?", text: "Usage beyond the included allowance. GitHub’s permission is separate from the balance; extra charges or other limits may still apply. Reported additional usage is not added to the allowance percentage." })}</p>`;
 }
 
 function renderCopilotAllowances({ reported, windows }: ProviderUsageOverview): string {
@@ -99,7 +110,8 @@ function renderCopilotAllowances({ reported, windows }: ProviderUsageOverview): 
     if (paced) return renderUsageWindow(paced, allowance);
     const status = allowance.unlimited ? "Unlimited" : allowance.entitlement === 0 ? "Included allowance: 0" : allowance.remainingPercent === null ? "Usage not reported" : `Allowance used ${number(100 - allowance.remainingPercent)}%`;
     const reset = allowance.unlimited ? "" : allowance.resetsAt === null ? "Reset not reported" : `Reported reset: ${allowance.resetsAt.replace("T", " ").replace(".000Z", " UTC")}`;
-    return `<article class="usage-limit"><h3>${escapeHtml(allowance.label)}</h3><p class="usage-caption">${status}</p>${renderAllowanceDetails(allowance)}${reset ? `<p class="usage-caption">${escapeHtml(reset)}</p>` : ""}</article>`;
+    const bar = allowance.unlimited || allowance.entitlement === 0 || allowance.remainingPercent === null ? "" : usageBarHtml(100 - allowance.remainingPercent);
+    return `<article class="usage-limit"><div class="usage-limit-title"><h3>${escapeHtml(allowance.label)}</h3>${bar}</div><p class="usage-caption">${status}</p>${renderAllowanceDetails(allowance)}${reset ? `<p class="usage-caption">${escapeHtml(reset)}</p>` : ""}</article>`;
   };
   const selected = allowances.filter((allowance) => allowance.selected);
   const others = allowances.filter((allowance) => !allowance.selected);
@@ -148,11 +160,12 @@ function renderUsageRings({ provider, reported, error, windows }: ProviderUsageO
   const rings = reported && !error ? [...used, ...unused].map(({ reported: window, timing }) => comparisonRingHtml({
     caption: usageWindowCaption(window),
     referencePercent: timing.elapsedPercent ?? 0,
-    valuePercent: window.usedPercent,
+    valuePercent: Math.min(100, window.usedPercent),
     label: `${window.limitName} · ${usageDuration(window.durationSeconds)}: ${timing.elapsedPercent === null ? "Pacing unavailable" : `Period elapsed${window.periodBasis ? " (est.)" : ""} ${number(timing.elapsedPercent)}%`}, Allowance used ${number(window.usedPercent)}%`,
   })).join("") : "";
   const selectedAllowance = reported?.allowances?.find((allowance) => allowance.selected);
-  const allowanceStatus = selectedAllowance?.unlimited ? "Unlimited" : selectedAllowance?.entitlement === 0 ? "No included allowance" : "Usage not reported";
+  const creditsUsed = Math.max(0, ...(reported?.allowances ?? []).map((allowance) => allowance.creditsUsed ?? 0));
+  const allowanceStatus = creditsUsed > 0 ? `${allowanceNumber(creditsUsed)} credits used` : selectedAllowance?.unlimited ? "Unlimited" : selectedAllowance?.entitlement === 0 ? "No included allowance" : "Usage not reported";
   const balance = reported?.balance && !error ? `<span class="usage-caption">${money(reported.balance.available, reported.balance.currency)} left</span>` : "";
   return `<turbo-frame class="usage-rings" id="${providerUsageFrameId("rings", provider.id, scope)}">${rings || balance || (reported?.allowances && !error ? `<span class="usage-caption">${allowanceStatus}</span>` : "") || `<span class="usage-caption"${error ? ` title="${escapeHtml(error)}"` : ""}>Usage unavailable</span>`}</turbo-frame>`;
 }
@@ -181,7 +194,7 @@ async function renderUsageButton(): Promise<string> {
   const { provider, window: { reported, timing } } = selected;
   if (timing.state !== "active") throw new Error("Selected subscription limit must be active");
   const pace = usagePace(timing.paceDifferenceSeconds);
-  return usageButtonHtml({ referencePercent: timing.elapsedPercent, valuePercent: reported.usedPercent }, `Usage — ${provider.label} · ${reported.limitName} ${usageDuration(reported.durationSeconds)}${reported.periodBasis ? " (estimated period)" : ""}: Period elapsed ${number(timing.elapsedPercent)}%, Allowance used ${number(reported.usedPercent)}% · ${pace} · Recently used subscriptions`, usageWindowCaption(reported), provider.id);
+  return usageButtonHtml({ referencePercent: timing.elapsedPercent, valuePercent: Math.min(100, reported.usedPercent) }, `Usage — ${provider.label} · ${reported.limitName} ${usageDuration(reported.durationSeconds)}${reported.periodBasis ? " (estimated period)" : ""}: Period elapsed ${number(timing.elapsedPercent)}%, Allowance used ${number(reported.usedPercent)}% · ${pace} · Recently used subscriptions`, usageWindowCaption(reported), provider.id);
 }
 
 export async function handleUsageRequest(request: Request, url: URL): Promise<Response | undefined> {

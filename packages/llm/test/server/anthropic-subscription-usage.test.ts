@@ -33,10 +33,25 @@ test("null buckets are omitted but null resets preserve usage; unnamed or moneta
 });
 
 test("rejects malformed upstream usage rather than inventing values", async () => {
-  for (const body of [[], { ...payload, five_hour: { ...window, utilization: -1 } }, { ...payload, five_hour: { ...window, utilization: 101 } }, { ...payload, seven_day: { ...window, resets_at: "tomorrow" } }, { ...payload, seven_day_opus: { utilization: "5", resets_at: null } }]) {
+  for (const body of [[], { ...payload, five_hour: { ...window, utilization: -1 } }, { ...payload, seven_day: { ...window, resets_at: "tomorrow" } }, { ...payload, seven_day_opus: { utilization: "5", resets_at: null } }]) {
     // SAFETY: Malformed bodies are the point of this test.
     await expect(fetchAnthropicAccountUsage("secret", fetcher(body as JsonObject))).rejects.toThrow("unrecognized usage response");
   }
+});
+
+// Shapes below follow CodexBar's Claude OAuth fixtures (github.com/steipete/CodexBar).
+test("unmetered buckets are skipped, exhausted ones stay full, and model-scoped weekly limits are added", async () => {
+  const windows = await fetchAnthropicAccountUsage("secret", fetcher({
+    five_hour: { utilization: 104, resets_at: window.resets_at }, seven_day: { utilization: 20, resets_at: window.resets_at },
+    seven_day_oauth_apps: { utilization: null, resets_at: null }, seven_day_opus: { utilization: 3, resets_at: null },
+    limits: [
+      { kind: "session", group: "session", percent: 16, resets_at: window.resets_at, scope: null, is_active: true },
+      { kind: "weekly_scoped", group: "weekly", percent: 5, resets_at: window.resets_at, scope: { model: { id: null, display_name: "Fable" }, surface: null }, is_active: false },
+      { kind: "weekly_scoped", group: "weekly", percent: 9, resets_at: null, scope: { model: { id: null, display_name: "Opus" } } },
+      { kind: "weekly_scoped", group: "weekly", percent: 1, scope: { model: { id: "all-models", display_name: "All models" } } },
+    ],
+  }));
+  expect(windows.map((entry) => `${entry.limitName} ${entry.usedPercent} ${entry.durationSeconds}`)).toEqual(["Claude 100 18000", "Claude 20 604800", "Opus 3 604800", "Fable 5 604800"]);
 });
 
 test("HTTP failures are actionable, carry retry-after, and don't leak response bodies", async () => {
