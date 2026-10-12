@@ -14,6 +14,8 @@ export interface ReportedAllowance {
   unlimited: boolean;
   overageCount: number | null;
   overagePermitted: boolean | null;
+  /** Absolute AI credits consumed this period; token-billed seats report it without an allowance. */
+  creditsUsed: number | null;
   resetsAt: string | null;
 }
 

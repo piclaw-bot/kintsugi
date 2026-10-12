@@ -122,7 +122,7 @@ test("rejects invalid reset counts and account details", async () => {
   const invalidDetails: JsonObject[] = [
     { rate_limit_reset_credits: { available_count: -1 } },
     { rate_limit_reset_credits: { available_count: 1.5 } },
-    { credits: { has_credits: true, unlimited: false, balance: 123 } },
+    { credits: { has_credits: true, unlimited: false, balance: "lots" } },
     { chatpass: { windows: [{ ...window, used_percent: -1 }] } },
   ];
   for (const extra of invalidDetails) {
@@ -140,4 +140,47 @@ test("subscription tokens without an account-ID claim omit the routing header", 
     return Response.json(payload);
   });
   expect(usage.plan).toBe("plus");
+});
+
+// Shapes below follow CodexBar's wham/usage fixtures (github.com/steipete/CodexBar).
+test("numeric balances and rate limits without access flags are accepted", async () => {
+  const usage = await fetchCodexSubscriptionUsage(token, fetcher({
+    plan_type: "business", rate_limit: { primary_window: { ...window, used_percent: 12 } },
+    credits: { has_credits: true, unlimited: false, balance: 1234 },
+  }));
+  expect(usage.credits).toEqual({ unlimited: false, balance: "1234" });
+  expect(usage.windows[0]!.usedPercent).toBe(12);
+  expect(usage.allowed).toBeNull();
+});
+
+test("workspace credit caps become a monthly window wherever OpenAI reports them", async () => {
+  const reset = Date.parse("2026-07-01T00:00:00Z") / 1000;
+  const bodies: JsonObject[] = [
+    { plan_type: "enterprise", rate_limit: { primary_window: null, secondary_window: null, individual_limit: { limit: 100000, used: "7761", remaining_percent: 92.239, resets_at: reset } } },
+    { plan_type: "business", individual_limit: { limit: 400, used: 300 } },
+    { plan_type: "business", spend_control: { reached: false, individual_limit: { limit: "400", used: 300, reset_at: reset } } },
+  ];
+  for (const body of bodies) {
+    const usage = await fetchCodexSubscriptionUsage(token, fetcher(body));
+    expect(usage.windows).toHaveLength(1);
+    expect(usage.windows[0]).toMatchObject({ limitName: "Monthly credits", meteredFeature: "credits", periodBasis: "calendar-month-estimate" });
+    expect(usage.windows[0]!.usedPercent).toBeCloseTo(body.plan_type === "enterprise" ? 7.761 : 75);
+    if (body.plan_type === "enterprise" || "spend_control" in body) expect(usage.windows[0]!.durationSeconds).toBe(30 * 86400);
+  }
+});
+
+test("an unfamiliar additional limit doesn't hide the main windows", async () => {
+  const usage = await fetchCodexSubscriptionUsage(token, fetcher({ ...payload, additional_rate_limits: [{ limit_name: "Spark" }, { limit_name: "Long context", metered_feature: "long", rate_limit: { primary_window: window } }] }));
+  expect(usage.windows.map((entry) => entry.limitName)).toEqual(["Codex", "Codex", "Long context"]);
+});
+
+test("over-limit usage is shown as exhausted", async () => {
+  const usage = await fetchCodexSubscriptionUsage(token, fetcher({ ...payload, rate_limit: { primary_window: { ...window, used_percent: 104 } } }));
+  expect(usage.windows[0]!.usedPercent).toBe(100);
+});
+
+test("missing plan metadata doesn't hide reported limits", async () => {
+  const usage = await fetchCodexSubscriptionUsage(token, fetcher({ rate_limit: { primary_window: window } }));
+  expect(usage.plan).toBeNull();
+  expect(usage.windows[0]!.usedPercent).toBe(72);
 });

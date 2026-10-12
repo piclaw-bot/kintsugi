@@ -27,7 +27,8 @@ export function renderComposerBody(options: {
   const close = options.collapsible
     ? `<span class="composer-button composer-close">${buttonHtml({ type: "button", variant: "secondary", content: { kind: "icon-only", iconHtml: Icons.Close, label: "Close composer" }, attributesHtml: 'data-popular-button data-action="agent-composer#close"' })}</span>`
     : "";
-  return `<input type="hidden" name="attachmentDraft" value="${escapeHtml(draft.id)}">
+  const divider = options.collapsible ? '<div class="composer-divider" role="separator" aria-label="Resize composer" aria-orientation="horizontal" tabindex="0" data-action="pointerdown->agent-composer#resizeStart pointermove->agent-composer#resizeMove pointerup->agent-composer#resizeEnd pointercancel->agent-composer#resizeEnd lostpointercapture->agent-composer#resizeEnd keydown->agent-composer#resizeKey"></div>' : "";
+  return `${divider}<input type="hidden" name="attachmentDraft" value="${escapeHtml(draft.id)}">
     <div class="agent-attach-row" id="${escapeHtml(draft.rowId)}" data-agent-attachments-target="row">${(draft.attachments ?? []).map((attachment) => renderAttachmentChip(attachment, draft.id)).join("")}</div>
     <div class="composer-input-area">${options.inputHtml}${options.promptTemplateButtons ? '<div class="composer-prompt-template-buttons" data-agent-completions-target="promptTemplateButtons"></div>' : ""}<div class="composer-buttons">
       ${close}

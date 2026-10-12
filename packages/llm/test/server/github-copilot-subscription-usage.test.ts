@@ -250,3 +250,64 @@ test("unknown billing generation uses a neutral label instead of inventing reque
   expect(usage.windows[0]!.limitName).toBe("Premium allowance");
   expect(usage.allowances?.[0]!.unit).toBe("unknown");
 });
+
+// Shapes below follow CodexBar's Copilot fixtures (github.com/steipete/CodexBar).
+test("token-billed placeholders fall back to monthly completions and keep the credit counter", async () => {
+  const usage = await fetchGitHubCopilotSubscriptionUsage("token", async () => Response.json({
+    copilot_plan: "business", token_based_billing: true, quota_reset_date: "2026-11-01",
+    monthly_quotas: { completions: 300 }, limited_user_quotas: { completions: 75 },
+    quota_snapshots: {
+      premium_interactions: { unlimited: true, entitlement: 0, remaining: 0, percent_remaining: 100, quota_id: "premium_interactions", credits_used: 31 },
+      chat: { unlimited: true, entitlement: 0, remaining: 0, percent_remaining: 100, quota_id: "chat", credits_used: 0 },
+    },
+  }));
+  expect(usage.windows).toEqual([{ periodBasis: "calendar-month-estimate", limitName: "Code completions", meteredFeature: "completions", kind: "primary", usedPercent: 75, durationSeconds: 31 * 86400, resetsAt: "2026-11-01T00:00:00.000Z" }]);
+  expect(usage.allowances?.find((allowance) => allowance.quotaId === "premium_interactions")).toMatchObject({ selected: false, creditsUsed: 31 });
+  expect(usage.allowances?.find((allowance) => allowance.quotaId === "completions")).toMatchObject({ selected: true, entitlement: 300, remaining: 75, sourceQuotaId: "monthly_quotas" });
+});
+
+test("token-billed placeholders without counts report credits used and no fake percentage", async () => {
+  const usage = await fetchGitHubCopilotSubscriptionUsage("token", async () => Response.json({
+    copilot_plan: "business", token_based_billing: true, quota_reset_date: "2026-11-01",
+    quota_snapshots: { premium_interactions: { entitlement: 0, remaining: 0, percent_remaining: 100, credits_used: 31 } },
+  }));
+  expect(usage.windows).toEqual([]);
+  expect(usage.allowances?.[0]).toMatchObject({ selected: true, entitlement: 0, creditsUsed: 31 });
+});
+
+test("free plans without snapshots read monthly and remaining counts", async () => {
+  const usage = await fetchGitHubCopilotSubscriptionUsage("token", async () => Response.json({
+    copilot_plan: "free", access_type_sku: "free_limited_copilot", limited_user_reset_date: "2026-11-01",
+    monthly_quotas: { chat: 50, completions: 2000 }, limited_user_quotas: { chat: 40, completions: 1500 },
+  }));
+  expect(usage.windows).toHaveLength(1);
+  expect(usage.windows[0]).toMatchObject({ meteredFeature: "chat", usedPercent: 20 });
+  expect(usage.allowances?.find((allowance) => allowance.quotaId === "completions")?.remainingPercent).toBe(75);
+});
+
+test("renamed snapshot categories fill missing known ones", async () => {
+  const usage = await fetchGitHubCopilotSubscriptionUsage("token", async () => Response.json({ quota_reset_date: "2026-11-01", quota_snapshots: {
+    premium_interactions: { entitlement: 200, remaining: 191, percent_remaining: 95.5 },
+    chat_messages: { entitlement: 0, remaining: 0, unlimited: true },
+    mystery: "not a quota",
+  } }));
+  expect(usage.allowances?.find((allowance) => allowance.quotaId === "chat")).toMatchObject({ sourceQuotaId: "chat_messages", unlimited: true });
+  expect(usage.windows[0]!.usedPercent).toBeCloseTo(4.5);
+});
+
+test("billing-anniversary resets still pace over the month before the reset", async () => {
+  const usage = await fetchGitHubCopilotSubscriptionUsage("token", async () => Response.json({ ...payload(), quota_reset_date: "2026-03-31" }));
+  expect(usage.windows[0]!.durationSeconds).toBe(31 * 86400);
+  expect(usageWindowTiming(usage.windows[0]!, new Date("2026-03-15T00:00:00Z")).startsAt).toBe("2026-02-28T00:00:00.000Z");
+});
+
+test("fractional quota_reset_at seconds are accepted", async () => {
+  const usage = await fetchGitHubCopilotSubscriptionUsage("token", async () => Response.json({ quota_snapshots: { premium_interactions: { percent_remaining: 70, quota_reset_at: Date.parse("2026-11-01T00:00:00Z") / 1000 + 0.5 } } }));
+  expect(usage.windows[0]!.resetsAt).toBe("2026-11-01T00:00:00.000Z");
+});
+
+test("string percentages and renamed premium buckets are metered", async () => {
+  const usage = await fetchGitHubCopilotSubscriptionUsage("token", async () => Response.json({ quota_snapshots: { premium_requests: { percent_remaining: "70.5", entitlement: "300" } } }));
+  expect(usage.windows[0]!.usedPercent).toBe(29.5);
+  expect(usage.allowances?.[0]!.sourceQuotaId).toBe("premium_requests");
+});

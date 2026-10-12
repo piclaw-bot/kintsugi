@@ -35,3 +35,33 @@ test("rejected xAI credentials ask for a reconnect", async () => {
 test("unrecognized xAI billing responses are errors", async () => {
   await expect(fetchXaiSubscriptionUsage("token", async () => Response.json({ config: {} }))).rejects.toThrow("unrecognized");
 });
+
+// Shapes below follow CodexBar's Grok billing handling (github.com/steipete/CodexBar).
+test("an unused on-demand allowance is zero when proto3 omits its val", async () => {
+  const { config } = billing(0);
+  const usage = await fetchXaiSubscriptionUsage("token", async () => Response.json({ config: { currentPeriod: config.currentPeriod, subscriptionTier: "SuperGrok", onDemandCap: { val: 100 }, onDemandUsed: {} } }));
+  expect(usage.windows[0]).toMatchObject({ usedPercent: 0, durationSeconds: 7 * 86400 });
+  expect(usage.plan).toBe("SuperGrok");
+  expect(usage.limitReached).toBe(false);
+});
+
+test("billing-period dates and on-demand amounts stand in for missing fields", async () => {
+  const usage = await fetchXaiSubscriptionUsage("token", async () => Response.json({ config: {
+    billingPeriodStart: "2026-10-01T00:00:00Z", billingPeriodEnd: "2026-11-01T00:00:00Z",
+    onDemandCap: { val: "2000" }, onDemandUsed: { val: 500 },
+  } }));
+  expect(usage.windows[0]).toMatchObject({ usedPercent: 25, durationSeconds: 31 * 86400, resetsAt: "2026-11-01T00:00:00.000Z" });
+});
+
+test("over-limit usage is reached and shown as full", async () => {
+  const usage = await fetchXaiSubscriptionUsage("token", async () => Response.json(billing(120)));
+  expect(usage.limitReached).toBe(true);
+  expect(usage.windows[0]!.usedPercent).toBe(100);
+});
+
+
+test("billing dates alone never invent zero consumption", async () => {
+  const usage = await fetchXaiSubscriptionUsage("token", async () => Response.json({ config: { currentPeriod: billing(0).config.currentPeriod } }));
+  expect(usage.windows).toEqual([]);
+  expect(usage.limitReached).toBeNull();
+});

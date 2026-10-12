@@ -8,7 +8,7 @@ export function createComposerSendHintController(Controller: WorkspaceClientCont
     // Runs once per element, unlike connect(), so moving the textarea never appends twice.
     initialize(): void {
       if (focusLikelyOpensSoftwareKeyboard()) return;
-      this.element.placeholder += ` · ${isApplePlatform() ? "⌘↩" : "Ctrl+↩"} to send`;
+      this.element.placeholder += ` - ${isApplePlatform() ? "Cmd+Return" : "Ctrl+Return"} to send`;
     }
   };
 }

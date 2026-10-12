@@ -59,3 +59,16 @@ export function selectPacingWindow(windows: readonly PacedUsageWindow[]): PacedU
     return estimatedSeconds < selectedEstimatedTimeToHitLimitSeconds || (estimatedSeconds === selectedEstimatedTimeToHitLimitSeconds && window.reported.usedPercent > selected.reported.usedPercent) ? window : selected;
   });
 }
+
+/** For monthly allowances whose provider reports a reset but no period start, such as Copilot
+ * (https://docs.github.com/en/copilot/reference/copilot-billing/request-based-billing-legacy/copilot-requests)
+ * and Codex workspace credits. Most reset on the 1st, but billing-anniversary resets are monthly too. */
+export function monthlyDurationSeconds(reset: Date | null): number | null {
+  if (!reset) return null;
+  const year = reset.getUTCFullYear();
+  const month = reset.getUTCMonth() - 1;
+  // Keep the day of month, clamped so March 31 starts on the last day of February.
+  const lastDay = new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
+  const start = Date.UTC(year, month, Math.min(reset.getUTCDate(), lastDay), reset.getUTCHours(), reset.getUTCMinutes(), reset.getUTCSeconds(), reset.getUTCMilliseconds());
+  return (reset.getTime() - start) / 1000;
+}

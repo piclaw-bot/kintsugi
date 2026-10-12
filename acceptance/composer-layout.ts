@@ -134,6 +134,17 @@ async function closeComposer(): Promise<void> {
   }
 }
 
+async function resizeComposerDivider(deltaHeight: number): Promise<void> {
+  const { x, y: startY } = await page.center('.agent-composer-pane .composer-divider');
+  await page.cdp.send("Input.dispatchMouseEvent", { type: "mouseMoved", x, y: startY });
+  await page.cdp.send("Input.dispatchMouseEvent", { type: "mousePressed", x, y: startY, button: "left", buttons: 1, clickCount: 1 });
+  for (let step = 1; step <= 4; step++) {
+    await page.cdp.send("Input.dispatchMouseEvent", { type: "mouseMoved", x, y: startY - deltaHeight * step / 4, button: "left", buttons: 1 });
+  }
+  await page.cdp.send("Input.dispatchMouseEvent", { type: "mouseReleased", x, y: startY - deltaHeight, button: "left", clickCount: 1 });
+  await Bun.sleep(300);
+}
+
 /** Floating stack slots, bottom to top. */
 const floatingOrder = [[floatingLabel.opener], ["View transcript", "Back to terminal", floatingLabel.pendingTranscript], [floatingLabel.followLatest]];
 
@@ -222,7 +233,7 @@ await scenario("mobile-G2-D10-partway", "G2/D10: scrolled partway up, opening an
   }
 });
 
-await scenario("mobile-H1-H7-height", "H1–H7 with the keyboard down: line-by-line growth to 40% of the screen, instant shrink, a large paste, no resize handle, one sideways row of thumbnails.", async (recorder) => {
+await scenario("mobile-H1-H7-height", "H1–H7 with the keyboard down: line-by-line growth to 40% of the screen, instant shrink, a large paste, no textarea resize handle, one sideways row of thumbnails.", async (recorder) => {
   await pinToBottom();
   await openComposer();
   await resetComposerText();
@@ -248,7 +259,7 @@ await scenario("mobile-H1-H7-height", "H1–H7 with the keyboard down: line-by-l
     check("H1: grows line by line, never shrinks while typing", steps.every((step) => step >= 0 && step <= lineHeight + 1), `composer heights ${[minimum, ...heights].map(Math.round).join(" → ")} (line height ${lineHeight}px)`),
     check("H3: stops at 40% of the screen", close(heights.at(-1)!, max, 2), `final ${heights.at(-1)}, 40% of 852 = ${max}`),
     check("H1: past the max, the text field scrolls", await page.evaluate<boolean>(`(() => { const i = [...document.querySelectorAll(${JSON.stringify(sel.input)})].find((e) => e.checkVisibility()); return i.scrollHeight > i.clientHeight + 2 && getComputedStyle(i).overflowY === "auto"; })()`), "scrollHeight > clientHeight with overflow-y auto"),
-    check("H6: no resize handle", await page.evaluate<string>(`getComputedStyle([...document.querySelectorAll(${JSON.stringify(sel.input)})].find((e) => e.checkVisibility())).resize`) === "none", "resize: none"),
+    check("H6: no textarea resize handle", await page.evaluate<string>(`getComputedStyle([...document.querySelectorAll(${JSON.stringify(sel.input)})].find((e) => e.checkVisibility())).resize`) === "none", "resize: none"),
   );
   const shrunk = await transition(recorder, "delete all (H4)", async () => { await page.key("a", { ctrl: true }); await page.key("Backspace"); });
   recorder.add(check("H4: back to the min height in one step", close(shrunk.after.composer![3], minimum), `${shrunk.before.composer![3]} → ${shrunk.after.composer![3]} (min ${minimum})`));
@@ -499,7 +510,7 @@ await scenario("desktop-D8-D2-send", "D8/D2/H4: Enter inserts a newline; Cmd+Ent
   await Bun.sleep(8000);
 });
 
-await scenario("desktop-H3-max", "H3: the composer grows to 40% of the window, then returns to its min height in one step after send.", async (recorder) => {
+await scenario("desktop-H3-H6-resize", "H3/H6: the composer grows to 40% of the window, then can be manually resized with its controls staying packed to the bottom edge.", async (recorder) => {
   await resetComposerText();
   await page.tap(sel.input);
   const minimum = (await transition(recorder, "empty", async () => {}, { waitMs: 150, expectChange: false })).after.composer![3];
@@ -511,6 +522,24 @@ await scenario("desktop-H3-max", "H3: the composer grows to 40% of the window, t
     check("H4: back to the min height in one step after send", close(sent.after.composer![3], minimum), `${sent.before.composer![3]} → ${sent.after.composer![3]} (min ${minimum})`),
     check("D2: composer stays open", sent.after.composer !== null, JSON.stringify(sent.after.composer)),
   );
+  await resetComposerText();
+  await page.insertText("Manual resize draft");
+  await Bun.sleep(250);
+  const beforeResize = await page.evaluate<{ input: number; buttonsBottom: number; resize: string }>(`(() => { const pane = [...document.querySelectorAll(".agent-composer-pane")].find((e) => e.checkVisibility()); const input = pane.querySelector(".composer-input"); const buttons = pane.querySelector(".composer-buttons"); return { input: input.getBoundingClientRect().height, buttonsBottom: buttons.getBoundingClientRect().bottom, resize: getComputedStyle(input).resize }; })()`);
+  await resizeComposerDivider(56);
+  const afterResize = await page.evaluate<{ input: number; buttonsBottom: number; overflow: string }>(`(() => { const pane = [...document.querySelectorAll(".agent-composer-pane")].find((e) => e.checkVisibility()); const input = pane.querySelector(".composer-input"); const buttons = pane.querySelector(".composer-buttons"); return { input: input.getBoundingClientRect().height, buttonsBottom: buttons.getBoundingClientRect().bottom, overflow: getComputedStyle(input).overflowY }; })()`);
+  recorder.add(
+    check("H6: dragging the divider expands the composer without a textarea resize handle", afterResize.input > beforeResize.input + 30 && beforeResize.resize === "none", `${beforeResize.input}px → ${afterResize.input}px (${beforeResize.resize})`),
+    check("H6: action icons stay packed to the editor's bottom edge", close(afterResize.buttonsBottom, (await page.evaluate<number>(`[...document.querySelectorAll(".agent-composer-pane")].find((e) => e.checkVisibility()).querySelector(".composer-input").getBoundingClientRect().bottom`)), 2), `buttons bottom ${afterResize.buttonsBottom}, editor bottom follows after resize`),
+  );
+  await page.tap(sel.input);
+  await page.insertText(" typed after resizing");
+  const typedHeight = await page.evaluate<number>(`[...document.querySelectorAll(${JSON.stringify(sel.input)})].find((e) => e.checkVisibility()).getBoundingClientRect().height`);
+  recorder.add(check("H6: typing preserves the manually chosen height", close(typedHeight, afterResize.input, 1), `${afterResize.input}px → ${typedHeight}px`));
+  await resizeComposerDivider(-150);
+  const smallerHeight = await page.evaluate<number>(`[...document.querySelectorAll(${JSON.stringify(sel.input)})].find((e) => e.checkVisibility()).getBoundingClientRect().height`);
+  const packed = await page.evaluate<boolean>(`(() => { const pane = [...document.querySelectorAll(".agent-composer-pane")].find((e) => e.checkVisibility()); const buttons = [...pane.querySelectorAll(".composer-button")].filter((e) => e.checkVisibility()).map((e) => e.getBoundingClientRect()); return buttons.every((r) => Math.abs(r.top - buttons[0].top) < 1); })()`);
+  recorder.add(check("H6: dragging down shrinks the composer and packs its icons into a row", smallerHeight < typedHeight - 20 && packed, `${typedHeight}px → ${smallerHeight}px; icons share a row: ${packed}`));
   await Bun.sleep(8000);
 });
 

@@ -4,8 +4,17 @@ import { readSubscriptionUsageJson, requestSubscriptionUsage, SubscriptionUsageE
 type UsageWindow = SubscriptionUsage["windows"][number];
 
 const accountWindowSchema = Type.Object({
-  utilization: Type.Number({ minimum: 0, maximum: 100 }),
-  resets_at: Type.Union([Type.String(), Type.Null()]),
+  // Null for a bucket the plan has but doesn't meter; it can pass 100 once exhausted.
+  utilization: Type.Union([Type.Number({ minimum: 0 }), Type.Null()]),
+  resets_at: Type.Optional(Type.Union([Type.String(), Type.Null()])),
+});
+/** Newer responses list model-scoped weekly limits here, e.g. a promotional model's own allowance. */
+const scopedLimitSchema = Type.Object({
+  kind: Type.Literal("weekly_scoped"),
+  group: Type.Literal("weekly"),
+  percent: Type.Number({ minimum: 0 }),
+  resets_at: Type.Optional(Type.Union([Type.String(), Type.Null()])),
+  scope: Type.Object({ model: Type.Object({ id: Type.Optional(Type.Union([Type.String(), Type.Null()])), display_name: Type.String({ minLength: 1 }) }) }),
 });
 const unrecognizedHeaders = () => new SubscriptionUsageError("Anthropic returned unrecognized rate limit headers.");
 const unrecognizedAccountUsageMessage = "Anthropic returned an unrecognized usage response.";
@@ -51,17 +60,31 @@ export async function fetchAnthropicAccountUsage(accessToken: string, fetcher: F
     invalid: "Anthropic returned an invalid usage response.",
     unrecognized: unrecognizedAccountUsageMessage,
   });
-  return namedWindows(Object.entries(payload).flatMap(([key, window]) => {
+  const resetTime = (value: string | null | undefined) => {
+    // A reported bucket is still meaningful without reset timing.
+    const reset = value == null ? null : new Date(value);
+    if (reset !== null && !Number.isFinite(reset.getTime())) throw unrecognizedAccountUsage();
+    return reset?.toISOString() ?? null;
+  };
+  const named = Object.entries(payload).flatMap(([key, window]) => {
     const name = key.match(/^([a-z]+)_(hour|day)(?:_(.+))?$/);
     const count = name && numberWords.get(name[1]!);
     // A null bucket is one the account doesn't have.
     if (!count || window === null) return [];
     if (!Value.Check(accountWindowSchema, window)) throw unrecognizedAccountUsage();
-    // A reported bucket is still meaningful without reset timing.
-    const reset = window.resets_at === null ? null : new Date(window.resets_at);
-    if (reset !== null && !Number.isFinite(reset.getTime())) throw unrecognizedAccountUsage();
-    return [{ count, unit: name[2]!, feature: name[3], usedPercent: window.utilization, resetsAt: reset?.toISOString() ?? null }];
-  }));
+    if (window.utilization === null) return [];
+    return [{ count, unit: name[2]!, feature: name[3], usedPercent: Math.min(100, window.utilization), resetsAt: resetTime(window.resets_at) }];
+  });
+  const features = new Set(named.map((window) => `${window.count}${window.unit} ${window.feature}`));
+  // Entries of other kinds repeat the windows above, so only model-scoped ones add anything.
+  const scoped = (Array.isArray(payload.limits) ? payload.limits : []).flatMap((limit) => {
+    if (!Value.Check(scopedLimitSchema, limit)) return [];
+    const feature = limit.scope.model.display_name.trim().toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "");
+    if (!feature || feature === "all_models" || features.has(`7day ${feature}`)) return [];
+    features.add(`7day ${feature}`);
+    return [{ count: 7, unit: "day", feature, usedPercent: Math.min(100, limit.percent), resetsAt: resetTime(limit.resets_at) }];
+  });
+  return namedWindows([...named, ...scoped]);
 }
 
 /** Subscription OAuth responses from /v1/messages carry the account's unified limits.
