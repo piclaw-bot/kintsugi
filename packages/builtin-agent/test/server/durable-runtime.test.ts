@@ -1008,8 +1008,7 @@ test.each([undefined, "   ", "  Try a narrower search instead.  "])("aborting on
       const results = request.messages.filter(message => message.role === "toolResult");
       const stopped = results.find(message => message.toolCallId === stopping.id)!;
       if (note?.trim()) {
-        expect(stopped.content).toEqual([{ type: "text", text: "<harnass>\nThe user manually cancelled this tool with the following note:\nTry a narrower search instead.\n</harnass>" }]);
-        expect(stopped.details).toEqual({ aborted: true });
+        expect(stopped.content).toEqual([{ type: "text", text: "<harness>\n[error] The user manually cancelled this tool with the following note:\nTry a narrower search instead.\n[error] Tool block was aborted\n</harness>" }]);
       } else {
         expect(stopped.content).toEqual([{ type: "text", text: "<harness>\n[error] Tool block was aborted\n</harness>" }]);
       }

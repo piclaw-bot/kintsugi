@@ -4,7 +4,7 @@ import { publishWorkspaceAgentBusy } from "@kintsugi/agent/server";
 import { startNotificationTurn, finishNotificationTurn } from "./turn-notifications.ts";
 import { sendTurnNotification } from "./web-push.ts";
 import { durableTimingEntry } from "./durable-timing.ts";
-import { KintsugiCoreError, isJsonObject } from "@kintsugi/core";
+import { KintsugiCoreError } from "@kintsugi/core";
 import { checkWorkspaceReadiness } from "@kintsugi/workspace";
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
 import { contentText, getSupportedThinkingLevels } from "@earendil-works/pi-ai";
@@ -428,13 +428,10 @@ export async function openDurableAgentRuntime(
           if (message) {
             await harness.commit(async tx => {
               const current = (await tx.doc(LiveDoc, conversation.id)).tools?.find(tool => tool.callId === callId);
+              // Upstream rebuilds an aborted tool's result from the slot, keeping its diagnostics.
               if (current && current.status !== "done") {
-                const cancellation = `<harnass>\nThe user manually cancelled this tool with the following note:\n${message}\n</harnass>`;
-                current.abortResult = {
-                  output: [{ type: "text", text: current.output ? `${current.output}\n\n${cancellation}` : cancellation }],
-                  isError: true,
-                  details: isJsonObject(current.details) ? { ...current.details, aborted: true } : { aborted: true },
-                };
+                current.diagnostics ??= [];
+                current.diagnostics.push({ severity: "error", code: "cancelled_by_user", message: `The user manually cancelled this tool with the following note:\n${message}` });
               }
             }, context);
           }
