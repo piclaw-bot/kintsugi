@@ -56,7 +56,8 @@
   display: flex;
   align-items: center;
   gap: 12px;
-  min-width: min(360px, 100%);
+  width: min(420px, 100%);
+  min-width: 0;
   padding: 16px 16px;
   border: 1px solid color-mix(in srgb, var(--line) 78%, transparent);
   border-radius: var(--radius-overlay);
@@ -65,7 +66,15 @@
   backdrop-filter: blur(12px);
 }
 
+.vscode-loading .vscode-starting-card { pointer-events: auto; }
+.vscode-starting-copy { min-width: 0; flex: 1; display: grid; gap: 12px; }
+.vscode-starting-help { display: grid; gap: 12px; font-size: var(--text-body); line-height: var(--leading-copy); }
+.vscode-starting-help[hidden] { display: none; }
+.vscode-starting-help p { margin: 0; }
+.vscode-starting-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+
 .vscode-starting-spinner {
+  flex-shrink: 0;
   width: 22px;
   height: 22px;
   border-color: color-mix(in srgb, var(--text) 26%, transparent);

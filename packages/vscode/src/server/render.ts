@@ -1,5 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { domId, escapeHtml, turboStream, type WorkspaceFileTarget } from "@kintsugi/shared";
+import { actionLinkHtml } from "@kintsugi/design-system/action-link";
+import { buttonHtml } from "@kintsugi/design-system/button";
 
 export function vscodeViewKey(title: string): string {
   return `vscode:${title}`;
@@ -9,12 +11,21 @@ export function renderVSCodeView(workspaceId: string, title: string): string {
   const key = vscodeViewKey(title);
   const escapedWorkspaceId = escapeHtml(workspaceId);
   return `<div id="${domId("vscode_view", workspaceId, title)}" data-turbo-permanent class="vscode-work-view" data-work-view-source="${escapeHtml(key)}">
-    <div class="vscode-frame-shell vscode-loading">
-      <iframe class="vscode-frame" data-controller="workspace-app-frame vscode-starting" data-workspace-app-frame-workspace-id-value="${escapedWorkspaceId}" data-workspace-app-frame-app-key-value="vscode" allow="clipboard-read; clipboard-write; fullscreen" allowfullscreen title="VS Code"></iframe>
+    <div class="vscode-frame-shell vscode-loading" data-controller="vscode-starting">
+      <iframe class="vscode-frame" data-controller="workspace-app-frame" data-vscode-starting-target="frame" data-workspace-app-frame-workspace-id-value="${escapedWorkspaceId}" data-workspace-app-frame-app-key-value="vscode" allow="clipboard-read; clipboard-write; fullscreen" allowfullscreen title="VS Code"></iframe>
       <div class="vscode-starting-screen" aria-live="polite">
         <div class="vscode-starting-card">
           <span class="status-spinner vscode-starting-spinner" aria-hidden="true"></span>
-          <div class="vscode-starting-title">Starting VS Code</div>
+          <div class="vscode-starting-copy">
+            <div class="vscode-starting-title">Starting VS Code</div>
+            <div class="vscode-starting-help" data-vscode-starting-target="help" hidden>
+              <p>Your browser may be waiting for you to review a certificate warning. Open VS Code directly, then retry here.</p>
+              <div class="vscode-starting-actions">
+                ${actionLinkHtml({ href: `/workspaces/${encodeURIComponent(workspaceId)}/apps/vscode/`, variant: "secondary", content: { kind: "caption", caption: "Open VS Code directly" }, attributesHtml: 'target="_blank" rel="noopener noreferrer" data-turbo="false"' })}
+                ${buttonHtml({ type: "button", variant: "secondary", content: { kind: "caption", caption: "Retry" }, attributesHtml: 'data-action="vscode-starting#retry"' })}
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>

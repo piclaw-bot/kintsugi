@@ -19,18 +19,39 @@ export const vscodeClientModule: WorkspaceClientModule = {
   id: "vscode",
   install({ application, Controller, hooks }) {
     class VSCodeStartingController extends Controller {
-      declare readonly element: HTMLIFrameElement;
+      static targets = ["frame", "help"];
+      declare readonly element: HTMLElement;
+      declare readonly frameTarget: HTMLIFrameElement;
+      declare readonly helpTarget: HTMLElement;
+      private helpTimer?: ReturnType<typeof setTimeout>;
 
       connect(): void {
-        this.element.addEventListener("load", this.loaded);
+        this.frameTarget.addEventListener("load", this.loaded);
+        if (this.element.classList.contains("vscode-loading")) this.scheduleHelp();
       }
 
       disconnect(): void {
-        this.element.removeEventListener("load", this.loaded);
+        clearTimeout(this.helpTimer);
+        this.frameTarget.removeEventListener("load", this.loaded);
+      }
+
+      retry(): void {
+        this.element.classList.add("vscode-loading");
+        this.helpTarget.hidden = true;
+        this.scheduleHelp();
+        this.frameTarget.src = this.frameTarget.src;
+      }
+
+      private scheduleHelp(): void {
+        clearTimeout(this.helpTimer);
+        this.helpTimer = setTimeout(() => { this.helpTarget.hidden = false; }, 8000);
       }
 
       private loaded = (): void => {
-        this.element.closest(".vscode-frame-shell")?.classList.remove("vscode-loading");
+        if (!this.frameTarget.hasAttribute("src")) return;
+        clearTimeout(this.helpTimer);
+        this.helpTarget.hidden = true;
+        this.element.classList.remove("vscode-loading");
       };
     }
 
