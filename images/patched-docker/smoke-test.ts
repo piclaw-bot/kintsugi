@@ -124,6 +124,11 @@ tail -n +2 /tmp/cache-files | xargs stat -c '%n %i %Y' > /tmp/cache-before`);
   await exec(consumer, "docker", "cp", "scratch-check:/dependency", "/tmp/scratch-dependency");
   assert.equal(await exec(consumer, "cat", "/tmp/scratch-dependency"), "scratch layer works\n");
   await exec(consumer, "docker", "rm", "scratch-check");
+  // Each docker cp remounts the rootfs right after the previous mount. Only kernels
+  // that default overlayfs to index=on (e.g. Arch) catch a missing index=off here.
+  await exec(consumer, "docker", "create", "--name", "remount-check", "smoke:scratch", "/dependency");
+  for (const target of ["/first", "/second"]) await exec(consumer, "docker", "cp", "/scratch/dependency", `remount-check:${target}`);
+  await exec(consumer, "docker", "rm", "remount-check");
   await exec(consumer, "ctr", "version");
   const hashes = await cacheHashes();
   const started = performance.now();

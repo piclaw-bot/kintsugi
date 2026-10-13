@@ -12,6 +12,10 @@ disabled_plugins = ["io.containerd.cri.v1.images", "io.containerd.cri.v1.runtime
 
 [plugins."io.containerd.snapshotter.v1.erofs"]
   layer_content_caches = ["/data/erofs-cache"]
+  # containerd's overlayfs snapshotter and Docker's overlay2 set this; the EROFS snapshotter
+  # doesn't. Kernels that default to index=on (e.g. Arch) refuse to remount a rootfs while
+  # docker cp's helper still holds the previous mount: "device or resource busy".
+  ovl_mount_options = ["index=off"]
 
 [plugins."io.containerd.service.v1.diff-service"]
   default = ["erofs", "walking"]
