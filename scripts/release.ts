@@ -6,7 +6,7 @@ import { Value } from "typebox/value";
 import { authenticateRegistry, commandRunner, ensureBuilders, inspectImage, inspectPlatform, platforms, type Run } from "./release-support.ts";
 import { acquireReleaseLock } from "./release-lock.ts";
 
-const image = "ghcr.io/rcarmo/kintsugi";
+import { appRepository as image } from "../packages/shared/src/publishing.ts";
 const root = resolve(import.meta.dir, "..");
 export const usage = `Release Kintsugi from the current origin/main commit.
 

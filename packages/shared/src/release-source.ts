@@ -1,3 +1,4 @@
+import { appRepository, systemRepository } from "./publishing.ts";
 import { readFile } from "node:fs/promises";
 import { Type, type Static } from "typebox";
 import { Value } from "typebox/value";
@@ -11,7 +12,7 @@ export const releaseSourceSchema = Type.Object({
   systemVersion: Type.Optional(Type.String({ pattern: releaseVersionPattern })),
 }, { additionalProperties: false });
 export type ReleaseSource = Static<typeof releaseSourceSchema>;
-export const defaultReleaseSource: ReleaseSource = { appRepository: "ghcr.io/rcarmo/kintsugi", systemRepository: "ghcr.io/rcarmo/kintsugi-system" };
+export const defaultReleaseSource: ReleaseSource = { appRepository, systemRepository };
 export const releaseSettingsSchema = Type.Object({
   releaseSelection: Type.Optional(Type.Union([Type.Literal("stable"), Type.Literal("latest"), Type.Literal("custom")])),
   releaseChannel: Type.Optional(Type.Union([Type.Literal("stable"), Type.Literal("latest")])),

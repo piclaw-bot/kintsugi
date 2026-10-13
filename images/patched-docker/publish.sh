@@ -9,7 +9,8 @@ if [[ -n $(git -C "$context" status --porcelain -- .) ]]; then
     exit 1
 fi
 revision=$(git -C "$context" rev-parse HEAD)
-image="ghcr.io/rcarmo/kintsugi-docker:sha-${revision}"
+repository=$(cd "$context/../.." && bun -e 'import {runtimeRepository} from "./packages/shared/src/publishing.ts"; process.stdout.write(runtimeRepository)')
+image="${repository}:sha-${revision}"
 "$context/build.sh" "$image" --push \
     --label "org.opencontainers.image.revision=${revision}" "$@"
 docker buildx imagetools inspect "$image"

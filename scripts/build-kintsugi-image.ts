@@ -1,5 +1,6 @@
 #!/usr/bin/env bun
 
+import { appRepository, imageNamespace } from "../packages/shared/src/publishing.ts";
 import { workloadCgroupArgs } from "@kintsugi/core";
 import { rmSync } from "node:fs";
 import { arch } from "node:os";
@@ -13,7 +14,7 @@ Usage:
   bun run scripts/build-kintsugi-image.ts [options]
 
 Options:
-  --image <name>        Image repository/name (default: ghcr.io/rcarmo/kintsugi)
+  --image <name>        Image repository/name (default: ${appRepository})
   --tag <tag>           Tag to apply. May be passed more than once (default: git describe/short sha)
   --latest             Tag the image as <image>:latest (default)
   --no-latest          Do not update latest (release staging)
@@ -65,7 +66,7 @@ function takeValue(args: string[], index: number, flag: string): string {
 
 function parseArgs(args: string[]): Options {
   const options: Options = {
-    image: "ghcr.io/rcarmo/kintsugi",
+    image: appRepository,
     tags: [],
     latest: true,
     stable: false,
@@ -161,7 +162,7 @@ function authenticateGhcr(options: Options): void {
   if (!token) throw new Error("GH_PACKAGE_TOKEN is required to publish images to ghcr.io");
 
   const result = Bun.spawnSync(
-    ["docker", "login", "ghcr.io", "--username", "rcarmo", "--password-stdin"],
+    ["docker", "login", "ghcr.io", "--username", imageNamespace.split("/")[1]!, "--password-stdin"],
     { stdin: new TextEncoder().encode(token), stdout: "inherit", stderr: "inherit" },
   );
   if (result.exitCode !== 0) throw new Error(`docker login ghcr.io failed with exit code ${result.exitCode}`);
@@ -204,7 +205,6 @@ function gitCommitId(): string {
 }
 
 function workspaceImageRepository(appImage: string): string {
-  if (appImage === "ghcr.io/rcarmo/kintsugi") return "ghcr.io/rcarmo/kintsugi-workspace";
   return `${appImage}-workspace`;
 }
 

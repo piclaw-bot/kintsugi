@@ -1,3 +1,4 @@
+import { imageNamespace } from "../packages/shared/src/publishing.ts";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { createHash } from "node:crypto";
@@ -49,7 +50,8 @@ export async function inspectPlatform(run: Run, ref: string, platform: string, r
 export async function authenticateRegistry(run: Run) {
   const token = process.env.GH_PACKAGE_TOKEN?.trim();
   if (!token) throw new Error("GH_PACKAGE_TOKEN is required to publish images to ghcr.io");
-  await run(["docker", "login", "ghcr.io", "--username", "rcarmo", "--password-stdin"], { input: token });
+  const [registry, account] = imageNamespace.split("/");
+  await run(["docker", "login", registry!, "--username", account!, "--password-stdin"], { input: token });
 }
 
 export async function ensureBuilders(run: Run, directory: string) {

@@ -5,7 +5,7 @@ import { join, resolve } from "node:path";
 import { authenticateRegistry, commandRunner, ensureBuilders, inspectImage, inspectPlatform, platforms, type Run } from "../../scripts/release-support.ts";
 
 const root = resolve(import.meta.dir, "../..");
-const image = "ghcr.io/rcarmo/kintsugi-system";
+import { systemRepository as image } from "../../packages/shared/src/publishing.ts";
 
 export async function publishSystem(run: Run, directory: string, check = false) {
   if (!check && (await run(["git", "status", "--porcelain"])).stdout.trim())

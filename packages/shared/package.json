@@ -10,7 +10,8 @@
     "./release-source": "./src/release-source.ts",
     "./theme": "./src/theme-setting.ts",
     "./file-metadata": "./src/file-metadata.ts",
-    "./network-policy": "./src/network-policy.ts"
+    "./network-policy": "./src/network-policy.ts",
+    "./publishing": "./src/publishing.ts"
   },
   "dependencies": {
     "@kintsugi/core": "workspace:*",
