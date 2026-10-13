@@ -5,7 +5,8 @@ import { createLivePresentation, type WorkspaceAgentInput } from "@kintsugi/shar
 import { createPiModelRuntime, parseModelRef, setAgentModelPreference } from "@kintsugi/llm/server";
 import { publishWorkspaceAgentBusy } from "@kintsugi/agent/server";
 import { createNativeAgents } from "@kintsugi/native-agent/server";
-import { renderWorkspaceCompletionCatalog } from "@kintsugi/agent/server/completion-catalog";
+import { listPromptTemplates } from "@kintsugi/agent/server/prompt-templates";
+import { renderSlashCommandCatalog } from "@kintsugi/agent/server/slash-commands";
 import { claudeAgentCommands, claudeNativeCommands, uuidPattern, type ClaudeCommand, type ClaudeCommandResult } from "./commands.ts";
 import { claudeSessionDirectory, hasClaudeSession, listClaudeSessions, readClaudeRows, type ClaudeBlock } from "./rows.ts";
 import { ClaudeState } from "./state.ts";
@@ -26,6 +27,8 @@ export class ClaudeRuntime {
   instructions = "";
   models: ModelInfo[] = [];
   private commands: SlashCommand[] = [];
+  /** Prompt templates win over Claude's own same-named commands, such as its bundled /simplify. */
+  private templateNames = new Set<string>();
   /** Slash commands and prompt templates; turns can add templates, so each finished turn reloads them. */
   completionCatalog = "";
   failure?: Error;
@@ -57,13 +60,15 @@ export class ClaudeRuntime {
     this.presentation.invalidate();
   }
   async refreshCompletionCatalog() {
-    this.completionCatalog = await renderWorkspaceCompletionCatalog(this.workspaceId, "cli", [...claudeAgentCommands, ...claudeNativeCommands(this.commands)]);
+    const templates = await listPromptTemplates(this.workspaceId);
+    this.templateNames = new Set(templates.map(template => template.name));
+    this.completionCatalog = renderSlashCommandCatalog(templates, [], "cli", [...claudeAgentCommands, ...claudeNativeCommands(this.commands, this.templateNames)]);
     this.presentation.invalidate();
   }
   /** Claude Code's own commands are sent as prompts, never expanded as prompt templates. */
   isClaudeCommand(text: string) {
     const name = text.trim().match(/^\/(\S+)/)?.[1];
-    return Boolean(name && this.commands.some(command => command.name === name || command.aliases?.includes(name)));
+    return Boolean(name && !this.templateNames.has(name) && this.commands.some(command => command.name === name || command.aliases?.includes(name)));
   }
   static async open(workspaceId: string, record: ClaudeAgentRecord, save: () => void, events: KintsugiEventBus) {
     const runtime = new ClaudeRuntime(workspaceId, record, save, events);

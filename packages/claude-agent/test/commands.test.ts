@@ -11,13 +11,14 @@ test("parses the commands this Agent runs itself and leaves every other command 
   for (const text of ["/new now", "/resume ../../etc", "/model", "/model two words"]) expect(() => parseClaudeCommand(text)).toThrow();
 });
 
-test("offers Claude's own commands for completion, except those Kintsugi handles", () => {
+test("offers Claude's own commands for completion, except those Kintsugi handles or Prompt templates replace", () => {
   expect(claudeNativeCommands([
     { name: "compact", description: "Compact the conversation", argumentHint: "[instructions]" },
     { name: "review", description: "Review a pull request", argumentHint: "" },
     { name: "model", description: "Set the model", argumentHint: "" },
     { name: "resume", description: "Resume", argumentHint: "" },
-  ])).toEqual([
+    { name: "simplify", description: "Simplify the code", argumentHint: "" },
+  ], new Set(["simplify"]))).toEqual([
     { kind: "builtin", source: "claude", name: "compact", trigger: "/compact", description: "Compact the conversation", argumentHint: "[instructions]", preserveArguments: true },
     { kind: "builtin", source: "claude", name: "review", trigger: "/review", description: "Review a pull request", argumentHint: undefined, preserveArguments: true },
   ]);

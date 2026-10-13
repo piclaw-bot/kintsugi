@@ -11,9 +11,9 @@ export const claudeAgentCommands = [
 ] as const satisfies readonly BuiltinSlashCommand[];
 const handledElsewhere = new Set(["new", "resume", "fork", "name", "park", "model"]);
 
-/** Claude's own commands for the completion menu; its interactive-only ones are not offered headless. */
-export function claudeNativeCommands(commands: readonly SlashCommand[]): BuiltinSlashCommand[] {
-  return commands.filter(command => !handledElsewhere.has(command.name)).map(command => ({
+/** Claude's own commands for the completion menu; its interactive-only ones are not offered headless, and the repository's Prompt templates replace same-named ones. */
+export function claudeNativeCommands(commands: readonly SlashCommand[], templateNames: ReadonlySet<string>): BuiltinSlashCommand[] {
+  return commands.filter(command => !handledElsewhere.has(command.name) && !templateNames.has(command.name)).map(command => ({
     kind: "builtin", source: "claude", name: command.name, trigger: `/${command.name}`, description: command.description, argumentHint: command.argumentHint || undefined, preserveArguments: true,
   }));
 }
