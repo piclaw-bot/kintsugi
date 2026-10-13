@@ -6,11 +6,13 @@ Kintsugi is an opinionated fork of [AgentsInTheCloud](https://github.com/lucasme
 
 This fork adds:
 
+- ARM builds
+- A mobile-friendly resizable compose box
 - An embedded Draw.io editor and diagram previews.
 - A scoped, token-authenticated management API.
 - Configurable Docker release sources, private GHCR authentication, pinned updates and installer rollback.
 - Word wrapping in the file viewer, including Markdown source mode.
-- GitHub Copilot subscription usage, quota information and calendar-month pacing.
+- GitHub Copilot subscription usage, quota information and consistently labeled calendar-month pacing across Copilot and Codex.
 - Unattended installation and transactional admin bootstrap with private token delivery.
 - Trusted LAN proxy access with configurable preview origins, Caddy TLS termination and persistent publications.
 - Opt-in workspace LAN/private-network permissions, configurable CIDR groups and external DNS/mDNS forwarders, with restart status and security-scoped admin settings.
