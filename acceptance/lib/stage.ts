@@ -113,7 +113,7 @@ export async function tmuxSizes(workspaceId: string): Promise<Record<string, str
 
 /** Runs a command in the workspace container as its user and returns its output. */
 async function workspaceExec(workspaceId: string, command: string[], stdin?: string): Promise<string> {
-  const process = Bun.spawn(["docker", "exec", "-i", "-u", "kintsugi", `kintsugi-${workspaceId}`, ...command], { stdin: stdin === undefined ? "ignore" : new TextEncoder().encode(stdin), stdout: "pipe", stderr: "pipe" });
+  const process = Bun.spawn(["docker", "exec", "-i", "-u", "agent", `kintsugi-${workspaceId}`, ...command], { stdin: stdin === undefined ? "ignore" : new TextEncoder().encode(stdin), stdout: "pipe", stderr: "pipe" });
   const output = await new Response(process.stdout).text();
   if (await process.exited !== 0) throw new Error(`${command.join(" ")} failed: ${await new Response(process.stderr).text()}`);
   return output;

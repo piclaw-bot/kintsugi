@@ -43,7 +43,6 @@ export interface CableConnectionStats {
 }
 
 export interface CableServer {
-  validate(request: Request, url: URL): CableSocketData | undefined;
   open(ws: CableSocket, data: CableSocketData): void;
   message(ws: CableSocket, message: string | Buffer): void;
   close(ws: CableSocket): void;
@@ -184,10 +183,6 @@ export function createCableServer(options: CableServerOptions): CableServer {
   }
 
   return {
-    validate(_request, url) {
-      if (url.pathname !== "/cable") return undefined;
-      return { kind: "cable", connectionId: crypto.randomUUID() };
-    },
     open(ws, data) {
       connections.set(ws, { id: data.connectionId, attempts: new Map() });
       send(ws, { type: "welcome", connectionId: data.connectionId });

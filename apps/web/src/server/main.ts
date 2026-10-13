@@ -29,7 +29,8 @@ import { connectionModeManaged } from "./settings/connection-mode.ts";
 import { getAgentType, rememberAgentType } from "./agent-types.ts";
 import { createWebApp, type WebApp } from "./app.ts";
 import { parseAssetManifest } from "./asset-manifest.ts";
-import { createCableServer, type CableSocketData } from "./cable.ts";
+import { createCableServer } from "./cable.ts";
+import { createCableSseTransport } from "./cable-sse.ts";
 import { legacyStaticFiles } from "./static-files.ts";
 import { workspaceModules } from "./workspace-modules.generated.ts";
 import { prepareWorkspaceForUse, recoverWorkspaces } from "./workspace-recovery.ts";
@@ -226,7 +227,7 @@ interface ProvisionTermSocketData {
 type ProvisionTermSocket = Pick<ServerWebSocket<undefined>, "send" | "close">;
 
 type WorkspaceModuleSocketData = WorkspaceServerSocketSession & { kind: "workspace-module" };
-type SocketData = WorkspaceModuleSocketData | ProvisionTermSocketData | CableSocketData;
+type SocketData = WorkspaceModuleSocketData | ProvisionTermSocketData;
 
 async function resolveWorkspaceApp(app: WorkspaceAppRef, requestUrl: URL): Promise<WorkspaceAppBackend | undefined> {
   for (const resolver of workspaceAppResolvers) {
@@ -270,8 +271,6 @@ kintsugiEvents.on("workspace_plan_prepare", ({ workspaceId }) => ingressSockets.
 kintsugiEvents.on("workspace_deleted", ({ workspaceId }) => ingressSockets.remove(workspaceId));
 
 async function validateSocket(request: Request, url: URL): Promise<SocketData | undefined> {
-  const cableData = cableServer.validate(request, url);
-  if (cableData) return cableData;
   const provisionMatch = url.pathname.match(/^\/provision-term\/([^/]+)\/ws$/);
   if (provisionMatch) {
     const session = decodeURIComponent(provisionMatch[1]);
@@ -315,6 +314,7 @@ const defaultWorkspaceImage = await ensureDefaultWorkspaceImage({ buildOutput: "
 await ensureHostInotifyLimit(defaultWorkspaceImage);
 for (const workspace of persistedWorkspaces) await ingressSockets.ensure(workspace.id);
 await workspaceIngress.initialize();
+const handleCable = createCableSseTransport(cableServer);
 const server = Bun.serve<SocketData>({
   hostname,
   port: requestedPort,
@@ -340,6 +340,9 @@ const server = Bun.serve<SocketData>({
       return textResponse("websocket upgrade failed", { status: 400 });
     }
 
+    const cableResponse = await handleCable(request);
+    if (cableResponse) return cableResponse;
+
     if (url.pathname === "/debug/connections" && request.method === "GET") {
       return new Response(JSON.stringify({ cable: cableServer.stats(), ingress: workspaceIngress.inspect() }, null, 2), { headers: { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" } });
     }
@@ -355,17 +358,14 @@ const server = Bun.serve<SocketData>({
   },
   websocket: {
     open(ws) {
-      if (ws.data.kind === "cable") cableServer.open(ws, ws.data);
-      else if (ws.data.kind === "provision-term") openProvisionTermSocket(ws, ws.data);
+      if (ws.data.kind === "provision-term") openProvisionTermSocket(ws, ws.data);
       else ws.data.open?.(ws);
     },
     message(ws, message) {
-      if (ws.data.kind === "cable") cableServer.message(ws, message);
-      else if (ws.data.kind === "workspace-module") ws.data.message?.(ws, message);
+      if (ws.data.kind === "workspace-module") ws.data.message?.(ws, message);
     },
     close(ws) {
-      if (ws.data.kind === "cable") cableServer.close(ws);
-      else if (ws.data.kind === "provision-term") closeProvisionTermSocket(ws.data);
+      if (ws.data.kind === "provision-term") closeProvisionTermSocket(ws.data);
       else ws.data.close?.(ws);
     },
   },

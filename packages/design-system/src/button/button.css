@@ -79,10 +79,10 @@
 .button__icon { display: inline-flex; align-items: center; justify-content: center; }
 
 /* Popular desktop sizes; touch-only markers retain regular desktop sizing. */
-.button:where([data-popular-button]:not([data-popular-button="touch"]), [data-popular-button]:not([data-popular-button="touch"]) *) { min-height: 36.93px; }
-.button.icon-only:where([data-popular-button]:not([data-popular-button="touch"]), [data-popular-button]:not([data-popular-button="touch"]) *) { width: 38.24px; height: 38.24px; }
-.button:where([data-popular-button]:not([data-popular-button="touch"]), [data-popular-button]:not([data-popular-button="touch"]) *) { --button-icon-size: 18.38px; }
-.button.icon-only:where([data-popular-button]:not([data-popular-button="touch"]), [data-popular-button]:not([data-popular-button="touch"]) *) { --button-icon-size: 20.59px; }
+.button:where([data-popular-button]:not([data-popular-button="touch"]), [data-popular-button]:not([data-popular-button="touch"]) *) { min-height: calc(36.93px * var(--popular-button-scale, 1)); }
+.button.icon-only:where([data-popular-button]:not([data-popular-button="touch"]), [data-popular-button]:not([data-popular-button="touch"]) *) { width: calc(38.24px * var(--popular-button-scale, 1)); height: calc(38.24px * var(--popular-button-scale, 1)); }
+.button:where([data-popular-button]:not([data-popular-button="touch"]), [data-popular-button]:not([data-popular-button="touch"]) *) { --button-icon-size: calc(18.38px * var(--popular-button-scale, 1)); }
+.button.icon-only:where([data-popular-button]:not([data-popular-button="touch"]), [data-popular-button]:not([data-popular-button="touch"]) *) { --button-icon-size: calc(20.59px * var(--popular-button-scale, 1)); }
 
 @media (max-width: 700px), (pointer: coarse) {
   .button { --button-icon-size: 20px; height: 44px; padding-inline: 16px; max-width: 100%; min-width: 0; }
@@ -91,12 +91,12 @@
   /* Regular icon controls are 15% smaller than the original 50px / 21px. */
   .button.icon-only { --button-icon-size: 17.85px; width: 42.5px; height: 42.5px; padding: 0; }
 
-  /* Preserve the mobile/touch popular sizes. */
+  /* Composer/navigation can scale popular controls without changing other actions. */
   .button:where([data-popular-button], [data-popular-button] *),
-  .button:not(.icon-only):where([data-popular-button], [data-popular-button] *) { min-height: 62.5px; }
-  .button.icon-only:where([data-popular-button], [data-popular-button] *) { width: 62.5px; height: 62.5px; }
+  .button:not(.icon-only):where([data-popular-button], [data-popular-button] *) { min-height: calc(62.5px * var(--popular-button-scale, 1)); }
+  .button.icon-only:where([data-popular-button], [data-popular-button] *) { width: calc(62.5px * var(--popular-button-scale, 1)); height: calc(62.5px * var(--popular-button-scale, 1)); }
   .button:where([data-popular-button], [data-popular-button] *),
-  .button.icon-only:where([data-popular-button], [data-popular-button] *) { --button-icon-size: 26.25px; }
+  .button.icon-only:where([data-popular-button], [data-popular-button] *) { --button-icon-size: calc(26.25px * var(--popular-button-scale, 1)); }
 }
 
 /* Pressed controls and current navigation destinations share selected paint. */
