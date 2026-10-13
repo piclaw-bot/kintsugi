@@ -133,14 +133,15 @@ test("only version tags start release CI and publication has no manual bypass", 
   expect(release.jobs.images.with.publish).toBe(true);
   expect(release.concurrency["cancel-in-progress"]).toBe(false);
 });
-test("docs and workflows do not trigger ordinary CI; tags force full checks", () => {
+test("ordinary pushes never trigger CI; PR/manual checks and tag gates remain", () => {
   const ci = Bun.YAML.parse(readFileSync(new URL("../.github/workflows/ci.yml", import.meta.url), "utf8"));
-  for (const event of [ci.on.push, ci.on.pull_request]) {
+  for (const event of [ci.on.pull_request]) {
     expect(event["paths-ignore"]).toContain("docs/**");
     expect(event["paths-ignore"]).toContain(".github/**");
     expect(event["paths-ignore"]).toContain("**/*.md");
   }
-  expect(ci.on.push.branches).toEqual(["main"]);
+  expect(ci.on).not.toHaveProperty("push");
+  expect(Object.keys(ci.on).sort()).toEqual(["pull_request", "workflow_call", "workflow_dispatch"]);
   expect(ci.on).toHaveProperty("workflow_call");
   const selection = ci.jobs.check.steps.find((step: { id?: string; run: string }) => step.id === "changes").run;
   expect(selection).toContain("'${{ github.ref_type }}' != tag");
