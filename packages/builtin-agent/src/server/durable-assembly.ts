@@ -9,7 +9,7 @@ import { workspaceRoot } from "@kintsugi/workspace";
 import { createDurableWorkspaceTools } from "./durable-tools.ts";
 import { createDurableBashExtension } from "./durable-bash.ts";
 import { durableJournalInstructions } from "./durable-storage.ts";
-import { loadWorkspaceAgentsFiles } from "./workspace-agents-files.ts";
+import { formatProjectInstructions, loadWorkspaceAgentsFiles } from "@kintsugi/agent/server/workspace-agents-files";
 import { loadWorkspaceSkills } from "@kintsugi/agent/server/skills";
 import { kintsugiSystemPrompt, prepareAppendedKintsugiInstructions } from "@kintsugi/agent/server/system-prompt";
 import { launchComposerThinkingSettings, resolveNewWorkspaceAgentModel } from "@kintsugi/agent/server/model-state";
@@ -71,7 +71,7 @@ export async function prepareDurableAgent(
     kintsugiSystemPrompt,
     durableJournalInstructions(workspaceId, agentId),
     ...appended,
-    ...agents.map((file) => `# Project instructions: ${file.path}\n\n${file.content}`),
+    ...agents.map(formatProjectInstructions),
     formatSkillsForPrompt(skills.skills),
     `Current working directory: ${workspaceRoot}`,
   ].filter(Boolean).join("\n\n");

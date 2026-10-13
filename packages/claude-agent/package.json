@@ -7,7 +7,6 @@
   },
   "dependencies": {
     "@kintsugi/agent": "workspace:*",
-    "@kintsugi/builtin-agent": "workspace:*",
     "@kintsugi/claude-cli-agent": "workspace:*",
     "@kintsugi/cli-agent": "workspace:*",
     "@kintsugi/core": "workspace:*",

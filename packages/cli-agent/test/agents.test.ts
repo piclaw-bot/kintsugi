@@ -25,7 +25,8 @@ async function scenario(script: string): Promise<void> {
       let inspectionResult;
       let result = { stdout: "", stderr: "", exitCode: 0, durationMs: 0 };
       const workspaceTitles = new Map();
-      mock.module("@kintsugi/workspace", () => ({ ...workspace, getWorkspaceTitle: async (id) => workspaceTitles.get(id) ?? null, setWorkspaceTitle: async (id, title) => { workspaceTitles.set(id, title); return null; }, execWorkspaceShell: async (...args) => { calls.push(args); return args[1].includes("tmux list-panes") && inspectionResult ? inspectionResult : result; } }));
+      const agentsFiles = new Map();
+      mock.module("@kintsugi/workspace", () => ({ ...workspace, execWorkspaceCommand: async (_id, command) => ({ stdout: [...agentsFiles].find(([path]) => command[2].includes(path))?.[1] ?? "", stderr: "", exitCode: 0, durationMs: 0 }), getWorkspaceTitle: async (id) => workspaceTitles.get(id) ?? null, setWorkspaceTitle: async (id, title) => { workspaceTitles.set(id, title); return null; }, execWorkspaceShell: async (...args) => { calls.push(args); return args[1].includes("tmux list-panes") && inspectionResult ? inspectionResult : result; } }));
       const slugSuggestion = await import("@kintsugi/agent/server/slug-suggestion");
       const slugRequests = [];
       let suggestedSlug;
@@ -565,4 +566,14 @@ test("native prompt preparation includes shared and plugin guidance once per lau
   expect(prepared).toBe(2);
   expect(prompts[1]).toContain("Plugin guidance " + id + " revision 2");
   expect(prompts[1]).not.toContain("revision 1");
+`));
+
+test("native prompts add .agents-in-the-cloud/AGENTS.md and leave the root AGENTS.md to the CLI", () => scenario(`
+  agentsFiles.set("/work/AGENTS.md", "Root guidance");
+  agentsFiles.set("/work/.agents-in-the-cloud/AGENTS.md", "Presentation guidance");
+  const prompts = [];
+  adapter.prepareSession = async (_workspaceId, _session, mcp) => { prompts.push(mcp.instructions); return {}; };
+  await agentType.create({ workspaceId: "agents-files" });
+  expect(prompts[0]).toContain("# Project instructions: /work/.agents-in-the-cloud/AGENTS.md\\n\\nPresentation guidance");
+  expect(prompts[0]).not.toContain("Root guidance");
 `));

@@ -5,6 +5,7 @@ import { createAgentMcpServer } from "./mcp-server.ts";
 import { createKintsugiControlTools } from "./tools.ts";
 import { abandonSettlingTurn, handleAgentTurnBoundary, type AgentTurnFinishReason } from "./turn-lifecycle.ts";
 import { prepareAppendedKintsugiInstructions, sharedKintsugiInstructions } from "./system-prompt.ts";
+import { formatProjectInstructions, loadWorkspaceAgentsFiles } from "./workspace-agents-files.ts";
 
 async function agentInstructions(workspaceId: string, agentId: string, applicationInstructions = sharedKintsugiInstructions): Promise<string> {
   return [applicationInstructions, ...await prepareAppendedKintsugiInstructions(events, workspaceId, agentId)].join("\n\n");
@@ -42,7 +43,7 @@ export async function revokeAgentMcp(workspaceId: string, agentId: string): Prom
 export interface CliAgentConnection {
   url: string;
   token: string;
-  /** Full guidance for the CLI's native prompt; deliberately omitted from its MCP response. */
+  /** Full guidance for the CLI's native prompt, with .agents-in-the-cloud/AGENTS.md; deliberately omitted from its MCP response. */
   instructions: string;
 }
 
@@ -63,7 +64,9 @@ done
 cat /tmp/kintsugi-mcp.log >&2
 exit 1`);
   if (result.exitCode !== 0) throw new Error(result.stderr.trim() || "Could not start workspace MCP relay");
-  const instructions = await agentInstructions(workspaceId, agentId, applicationInstructions);
+  // CLIs discover the root AGENTS.md themselves, by their own rules.
+  const agentsFiles = await loadWorkspaceAgentsFiles(workspaceId, { includeRoot: false });
+  const instructions = [await agentInstructions(workspaceId, agentId, applicationInstructions), ...agentsFiles.map(formatProjectInstructions)].join("\n\n");
   return { url: "http://127.0.0.1:2988/mcp", token: credentialStore().issue({ workspaceId, agentId, instructionDelivery: "system-prompt" }), instructions };
 }
 

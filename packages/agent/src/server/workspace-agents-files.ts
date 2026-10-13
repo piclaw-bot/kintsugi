@@ -2,7 +2,7 @@ import { shellQuote } from "@kintsugi/core";
 import { execWorkspaceCommand, workspaceRoot } from "@kintsugi/workspace";
 
 export async function loadWorkspaceAgentsFiles(workspaceId: string, { includeRoot = true }: { includeRoot?: boolean } = {}): Promise<Array<{ path: string; content: string }>> {
-  const agentsPaths = [`${workspaceRoot}/.kintsugi/AGENTS.md`];
+  const agentsPaths = [`${workspaceRoot}/.agents-in-the-cloud/AGENTS.md`, `${workspaceRoot}/.kintsugi/AGENTS.md`];
   if (includeRoot) agentsPaths.unshift(`${workspaceRoot}/AGENTS.md`);
   const agentsFiles: Array<{ path: string; content: string }> = [];
 
@@ -13,4 +13,8 @@ export async function loadWorkspaceAgentsFiles(workspaceId: string, { includeRoo
   }
 
   return agentsFiles;
+}
+
+export function formatProjectInstructions(file: { path: string; content: string }): string {
+  return `# Project instructions: ${file.path}\n\n${file.content}`;
 }

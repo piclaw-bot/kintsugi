@@ -10,7 +10,8 @@ async function scenario(script: string): Promise<void> {
     const child = Bun.spawn([process.execPath, "-e", `
       import { expect, mock } from "bun:test";
       const workspace = await import("@kintsugi/workspace");
-      mock.module("@kintsugi/workspace", () => ({ ...workspace, execWorkspaceShell: async () => ({ stdout: "", stderr: "", exitCode: 0, durationMs: 0 }) }));
+      const idle = async () => ({ stdout: "", stderr: "", exitCode: 0, durationMs: 0 });
+      mock.module("@kintsugi/workspace", () => ({ ...workspace, execWorkspaceShell: idle, execWorkspaceCommand: idle }));
       const { configureAgentMcp, handleAgentMcpRequest, prepareCliAgentConnection, revokeAgentMcp } = await import(${JSON.stringify(join(import.meta.dir, "../../src/server/mcp.ts"))});
       const { registerAgentTurnSettler } = await import(${JSON.stringify(join(import.meta.dir, "../../src/server/turn-lifecycle.ts"))});
       const { subscribeWorkspaceAgentBusy } = await import(${JSON.stringify(join(import.meta.dir, "../../src/server/workspace-agent-busy.ts"))});

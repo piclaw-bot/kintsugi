@@ -2,7 +2,6 @@ import { kintsugiSystemPrompt } from "@kintsugi/agent/server/system-prompt";
 import { prepareCliAgentConnection } from "@kintsugi/agent/server";
 import { checkedWorkspaceShell, cliLaunchScript, createCliModelSettings, writeCliSessionFiles } from "@kintsugi/cli-agent/server";
 import { createPiModelRuntime, installClaudeSubscriptionAuth, requireProviderSubscription } from "@kintsugi/llm/server";
-import { loadWorkspaceAgentsFiles } from "@kintsugi/builtin-agent/server/workspace-agents-files";
 
 export const agentTypeId = "claude";
 export const label = "Claude Code";
@@ -28,9 +27,7 @@ export const renderedTranscriptInstructions = "Your replies are rendered as rich
 export async function prepareClaude(workspaceId: string, agentId: string): Promise<{ instructions: string }> {
   await installClaudeSubscriptionAuth(workspaceId, claudeConfigDirectory(agentId), await createPiModelRuntime());
   const connection = await prepareCliAgentConnection(workspaceId, agentId, kintsugiSystemPrompt);
-  // Claude Code discovers CLAUDE.md natively but not AGENTS.md, so all of them are appended.
-  const files = await loadWorkspaceAgentsFiles(workspaceId);
-  const instructions = [connection.instructions, renderedTranscriptInstructions, ...files.map(file => `# Project instructions: ${file.path}\n\n${file.content}`)].join("\n\n");
+  const instructions = [connection.instructions, renderedTranscriptInstructions].join("\n\n");
   // Claude waits for alwaysLoad servers at startup and includes their tools in turn one.
   const mcp = { mcpServers: { "kintsugi": { type: "http", url: connection.url, headers: { Authorization: `Bearer ${connection.token}` }, alwaysLoad: true } } };
   await writeCliSessionFiles(workspaceId, { directory: claudeAgentDirectory(agentId) }, { "claude-mcp.json": JSON.stringify(mcp) });

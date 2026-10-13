@@ -26,6 +26,7 @@
     "./server/transcript": "./src/server/transcript.ts",
     "./server/transcript-contributions": "./src/server/transcript-contributions.ts",
     "./server/turn-timing": "./src/server/turn-timing.ts",
+    "./server/workspace-agents-files": "./src/server/workspace-agents-files.ts",
     "./server/workspace-file-tools": "./src/server/workspace-file-tools.ts",
     "./server/workspace-tool": "./src/server/workspace-tool.ts",
     "./client/agent-controllers": "./src/client/agent-controllers.ts",

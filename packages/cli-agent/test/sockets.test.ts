@@ -13,7 +13,8 @@ test("each adapter exposes its own interactive terminal protocol", async () => {
       const observable = await import("@kintsugi/observable-terminal/server");
       const writes = [], sizes = [], attachments = [];
       let callbacks, closed = 0;
-      mock.module("@kintsugi/workspace", () => ({ ...workspace, execWorkspaceShell: async () => ({ exitCode: 0, stdout: "", stderr: "", durationMs: 0 }) }));
+      const idle = async () => ({ exitCode: 0, stdout: "", stderr: "", durationMs: 0 });
+      mock.module("@kintsugi/workspace", () => ({ ...workspace, execWorkspaceShell: idle, execWorkspaceCommand: idle }));
       mock.module(import.meta.resolve("@kintsugi/observable-terminal/server").replace("/index.ts", "/attach.ts"), () => ({ ...observable, attachObservableTerminal: (options, handlers) => {
         attachments.push(options); callbacks = handlers;
         return { write: text => writes.push(text), resize: (...size) => sizes.push(size), close: () => { closed++; } };

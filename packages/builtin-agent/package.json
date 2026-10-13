@@ -8,8 +8,7 @@
     "./server/durable-lifecycle": "./src/server/durable-lifecycle.ts",
     "./server/durable-runtime": "./src/server/durable-runtime.ts",
     "./client": "./src/client/index.ts",
-    "./server/render-composer": "./src/server/render-composer.ts",
-    "./server/workspace-agents-files": "./src/server/workspace-agents-files.ts"
+    "./server/render-composer": "./src/server/render-composer.ts"
   },
   "dependencies": {
     "@kintsugi/core": "workspace:*",
