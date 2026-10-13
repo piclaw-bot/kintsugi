@@ -7,7 +7,8 @@ import { detectSelfUpdateRuntime, prepareUpdate, pruneUnusedKintsugiImages, pull
 
 const app = `ghcr.io/rcarmo/kintsugi@sha256:${"a".repeat(64)}`;
 const workspace = `ghcr.io/rcarmo/workspace@sha256:${"b".repeat(64)}`;
-const appImage: DockerImage = { Id: "sha256:app" };
+// Generic update fixtures must support either storage driver selected by the host.
+const appImage: DockerImage = { Id: "sha256:app", Config: { Labels: { "kintsugi.storage-drivers": "erofs,overlayfs" } } };
 
 const layerA = `sha256:${"c".repeat(64)}`;
 const layerB = `sha256:${"d".repeat(64)}`;
@@ -23,7 +24,7 @@ test("discovers everything before pulling and weights unique layer bytes", async
       calls.push(`pull ${reference}`);
       report({ id: (reference === app ? layerA : layerB).slice(7, 19), current: 100, complete: false });
     },
-    inspect: async (reference) => { calls.push(`inspect ${reference}`); return reference === app ? appImage : { Id: "sha256:workspace" }; },
+    inspect: async (reference) => { calls.push(`inspect ${reference}`); return reference === app ? appImage : { ...appImage, Id: "sha256:workspace" }; },
   });
   expect(calls).toEqual([`resolve ${app}`, `resolve ${workspace}`, "prune", `pull ${app}`, `pull ${workspace}`, `inspect ${app}`, `inspect ${workspace}`]);
   expect(result).toEqual({ reference: app, imageId: "sha256:app" });

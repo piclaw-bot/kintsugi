@@ -66,22 +66,29 @@ describe("workspace ingress", () => {
   });
 
   test("never reassigns a retained browser origin to another app", async () => {
-    const start = await freePort();
+    // Probe two ports together: a free port says nothing about its neighbour.
+    const probes = Array.from({ length: 2 }, () => Bun.serve({ hostname: "127.0.0.1", port: 0, fetch: () => new Response("probe") }));
+    const ports = probes.map(server => server.port!);
+    probes.forEach(server => server.stop(true));
     const ingress = createWorkspaceIngress({
       hostname: "127.0.0.1",
-      originPortRange: { start, end: start + 1 },
+      originPortRange: { start: Math.min(...ports), end: Math.max(...ports) },
       resolveWorkspace: () => undefined,
       resolveApp: () => ({ kind: "fetch", fetch: () => new Response("ok") }),
     });
-    await ingress.initialize();
-    const first = await ingress.openCanonical({ workspaceId: "ws", appKey: "first" }, "/");
-    const firstPort = Number(new URL(first.headers.get("location")!).port);
-    await ingress.stopWorkspace("ws");
-    const second = await ingress.openCanonical({ workspaceId: "ws", appKey: "second" }, "/");
-    const secondPort = Number(new URL(second.headers.get("location")!).port);
-    expect(secondPort).not.toBe(firstPort);
-    await ingress.stopWorkspace("ws");
-    await ingress.stopAll();
+    try {
+      await ingress.initialize();
+      const first = await ingress.openCanonical({ workspaceId: "ws", appKey: "first" }, "/");
+      expect(first.status).toBe(302);
+      const firstPort = Number(new URL(first.headers.get("location")!).port);
+      await ingress.stopWorkspace("ws");
+      const second = await ingress.openCanonical({ workspaceId: "ws", appKey: "second" }, "/");
+      expect(second.status).toBe(302);
+      const secondPort = Number(new URL(second.headers.get("location")!).port);
+      expect(secondPort).not.toBe(firstPort);
+    } finally {
+      await ingress.stopAll();
+    }
   });
 
   test("streams HTTP requests with consistent local forwarding headers", async () => {

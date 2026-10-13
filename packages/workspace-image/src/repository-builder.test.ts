@@ -5,7 +5,7 @@ import { join } from "node:path";
 
 // Subprocess mocks keep Docker and module replacement out of concurrent tests.
 for (const scenario of ["new", "warm", "stopped", "upgrade", "unavailable", "build-failed", "publish-failed"] as const) {
-  test(`repository builder: ${scenario}`, async () => {
+  test.each(["erofs", "overlayfs"] as const)(`repository builder (%s): ${scenario}`, async (driver) => {
     const directory = await mkdtemp(join(tmpdir(), "repository-builder-unit-"));
     try {
       const runtimeImage = (await readFile(new URL("../runtime-image", import.meta.url), "utf8")).trim();
@@ -15,8 +15,10 @@ for (const scenario of ["new", "warm", "stopped", "upgrade", "unavailable", "bui
         const core = await import(corePath);
         const calls = [];
         const scenario = ${JSON.stringify(scenario)};
+        const driver = ${JSON.stringify(driver)};
         let exists = ['warm','stopped','upgrade'].includes(scenario);
         mock.module(corePath, () => ({...core,
+          readStorageDriver: async () => driver,
           getKintsugiRuntimeContext: () => ({kintsugiDataDir:${JSON.stringify(directory)},dockerHostKintsugiDataDir:'/host/app'}),
           workloadCgroupArgs: async () => ['--cgroup-parent','system-workloads'],
           requireDocker: async args => {
@@ -69,7 +71,10 @@ for (const scenario of ["new", "warm", "stopped", "upgrade", "unavailable", "bui
       } else {
         expect(readConfig).toEqual(["run", "--rm", "--network=none", "--entrypoint", "cat", runtimeImage, "/etc/docker/daemon.json"]);
         const daemon = JSON.parse(await readFile(join(control, "daemon.json"), "utf8"));
-        expect(daemon).toEqual({ hosts: ["unix:///control/docker.sock"], "runtime-setting": "preserved", "storage-driver": "erofs" });
+        expect(daemon).toEqual({ hosts: ["unix:///control/docker.sock"], "runtime-setting": "preserved", "storage-driver": driver });
+        expect(await readFile(join(control, "containerd.toml"), "utf8")).toBe(driver === "overlayfs"
+          ? 'default = ["walking"]'
+          : 'default = ["erofs", "walking"]');
       }
       if (["warm", "stopped"].includes(scenario)) expect(run).toBeUndefined();
       else {
