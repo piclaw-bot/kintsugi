@@ -13,9 +13,11 @@ export function cpuPercent(before: number, after: number, elapsedMs: number, cor
 export function effectiveCpu(limits: string[], cpus: number): number {
   return limits.reduce((limit, text) => { const [quota, period] = text.trim().split(/\s+/); return quota === "max" ? limit : Math.min(limit, Number(quota) / Number(period)); }, cpus);
 }
+/** Returns null when the filesystem has no fixed pool, like Btrfs inodes. */
 export function filesystemUsage(text: string) {
   const fields = text.trim().split("\n").at(-1)!.trim().split(/\s+/);
   if (fields.length < 6) throw new Error("Unrecognized filesystem usage output");
+  if (fields[1] === "0" && fields[4] === "-") return null;
   const size = Number(fields[1]);
   const used = Number(fields[2]);
   const available = Number(fields[3]);
@@ -71,14 +73,16 @@ export async function sampleHost(root: string, effectiveMemory: number): Promise
       return readings.join("\n");
     })),
     probe("Disk space", async () => {
-      const usage = filesystemUsage(await command(["df", "-P", "-B1", "/data"]));
+      const usage = filesystemUsage(await command(["df", "-P", "-B1", "/data"]))!;
       metrics.push({ id: "diskSpace", value: `${usage.percent}% used · ${bytes(usage.available)} free`, warning: usage.percent >= 90 });
-      return command(["df", "-h", "/", "/data", "/var/lib/docker"]);
+      return command(["df", "-h", "/", "/data"]);
     }),
     probe("Disk inodes", async () => {
       const usage = filesystemUsage(await command(["df", "-P", "-i", "/data"]));
-      metrics.push({ id: "diskInodes", value: `${usage.percent}% used · ${usage.available.toLocaleString("en-US")} free`, warning: usage.percent >= 90 });
-      return command(["df", "-i", "/", "/data", "/var/lib/docker"]);
+      metrics.push(usage
+        ? { id: "diskInodes", value: `${usage.percent}% used · ${usage.available.toLocaleString("en-US")} free`, warning: usage.percent >= 90 }
+        : { id: "diskInodes", value: "No fixed limit" });
+      return command(["df", "-i", "/", "/data"]);
     }),
     probe("Processes · CPU (lifetime average)", () => command(["sh", "-c", "ps -eo pid,ppid,user,pcpu,rss,stat,comm --sort=-pcpu | head -21"])),
     probe("Processes · resident memory", () => command(["sh", "-c", "ps -eo pid,ppid,user,pcpu,rss,stat,comm --sort=-rss | head -21"])),

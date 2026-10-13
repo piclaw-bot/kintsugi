@@ -34,6 +34,7 @@ test("CPU uses interval usage and the tightest ancestor quota", () => {
 });
 test("disk and inode usage validate df output", () => {
   expect(filesystemUsage("Filesystem 1024-blocks Used Available Capacity Mounted on\n/dev/sda1 100 91 9 91% /data")).toEqual({ size: 100, used: 91, available: 9, percent: 91 });
+  expect(filesystemUsage("Filesystem Inodes IUsed IFree IUse% Mounted on\n/dev/loop0 0 0 0 - /data")).toBeNull();
   expect(() => filesystemUsage("broken")).toThrow();
 });
 test("control boundary rejects unknown operations, session injection and invalid dimensions", () => {
