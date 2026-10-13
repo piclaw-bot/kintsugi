@@ -62,7 +62,7 @@ async function codexStatus(tx: Tx, record: DurableAgentRecord): Promise<JsonValu
   if (status === "failed") return { errored: assignment?.result ?? "Agent failed" };
   return status === "closed" ? "shutdown" : status === "pending" ? "pending_init" : status;
 }
-function output(value: JsonValue) { return { content: [{ type: "text" as const, text: value === "" ? "" : JSON.stringify(value) }] }; }
+function output(value: JsonValue) { return { output: [{ type: "text" as const, text: value === "" ? "" : JSON.stringify(value) }] }; }
 
 /** All effects are journal transactions or receipt-addressed native admissions. */
 export function createNativeDelegationExtension(harness: () => Harness) {

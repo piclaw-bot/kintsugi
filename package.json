@@ -8,11 +8,11 @@
       "packages/*"
     ],
     "catalog": {
-      "@earendil-works/pi-ai": "1.1.0",
-      "@earendil-works/pi-coding-agent": "1.0.0",
+      "@earendil-works/pi-ai": "1.2.0",
+      "@earendil-works/pi-coding-agent": "1.2.0",
       "@gespenst/core": "0.1.1",
-      "@earendil-works/pi-durable": "1.1.0",
-      "@earendil-works/chord": "1.1.0"
+      "@earendil-works/pi-durable": "1.2.0",
+      "@earendil-works/chord": "1.2.0"
     }
   },
   "scripts": {
@@ -44,6 +44,6 @@
   },
   "patchedDependencies": {
     "@gespenst/core@0.1.1": "patches/@gespenst%2Fcore@0.1.1.patch",
-    "@earendil-works/pi-durable@1.1.0": "patches/@earendil-works%2Fpi-durable@1.1.0.patch"
+    "@earendil-works/pi-durable@1.2.0": "patches/@earendil-works%2Fpi-durable@1.2.0.patch"
   }
 }

@@ -17,7 +17,7 @@ function fakePi() {
   const executions: unknown[][] = [];
   const notices: string[] = [];
   let active: string[] = [];
-  const partial: Pick<ExtensionAPI, "on" | "registerMcpServer" | "getMcpServers" | "registerCommand" | "registerTool" | "getAllTools" | "getActiveTools" | "setActiveTools" | "exec"> = {
+  const partial: Pick<ExtensionAPI, "on" | "registerMcpServer" | "getMcpServers" | "registerCommand" | "registerTool" | "registerToolRenderer" | "getAllTools" | "getActiveTools" | "setActiveTools" | "exec"> = {
     on(name: string, handler: FakeHandler) {
       handlers.set(name, [...(handlers.get(name) ?? []), handler]);
       return () => { handlers.set(name, handlers.get(name)!.filter((entry) => entry !== handler)); };
@@ -25,6 +25,7 @@ function fakePi() {
     registerMcpServer(name: string, config: McpServerConfig) { servers.set(name, config); },
     getMcpServers() { return [...servers].map(([name, config]) => ({ name, config, extensionPath: "pi-kintsugi" })); },
     registerCommand() {},
+    registerToolRenderer() {},
     registerTool(tool: ToolDefinition<any, any>) { tools.set(tool.name, tool); },
     getAllTools(): ToolInfo[] { return [...tools.values()].map((tool) => ({ ...tool, exposure: tool.exposure ?? "direct", sourceInfo: { source: "extension", path: "pi-kintsugi", scope: "temporary", origin: "top-level" } })); },
     getActiveTools() { return active; },
@@ -100,7 +101,7 @@ test("Pi native MCP discovers Kintsugi tools and does not duplicate native promp
   expect([...f.tools.keys()].filter((name) => name.startsWith("mcp__"))).toEqual(["mcp__kintsugi__present", "mcp__kintsugi__fail"]);
   const present = f.tools.get("mcp__kintsugi__present")!;
   expect(present.exposure).toBe("deferred");
-  expect(present.namespace).toEqual({ name: "mcp__kintsugi", instructions: undefined });
+  expect(present.namespace).toEqual({ name: "mcp__kintsugi", aliases: ["kintsugi"] });
   const updates: string[] = [];
   const result = await present.execute("call", { kind: "browser" }, undefined, (update) => {
     updates.push(update.content[0]!.type === "text" ? update.content[0]!.text : "image");

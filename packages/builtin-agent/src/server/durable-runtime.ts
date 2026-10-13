@@ -431,7 +431,7 @@ export async function openDurableAgentRuntime(
               if (current && current.status !== "done") {
                 const cancellation = `<harnass>\nThe user manually cancelled this tool with the following note:\n${message}\n</harnass>`;
                 current.abortResult = {
-                  content: [{ type: "text", text: current.output ? `${current.output}\n\n${cancellation}` : cancellation }],
+                  output: [{ type: "text", text: current.output ? `${current.output}\n\n${cancellation}` : cancellation }],
                   isError: true,
                   details: isJsonObject(current.details) ? { ...current.details, aborted: true } : { aborted: true },
                 };

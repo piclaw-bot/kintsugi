@@ -220,7 +220,7 @@ test("committed watches reconnect with complete state; disconnecting a viewer do
       api.output("Committed output");
       started.resolve();
       await finish.promise;
-      return { content: [{ type: "text", text: "Completed output" }] };
+      return { output: [{ type: "text", text: "Completed output" }] };
     },
   })] }));
   faux.setResponses([
@@ -490,7 +490,7 @@ test("recovery cannot replay a tool until the execution workspace is ready", asy
     name: "probe", description: "Replay only after readiness", parameters: Type.Object({}), replay: "safe",
     async execute(_args, _api, invocation) {
       executions++;
-      if (executions > 1) return { content: [{ type: "text", text: "Recovered tool" }] };
+      if (executions > 1) return { output: [{ type: "text", text: "Recovered tool" }] };
       started.resolve();
       return new Promise<never>((_resolve, reject) => {
         invocation.abortSignal!.addEventListener("abort", () => reject(invocation.abortSignal!.reason), { once: true });
@@ -562,7 +562,7 @@ test("resetting an idle root cannot recover another root before readiness", asyn
     name: "probe", description: "Replay after readiness", parameters: Type.Object({}), replay: "safe",
     async execute(_args, _api, invocation) {
       executions++;
-      if (executions > 1) return { content: [{ type: "text", text: "Recovered" }] };
+      if (executions > 1) return { output: [{ type: "text", text: "Recovered" }] };
       started.resolve();
       return new Promise<never>((_resolve, reject) => {
         invocation.abortSignal!.addEventListener("abort", () => reject(invocation.abortSignal!.reason), { once: true });
@@ -767,7 +767,7 @@ test("Stop does not signal another root's active tool", async () => {
       signals.push(invocation.abortSignal!);
       starts[index]!.resolve();
       await Promise.race([release.promise, new Promise<never>((_resolve, reject) => invocation.abortSignal!.addEventListener("abort", () => reject(invocation.abortSignal!.reason), { once: true }))]);
-      return { content: [{ type: "text", text: "Independent completion" }] };
+      return { output: [{ type: "text", text: "Independent completion" }] };
     },
   })] }));
   faux.setResponses([
@@ -884,7 +884,7 @@ test("owner resumes retained work and emits completion without callers acquiring
   registry.install(defineExtension({ name: "unmounted-recovery", tools: [defineTool({
     name: "recover", description: "Resume retained execution", parameters: Type.Object({}), replay: "safe",
     async execute(_args, _api, invocation) {
-      if (++executions > 1) return { content: [{ type: "text", text: "Recovered" }] };
+      if (++executions > 1) return { output: [{ type: "text", text: "Recovered" }] };
       started.resolve();
       return new Promise<never>((_resolve, reject) => invocation.abortSignal!.addEventListener("abort", () => reject(invocation.abortSignal!.reason), { once: true }));
     },
@@ -990,7 +990,7 @@ test.each([undefined, "   ", "  Try a narrower search instead.  "])("aborting on
       if (++running === 2) started.resolve();
       if (!args.stop) {
         await survivor.promise;
-        return { content: [{ type: "text", text: "Other tool completed" }] };
+        return { output: [{ type: "text", text: "Other tool completed" }] };
       }
       return new Promise<never>((_resolve, reject) => {
         invocation.abortSignal!.addEventListener("abort", () => {

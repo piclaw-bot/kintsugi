@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { getCustomModelsJson, getEnabledModels, loginPiOAuthProvider, readGitHubCopilotUsageToken, setCustomModelsJson, setEnabledModels, validateModelProviderApiKey } from "../../src/server/pi-config-models.ts";
 import { updateJsonSettings } from "@kintsugi/core/json-settings";
+import { ModelRuntime } from "@earendil-works/pi-coding-agent";
 let dataDir: string;
 beforeEach(async () => {
   dataDir = await mkdtemp(join(tmpdir(), "kintsugi-llm-models-"));
@@ -78,6 +79,43 @@ describe("enabled model storage", () => {
 });
 
 describe("custom Pi model configuration", () => {
+  test("review the Codex Sol override when Pi's bundled context limit changes", async () => {
+    // No app configuration, stored catalogue restoration, or network refresh:
+    // this must inspect the default shipped by the installed Pi dependency.
+    const upstream = await ModelRuntime.create({ modelsPath: null, allowModelNetwork: false, refreshOnCreate: false });
+    expect(
+      upstream.getModel("openai-codex", "gpt-6.1-sol")?.contextWindow,
+      "Upstream changed Codex Sol's context limit. Review or remove our 500k override in pi-config-models.ts.",
+    ).toBe(272000);
+  });
+
+  test("Codex Sol defaults to 500k through catalogue refresh without changing other models", async () => {
+    await setCustomModelsJson("");
+    expect(await getCustomModelsJson()).toBe("");
+    const runtime = await ModelRuntime.create({ modelsPath: join(dataDir, "pi-config", "models.json"), allowModelNetwork: false, refreshOnCreate: false });
+    const official = await ModelRuntime.create({ modelsPath: null, allowModelNetwork: false, refreshOnCreate: false });
+    const expected = { ...official.getModel("openai-codex", "gpt-6.1-sol")!, contextWindow: 500000 };
+    expect(runtime.getModel("openai-codex", "gpt-6.1-sol")).toEqual(expected);
+    for (const model of official.getModels()) {
+      if (model.provider === "openai-codex" && model.id === "gpt-6.1-sol") continue;
+      expect(runtime.getModel(model.provider, model.id)).toEqual(model);
+    }
+    await runtime.refresh({ allowNetwork: false });
+    expect(runtime.getModel("openai-codex", "gpt-6.1-sol")).toEqual(expected);
+    expect(runtime.getModels("openai-codex").find(model => model.id === "gpt-6.1-sol")).toEqual(expected);
+  });
+
+  test("explicit Sol overrides and other provider settings are preserved", async () => {
+    const providers = { "openai-codex": { modelOverrides: { "gpt-6.1-sol": { contextWindow: 400000, maxTokens: 64000 }, "gpt-6-luna": { contextWindow: 100000 } } } };
+    await setCustomModelsJson(JSON.stringify({ providers }));
+    expect(JSON.parse(await getCustomModelsJson())).toEqual({ providers });
+    const runtime = await ModelRuntime.create({ modelsPath: join(dataDir, "pi-config", "models.json"), allowModelNetwork: false, refreshOnCreate: false });
+    expect(runtime.getModel("openai-codex", "gpt-6.1-sol")).toMatchObject({ contextWindow: 400000, maxTokens: 64000 });
+    expect(runtime.getModel("openai-codex", "gpt-6-luna")!.contextWindow).toBe(100000);
+    await setCustomModelsJson("");
+    await runtime.refresh({ allowNetwork: false });
+    expect(runtime.getModel("openai-codex", "gpt-6.1-sol")!.contextWindow).toBe(500000);
+  });
   test("rejects malformed JSON and invalid Pi model definitions without replacing saved configuration", async () => {
     const valid = JSON.stringify({ providers: { "openai-codex": { models: [{ id: "future-model" }] } } });
     await setCustomModelsJson(valid);

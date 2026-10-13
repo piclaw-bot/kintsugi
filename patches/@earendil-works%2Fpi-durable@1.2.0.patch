@@ -1,0 +1,41 @@
+--- a/dist/harness/live.d.ts
++++ b/dist/harness/live.d.ts
+@@ -3,7 +3,7 @@
+ import type { Transaction } from "../session/transaction.ts";
+ import type { EntryId, JsonObject, SubmissionId, SubmissionSettlement, TaskId, TaskRecord, Tx } from "../types.ts";
+ import type { SchedulerOutcome } from "./scheduler.ts";
+-import type { CompactionReason, CompactionResult, ToolDiagnostic } from "./types.ts";
++import type { CompactionReason, CompactionResult, ToolDiagnostic, ToolExecutionResult } from "./types.ts";
+ /** What a running tool call publishes, shared by model-issued and nested calls. */
+ type SlotProgress = {
+     callId: string;
+@@ -17,6 +17,8 @@
+     details?: JsonValue;
+     /** Diagnostics recorded through `api.diagnostic()`. */
+     diagnostics?: ToolDiagnostic[];
++    /** Durable result override for explicit cancellation; does not affect normal completion. */
++    abortResult?: JsonRepresentation<ToolExecutionResult>;
+ };
+ /** Presentation of one tool call of the current round. */
+ export type ToolSlot = SlotProgress & {
+--- a/dist/harness/live.js
++++ b/dist/harness/live.js
+@@ -92,6 +92,7 @@
+  */
+ export function finishSlot(slot) {
+     slot.status = "done";
++    delete slot.abortResult;
+     clearProgress(slot);
+ }
+ /** Remove the nested slots below tool task `taskId`, transitively; the list holds parents before their children. */
+--- a/dist/harness/tool.js
++++ b/dist/harness/tool.js
+@@ -127,7 +127,7 @@
+                 ? ["interrupted", `Tool ${call.name} was interrupted by a restart and may have partially run`]
+                 : ["abandoned", `Tool ${call.name} was not started: its caller ended with a restart`];
+         const ending = { status: "aborted" };
+-        await settle(runtime, task.input, call, ending, (slot) => fromSlot(slot, code, message), context);
++        await settle(runtime, task.input, call, ending, (slot) => slot?.abortResult ?? fromSlot(slot, code, message), context);
+     },
+ });
+ /** The called tool: among the tools the model is offered for a model-issued call, else among those tools may call. */

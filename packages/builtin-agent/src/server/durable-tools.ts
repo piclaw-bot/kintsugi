@@ -50,7 +50,7 @@ export function durableWorkspaceTool<TParams extends TSchema>(
         await updates;
         if (failures.length) throw failures[0];
         return {
-          content: result.content,
+          output: result.content,
           details: result.details === undefined ? undefined : copyJson(result.details, { omitUndefinedProperties: true }),
         };
       } finally {
@@ -74,7 +74,7 @@ export function createDurableReadTool(cwd: string, models: Pick<Models, "getMode
         resizeOptions: model?.inputLimits?.images?.resize ?? options.resizeOptions,
       }), "safe");
       const result = await tool.execute(args, api, context);
-      if (model && !model.input.includes("image") && result.content?.some((part) => part.type === "image")) {
+      if (model && !model.input.includes("image") && result.output?.some((part) => part.type === "image")) {
         // Retain the image in history for viewing and future vision models. Pi AI
         // omits it from non-vision requests; make that limitation model-visible.
         api.diagnostic({ severity: "info", code: "non_vision_model", message: "Current model does not support images. The image will be omitted from this request." });

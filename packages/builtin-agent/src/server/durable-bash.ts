@@ -101,14 +101,14 @@ export function createDurableBashExtension(workspaceId: string, operations: Bash
       if (settled.state.outcome.status !== "completed") throw new Error(`Command operation ${settled.state.outcome.status}`);
       const receipt = settled.state.outcome.result;
       if (receipt.status === "running") throw new Error("Command operation completed without a terminal receipt");
-      if (receipt.status === "uncertain") return { isError: true, content: [{ type: "text", text: receipt.message }] };
+      if (receipt.status === "uncertain") return { isError: true, output: [{ type: "text", text: receipt.message }] };
       const formatted = formatBashOutput(receipt.output, receipt.displayAnsi, receipt.fullOutputPath);
       let text = formatted.output || "(no output)";
       if (receipt.aborted) text += "\n\nCommand aborted";
       else if (receipt.timedOut) text += `\n\nCommand timed out after ${input.timeout} seconds`;
       else if (receipt.exitCode !== 0) text += `\n\nCommand exited with code ${receipt.exitCode}`;
       return {
-        content: [{ type: "text", text }],
+        output: [{ type: "text", text }],
         details: { workspaceId, exitCode: receipt.exitCode, displayAnsi: formatted.displayAnsi, aborted: receipt.aborted,
           timedOut: receipt.timedOut, fullOutputPath: receipt.fullOutputPath },
       };

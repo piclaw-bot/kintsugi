@@ -138,6 +138,19 @@ function withoutOfficialModelDuplicates(providers: JsonObject, officialRuntime: 
 
 async function materializeCustomModelProviders(providers: JsonObject): Promise<CustomModelsSaveResult> {
   const filtered = withoutOfficialModelDuplicates(providers, await ModelRuntime.create({ modelsPath: null, allowModelNetwork: false, refreshOnCreate: false }));
+  // Codex raised Sol's default context to 500k on 2026-10-11; Pi still ships 272k.
+  // Keep this app-owned default out of the user's custom-model source, and let
+  // explicit user overrides win. Pi reapplies modelOverrides on catalogue refresh.
+  const codex = filtered.providers["openai-codex"];
+  const codexSettings = isJsonObject(codex) ? codex : {};
+  const overrides = isJsonObject(codexSettings.modelOverrides) ? codexSettings.modelOverrides : {};
+  const sol = overrides["gpt-6.1-sol"];
+  const solSettings: JsonObject = { contextWindow: 500000 };
+  if (isJsonObject(sol)) Object.assign(solSettings, sol);
+  filtered.providers["openai-codex"] = {
+    ...codexSettings,
+    modelOverrides: { ...overrides, "gpt-6.1-sol": solSettings },
+  };
   await updateModelSettings((settings) => { settings.providers = filtered.providers; });
   return { skippedOfficialModels: filtered.skippedOfficialModels };
 }
@@ -146,7 +159,7 @@ async function preparePiModelsJson(): Promise<void> {
   const settings = await getModelSettings();
   const stored = await readStoredCustomModelProviders();
   const providers = stored ?? settings.providers ?? {};
-  if (!stored && Object.keys(providers).length) await writeJsonAtomic(piCustomModelsJsonPath(), { providers });
+  if (!stored) await writeJsonAtomic(piCustomModelsJsonPath(), { providers });
   await materializeCustomModelProviders(providers);
 }
 

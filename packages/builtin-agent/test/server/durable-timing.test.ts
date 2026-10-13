@@ -50,7 +50,7 @@ test("native hooks persist per-response timing without a viewer or model-context
   const registry = createRegistry();
   registry.install(defineExtension({ name: "test-tools", tools: [defineTool({
     name: "ping", description: "Ping", parameters: Type.Object({}), replay: "safe",
-    async execute() { return { content: [{ type: "text", text: "pong" }] }; },
+    async execute() { return { output: [{ type: "text", text: "pong" }] }; },
   })] }));
   let clock = 1000;
   registry.install(durableTiming(async (id, entry, ctx) => {
