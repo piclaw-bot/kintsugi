@@ -30,8 +30,10 @@ function claimLint(): boolean {
 
 if (claimLint()) {
   const lint = Bun.spawn([join(repoRoot, "node_modules/.bin/oxlint"), "."], { cwd: repoRoot, stdout: "pipe", stderr: "pipe" });
+  // Bun's --rerun-each invokes this hook repeatedly; consume each pipe only once.
+  const result = Promise.all([lint.exited, new Response(lint.stdout).text(), new Response(lint.stderr).text()]);
   afterAll(async () => {
-    const [code, stdout, stderr] = await Promise.all([lint.exited, new Response(lint.stdout).text(), new Response(lint.stderr).text()]);
+    const [code, stdout, stderr] = await result;
     if (code !== 0) throw new Error(`oxlint failed (run \`bun run lint\`):\n${stdout}${stderr}`);
   });
 }

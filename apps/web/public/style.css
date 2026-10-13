@@ -257,7 +257,7 @@ turbo-frame { display: contents; }
 .fixed-shell-availability-unavailable + .fixed-shell-live-body { visibility: hidden; }
 @keyframes fixed-shell-spin { to { transform: rotate(360deg); } }
 
-.fixed-shell-mobile-nav { display: none; }
+.fixed-shell-mobile-nav { --popular-button-scale: .8; display: none; }
 
 html.software-keyboard-visible .fixed-shell-app .fixed-shell-mobile-nav { display: none; }
 
@@ -303,7 +303,7 @@ html.software-keyboard-visible .fixed-shell-app .fixed-shell-mobile-nav { displa
   .fixed-shell-kintsugi-bar, .fixed-shell-mobile-scroll { gap: 20px; }
   .fixed-shell-mobile-scroll.is-compact { gap: 8px; }
   .fixed-shell-mobile-nav [hidden] { display: none; }
-  .fixed-shell-mobile-nav button > svg { width: 21px; height: 21px; }
+  .fixed-shell-mobile-nav button > svg { width: calc(21px * var(--popular-button-scale)); height: calc(21px * var(--popular-button-scale)); }
   .fixed-shell-mobile-nav :is([data-mobile-destination], [data-mobile-more], #fixed_shell_kintsugi_next_attention) > .status-dot.attention { position: absolute; top: 7px; right: calc(50% - 15px); }
   .fixed-shell-more-close-section:has([data-more-close-destination]:not([hidden])) { margin-top: 4px; padding-top: 5px; border-top: 1px solid var(--line); }
 }

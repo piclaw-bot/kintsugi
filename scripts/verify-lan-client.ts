@@ -44,12 +44,24 @@ try {
   const events = await request(values.ui, "/settings/access/events");
   assert.equal(events.status, 200); assert(events.headers.get("content-type")?.startsWith("text/event-stream"));
   const reader = events.body!.getReader(); assert((await reader.read()).value?.length); await reader.cancel(); checks.push("SSE delivered without waiting for stream completion");
-  await new Promise<void>((resolve, reject) => {
-    const socket = new WebSocket(values.ui!.replace("https:", "wss:") + "/cable", { headers: { origin: values.ui! }, tls: { ca } });
-    const timer = setTimeout(() => { socket.close(); reject(new Error("WebSocket welcome timed out")); }, 10_000);
-    socket.onmessage = event => { if (JSON.parse(String(event.data)).type === "welcome") { clearTimeout(timer); socket.close(); resolve(); } };
-    socket.onerror = () => { clearTimeout(timer); reject(new Error("WebSocket upgrade failed")); };
-  }); checks.push("CA-verified management WebSocket upgrade and welcome");
+  const live = await request(values.ui, "/cable", "POST");
+  assert.equal(live.status, 200); assert(live.headers.get("content-type")?.startsWith("text/event-stream"));
+  const liveReader = live.body!.getReader();
+  try {
+    const decoder = new TextDecoder();
+    let frame = "";
+    while (!frame.includes("\n\n")) {
+      const { value, done } = await liveReader.read();
+      assert(!done, "Live SSE ended before welcome");
+      frame += decoder.decode(value, { stream: true });
+    }
+    const data = frame.slice(0, frame.indexOf("\n\n")).split("\n").filter(line => line.startsWith("data:")).map(line => line.slice(5).trimStart()).join("\n");
+    assert.equal(JSON.parse(data).type, "welcome");
+  } finally {
+    await liveReader.cancel();
+    liveReader.releaseLock();
+  }
+  checks.push("CA-verified management SSE stream and welcome");
   if (values["preview-origin"]) {
     assert.notEqual(new URL(values["preview-origin"]).origin, values.ui);
     const preview = await request(values["preview-origin"], "/"); assert.equal(preview.status, 200);

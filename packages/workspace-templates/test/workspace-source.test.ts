@@ -40,14 +40,32 @@ async function addSubmoduleRepository(parent: { seed: string }, childRemote: str
   await run(["git", "commit", "-m", `add ${path}`], { cwd: parent.seed });
 }
 
-async function startGitDaemon(): Promise<{ urlFor(path: string): string; stop(): void }> {
+async function startGitDaemon(): Promise<{ urlFor(path: string): string; stop(): Promise<void> }> {
   const port = 20_000 + Math.floor(Math.random() * 20_000);
-  const proc = Bun.spawn(["git", "daemon", "--reuseaddr", "--export-all", "--base-path=/", "--listen=127.0.0.1", `--port=${port}`, "/"], { stdout: "ignore", stderr: "pipe" });
-  await Bun.sleep(100);
-  if (proc.exitCode !== null) throw new Error(await new Response(proc.stderr).text());
+  const proc = Bun.spawn(["git", "daemon", "--verbose", "--reuseaddr", "--export-all", "--base-path=/", "--listen=127.0.0.1", `--port=${port}`, "/"], { stdout: "ignore", stderr: "pipe" });
+  const reader = proc.stderr.getReader();
+  const decoder = new TextDecoder();
+  let output = "";
+  let timedOut = false;
+  const timer = setTimeout(() => { timedOut = true; proc.kill(); }, 5000);
+  try {
+    // Git emits this only after listening; a fixed sleep races startup on busy CI runners.
+    while (!output.includes("Ready to rumble")) {
+      const { value, done } = await reader.read();
+      if (done) throw new Error(`Git daemon ${timedOut ? "startup timed out" : "exited before listening"}: ${output}`);
+      output += decoder.decode(value, { stream: true });
+    }
+  } catch (error) {
+    proc.kill();
+    await proc.exited;
+    throw error;
+  } finally {
+    clearTimeout(timer);
+    reader.releaseLock();
+  }
   return {
     urlFor: (path) => `git://127.0.0.1:${port}${path}`,
-    stop: () => proc.kill(),
+    stop: async () => { proc.kill(); await proc.exited; },
   };
 }
 
@@ -231,7 +249,7 @@ describe("workspace source preparation", () => {
       expect(await Bun.file(join(source.worktreePath, "deps", "middle", "vendor", "leaf", "file.txt")).text()).toBe("one\n");
       expect((await run(["git", "-C", source.worktreePath, "submodule", "status", "--recursive"])).stdout.split("\n").filter(Boolean).every((line) => line.startsWith(" "))).toBe(true);
     } finally {
-      daemon.stop();
+      await daemon.stop();
     }
   });
 

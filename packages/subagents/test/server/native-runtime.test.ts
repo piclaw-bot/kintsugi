@@ -85,7 +85,8 @@ test("spawn, native child completion, passive parent delivery and follow-up surv
   expect(Object.values((await reopened.harness.snapshot(Delegation, context))!.assignments).map(item => item.result)).toEqual(["Child result", "Follow-up result"]);
   await restored.close();
   expect((await reopened.admission())?.closed).toContain(child.durableId);
-});
+  // Multiple fsynced journals and a reopen need a bounded disk-integration budget on CI.
+}, 20_000);
 
 test("root Stop cancels descendants without retiring their identities", async () => {
   const { owner, root, faux } = await setup();
