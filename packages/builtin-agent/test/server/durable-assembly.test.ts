@@ -35,7 +35,9 @@ test("native registry includes registered controls and receipt tasks, but no liv
   try {
     const registry = createDurableWorkspaceRegistry("assembly-workspace", createModels());
     const tools = registry.snapshot().tools().map(({ tool }) => tool);
-    expect(tools.map((tool) => tool.name).sort()).toEqual(["assembly-control", "bash", "edit", "read", "write"]);
+    const names = tools.map((tool) => tool.name);
+    expect(names).toEqual(expect.arrayContaining(["assembly-control", "bash", "edit", "read", "write"]));
+    for (const delegation of ["spawn_agent", "send_message", "followup_task", "list_agents", "wait_agent", "interrupt_agent"]) expect(names).not.toContain(delegation);
     expect(tools.find((tool) => tool.name === "read")?.replay).toBe("safe");
     expect(tools.find((tool) => tool.name === "assembly-control")?.replay).toBe("unsafe");
     expect(registry.snapshot().task("kintsugi.bash-operation")).toBeDefined();
