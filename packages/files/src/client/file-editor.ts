@@ -6,7 +6,7 @@ import { closeBrackets, closeBracketsKeymap } from "@codemirror/autocomplete";
 import { defaultKeymap, history, historyKeymap, indentWithTab } from "@codemirror/commands";
 import { bracketMatching, HighlightStyle, indentOnInput, syntaxHighlighting } from "@codemirror/language";
 import { highlightSelectionMatches, searchKeymap } from "@codemirror/search";
-import { EditorState } from "@codemirror/state";
+import { Compartment, EditorState } from "@codemirror/state";
 import { drawSelection, EditorView, highlightActiveLine, keymap } from "@codemirror/view";
 import { tags } from "@lezer/highlight";
 import { editFileText, editorText, type FileTextChange } from "../editable-text.ts";
@@ -16,6 +16,7 @@ import { languageExtension } from "./editor-language.ts";
 
 // Retain drafts and in-flight writes across Turbo frame replacements.
 const drafts = new Map<string, FileDraft>();
+const wrapStorageKey = "kintsugi:file-editor-wrap";
 const backupErrors = new WeakMap<FileDraft, string>();
 
 function fileDraft(url: string, file: EditableFileResponse): FileDraft {
@@ -76,7 +77,7 @@ type EditorRefreshDetail = { workspaceId: string };
 export function createFileEditorController(Controller: WorkspaceClientControllerConstructor): WorkspaceClientControllerConstructor {
   return class FileEditorController extends Controller {
     static values = { workspaceId: String, path: String, contentUrl: String, line: Number, column: Number, positionRequest: String };
-    static targets = ["host", "loading", "status", "conflict", "conflictMine", "conflictTheirs", "renderedMarkdown", "markdownDisplayOptions", "copyButton"];
+    static targets = ["host", "loading", "status", "conflict", "conflictMine", "conflictTheirs", "renderedMarkdown", "markdownDisplayOptions", "copyButton", "wrapToggle"];
 
     declare readonly element: HTMLElement;
     declare readonly workspaceIdValue: string;
@@ -93,9 +94,12 @@ export function createFileEditorController(Controller: WorkspaceClientController
     declare readonly renderedMarkdownTarget: HTMLElement;
     declare readonly markdownDisplayOptionsTarget: HTMLElement;
     declare readonly copyButtonTarget: HTMLButtonElement;
+    declare readonly wrapToggleTarget: HTMLButtonElement;
     declare readonly hasRenderedMarkdownTarget: boolean;
 
     private view?: EditorView;
+    private readonly wrapping = new Compartment();
+    private wrap = true;
     private connection!: AbortController;
     private markdownRenderSequence = 0;
     private draft?: FileDraft;
@@ -113,6 +117,8 @@ export function createFileEditorController(Controller: WorkspaceClientController
       this.copyButtonTarget.disabled = true;
       this.copyButtonTarget.dataset.copyText = "";
       this.setStatus("Loading…", "");
+      this.wrap = localStorage.getItem(wrapStorageKey) !== "false";
+      this.wrapToggleTarget.setAttribute("aria-checked", String(this.wrap));
       this.showSource();
       window.addEventListener("beforeunload", (event) => {
         if ([...drafts.values()].some((draft) => draft.dirty)) {
@@ -155,6 +161,13 @@ export function createFileEditorController(Controller: WorkspaceClientController
       }
     }
 
+    toggleWrap(): void {
+      this.wrap = !this.wrap;
+      localStorage.setItem(wrapStorageKey, String(this.wrap));
+      this.wrapToggleTarget.setAttribute("aria-checked", String(this.wrap));
+      this.view?.dispatch({ effects: this.wrapping.reconfigure(this.wrap ? EditorView.lineWrapping : []) });
+    }
+
     useTheirs(): void {
       this.draft!.accept(this.draft!.conflict!);
     }
@@ -175,7 +188,7 @@ export function createFileEditorController(Controller: WorkspaceClientController
         state: EditorState.create({
           doc: editorText(this.draft.content),
           extensions: [
-            EditorView.lineWrapping,
+            this.wrapping.of(this.wrap ? EditorView.lineWrapping : []),
             history(),
             drawSelection(),
             highlightActiveLine(),

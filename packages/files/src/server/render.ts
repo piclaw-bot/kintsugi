@@ -5,6 +5,7 @@ import { buttonGroupHtml } from "@kintsugi/design-system/button-group";
 import { copyButtonHtml } from "@kintsugi/design-system/copy-button";
 import { dialogHtml } from "@kintsugi/design-system/dialog";
 import { Icons } from "@kintsugi/design-system/icons";
+import { popupHtml } from "@kintsugi/design-system/popup";
 import { toggleHtml } from "@kintsugi/design-system/toggle";
 import { domId, escapeHtml, formatBytes, workspaceFileOpenUrl, workspaceProxyUrl, type WorkspaceWorkViewPresentation } from "@kintsugi/shared";
 import { workspaceRoot } from "@kintsugi/workspace";
@@ -223,6 +224,14 @@ function markdownDisplayToggle(): string {
   });
 }
 
+function displayMenu(workspaceId: string, viewId: string): string {
+  return popupHtml({
+    id: domId("files", workspaceId, viewId, "display"), label: "Display options",
+    trigger: { variant: "secondary", content: { kind: "icon-only", iconHtml: Icons.Settings, label: "Display options" } },
+    contentHtml: contentRowHtml({ width: "fill", kind: "compact", label: { kind: "text", text: "Wrap long lines" }, trailingHtml: `<span class="file-editor-menu-check">${Icons.Check}</span>`, element: { tag: "button", attributesHtml: 'type="button" role="menuitemcheckbox" aria-checked="true" data-file-editor-target="wrapToggle" data-action="file-editor#toggleWrap"' } }),
+  });
+}
+
 export function renderFilesEditorFrame(workspaceId: string, view: FilesView, previewKind: FilePreviewKind = isImageFile(view.path ?? "") ? "image" : "text", previewError?: string): string {
   const frameId = filesEditorFrameId(workspaceId, view.id);
   if (!view.path) return `<turbo-frame id="${frameId}" class="files-editor-frame"><section class="file-editor-pane files-editor-empty"><header class="file-editor-toolbar work-view-toolbar"><span class="file-editor-path">Choose a file</span>${filesNavigatorToggle("expand")}</header><p>Select a file to view or edit. Drop files into the Files navigator to upload, or create them in Terminal and choose Refresh.</p></section></turbo-frame>`;
@@ -256,7 +265,7 @@ export function renderFilesEditorFrame(workspaceId: string, view: FilesView, pre
   const markdown = /\.(?:md|markdown)$/i.test(view.path);
   const editorId = `${frameId}_${Bun.hash(view.path).toString(16)}`;
   return `<turbo-frame id="${frameId}" class="files-editor-frame" data-controller="file-editor-navigation" data-file-editor-navigation-editor-value="${escapeHtml(editorId)}" data-file-editor-navigation-request-value="${filesNavigationRequest(workspaceId, view.id)}" data-file-editor-navigation-line-value="${view.line ?? 0}" data-file-editor-navigation-column-value="${view.column ?? 0}"><section class="file-editor-pane" id="${escapeHtml(editorId)}" data-turbo-permanent data-controller="file-editor" data-file-editor-workspace-id-value="${escapeHtml(workspaceId)}" data-file-editor-path-value="${escapeHtml(view.path)}" data-file-editor-content-url-value="${escapeHtml(contentUrl)}" data-file-editor-line-value="${view.line ?? 0}" data-file-editor-column-value="${view.column ?? 0}">
-    <header class="file-editor-toolbar work-view-toolbar"><span class="file-editor-path" title="${escapeHtml(view.path)}">${escapeHtml(view.path)}</span><span class="file-editor-toolbar-actions">${markdown ? markdownDisplayToggle() : ""}<span class="file-editor-status" data-file-editor-target="status">Loading…</span>${refreshButton()}${selectedFileActions(workspaceId, view)}${filesNavigatorToggle("expand")}</span></header>
+    <header class="file-editor-toolbar work-view-toolbar"><span class="file-editor-path" title="${escapeHtml(view.path)}">${escapeHtml(view.path)}</span><span class="file-editor-toolbar-actions">${markdown ? markdownDisplayToggle() : ""}<span class="file-editor-status" data-file-editor-target="status">Loading…</span>${refreshButton()}${displayMenu(workspaceId, view.id)}${selectedFileActions(workspaceId, view)}${filesNavigatorToggle("expand")}</span></header>
     <div class="file-editor-host" data-file-editor-target="host"><div class="file-editor-loading" data-file-editor-target="loading" role="status"><i class="status-spinner sm" aria-hidden="true"></i><span>Loading file…</span></div></div>
     ${markdown ? `<div class="file-editor-rendered-markdown markdown" data-file-editor-target="renderedMarkdown" hidden></div>` : ""}
     ${fileConflictDialog()}
