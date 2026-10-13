@@ -346,3 +346,32 @@ test("known premium placeholders don't suppress renamed buckets carrying real co
   expect(usage.windows[0]!.usedPercent).toBe(13);
   expect(usage.allowances?.find((allowance) => allowance.selected)).toMatchObject({ sourceQuotaId: "premium_new_credits", creditsUsed: 31 });
 });
+
+// Ported from upstream 75d53ea3 without replacing Kintsugi's allowance normalization.
+for (const [host, expected] of [
+  ["github.example.ghe.com", "https://api.github.example.ghe.com/copilot_internal/user"],
+  ["https://github.example.ghe.com/", "https://api.github.example.ghe.com/copilot_internal/user"],
+  ["api.github.example.ghe.com", "https://api.github.example.ghe.com/copilot_internal/user"],
+] as const) {
+  test(`Copilot usage follows the enterprise issuer ${host}`, async () => {
+    const usage = await fetchGitHubCopilotSubscriptionUsage("enterprise-oauth", async (url, init) => {
+      expect(url).toBe(expected);
+      expect(new Headers(init.headers).get("authorization")).toBe("token enterprise-oauth");
+      return Response.json(payload());
+    }, host);
+    expect(usage.windows[0]!.usedPercent).toBe(30);
+  });
+}
+
+for (const host of ["http://github.example.com", "https://user:do-not-reflect@github.example.com", "https://github.example.com/path", "https://github.example.com?token=do-not-reflect", "https://github.example.com#fragment", "https://github.example.com:8443", "not a hostname"]) {
+  test(`invalid enterprise metadata is rejected before credentials are sent: ${host}`, async () => {
+    let requested = false;
+    const error = await fetchGitHubCopilotSubscriptionUsage("fixture-secret", async () => { requested = true; return Response.json(payload()); }, host).catch((error: Error) => error);
+    expect(requested).toBe(false);
+    expect(error).toBeInstanceOf(Error);
+    if (!(error instanceof Error)) throw new Error("Expected a credential error");
+    expect(error.message).toContain("Reconnect GitHub Copilot");
+    expect(error.message).not.toContain("fixture-secret");
+    expect(error.message).not.toContain("do-not-reflect");
+  });
+}

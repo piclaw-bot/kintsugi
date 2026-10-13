@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { getCustomModelsJson, getEnabledModels, loginPiOAuthProvider, readGitHubCopilotUsageToken, setCustomModelsJson, setEnabledModels, validateModelProviderApiKey } from "../../src/server/pi-config-models.ts";
+import { getCustomModelsJson, getEnabledModels, loginPiOAuthProvider, readGitHubCopilotUsageToken, readGitHubCopilotUsageCredentials, setCustomModelsJson, setEnabledModels, validateModelProviderApiKey } from "../../src/server/pi-config-models.ts";
 import { updateJsonSettings } from "@kintsugi/core/json-settings";
 import { ModelRuntime } from "@earendil-works/pi-coding-agent";
 let dataDir: string;
@@ -162,4 +162,17 @@ describe("custom Pi model configuration", () => {
     expect(first).toMatch(/^urn:uuid:[0-9a-f-]{36}$/);
     expect(await agentHostId()).toBe(first);
   });
+});
+
+test("Copilot usage reads the token and enterprise host from one stored credential without altering it", async () => {
+  const path = join(dataDir, "pi-config", "auth.json");
+  await updateJsonSettings(path, settings => { settings["github-copilot"] = { type: "oauth", refresh: "enterprise-oauth", access: "inference-token", expires: 0, enterpriseUrl: "github.example.ghe.com" }; });
+  const before = await readFile(path, "utf8");
+  expect(await readGitHubCopilotUsageCredentials()).toEqual({ token: "enterprise-oauth", enterpriseUrl: "github.example.ghe.com" });
+  expect(await readFile(path, "utf8")).toBe(before);
+});
+
+test("malformed Copilot enterprise metadata is a safe reconnect error", async () => {
+  await updateJsonSettings(join(dataDir, "pi-config", "auth.json"), settings => { settings["github-copilot"] = { type: "oauth", refresh: "fixture-secret", enterpriseUrl: 42 }; });
+  await expect(readGitHubCopilotUsageCredentials()).rejects.toThrow("enterprise sign-in metadata is invalid");
 });

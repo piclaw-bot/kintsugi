@@ -65,11 +65,26 @@ function quotaSnapshots(raw: Static<typeof payloadSchema>["quota_snapshots"], un
   return snapshots;
 }
 
+/** Credentials belong to the signed-in GitHub host. Never reflect invalid metadata into an error. */
+function usageEndpoint(enterpriseUrl: string | undefined): string {
+  const host = enterpriseUrl?.trim();
+  if (!host) return "https://api.github.com/copilot_internal/user";
+  const invalid = () => new SubscriptionUsageError("GitHub Copilot enterprise sign-in metadata is invalid. Reconnect GitHub Copilot.");
+  let url: URL;
+  try { url = new URL(host.includes("://") ? host : `https://${host}`); }
+  catch { throw invalid(); }
+  if (url.protocol !== "https:" || url.username || url.password || url.port || url.pathname !== "/" || url.search || url.hash) throw invalid();
+  const domain = url.hostname;
+  if (!/^[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?$/.test(domain)) throw invalid();
+  const apiHost = domain.startsWith("api.") ? domain : `api.${domain}`;
+  return `https://${apiHost}/copilot_internal/user`;
+}
+
 /** GitHub's internal Copilot endpoint, also used by PiClaw and CodexBar. Requires the GitHub
  * OAuth token stored as `refresh`, not Pi's resolved Copilot inference token. */
-export async function fetchGitHubCopilotSubscriptionUsage(githubToken: string, fetcher: Fetcher = fetch): Promise<SubscriptionUsage> {
+export async function fetchGitHubCopilotSubscriptionUsage(githubToken: string, fetcher: Fetcher = fetch, enterpriseUrl?: string): Promise<SubscriptionUsage> {
   const messages = subscriptionUsageMessages("GitHub Copilot");
-  const payload = await fetchSubscriptionUsageJson("https://api.github.com/copilot_internal/user", {
+  const payload = await fetchSubscriptionUsageJson(usageEndpoint(enterpriseUrl), {
     headers: {
       Authorization: `token ${githubToken}`, Accept: "application/json",
       "Editor-Version": "vscode/1.96.2", "Editor-Plugin-Version": "copilot-chat/0.26.7",

@@ -3,6 +3,7 @@ import { providerAvailability } from "./provider-availability.ts";
 import type { ModelRef } from "./model-reference.ts";
 import { readJsonSettings, updateJsonSettings } from "@kintsugi/core/json-settings";
 import { syncSubscriptionClis } from "./subscription-cli.ts";
+import { SubscriptionUsageError } from "./subscription-usage.ts";
 import { anthropicUsageSource } from "./anthropic-subscription-usage.ts";
 import { forgetSubscriptionInference } from "./recent-subscription-activity.ts";
 import { defaultProviderModels, modelDisplayName } from "./hardcoded-provider-knowledge.ts";
@@ -229,10 +230,24 @@ export function createPiModelRuntime(): Promise<ModelRuntime> {
   })();
 }
 
-/** Read only after getAuth has let Pi refresh/serialize the Copilot credential. */
-export async function readGitHubCopilotUsageToken(): Promise<string | undefined> {
+export interface GitHubCopilotUsageCredentials { token: string; enterpriseUrl?: string }
+
+/** Read the GitHub sign-in token and its issuer together; an inference-token refresh is unnecessary. */
+export async function readGitHubCopilotUsageCredentials(): Promise<GitHubCopilotUsageCredentials | undefined> {
   const credential = (await readJsonSettings(piAuthJsonPath()))["github-copilot"];
-  return isJsonObject(credential) && credential.type === "oauth" ? jsonString(credential.refresh) : undefined;
+  if (!isJsonObject(credential) || credential.type !== "oauth") return undefined;
+  const token = jsonString(credential.refresh);
+  if (!token?.trim()) return undefined;
+  const result: GitHubCopilotUsageCredentials = { token };
+  if (credential.enterpriseUrl != null) {
+    if (!Value.Check(stringSchema, credential.enterpriseUrl)) throw new SubscriptionUsageError("GitHub Copilot enterprise sign-in metadata is invalid. Reconnect GitHub Copilot.");
+    result.enterpriseUrl = credential.enterpriseUrl;
+  }
+  return result;
+}
+
+export async function readGitHubCopilotUsageToken(): Promise<string | undefined> {
+  return (await readGitHubCopilotUsageCredentials())?.token;
 }
 
 export type PiAuthPrompt = AuthPrompt;

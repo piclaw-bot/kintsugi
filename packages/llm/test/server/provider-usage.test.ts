@@ -12,7 +12,7 @@ test("Copilot account usage does not depend on resolving its inference token", a
         getAuth: async () => { throw new Error("Inference authentication must not be requested"); },
       }),
       cheapestProviderModel: () => undefined,
-      readGitHubCopilotUsageToken: async () => "fixture-oauth",
+      readGitHubCopilotUsageCredentials: async () => ({ token: "fixture-oauth" }),
     }));
     globalThis.fetch = async (url, init) => {
       if (url !== "https://api.github.com/copilot_internal/user") throw new Error("Wrong endpoint");
@@ -36,10 +36,11 @@ async function usageScript(body: string) {
   const script = `
     import { mock } from "bun:test";
     let credential = "fixture-a";
+    let enterpriseUrl;
     mock.module(${JSON.stringify(runtimePath)}, () => ({
       createPiModelRuntime: async () => ({ getProviderAuthStatus: () => ({ configured: true }), getAuth: async () => ({ auth: { apiKey: credential }, source: "OAuth" }) }),
       cheapestProviderModel: () => ({ id: "model" }),
-      readGitHubCopilotUsageToken: async () => credential,
+      readGitHubCopilotUsageCredentials: async () => ({ token: credential, enterpriseUrl }),
     }));
     const { getProviderUsageOverview, supportedUsageProviders } = await import(${JSON.stringify(usagePath)});
     const provider = supportedUsageProviders.find((provider) => provider.id === "github-copilot");
@@ -114,4 +115,24 @@ test("an explicit refresh cannot join an ordinary cached Claude read", async () 
     console.log(JSON.stringify(flags.sort()));
   `);
   expect(result).toEqual([false, true]);
+});
+
+test("pending Copilot usage remains isolated when the enterprise issuer changes with the same token", async () => {
+  const result = await usageScript(`
+    let release, started;
+    const gate = new Promise((resolve) => { release = resolve; });
+    const ready = new Promise((resolve) => { started = resolve; });
+    const calls = [];
+    globalThis.fetch = async (url) => {
+      calls.push(url); started(); await gate;
+      return Response.json({ quota_snapshots: { premium_models: { percent_remaining: url.includes("api.first.example") ? 87 : 60 } } });
+    };
+    enterpriseUrl = "first.example";
+    const a = getProviderUsageOverview(provider); await ready;
+    enterpriseUrl = "second.example";
+    const b = getProviderUsageOverview(provider); release();
+    const result = await Promise.all([a, b]);
+    console.log(JSON.stringify({ calls, used: result.map((o) => o.windows[0].reported.usedPercent) }));
+  `);
+  expect(result).toEqual({ calls: ["https://api.first.example/copilot_internal/user", "https://api.second.example/copilot_internal/user"], used: [13, 40] });
 });

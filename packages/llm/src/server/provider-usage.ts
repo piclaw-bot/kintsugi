@@ -6,7 +6,7 @@ import { fetchCodexSubscriptionUsage } from "./codex-subscription-usage.ts";
 import { fetchXaiSubscriptionUsage } from "./xai-subscription-usage.ts";
 import { fetchGitHubCopilotSubscriptionUsage } from "./github-copilot-subscription-usage.ts";
 import { fetchRadiusUsage } from "./radius-usage.ts";
-import { cheapestProviderModel, createPiModelRuntime, readGitHubCopilotUsageToken } from "./pi-config-models.ts";
+import { cheapestProviderModel, createPiModelRuntime, readGitHubCopilotUsageCredentials } from "./pi-config-models.ts";
 import type { ModelRuntime } from "@earendil-works/pi-coding-agent";
 
 // Only providers with implemented subscription adapters appear in the overview.
@@ -29,8 +29,8 @@ const subscriptionAdapters = {
 // Settings loads limits and rings concurrently. Share only in-flight requests with the same credential;
 // there is no snapshot TTL, and changing credentials never reuses a previous account's pending response.
 const pendingUsage = new Map<string, Promise<SubscriptionUsage>>();
-function sharedUsage(provider: UsageProvider, token: string, refresh: boolean, fetchUsage: () => Promise<SubscriptionUsage>): Promise<SubscriptionUsage> {
-  const key = JSON.stringify([provider.id, token, refresh]);
+function sharedUsage(provider: UsageProvider, token: string, refresh: boolean, fetchUsage: () => Promise<SubscriptionUsage>, account = ""): Promise<SubscriptionUsage> {
+  const key = JSON.stringify([provider.id, token, refresh, account]);
   const pending = pendingUsage.get(key);
   if (pending) return pending;
   const request = fetchUsage().finally(() => { if (pendingUsage.get(key) === request) pendingUsage.delete(key); });
@@ -70,9 +70,10 @@ export async function getProviderUsageOverview(provider: UsageProvider, options:
       if (provider.id === "github-copilot") {
         // Usage needs GitHub's stored OAuth token, not an inference token. Resolving the latter first
         // adds an unrelated network dependency and can block a perfectly valid account usage check.
-        const token = await readGitHubCopilotUsageToken();
-        if (!token) throw new SubscriptionUsageError("GitHub Copilot credentials are unavailable. Reconnect GitHub Copilot.");
-        reported = await sharedUsage(provider, token, refresh, () => fetchGitHubCopilotSubscriptionUsage(token));
+        const credential = await readGitHubCopilotUsageCredentials();
+        if (!credential) throw new SubscriptionUsageError("GitHub Copilot credentials are unavailable. Reconnect GitHub Copilot.");
+        const { token, enterpriseUrl } = credential;
+        reported = await sharedUsage(provider, token, refresh, () => fetchGitHubCopilotSubscriptionUsage(token, fetch, enterpriseUrl), enterpriseUrl);
       } else {
         // Pi owns credential storage and serialized OAuth refresh for subscriptions.
         const auth = await runtime.getAuth(provider.id, { signal: AbortSignal.timeout(10_000) });
