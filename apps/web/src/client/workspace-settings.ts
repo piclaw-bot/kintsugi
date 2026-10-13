@@ -1,7 +1,7 @@
 import { AppSettingsController } from "./app-settings-controller.ts";
 import { SettingsEditorController } from "./settings-editor-controller.ts";
 import { TemplateSettingsController } from "./template-settings-controller.ts";
-import { WorkspaceTemplateSecretPathController } from "./workspace-template-secret-path-controller.ts";
+import { WorkspaceTemplateNewSecretController } from "./workspace-template-new-secret-controller.ts";
 import type { ToggleChangeEvent } from "@kintsugi/design-system/toggle/client";
 import { showButtonConfirmation } from "@kintsugi/design-system/button-confirmation/client";
 import { copyTextToClipboard } from "@kintsugi/shared";
@@ -200,7 +200,7 @@ export function registerWorkspaceSettingsControllers(): void {
     "settings-editor": SettingsEditorController,
     "template-settings": TemplateSettingsController,
     "app-settings": AppSettingsController,
-    "workspace-template-secret-path": WorkspaceTemplateSecretPathController,
+    "workspace-template-new-secret": WorkspaceTemplateNewSecretController,
     "settings-prefetch": SettingsPrefetchController,
     "server-filter": ServerFilterController,
   });

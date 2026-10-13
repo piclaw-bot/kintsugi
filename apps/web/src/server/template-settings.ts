@@ -110,20 +110,22 @@ function secretEditor(e: Editors, secret?: WorkspaceTemplateSecretSummary): stri
   const isNew = !secret;
   const record = secret?.id ?? "new";
   const permission = String(secret ? workspaceTemplateSecretAllowsPath(secret) : false);
-  const hostAttributes = isNew ? 'data-workspace-template-secret-path-target="host" data-action="input->workspace-template-secret-path#useDefault"' : "";
-  const content = `${field("Environment variable", "envName", secret?.envName ?? "", 'required autocomplete="off"')}
-    ${field("Allowed host", "hostPattern", secret?.hostPattern ?? "", `required autocomplete="off" placeholder="api.example.com" ${hostAttributes}`)}
+  const nameAttributes = isNew ? 'data-workspace-template-new-secret-target="name" data-action="input->workspace-template-new-secret#suggestHost"' : "";
+  const hostAttributes = isNew ? 'data-workspace-template-new-secret-target="host" data-action="input->workspace-template-new-secret#useDefault"' : "";
+  const content = `${field("Environment variable", "envName", secret?.envName ?? "", `required autocomplete="off" ${nameAttributes}`)}
+    ${field("Allowed hosts", "hostPattern", secret?.hostPattern ?? "", `required autocomplete="off" placeholder="api.anthropic.com" ${hostAttributes}`)}
+    ${paragraph("Separate hosts with commas or semicolons. Use * as a wildcard, like *.github.com, or on its own to allow any host.")}
     ${field(secret?.configured ? "Replace secret value" : "Secret value", "secretValue", "", `type="password" autocomplete="new-password" data-1p-ignore`)}
     ${paragraph(secret?.configured ? "Leave the value blank to keep the stored secret. Stored values are never shown." : "Agents only see a placeholder. Add the real value here when it’s available.")}
     ${disclosureHtml({ summary: { kind: "compact", label: { kind: "text", text: "Advanced" } }, bodyHtml: `<div class="form-stack">
       ${field("Placeholder", "placeholder", secret?.placeholder ?? "", 'autocomplete="off"')}
       ${paragraph("Leave blank to use an automatically generated placeholder.")}
       ${textarea("Needed for", "annotation", secret?.annotation ?? "", 2)}
-      <div class="form-section"><span>Allow substitution in URL paths</span><input type="hidden" name="allowInPath" value="${permission}"${isNew ? ' data-workspace-template-secret-path-target="permission"' : ""}>
-      ${toggleHtml({ variant: "button", label: "Allow substitution in URL paths", name: "allowInPath", value: permission, options: [{ value: "false", label: "Disallow" }, { value: "true", label: "Allow" }], element: { dataAction: `${isNew ? "click->workspace-template-secret-path#choose change->workspace-template-secret-path#choose " : ""}change->settings-editor#toggleChanged`, data: isNew ? { "workspace-template-secret-path-target": "toggle" } : undefined } })}</div>
+      <div class="form-section"><span>Allow substitution in URL paths</span><input type="hidden" name="allowInPath" value="${permission}"${isNew ? ' data-workspace-template-new-secret-target="permission"' : ""}>
+      ${toggleHtml({ variant: "button", label: "Allow substitution in URL paths", name: "allowInPath", value: permission, options: [{ value: "false", label: "Disallow" }, { value: "true", label: "Allow" }], element: { dataAction: `${isNew ? "click->workspace-template-new-secret#choose change->workspace-template-new-secret#choose " : ""}change->settings-editor#toggleChanged`, data: isNew ? { "workspace-template-new-secret-target": "toggle" } : undefined } })}</div>
       ${paragraph("Allow only if the service needs this secret in its URL path, rather than headers or the request body.")}
     </div>` })}`;
-  return `${secret ? paragraph(secret.configured ? "Secret stored" : "No value stored") : ""}${e.form(`/secrets${secret ? `/${encodeURIComponent(secret.id)}` : ""}`, content, { section, editor: record, caption: isNew ? "Add secret" : "Save changes", attributesHtml: isNew ? 'data-controller="workspace-template-secret-path"' : "" })}${secret ? e.removeForm(`/secrets/${encodeURIComponent(secret.id)}/delete`, section, "Delete secret", `Delete ${secret.envName} and its stored value. Requests using it will no longer receive this secret.`) : ""}`;
+  return `${secret ? paragraph(secret.configured ? "Secret stored" : "No value stored") : ""}${e.form(`/secrets${secret ? `/${encodeURIComponent(secret.id)}` : ""}`, content, { section, editor: record, caption: isNew ? "Add secret" : "Save changes", attributesHtml: isNew ? 'data-controller="workspace-template-new-secret"' : "" })}${secret ? e.removeForm(`/secrets/${encodeURIComponent(secret.id)}/delete`, section, "Delete secret", `Delete ${secret.envName} and its stored value. Requests using it will no longer receive this secret.`) : ""}`;
 }
 
 function secretsSection(e: Editors, secrets: WorkspaceTemplateSecretSummary[], counterpart?: Counterpart): string {

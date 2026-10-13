@@ -1,14 +1,18 @@
 import { Controller } from "@hotwired/stimulus";
 import { setToggleValue } from "@kintsugi/design-system/toggle/client";
 import { workspaceTemplateSecretAllowsPath } from "@kintsugi/workspace-templates/secret-path-policy";
+import { workspaceTemplateSecretDefaultHosts } from "@kintsugi/workspace-templates/secret-host-defaults";
 
-/** New-secret defaults follow the host until the user explicitly picks a permission. */
-export class WorkspaceTemplateSecretPathController extends Controller<HTMLFormElement> {
-  static targets = ["host", "permission", "toggle"];
+/** New-secret defaults: well-known names suggest their hosts until the user types one,
+ *  and the path permission follows the host until the user explicitly picks one. */
+export class WorkspaceTemplateNewSecretController extends Controller<HTMLFormElement> {
+  static targets = ["name", "host", "permission", "toggle"];
+  declare readonly nameTarget: HTMLInputElement;
   declare readonly hostTarget: HTMLInputElement;
   declare readonly permissionTarget: HTMLInputElement;
   declare readonly toggleTarget: HTMLElement;
   private chosen = false;
+  private suggestedHost = "";
 
   connect(): void {
     this.chosen = this.element.hasAttribute("data-secret-path-chosen");
@@ -23,6 +27,13 @@ export class WorkspaceTemplateSecretPathController extends Controller<HTMLFormEl
     this.element.removeAttribute("data-secret-path-chosen");
     queueMicrotask(() => this.useDefault());
   };
+
+  suggestHost(): void {
+    if (this.hostTarget.value !== "" && this.hostTarget.value !== this.suggestedHost) return;
+    this.suggestedHost = workspaceTemplateSecretDefaultHosts(this.nameTarget.value) ?? "";
+    this.hostTarget.value = this.suggestedHost;
+    this.useDefault();
+  }
 
   useDefault(): void {
     if (this.chosen) return;
