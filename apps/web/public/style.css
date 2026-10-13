@@ -605,11 +605,14 @@ html.software-keyboard-visible .composer.launch-composer :is(.agent-attach-row, 
 .agent-type-subscription { display: flex; align-items: center; justify-content: center; }
 .agent-type-subscription svg { width: 18px; height: 18px; }
 
+/* Narrow: names only; the comparison columns don't fit. */
 @container (max-width: 440px) {
   .agent-empty-choices .agent-type-picker { width:100%; grid-template-columns:16px minmax(0, 1fr); }
-  .agent-empty-choices .agent-type-picker-header { display:none; }
-  .agent-empty-choices .content-row__metadata { grid-column:2; }
-  .agent-empty-choices .agent-type-fields { grid-template-columns:minmax(0, 1fr) auto; gap:8px; }
-  .agent-empty-choices .agent-type-what { grid-column:1 / -1; overflow-wrap:normal; }
-  .agent-empty-choices .agent-type-subscriptions { display:flex; }
+  .agent-empty-choices .agent-type-picker :is(.agent-type-picker-header, .content-row__metadata) { display:none; }
+  .agent-empty-choices .agent-type-picker-header + .agent-type-choice { border-top:none; }
+}
+@media (max-width: 700px) {
+  .agent-type-picker { width:100%; grid-template-columns:16px minmax(0, 1fr); }
+  .agent-type-picker :is(.agent-type-picker-header, .content-row__metadata) { display:none; }
+  .agent-type-picker-header + .agent-type-choice { border-top:none; }
 }
