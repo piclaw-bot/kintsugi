@@ -152,7 +152,7 @@ For reproducible integration verification on a development machine with Docker, 
 Template environment changes still apply to new containers. Existing secret placeholders resolve to rotated credentials on subsequent proxied requests; existing connections may need reconnecting.
 ## Tagged releases
 
-Code pushes to `main` and pull requests run checks. Docs-only and `.github`-only changes do not start CI. Tags always run the full checks, even when their commit only changes documentation or workflows. Manual CI remains available.
+Ordinary pushes to `main` or other branches do not start CI. Code-changing pull requests run checks; docs-only and `.github`-only pull requests are skipped. Version tags always run the full checks through the Tagged release workflow, even when their commit only changes documentation or workflows. Manual CI remains available for deliberate validation checkpoints.
 
 Create the first release from a committed, verified `main` revision:
 

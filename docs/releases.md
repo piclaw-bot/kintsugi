@@ -4,7 +4,9 @@ The app’s **Update channel** follows either the published `latest` image or th
 
 ## GitHub Actions
 
-`ci.yml` selects checks from the changed files. Documentation-only changes skip
+`ci.yml` runs for code-changing pull requests and explicit manual checks; ordinary
+branch pushes do not start CI. Version tags invoke it through `release.yml`.
+It selects checks from the changed files. Documentation-only changes skip
 runtime checks; unknown bases require them. Workflow validation, lint and types
 run before browser setup and the full suite. Gateway changes also run cached Go
 formatting checks and tests first; unchanged gateway code skips Go setup. Superseded runs are cancelled.
@@ -33,7 +35,7 @@ Disposable Docker build records are removed after each run; logs and short-lived
 verification receipts remain. Named jobs and step summaries show selection,
 reuse, native builds and promotion.
 
-`release.yml` runs only on `v*.*.*` tag pushes. It validates stable semver and main ancestry, runs full checks and invokes the native image workflow. Immutable version tags are published for all three images. The newest version advances `latest`; `stable` is unchanged. Documentation-only and workflow-only branch changes do not run ordinary CI. No package-write PAT or extra environment variables are needed.
+`release.yml` runs only on `v*.*.*` tag pushes. It validates stable semver and main ancestry, runs full checks and invokes the native image workflow. Immutable version tags are published for all three images. The newest version advances `latest`; `stable` is unchanged. Ordinary branch pushes do not run CI. No package-write PAT or extra environment variables are needed.
 
 Both native slices must pass smoke tests before their receipts are merged.
 Every combined manifest, source/signature label and pinned workspace dependency

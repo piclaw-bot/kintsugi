@@ -1,15 +1,6 @@
 name: CI
 on:
-  push:
-    branches:
-      - main
-    paths-ignore:
-      - "docs/**"
-      - "notes/**"
-      - ".github/**"
-      - "**/*.md"
-      - "LICENSE"
-      - "NOTICE"
+  # Coordination pushes are CI-free; release.yml invokes full checks for version tags.
   pull_request:
     paths-ignore:
       - "docs/**"
@@ -52,7 +43,7 @@ jobs:
             echo "gateway=$gateway"
           } >> "$GITHUB_OUTPUT"
           echo "## Check selection" >> "$GITHUB_STEP_SUMMARY"
-          echo "Runtime checks required: $required. Tags and unknown bases run all checks; docs/workflow-only pushes do not trigger CI." >> "$GITHUB_STEP_SUMMARY"
+          echo "Runtime checks required: $required. Tags and unknown bases run all checks; ordinary pushes do not trigger CI; documentation-only pull requests are skipped." >> "$GITHUB_STEP_SUMMARY"
       - name: Validate all workflows
         uses: docker://rhysd/actionlint@sha256:b1934ee5f1c509618f2508e6eb47ee0d3520686341fec936f3b79331f9315667 # v1.7.12
         if: "steps.changes.outputs.required == 'true'"
