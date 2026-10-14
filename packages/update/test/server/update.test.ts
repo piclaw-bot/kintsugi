@@ -475,3 +475,57 @@ test("a data-incompatible app-only downgrade is refused before downloading", asy
   expect(instance.snapshot().state).toBe("installer_required");
   expect(downloads).toBe(0);
 });
+
+const revision = (n: number) => n.toString(16).padStart(40, "0");
+const history = { releases: [], targetHasNotes: false, compareUrl: `https://github.com/rcarmo/kintsugi/compare/${revision(1)}...${revision(2)}` };
+test("release notes use the installed and selected app revisions without changing the update", async () => {
+  const instance = manager({
+    detectRuntime: async () => ({ currentDigest: oldDigest, currentRevision: revision(1) }),
+    fetchMetadata: async () => ({ digest: newDigest, revision: revision(2), requiredSystemVersion: 0 }),
+    fetchReleaseHistory: async (current, target) => { expect([current, target]).toEqual([revision(1), revision(2)]); return history; },
+  });
+  await instance.initialize(context().ctx);
+  const before = instance.snapshot();
+  expect(await instance.releaseHistory()).toEqual(history);
+  expect(instance.snapshot()).toEqual(before);
+});
+test("paired notes resolve the plan's immutable app digest, not a channel", async () => {
+  const status = async () => ({ phase: "available" as const, message: "Update available", plan: { id: "plan", app: exact, system: `ghcr.io/rcarmo/kintsugi-system@${newDigest}`, available: true, selection: "latest", previousApp: oldDigest, previousSystem: oldDigest } });
+  const instance = manager({
+    detectRuntime: async () => ({ currentDigest: oldDigest, currentRevision: revision(1) }),
+    installationClient: { installed: async () => true, status, check: status, prepare: status, apply: status, rollback: status },
+    resolveNotesRevision: async reference => { expect(reference).toBe(exact); return revision(2); },
+    fetchReleaseHistory: async (current, target) => { expect([current, target]).toEqual([revision(1), revision(2)]); return history; },
+  });
+  await instance.initialize(context().ctx);
+  expect(await instance.releaseHistory()).toEqual(history);
+});
+test("custom release sources never receive default-repository history or an implicit source change", async () => {
+  let fetched = false;
+  const instance = manager({ readSource: async () => ({ appRepository: "docker.io/example/private", systemRepository: "ghcr.io/example/system", appVersion: "v3" }), fetchReleaseHistory: async () => { fetched = true; return history; } });
+  await instance.initialize(context().ctx);
+  const before = instance.snapshot();
+  await expect(instance.releaseHistory()).rejects.toThrow("default Kintsugi app source");
+  expect(fetched).toBe(false);
+  expect(instance.snapshot()).toEqual(before);
+});
+test("missing revisions and failed history leave the selected update usable", async () => {
+  const missing = manager();
+  await missing.initialize(context().ctx);
+  await expect(missing.releaseHistory()).rejects.toThrow("does not identify");
+  const instance = manager({ detectRuntime: async () => ({ currentDigest: oldDigest, currentRevision: revision(1) }), fetchMetadata: async () => ({ digest: newDigest, revision: revision(2), requiredSystemVersion: 0 }), fetchReleaseHistory: async () => { throw new Error("GitHub unavailable"); } });
+  await instance.initialize(context().ctx);
+  await expect(instance.releaseHistory()).rejects.toThrow("GitHub unavailable");
+  expect(instance.snapshot().state).toBe("available");
+  await instance.startPull();
+  expect(instance.snapshot().state).toBe("ready_to_restart");
+});
+test("an in-flight notes response cannot describe a superseded update selection", async () => {
+  const pending = deferred<typeof history>();
+  const instance = manager({ detectRuntime: async () => ({ currentDigest: oldDigest, currentRevision: revision(1) }), fetchMetadata: async () => ({ digest: newDigest, revision: revision(2), requiredSystemVersion: 0 }), fetchReleaseHistory: () => pending.promise });
+  await instance.initialize(context().ctx);
+  const notes = instance.releaseHistory();
+  await instance.setUpdateChannel("stable");
+  pending.resolve(history);
+  await expect(notes).rejects.toThrow("selection changed");
+});

@@ -5,7 +5,7 @@
 .update-settings-control { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
 .update-settings-summary { flex: 1 1 260px; }
 /* Keep room to the left of Restart for the adjacent confirmation. */
-.update-actions { flex: 0 0 280px; max-width: 100%; min-height: 32px; display: flex; align-items: center; justify-content: flex-end; }
+.update-actions { flex: 0 0 280px; max-width: 100%; min-height: 32px; display: flex; align-items: center; justify-content: flex-end; gap: 8px; flex-wrap: wrap; }
 .update-sidebar-row .update-actions { flex: none; width: 100%; }
 .update-restart-error { height: auto; white-space: normal; text-align: left; }
 .update-settings-control > [role="alert"] { flex-basis: 100%; }

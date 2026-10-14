@@ -463,6 +463,7 @@
     "packages/update": {
       "name": "@kintsugi/update",
       "dependencies": {
+        "@kintsugi/markdown": "workspace:*",
         "@kintsugi/host": "workspace:*",
         "@kintsugi/core": "workspace:*",
         "@kintsugi/design-system": "workspace:*",

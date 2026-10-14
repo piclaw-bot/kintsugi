@@ -1,6 +1,9 @@
+import { fetchReleaseHistory } from "./release-history.ts";
+import { renderMarkdown } from "@kintsugi/markdown";
+import { dialogHtml } from "@kintsugi/design-system/dialog";
 import { requiredAppNetworkStateVersion } from "@kintsugi/shared/network-compatibility";
 import { getKintsugiRuntimeContext } from "@kintsugi/core";
-import { githubRepository } from "@kintsugi/shared/publishing";
+import { appRepository, githubRepository } from "@kintsugi/shared/publishing";
 import { copyButtonHtml } from "@kintsugi/design-system/copy-button";
 import { createInstallationClient, type InstallationClient } from "./installation.ts";
 import type { InstallationUpdate } from "@kintsugi/shared/installation-update";
@@ -15,7 +18,7 @@ import { transientFeedbackHtml } from "@kintsugi/design-system/transient-feedbac
 import { errorMessage, escapeHtml, turboStream, turboStreamResponse, type SettingsContribution, type WorkspaceModule, type WorkspaceServerModuleContext } from "@kintsugi/shared";
 import { isUpdateChannel, type UpdateChannel } from "./update-channel.ts";
 import { detectSelfUpdateRuntime, prepareUpdate, type PreparedUpdate, type PullProgress, type SelfUpdateRuntime } from "./docker.ts";
-import { fetchChannelImageMetadata, type ImageMetadata } from "./registry.ts";
+import { fetchChannelImageMetadata, resolveImage, type ImageMetadata } from "./registry.ts";
 import { readStoredUpdateChannel, writeStoredUpdateChannel, readStoredReleaseSource, writeStoredReleaseSource, readStoredTrackingChannel } from "./settings-store.ts";
 import { defaultReleaseSource, releaseReference, trackingReleaseSource, releaseSourceSchema, registryCredentialSchema, type ReleaseSource } from "@kintsugi/shared/release-source";
 import { Value } from "typebox/value";
@@ -54,6 +57,8 @@ export interface UpdateManagerDeps {
   detectRuntime?: () => Promise<SelfUpdateRuntime | undefined>;
   readSystemVersion?: () => Promise<number>;
   readNetworkStateVersion?: () => Promise<number>;
+  fetchReleaseHistory?: typeof fetchReleaseHistory;
+  resolveNotesRevision?: (reference: string) => Promise<string | undefined>;
   fetchMetadata?: (channel: UpdateChannel) => Promise<ImageMetadata>;
   prepareUpdate?: (reference: string, onProgress: (progress: PullProgress) => void) => Promise<PreparedUpdate>;
   requestUpdate?: (imageId: string) => Promise<void>;
@@ -311,6 +316,22 @@ export class UpdateManager {
     catch (error) { console.error("Release source saved; discovery failed", error); }
   }
 
+  async releaseHistory() {
+    if (this.releaseSource.appRepository !== appRepository) throw new Error("Release notes are available for the default Kintsugi app source only. Your custom source and version selection are unchanged.");
+    const current = this.runtime?.currentRevision;
+    const target = this.target;
+    if (!current || !target) throw new Error("This installation or update does not identify its code revision, so we can’t show the changes between them.");
+    const generation = this.channelGeneration;
+    // Paired plans store pinned image references, not revision metadata. Resolve that exact app, never a moving channel.
+    const revision = target.revision ?? await (this.deps.resolveNotesRevision ?? (async reference => (await resolveImage(reference)).revision))(
+      `${appRepository}@${target.digest}`);
+
+    if (!revision) throw new Error("The selected app image does not identify its code revision.");
+    const history = await (this.deps.fetchReleaseHistory ?? fetchReleaseHistory)(current, revision);
+    if (generation !== this.channelGeneration || target.digest !== this.target?.digest) throw new Error("The update selection changed. Open What’s new again for the selected update.");
+    return history;
+  }
+
   clearError(): void {
     this.error = undefined;
     this.updateSidebar();
@@ -443,7 +464,7 @@ function renderUpdateSettings(updateManager: UpdateManager, checked = false): st
   const snapshot = updateManager.snapshot();
   const control = checked && snapshot.state === "idle" ? renderCheckFeedback("initial", true) : renderUpdateControl(snapshot, "settings");
   const description = updateDescription(snapshot);
-  return `<section class="settings-sec update-settings-control" id="settings-sec-update"><div class="update-settings-summary"><h2>Updates</h2>${description ? `<p class="settings-sub">${description}</p>` : ""}</div><div class="update-actions">${control}</div>${renderError(snapshot)}${snapshot.selfUpdatable ? `<p class="settings-sub">${snapshot.updateScope === "installation" ? "Updates include System, the app and workspace image dependencies. Restart interrupts running workspaces; their saved data is retained." : "Host updater is not installed. Web updates currently replace only the app. Full updates require Linux/systemd; on compatible hosts, run the current installer once to enable them."}</p>` : ""}</section>`;
+  return `<section class="settings-sec update-settings-control" id="settings-sec-update"><div class="update-settings-summary"><h2>Updates</h2>${description ? `<p class="settings-sub">${description}</p>` : ""}</div><div class="update-actions">${control}${renderNotesButton(snapshot, "settings")}</div><turbo-frame id="update_notes_settings"></turbo-frame>${renderError(snapshot)}${snapshot.selfUpdatable ? `<p class="settings-sub">${snapshot.updateScope === "installation" ? "Updates include System, the app and workspace image dependencies. Restart interrupts running workspaces; their saved data is retained." : "Host updater is not installed. Web updates currently replace only the app. Full updates require Linux/systemd; on compatible hosts, run the current installer once to enable them."}</p>` : ""}</section>`;
 }
 
 function renderUpdateChannelSettings(updateManager: UpdateManager): string {
@@ -485,7 +506,12 @@ const updateChannelSettingsContribution: SettingsContribution = {
 function renderSidebarRow(snapshot: StateSnapshot): string {
   if (!snapshot.selfUpdatable || snapshot.state === "idle" || snapshot.state === "checking") return "";
   const description = updateDescription(snapshot);
-  return `<section class="update-sidebar-section"><div id="update_sidebar_row" class="update-sidebar-row">${description ? `<p>${description}</p>` : ""}<div class="update-actions">${renderUpdateControl(snapshot, "sidebar")}</div>${renderError(snapshot)}</div></section>`;
+  return `<section class="update-sidebar-section"><div id="update_sidebar_row" class="update-sidebar-row">${description ? `<p>${description}</p>` : ""}<div class="update-actions">${renderUpdateControl(snapshot, "sidebar")}${renderNotesButton(snapshot, "sidebar")}</div><turbo-frame id="update_notes_sidebar"></turbo-frame>${renderError(snapshot)}</div></section>`;
+}
+
+function renderNotesButton(snapshot: StateSnapshot, surface: UpdateControlSurface): string {
+  if (!snapshot.selfUpdatable || !snapshot.target || snapshot.state === "idle" || snapshot.state === "checking") return "";
+  return `<form method="get" action="/update/notes" data-turbo="true" data-turbo-frame="update_notes_${surface}"><input type="hidden" name="surface" value="${surface}">${buttonHtml({ type: "submit", variant: "secondary", content: { kind: "caption", caption: "What’s new" } })}</form>`;
 }
 
 function renderError(snapshot: StateSnapshot): string {
@@ -496,6 +522,22 @@ function renderError(snapshot: StateSnapshot): string {
 
 export function createUpdateRouteHandler(updateManager: UpdateManager): (request: Request, url: URL) => Promise<Response | undefined> {
   return async (request, url) => {
+    if (url.pathname === "/update/notes" && request.method === "GET") {
+      const surface = url.searchParams.get("surface");
+      if (surface !== "settings" && surface !== "sidebar") return new Response("Missing update control surface", { status: 400 });
+      let bodyHtml: string;
+      try {
+        const history = await updateManager.releaseHistory();
+        bodyHtml = history.releases.map(release => `<article><p class="settings-sub"><a href="${escapeHtml(release.url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(release.tag)}</a> · ${escapeHtml(release.publishedAt.slice(0, 10))}</p><div class="markdown">${renderMarkdown("", release.notes)}</div></article>`).join("") || "<p>No published release notes between these app versions.</p>";
+        if (!history.targetHasNotes) bodyHtml += "<p>This app build also includes changes without published release notes.</p>";
+        bodyHtml += `<p><a href="${escapeHtml(history.compareUrl)}" target="_blank" rel="noopener noreferrer">View app changes on GitHub</a></p><p>These notes cover the app. Installation updates may also change System and workspace images.</p>`;
+      } catch (error) {
+        console.error("Release notes failed", error);
+        bodyHtml = `<p role="alert">${escapeHtml(errorMessage(error))}</p><p>Release notes don’t change your update selection or prevent downloading a compatible update.</p>`;
+      }
+      const dialog = dialogHtml({ element: { attributesHtml: "data-dialog-auto-show" }, iconHtml: "", titleCaption: "What’s new", bodyHtml });
+      return new Response(`<turbo-frame id="update_notes_${surface}">${dialog}</turbo-frame>`, { headers: { "content-type": "text/html; charset=utf-8" } });
+    }
     const json = request.headers.get("accept")?.includes("application/json");
     const releasePath = url.pathname === "/settings/release-source" || url.pathname === "/settings/release-registry";
     if ((releasePath || url.pathname === "/update/status") && !updateManager.snapshot().selfUpdatable) return Response.json({ error: "Updates require Kintsugi System" }, { status: 409 });

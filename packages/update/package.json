@@ -9,8 +9,9 @@
   },
   "dependencies": {
     "@kintsugi/core": "workspace:*",
-    "@kintsugi/host": "workspace:*",
     "@kintsugi/design-system": "workspace:*",
+    "@kintsugi/host": "workspace:*",
+    "@kintsugi/markdown": "workspace:*",
     "@kintsugi/shared": "workspace:*",
     "typebox": "^1.0.57"
   }

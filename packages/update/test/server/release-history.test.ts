@@ -1,0 +1,53 @@
+import { expect, test } from "bun:test";
+import { fetchReleaseHistory } from "../../src/server/release-history.ts";
+const sha = (n: number) => n.toString(16).padStart(40, "0");
+const entry = (n: number) => ({ tag_name: `v0.1.${n}`, body: `# Version ${n}\n\n- A change.`, draft: false, prerelease: false, published_at: `2026-08-${String(n).padStart(2, "0")}T12:00:00Z`, target_commitish: "main" });
+function fixture(entries = [entry(1), entry(2), entry(3), entry(4)]) {
+  return async (input: string | URL) => {
+    const url = new URL(input);
+    expect(url.origin).toBe("https://api.github.com");
+    expect(url.pathname).toStartWith("/repos/rcarmo/kintsugi/");
+    if (url.pathname.endsWith("/releases")) return Response.json(url.searchParams.get("page") === "1" ? entries : []);
+    if (url.pathname.includes("/commits/")) return Response.json({ sha: sha(Number(url.pathname.split(".").at(-1))) });
+    const match = url.pathname.match(/compare\/([a-f0-9]+)\.\.\.([a-f0-9]+)$/)!;
+    const left = parseInt(match[1]!, 16), right = parseInt(match[2]!, 16);
+    const start = left + 1 + (Number(url.searchParams.get("page")) - 1) * 100;
+    return Response.json({ status: left === right ? "identical" : left < right ? "ahead" : "behind", commits: Array.from({ length: Math.max(0, Math.min(100, right - start + 1)) }, (_, i) => ({ sha: sha(start + i) })) });
+  };
+}
+test("version releases are resolved by tag and filtered to crossed ancestry, newest first", async () => {
+  const result = await fetchReleaseHistory(sha(1), sha(3), fixture());
+  expect(result.releases.map(release => release.tag)).toEqual(["v0.1.3", "v0.1.2"]);
+  expect(result.targetHasNotes).toBe(true);
+  expect(result.compareUrl).toEndWith(`${sha(1)}...${sha(3)}`);
+});
+test("latest excludes drafts, prereleases, empty notes and unrelated tags", async () => {
+  const result = await fetchReleaseHistory(sha(1), sha(6), fixture([entry(2), { ...entry(3), draft: true }, { ...entry(4), prerelease: true }, { ...entry(5), tag_name: "stable" }, { ...entry(6), body: "" }]));
+  expect(result.releases.map(release => release.tag)).toEqual(["v0.1.2"]);
+  expect(result.targetHasNotes).toBe(false);
+});
+test("comparison and release lists paginate without dropping older milestones", async () => {
+  const base = fixture([entry(301)]);
+  const comparisonPages: number[] = [];
+  const releasePages: number[] = [];
+  const result = await fetchReleaseHistory(sha(1), sha(301), async (input, init) => {
+    const url = new URL(input);
+    const page = Number(url.searchParams.get("page"));
+    if (url.pathname.includes("/compare/")) comparisonPages.push(page);
+    if (url.pathname.endsWith("/releases")) {
+      releasePages.push(page);
+      return Response.json(page === 1 ? Array.from({ length: 100 }, () => ({ ...entry(2), tag_name: "unrelated" })) : [entry(301)]);
+    }
+    return base(input);
+  });
+  expect(comparisonPages).toEqual([1, 2, 3, 4]);
+  expect(releasePages).toEqual([1, 2]);
+  expect(result.releases.map(release => release.revision)).toEqual([sha(301)]);
+});
+test("downgrades, divergence, malformed revisions and GitHub failures are explicit", async () => {
+  await expect(fetchReleaseHistory(sha(3), sha(1), fixture())).rejects.toThrow("older");
+  await expect(fetchReleaseHistory(sha(1), sha(3), async () => Response.json({ status: "diverged", commits: [] }))).rejects.toThrow("different branch");
+  await expect(fetchReleaseHistory("invalid", sha(3), fixture())).rejects.toThrow();
+  await expect(fetchReleaseHistory(sha(1), sha(3), async () => new Response("", { status: 403 }))).rejects.toThrow("GitHub 403");
+  await expect(fetchReleaseHistory(sha(1), sha(3), async () => Response.json({ status: "ahead", commits: [{ sha: "invalid" }] }))).rejects.toThrow();
+});
