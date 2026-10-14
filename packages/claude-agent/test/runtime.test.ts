@@ -32,6 +32,7 @@ async function scenario(script: string) {
               initializationResult: async () => ({ models, commands: [{ name: "compact", description: "Compact", argumentHint: "" }, { name: "model", description: "Model", argumentHint: "" }] }),
               getContextUsage: async () => ({ percentage: 12 }),
               async interrupt() { connection.calls.push(["interrupt"]); },
+              async stopTask(taskId) { connection.calls.push(["stopTask", taskId]); },
               async setModel(model) { connection.calls.push(["setModel", model]); },
               async applyFlagSettings(settings) { connection.calls.push(["applyFlagSettings", settings]); },
             },
@@ -95,6 +96,37 @@ test("prompts sent while Claude works steer its turn, and queued prompts keep it
   expect(runtime.isBusy).toBe(true);
   connection.message(result());
   expect(runtime.isBusy).toBe(false);
+  await agents.disposeAll();
+`));
+
+test("background work keeps Claude busy until it has reported on it", () => scenario(`
+  const id = await agents.create("workspace");
+  const runtime = await agents.ready("workspace", id);
+  const [connection] = connections;
+  const system = (subtype, extra) => ({ type: "system", subtype, uuid: crypto.randomUUID(), session_id: "s", ...extra });
+  const tasks = list => system("background_tasks_changed", { tasks: list });
+  await runtime.send(input, "first");
+  connection.message(tasks([{ task_id: "suite", task_type: "local_bash", description: "Run the suite" }, { task_id: "watcher", task_type: "monitor", description: "Watch", ambient: true }]));
+  connection.message(result());
+  expect(runtime.isBusy).toBe(true);
+  expect(finished).toEqual([]);
+  connection.message(system("task_notification", { task_id: "suite", status: "completed", output_file: "", summary: "" }));
+  connection.message(tasks([{ task_id: "watcher", task_type: "monitor", description: "Watch", ambient: true }]));
+  expect(runtime.isBusy).toBe(true);
+  connection.message({ type: "stream_event", event: { type: "message_start", message: { id: "follow-up" } }, parent_tool_use_id: null, uuid: crypto.randomUUID(), session_id: "s" });
+  connection.message(result());
+  expect(runtime.isBusy).toBe(false);
+  expect(busyEvents).toEqual([true, false]);
+  expect(finished).toEqual([id]);
+  await runtime.send(input, "second");
+  connection.message(tasks([{ task_id: "server", task_type: "local_bash", description: "Serve" }]));
+  connection.message(result());
+  await runtime.stop();
+  expect(connection.calls).toEqual([["stopTask", "server"]]);
+  connection.message(system("task_notification", { task_id: "server", status: "stopped", output_file: "", summary: "" }));
+  connection.message(tasks([]));
+  expect(runtime.isBusy).toBe(false);
+  expect(finished).toEqual([id, id]);
   await agents.disposeAll();
 `));
 

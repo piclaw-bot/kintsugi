@@ -39,13 +39,15 @@ export class ClaudeRuntime {
   private closing = false;
   /** A turn is running, or a queued prompt will start one. */
   private running = false;
+  /** Background commands and subagents Claude is waiting on; it reports on them in a turn of its own once they finish. */
+  private backgroundTasks: string[] = [];
   private interrupting = false;
   private busy = false;
   private readonly serialize = createKeyedOperationQueue();
   readonly presentation = createLivePresentation(() => liveRegions(this), 50);
   private constructor(readonly workspaceId: string, readonly record: ClaudeAgentRecord, private readonly save: () => void, private readonly events: KintsugiEventBus) {}
   get agentId() { return this.record.id; }
-  get isBusy() { return !this.failure && this.running; }
+  get isBusy() { return !this.failure && (this.running || this.backgroundTasks.length > 0); }
   private changed() {
     if (this.disposed) return;
     const busy = this.isBusy;
@@ -87,6 +89,7 @@ export class ClaudeRuntime {
   private get sessions() { return claudeSessionDirectory(this.workspaceId, this.agentId); }
   private async connect() {
     this.running = false;
+    this.backgroundTasks = [];
     this.interrupting = false;
     try {
       const prepared = await prepareClaude(this.workspaceId, this.agentId);
@@ -197,9 +200,12 @@ export class ClaudeRuntime {
   }
   async stop() {
     this.assertOpen();
-    if (!this.running) return;
-    this.interrupting = true;
-    await this.transport!.query.interrupt();
+    if (this.running) {
+      this.interrupting = true;
+      await this.transport!.query.interrupt();
+    }
+    // Stopped tasks end quietly, without a turn to report on them.
+    await Promise.all(this.backgroundTasks.map(taskId => this.transport!.query.stopTask(taskId)));
   }
   /** The selected entry of Claude Code's own model catalog. */
   get selectedModel(): ModelInfo | undefined {
@@ -260,6 +266,12 @@ export class ClaudeRuntime {
     } else if (message.type === "system" && message.subtype === "commands_changed") {
       this.commands = message.commands;
       void this.refreshCompletionCatalog().catch(error => console.error("Could not refresh Claude Code completions", error));
+    } else if (message.type === "system" && message.subtype === "background_tasks_changed") {
+      // Ambient tasks, such as watchers, are not work Claude will report back on.
+      this.backgroundTasks = message.tasks.filter(task => !task.ambient).map(task => task.task_id);
+    } else if (message.type === "system" && message.subtype === "task_notification" && message.status !== "stopped" && !message.ambient) {
+      // The finished task leaves the background set before Claude starts the turn that reports on it.
+      this.running = true;
     } else if (message.type === "result") {
       this.running = (message.queued_turn_count ?? 0) > 0;
       // An interrupted turn reports its abort as an error; the transcript already shows it stopped.
