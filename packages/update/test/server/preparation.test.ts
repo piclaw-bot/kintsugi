@@ -169,3 +169,15 @@ test("prune failure without stderr still explains the failed operation", async (
   await expect(pruneUnusedKintsugiImages(async () => ({ code: 1, stdout: "", stderr: "" })))
     .rejects.toThrow("Could not prune unused Kintsugi images");
 });
+
+test("incompatible app-only downloads are refused before pruning, pulling or alias changes", async () => {
+  const mutations: string[] = [];
+  await expect(prepareUpdate(app, () => {}, {
+    resolve: async reference => ({ ...await resolve(reference), requiredSystemVersion: reference === app ? 2 : 0 }),
+    readSystemVersion: async () => 1,
+    prune: async () => { mutations.push("prune"); },
+    pull: async () => { mutations.push("pull"); },
+    exec: async () => { mutations.push("tag"); return { code: 0, stdout: "", stderr: "" }; },
+  })).rejects.toThrow("needs installation compatibility version 2");
+  expect(mutations).toEqual([]);
+});

@@ -98,3 +98,56 @@ test("failed replacement recovers only the installer-recorded prior pair", async
     return { code: 75, stdout: "" };
   });
 });
+
+test("an incompatible selected pair fails discovery before pulling or stopping containers", () => fixture(async (updater, _directory, calls, options) => {
+  const resolve = options.resolve!;
+  options.resolve = async (reference, directory) => ({ ...await resolve(reference, directory), requiredSystemVersion: reference.includes("/app") ? 2 : 0, systemVersion: reference.includes("/system") ? 1 : 0 });
+  await expect(updater.check()).rejects.toThrow("needs installation compatibility version 2");
+  expect(updater.snapshot()).toMatchObject({ phase: "failed" });
+  expect(updater.snapshot().plan).toBeUndefined();
+  expect(calls.some(args => args.includes("pull") || args.includes("stop") || args[0] === "bash")).toBe(false);
+}));
+
+test("downloaded labels are checked against each other before a pair becomes ready", () => fixture(async (updater, _directory, calls) => {
+  const plan = (await updater.check()).plan!;
+  await updater.prepare(plan.id); await updater.wait();
+  expect(updater.snapshot().phase).toBe("failed");
+  expect(calls.some(args => args[0] === "bash")).toBe(false);
+}, async args => args[1] === "exec" && args.includes("image") ? { code: 0, stdout: JSON.stringify([{ Id: old, Config: { Labels: { "kintsugi.deployment-config": "1", "org.kintsugi.required-system-version": "2" } } }]) } : { code: 75, stdout: "" }));
+
+test("apply revalidates ready images, including ready state loaded from an older updater", async () => {
+  let incompatible = false;
+  await fixture(async (updater, _directory, calls) => {
+    const plan = (await updater.check()).plan!; await updater.prepare(plan.id); await updater.wait();
+    expect(updater.snapshot().phase).toBe("ready"); incompatible = true;
+    await expect(updater.apply(plan.id)).rejects.toThrow("compatibility could not be verified");
+    expect(updater.snapshot().phase).toBe("failed");
+    expect(calls.some(args => args[0] === "bash")).toBe(false);
+  }, async args => incompatible && args[1] === "exec" && args.includes("image") ? { code: 0, stdout: JSON.stringify([{ Id: old, Config: { Labels: { "org.kintsugi.required-system-version": "2" } } }]) } : { code: 75, stdout: "" });
+});
+
+test("rollback validates the retained pair without changing its recorded IDs", async () => {
+  let incompatible = false;
+  await fixture(async (updater, directory, calls) => {
+    await mkdir(join(directory, "supervisor"));
+    await writeFile(join(directory, "supervisor/installer.json"), JSON.stringify({ previousSystemImage: old, previousAppImage: old }));
+    const plan = (await updater.check()).plan!; await updater.prepare(plan.id); await updater.wait(); await updater.apply(plan.id); await updater.wait();
+    incompatible = true;
+    await expect(updater.rollback()).rejects.toThrow("needs installation compatibility version 2");
+    expect(updater.snapshot().retainedPlan?.id).toBe(plan.id);
+    expect(calls.filter(args => args[0] === "bash")).toHaveLength(1);
+  }, async args => incompatible && args[1] === "exec" && args.includes("image") ? { code: 0, stdout: JSON.stringify([{ Id: old, Config: { Labels: { "org.kintsugi.required-system-version": "2" } } }]) } : { code: 75, stdout: "" });
+});
+
+test("a cached ready plan is revalidated before being offered after restart", async () => {
+  let incompatible = false;
+  await fixture(async (updater, _directory, calls, options) => {
+    const plan = (await updater.check()).plan!; await updater.prepare(plan.id); await updater.wait();
+    const restarted = new InstallationUpdater(options); await restarted.initialize();
+    incompatible = true;
+    await expect(restarted.check()).rejects.toThrow("needs installation compatibility version 2");
+    expect(restarted.snapshot().phase).toBe("failed");
+    expect(restarted.snapshot().plan).toBeUndefined();
+    expect(calls.some(args => args[0] === "bash")).toBe(false);
+  }, async args => incompatible && args[1] === "exec" && args.includes("image") ? { code: 0, stdout: JSON.stringify([{ Id: old, Config: { Labels: { "org.kintsugi.required-system-version": "2" } } }]) } : { code: 75, stdout: "" });
+});

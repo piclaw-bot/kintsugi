@@ -35,6 +35,8 @@ jobs:
       workspace: ${{ steps.plan.outputs.workspace }}
       signature: ${{ steps.plan.outputs.signature }}
       system_signature: ${{ steps.plan.outputs.system_signature }}
+      system_compatibility: ${{ steps.plan.outputs.system_compatibility }}
+      app_compatibility: ${{ steps.plan.outputs.app_compatibility }}
       workspace_exists: ${{ steps.workspace.outputs.exists }}
       workspace_ref: ${{ steps.workspace.outputs.ref }}
       system_exists: ${{ steps.system.outputs.exists }}
@@ -83,6 +85,7 @@ jobs:
             echo "workspace=ghcr.io/${owner,,}/kintsugi-workspace"
             echo "signature=$signature"
             echo "system_signature=$system_signature"
+            bun -e 'import {systemVersion,systemVersionLabel,requiredSystemVersion,requiredSystemVersionLabel} from "./packages/shared/src/system-version.ts";process.stdout.write("system_compatibility="+systemVersionLabel+"="+systemVersion+"\napp_compatibility="+requiredSystemVersionLabel+"="+requiredSystemVersion+"\n");'
           } >> "$GITHUB_OUTPUT"
       - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4
         if: inputs.publish
@@ -302,6 +305,7 @@ jobs:
           labels: |
             org.opencontainers.image.revision=${{ needs.prepare.outputs.commit }}
             com.kintsugi.system.signature=${{ needs.prepare.outputs.system_signature }}
+            ${{ needs.prepare.outputs.system_compatibility }}
           cache-from: |
             type=gha,scope=system-${{ matrix.arch }}
             ${{ inputs.publish && format('type=registry,ref=ghcr.io/{0}/kintsugi-system:cache-{1}', github.repository_owner, matrix.arch) || '' }}
@@ -397,7 +401,9 @@ jobs:
             ATELIER_COMMIT_ID=${{ needs.prepare.outputs.commit }}
             ATELIER_DEFAULT_WORKSPACE_IMAGE=${{ steps.dependency.outputs.ref }}
             ATELIER_EAGERLY_PRELOAD=["${{ steps.dependency.outputs.ref }}"]
-          labels: com.kintsugi.workspace-image.ref=${{ steps.dependency.outputs.ref }}
+          labels: |
+            com.kintsugi.workspace-image.ref=${{ steps.dependency.outputs.ref }}
+            ${{ needs.prepare.outputs.app_compatibility }}
           cache-from: |
             type=gha,scope=app-${{ matrix.arch }}
             ${{ inputs.publish && format('type=registry,ref=ghcr.io/{0}/kintsugi:cache-{1}', github.repository_owner, matrix.arch) || '' }}
@@ -478,6 +484,11 @@ jobs:
           bun scripts/ci-images.ts verify '${{ needs.prepare.outputs.workspace }}:${{ needs.prepare.outputs.signature }}' com.kintsugi.workspace-image.signature '${{ needs.prepare.outputs.signature }}' > workspace-receipt.txt
           bun scripts/ci-images.ts verify 'ghcr.io/${{ github.repository_owner }}/kintsugi:sha-${{ needs.prepare.outputs.commit }}' org.opencontainers.image.revision '${{ needs.prepare.outputs.commit }}' > app-receipt.txt
           bun scripts/ci-images.ts verify 'ghcr.io/${{ github.repository_owner }}/kintsugi-system:content-${{ needs.prepare.outputs.system_signature }}' com.kintsugi.system.signature '${{ needs.prepare.outputs.system_signature }}' > system-receipt.txt
+      - name: Verify candidate app and System compatibility
+        run: |
+          app=$(sed -n 's/^ref=//p' app-receipt.txt)
+          system=$(sed -n 's/^ref=//p' system-receipt.txt)
+          bun scripts/ci-images.ts pair "$app" "$system"
       - name: Publish immutable version tags / advance latest from newest release
         run: |
           tag='${{ inputs.release_tag }}'
@@ -488,7 +499,7 @@ jobs:
             ref=$(sed -n 's/^ref=//p' "$kind-receipt.txt")
             bun scripts/ci-images.ts release-check "$ref" "$tag"
           done
-          for kind in workspace app system; do
+          for kind in workspace system app; do
             ref=$(sed -n 's/^ref=//p' "$kind-receipt.txt")
             [[ "$ref" =~ @sha256:[a-f0-9]{64}$ ]]
             repository=${ref%@*}

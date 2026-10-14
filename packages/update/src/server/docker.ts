@@ -1,3 +1,5 @@
+import { assertSystemCompatible } from "@kintsugi/shared/system-version";
+import { readSystemVersion } from "./supervisor.ts";
 import { readStorageDriver, assertStorageSupport } from "@kintsugi/core";
 import { resolveImage, type PlannedImage } from "./registry.ts";
 import { readFile } from "node:fs/promises";
@@ -83,6 +85,7 @@ export interface PreparedUpdate { imageId: string; reference: string; }
 export async function prepareUpdate(reference: string, progress: (progress: PullProgress) => void, deps: {
   pull?: typeof pullImageReference; inspect?: typeof dockerImageInspect; resolve?: typeof resolveImage; exec?: DockerExec;
   prune?: typeof pruneUnusedKintsugiImages;
+  readSystemVersion?: () => Promise<number>;
 } = {}): Promise<PreparedUpdate> {
   const pull = deps.pull ?? pullImageReference;
   const inspect = deps.inspect ?? dockerImageInspect;
@@ -99,6 +102,8 @@ export async function prepareUpdate(reference: string, progress: (progress: Pull
     for (const dependency of image.dependencies) await discover(dependency);
   }
   await discover(reference);
+  const requiredVersion = images.get(aliases.get(reference)!)!.requiredSystemVersion ?? 0;
+  if (requiredVersion > 0) assertSystemCompatible(await (deps.readSystemVersion ?? readSystemVersion)(), requiredVersion);
   progress({ kind: "progress", message: "Removing unused Kintsugi images…" });
   await (deps.prune ?? pruneUnusedKintsugiImages)(deps.exec ?? dockerExec);
   const layers = new Map<string, { size: number; current: number }>();

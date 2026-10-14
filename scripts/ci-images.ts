@@ -1,3 +1,4 @@
+import { assertSystemCompatible, parseSystemVersion, systemVersion, systemVersionLabel, requiredSystemVersion, requiredSystemVersionLabel } from "../packages/shared/src/system-version.ts";
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import type { Run } from "./release-support.ts";
@@ -42,6 +43,8 @@ export async function verifiedImage(run: Run, ref: string, label: string, expect
     const config = JSON.parse(result.stdout);
     if (`${config.os}/${config.architecture}` !== platform || config.config?.Labels?.[label] !== expected)
       throw new Error(`${ref}: ${platform} label ${label} does not match ${expected}`);
+    if (label === "com.kintsugi.system.signature" && config.config.Labels[systemVersionLabel] !== String(systemVersion)) throw new Error(`${ref}: System compatibility label does not match the source`);
+    if (label === "org.opencontainers.image.revision" && config.config.Labels[requiredSystemVersionLabel] !== String(requiredSystemVersion)) throw new Error(`${ref}: app compatibility label does not match the source`);
     if (label === "com.kintsugi.system.signature" && config.config.Labels["kintsugi.installer-config"] !== "1")
       throw new Error(`${ref}: missing installer capability`);
     if (label === "org.opencontainers.image.revision") {
@@ -53,6 +56,30 @@ export async function verifiedImage(run: Run, ref: string, label: string, expect
     }
   }
   return `${repository}@${digestValue(manifest.digest)}`;
+}
+
+/** Check the candidate pair on both architectures before any mutable or version tag is written. */
+export async function verifyImagePair(run: Run, appRef: string, systemRef: string): Promise<void> {
+  const app = await inspectImage(run, appRef);
+  const system = await inspectImage(run, systemRef);
+  const requirements = new Set<number>();
+  const versions = new Set<number>();
+  for (const platform of platforms) {
+    const image = async (ref: string, manifest: NonNullable<typeof app>) => {
+      const repository = ref.split("@")[0]!.replace(/:[^/:]+$/, "");
+      const slice = manifest.manifests.find(entry => `${entry.platform.os}/${entry.platform.architecture}` === platform)!;
+      const result = await run(["docker", "buildx", "imagetools", "inspect", `${repository}@${slice.digest}`, "--format", "{{json .Image}}"]);
+      return JSON.parse(result.stdout);
+    };
+    const appImage = await image(appRef, app!);
+    const systemImage = await image(systemRef, system!);
+    if (`${appImage.os}/${appImage.architecture}` !== platform || `${systemImage.os}/${systemImage.architecture}` !== platform) throw new Error("Compatibility image architecture mismatch");
+    const required = parseSystemVersion(appImage.config?.Labels?.[requiredSystemVersionLabel]);
+    const available = parseSystemVersion(systemImage.config?.Labels?.[systemVersionLabel]);
+    assertSystemCompatible(available, required);
+    requirements.add(required); versions.add(available);
+  }
+  if (requirements.size !== 1 || versions.size !== 1) throw new Error("Native slices disagree on compatibility versions");
 }
 
 export function releaseTag(value: string): string {
@@ -93,6 +120,9 @@ if (import.meta.main) {
     const ref = await verifiedImage(run, args[0]!, args[1]!, args[2]!, command === "reuse");
     console.log(`exists=${Boolean(ref)}`);
     console.log(`ref=${ref ?? ""}`);
+  } else if (command === "pair") {
+    if (args.length !== 2) throw new Error("Usage: ci-images.ts pair APP_REF SYSTEM_REF");
+    await verifyImagePair(run, args[0]!, args[1]!);
   } else if (command === "current") {
     if (args.length < 1 || args.length > 2) throw new Error("Usage: ci-images.ts current PINNED_REF [RELEASE_TAG]");
     console.log(`matches=${await channelMatches(run, args[0]!, args[1])}`);

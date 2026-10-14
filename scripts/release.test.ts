@@ -35,7 +35,7 @@ test("verification requires both architectures and matching revision labels", as
   const run: Run = async (args) => {
     if (args.includes("{{json .Manifest}}")) return ok(JSON.stringify(manifest));
     const index = manifest.manifests.findIndex((entry) => args.some((arg) => arg.endsWith(entry.digest)));
-    return ok(JSON.stringify({ os: "linux", architecture: architectures[index], config: { Labels: { "org.opencontainers.image.revision": commit, "eagerly-preload": JSON.stringify([`ghcr.io/rcarmo/kintsugi-workspace:signature@${digest}`]) } } }));
+    return ok(JSON.stringify({ os: "linux", architecture: architectures[index], config: { Labels: { "org.opencontainers.image.revision": commit, "org.kintsugi.required-system-version": "0", "org.kintsugi.system-version": "0", "eagerly-preload": JSON.stringify([`ghcr.io/rcarmo/kintsugi-workspace:signature@${digest}`]) } } }));
   };
   expect(await verifyRevision(run, "ref", commit)).toBe(digest);
   await expect(verifyRevision(run, "ref", "wrong-sha")).rejects.toThrow("does not match revision");
@@ -72,7 +72,7 @@ test("promotion fails if registry readback differs", async () => {
   expect(current.channels.latest).toBe("failed");
 });
 
-async function scenario(options: { check?: boolean; exists?: boolean; moved?: boolean; buildFailure?: boolean; sameArch?: boolean; localArm?: boolean; badDriver?: boolean; missingHelper?: boolean }) {
+async function scenario(options: { appRequirement?: string; systemVersion?: string; check?: boolean; exists?: boolean; moved?: boolean; buildFailure?: boolean; sameArch?: boolean; localArm?: boolean; badDriver?: boolean; missingHelper?: boolean }) {
   const directory = mkdtempSync(join(tmpdir(), "kintsugi-release-test-"));
   const calls: { args: string[]; cwd?: string }[] = [];
   let uploaded = options.exists ?? false;
@@ -102,7 +102,7 @@ async function scenario(options: { check?: boolean; exists?: boolean; moved?: bo
       }
       if (args.includes("{{json .Image}}")) {
         const index = manifest.manifests.findIndex((entry) => args.some((arg) => arg.endsWith(entry.digest)));
-        return ok(JSON.stringify({ os: "linux", architecture: architectures[index], config: { Labels: { "org.opencontainers.image.revision": commit, "eagerly-preload": JSON.stringify([`ghcr.io/rcarmo/kintsugi-workspace:signature@${digest}`]) } } }));
+        return ok(JSON.stringify({ os: "linux", architecture: architectures[index], config: { Labels: { "org.opencontainers.image.revision": commit, "org.kintsugi.required-system-version": options.appRequirement ?? "0", "org.kintsugi.system-version": options.systemVersion ?? "0", "eagerly-preload": JSON.stringify([`ghcr.io/rcarmo/kintsugi-workspace:signature@${digest}`]) } } }));
       }
       if (args[0] === "bun") {
         if (options.buildFailure) throw new Error("build failed");
@@ -191,6 +191,8 @@ test(`image build CLI pairs images from its working checkout, not its tooling ch
       recursive: true, filter: path => basename(path) !== "node_modules",
     });
     writeFileSync(join(checkout, "packages/workspace-image/runtime-image"), "example.com/release-runtime:regression-test\n");
+    const compatibilityPath = join(checkout, "packages/shared/src/system-version.ts");
+    writeFileSync(compatibilityPath, readFileSync(compatibilityPath, "utf8").replace("requiredSystemVersion = 0", "requiredSystemVersion = 3"));
     const expectedContext = join(directory, "expected-context");
     const generated = Bun.spawnSync(["bun", join(checkout, "packages/workspace-image/scripts/build-context.mjs"), expectedContext], { cwd: checkout });
     expect(generated.exitCode).toBe(0);
@@ -219,6 +221,7 @@ test(`image build CLI pairs images from its working checkout, not its tooling ch
     }
     const appBuild = builds[split ? 2 : 1]!;
     expect(appBuild).toContain(`ghcr.io/rcarmo/kintsugi:sha-test${split ? "-amd64" : ""}`);
+    expect(appBuild).toContain("org.kintsugi.required-system-version=3");
     const workspaceArg = appBuild.find(arg => arg.startsWith("ATELIER_DEFAULT_WORKSPACE_IMAGE="))!;
     expect(workspaceArg).toBe(`ATELIER_DEFAULT_WORKSPACE_IMAGE=ghcr.io/rcarmo/kintsugi-workspace:${expectedSignature}@${digest}`);
     expect(builds[0]).toContain(`ghcr.io/rcarmo/kintsugi-workspace:${expectedSignature}${split ? "-amd64" : ""}`);
@@ -261,3 +264,10 @@ for (const options of [{ missingHelper: true }, { badDriver: true }]) {
     expect(calls.some(({ args }) => args.includes("login") || args.includes("--push"))).toBe(false);
   });
 }
+
+test("local app publication refuses an incompatible System channel before promotion", async () => {
+  const { calls, error } = await scenario({ exists: true, appRequirement: "2", systemVersion: "1" });
+  expect(error).toBeInstanceOf(Error);
+  expect(String(error)).toContain("needs installation compatibility version 2");
+  expect(calls.some(({ args }) => args.includes("create") && args.some(arg => arg.endsWith(":latest") || arg.endsWith(":stable")))).toBe(false);
+});

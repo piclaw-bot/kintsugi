@@ -4,7 +4,9 @@ import { readReleaseSettings, releaseReference, activeReleaseSource, selectedRel
 import { resolveImage, type HttpFetcher, type PlannedImage } from "../../../packages/update/src/server/registry.ts";
 import { createReleaseRegistry } from "./release-registry.ts";
 
-/** Resolve every dependency before pulling; tags are restored only after the complete pinned plan succeeds. */
+/** Stage immutable images for app-only or paired updates, including apps for a future System.
+ * Activation and the paired planner enforce compatibility; staging must not require the current System.
+ * Resolve every dependency before pulling; restore aliases only after the complete pinned plan succeeds. */
 export async function prepareRelease(reference: string, images: {
   fetcher: HttpFetcher; pull(reference: string): Promise<void>; tag(pinned: string, alias: string): Promise<void>; inspect(reference: string): Promise<string>;
 }) {
@@ -50,7 +52,7 @@ export function createReleaseRequests(options: {
         const component = url.searchParams.get("component") ?? "app";
         if (component !== "app" && component !== "system") return Response.json({ error: "Unsupported release component" }, { status: 400 });
         const plan = await resolveImage(releaseReference(settings, component), await options.registry.fetcher(options.fetcher));
-        return Response.json({ reference: plan.reference, digest: plan.reference.split("@")[1], revision: plan.revision, indexDigest: plan.indexDigest });
+        return Response.json({ reference: plan.reference, digest: plan.reference.split("@")[1], revision: plan.revision, indexDigest: plan.indexDigest, requiredSystemVersion: plan.requiredSystemVersion ?? 0 });
       }
       if (url.pathname === "/release/prepare" && request.method === "POST") {
         if (options.busy()) return Response.json({ error: "An update is in progress" }, { status: 409 });

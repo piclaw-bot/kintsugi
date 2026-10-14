@@ -1,5 +1,7 @@
 #!/usr/bin/env bun
 
+import { Type } from "typebox";
+import { Value } from "typebox/value";
 import { appRepository, imageNamespace } from "../packages/shared/src/publishing.ts";
 import { workloadCgroupArgs } from "@kintsugi/core";
 import { rmSync } from "node:fs";
@@ -301,7 +303,10 @@ const defaultBuildArgs = [
 ];
 const allBuildArgs = [...defaultBuildArgs, ...options.buildArgs];
 
+// Tooling may come from a different checkout. Stamp the requirement from the image's source tree.
+const compatibility = Value.Parse(Type.Object({ label: Type.String(), version: Type.Integer({ minimum: 0, maximum: 2147483647 }) }), JSON.parse(run(["bun", "-e", 'import {requiredSystemVersion as version,requiredSystemVersionLabel as label} from "./packages/shared/src/system-version.ts";process.stdout.write(JSON.stringify({label,version}));'])));
 await buildImage(imageRefs, [
+  "--label", `${compatibility.label}=${compatibility.version}`,
   ...allBuildArgs.flatMap((buildArg) => ["--build-arg", buildArg]),
   "--file", "apps/web/Dockerfile", ".",
 ]);

@@ -1,3 +1,4 @@
+import { assertSystemCompatible, assertImagePairCompatible } from "../../../packages/shared/src/system-version.ts";
 import { readStorageDriver, assertStorageSupport } from "../../../packages/core/src/storage-driver.ts";
 import { appendFile, chmod, mkdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
@@ -81,16 +82,28 @@ export class InstallationUpdater {
     return Boolean(plan.revision && image.Config.Labels?.["org.opencontainers.image.revision"] === plan.revision)
       || Boolean(image.RepoDigests?.some(reference => reference === plan.reference || reference.endsWith("@" + (plan.indexDigest ?? plan.reference.split("@")[1]))));
   }
+  private async inspectPair(app: string, system: string): Promise<void> {
+    const systemImage = Value.Parse(Type.Array(imageMetadata), JSON.parse(await this.run(["docker", "image", "inspect", system])))[0];
+    const appImage = Value.Parse(Type.Array(imageMetadata), JSON.parse(await this.run(["docker", "exec", this.name, "docker", "image", "inspect", app])))[0];
+    if (!appImage || !systemImage) throw Error("Retained image pair is unavailable.");
+    assertImagePairCompatible(appImage.Config.Labels, systemImage.Config.Labels);
+  }
   async check() {
     if (this.operation || this.checking || this.starting) return this.snapshot();
     this.checking = true;
     try {
       const current = await this.installation();
-      if (this.state.phase === "ready" && this.state.plan?.selection === current.selection && this.state.plan.previousApp === current.app.Id && this.state.plan.previousSystem === current.system.Id) return this.snapshot();
+      if (this.state.phase === "ready" && this.state.plan?.selection === current.selection && this.state.plan.previousApp === current.app.Id && this.state.plan.previousSystem === current.system.Id) { await this.inspectPair(this.state.plan.app, this.state.plan.system); return this.snapshot(); }
       const [app, system] = await Promise.all([this.resolve(releaseReference(current.settings, "app"), current.data), this.resolve(releaseReference(current.settings, "system"), current.data)]);
+      assertSystemCompatible(system.systemVersion ?? 0, app.requiredSystemVersion ?? 0);
       if ((await this.installation()).selection !== current.selection) throw Error("Release selection changed. Check again.");
       const plan: InstallationPlan = { id: crypto.randomUUID(), app: app.reference, system: system.reference, available: !this.matches(current.app, app) || !this.matches(current.system, system), selection: current.selection, previousApp: current.app.Id, previousSystem: current.system.Id };
       this.state = { retainedPlan: this.state.retainedPlan, phase: plan.available ? "available" : "idle", plan, message: plan.available ? "An installation update is available." : "The installation matches the selected releases." }; await this.persist(); return this.snapshot();
+    } catch (error) {
+      await this.diagnostic("Discovery or compatibility check failed: " + String(error));
+      this.state = { retainedPlan: this.state.retainedPlan, phase: "failed", message: "Release discovery or compatibility checks failed. The running installation has not been changed." };
+      await this.persist();
+      throw error;
     } finally { this.checking = false; }
   }
   private requirePlan(id: string, phase: InstallationUpdate["phase"]) {
@@ -104,6 +117,8 @@ this.state = { ...this.state, phase: "preparing", message: "Downloading System, 
       this.operation = (async () => {
         try {
           const current = await this.installation(); if (current.selection !== plan.selection) throw Error("Release selection changed.");
+          const [appPlan, systemPlan] = await Promise.all([this.resolve(plan.app, current.data), this.resolve(plan.system, current.data)]);
+          assertSystemCompatible(systemPlan.systemVersion ?? 0, appPlan.requiredSystemVersion ?? 0);
           await this.run(["docker", "--config", join(current.data, "supervisor/docker-auth"), "pull", plan.system]);
           const metadata = Value.Parse(Type.Array(imageMetadata), JSON.parse(await this.run(["docker", "image", "inspect", plan.system])))[0]!;
           if (metadata.Config.Labels?.["kintsugi.installer-config"] !== "1" || metadata.Config.Labels?.["kintsugi.host-updater"] !== "1") throw Error("Selected System lacks host updater support.");
@@ -113,6 +128,7 @@ this.state = { ...this.state, phase: "preparing", message: "Downloading System, 
           await this.run(["docker", "exec", this.name, "bun", "-e", code, plan.app]);
           const app = Value.Parse(Type.Array(imageMetadata), JSON.parse(await this.run(["docker", "exec", this.name, "docker", "image", "inspect", plan.app])))[0]!;
           if (app.Config.Labels?.["kintsugi.deployment-config"] !== "1") throw Error("Selected app lacks deployment support.");
+          assertImagePairCompatible(app.Config.Labels, metadata.Config.Labels);
           const fresh = await this.installation();
           if (fresh.selection !== plan.selection || fresh.system.Id !== plan.previousSystem || fresh.app.Id !== plan.previousApp) throw Error("Installation changed during preparation.");
           // The installer performs storage, access and other capability checks again before replacement.
@@ -126,6 +142,13 @@ this.state = { ...this.state, phase: "preparing", message: "Downloading System, 
     const plan = this.requirePlan(id, "ready"); try {      
 const current = await this.installation();
       if (current.selection !== plan.selection || current.system.Id !== plan.previousSystem || current.app.Id !== plan.previousApp) throw Error("The installation or release selection changed. Check again before restarting.");
+      try { await this.inspectPair(plan.app, plan.system); }
+      catch (error) {
+        await this.diagnostic("Prepared compatibility check failed: " + String(error));
+        this.state = { ...this.state, phase: "failed", message: "Prepared image compatibility could not be verified. Check again before restarting." };
+        await this.persist();
+        throw Error(this.state.message);
+      }
       this.state = { ...this.state, phase: "updating", message: "Replacing System and app. Running workspaces will restart." }; await this.persist();
       this.operation = (async () => {
         try {
@@ -146,6 +169,7 @@ const current = await this.installation();
   private async verifyRollback(data: string, plan: InstallationPlan) {
     const history = Value.Parse(Type.Object({ previousSystemImage: Type.String(), previousAppImage: Type.String() }), JSON.parse(await readFile(join(data, "supervisor/installer.json"), "utf8")));
     if (history.previousSystemImage !== plan.previousSystem || history.previousAppImage !== plan.previousApp) throw Error("Retained image pair no longer matches this update plan.");
+    await this.inspectPair(plan.previousApp, plan.previousSystem);
   }
   async rollback() {
     if (this.checking || this.starting || this.operation || (!this.state.retainedPlan && (this.state.phase !== "failed" || !this.state.plan))) throw Error("No failed installation update is available to roll back.");

@@ -3,7 +3,8 @@ import { readFileSync } from "node:fs";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { channelMatches, digestValue, publishVersion, releaseTag, sliceReferences, verifiedImage } from "./ci-images.ts";
+import { verifyImagePair, channelMatches, digestValue, publishVersion, releaseTag, sliceReferences, verifiedImage } from "./ci-images.ts";
+import { systemVersion, systemVersionLabel, requiredSystemVersion, requiredSystemVersionLabel } from "../packages/shared/src/system-version.ts";
 import type { Run } from "./release-support.ts";
 
 const digest = `sha256:${"a".repeat(64)}`;
@@ -26,6 +27,8 @@ function runner(options: { missing?: string; modifyManifest?: (value: ReturnType
     }
     const value = { os: "linux", architecture: args.includes(`${image}@${amd64}`) ? "amd64" : "arm64", config: { Labels: {
       [label]: commit,
+      [systemVersionLabel]: String(systemVersion),
+      [requiredSystemVersionLabel]: String(requiredSystemVersion),
       "eagerly-preload": JSON.stringify([workspace]),
       "com.kintsugi.workspace-image.ref": workspace,
       "com.kintsugi.system.signature": "signature",
@@ -154,4 +157,41 @@ test("Caddy recipe keeps UI, preview and API origins separate without rewriting 
  expect(recipe).toContain("https://agent-host.local:41000");expect(recipe).toContain("https://agent-host.local:41001");expect(recipe).toContain("flush_interval -1");
  expect(recipe).not.toContain("header_up Origin");expect(recipe).not.toContain("header_up Authorization");expect(recipe).not.toContain("header_up Host");
  expect(()=>caddyRecipe("https://agent-host.local","192.0.2.10:3000","41000:41001","192.0.2.10")).toThrow("loopback");
+});
+
+function pairRunner(required: readonly (string | undefined)[], available: readonly (string | undefined)[]): Run {
+  return async args => {
+    if (args.at(-1) === "{{json .Manifest}}") return { code: 0, stdout: JSON.stringify(manifest()), stderr: "" };
+    const ref = args[4]!;
+    const index = ref.endsWith(amd64) ? 0 : 1;
+    const labels: Record<string, string> = {};
+    const value = ref.startsWith(image + "-system") ? available[index] : required[index];
+    if (value !== undefined) labels[ref.startsWith(image + "-system") ? systemVersionLabel : requiredSystemVersionLabel] = value;
+    return { code: 0, stdout: JSON.stringify({ os: "linux", architecture: index === 0 ? "amd64" : "arm64", config: { Labels: labels } }), stderr: "" };
+  };
+}
+
+test("candidate pairs validate both native architectures, including legacy version-zero images", async () => {
+  await verifyImagePair(pairRunner([undefined, undefined], [undefined, undefined]), image + "@" + digest, image + "-system@" + digest);
+  await verifyImagePair(pairRunner(["1", "1"], ["2", "2"]), image + "@" + digest, image + "-system@" + digest);
+  await expect(verifyImagePair(pairRunner(["2", "2"], ["1", "1"]), image + "@" + digest, image + "-system@" + digest)).rejects.toThrow("needs installation compatibility version 2");
+  await expect(verifyImagePair(pairRunner(["0", "1"], ["2", "2"]), image + "@" + digest, image + "-system@" + digest)).rejects.toThrow("disagree");
+  await expect(verifyImagePair(pairRunner(["0", "0"], ["1", "2"]), image + "@" + digest, image + "-system@" + digest)).rejects.toThrow("disagree");
+});
+
+test("reusable images must carry compatibility labels matching the current source", async () => {
+  await expect(verifiedImage(runner({ modifyConfig: value => { delete value.config.Labels[systemVersionLabel]; } }), image, "com.kintsugi.system.signature", "signature")).rejects.toThrow("System compatibility label");
+  await expect(verifiedImage(runner({ modifyConfig: value => { value.config.Labels[requiredSystemVersionLabel] = "999"; } }), image, label, commit)).rejects.toThrow("app compatibility label");
+});
+
+test("release checks pair compatibility before publishing and advances services before the app", () => {
+  const workflow = Bun.YAML.parse(readFileSync(new URL("../.github/workflows/images.yml", import.meta.url), "utf8"));
+  const steps = workflow.jobs.promote.steps;
+  const pairIndex = steps.findIndex((step: { run?: string }) => step.run?.includes("ci-images.ts pair"));
+  const publishIndex = steps.findIndex((step: { run?: string }) => step.run?.includes("ci-images.ts release \"$ref\""));
+  expect(pairIndex).toBeGreaterThan(-1);
+  expect(pairIndex).toBeLessThan(publishIndex);
+  expect(steps[publishIndex].run).toContain("for kind in workspace system app");
+  expect(workflow.jobs.system.steps.find((step: { id?: string }) => step.id === "system").with.labels).toContain("system_compatibility");
+  expect(workflow.jobs.images.steps.find((step: { id?: string }) => step.id === "app").with.labels).toContain("app_compatibility");
 });

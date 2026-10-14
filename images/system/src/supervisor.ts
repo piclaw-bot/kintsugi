@@ -1,3 +1,4 @@
+import { systemVersion, requiredSystemVersionLabel, parseSystemVersion, assertSystemCompatible } from "../../../packages/shared/src/system-version.ts";
 import { updaterSocket } from "../../../packages/shared/src/installation-update.ts";
 import { tailscaleHttpsSettingsUrl, TailscaleHttpsDisabledError } from "../../../packages/shared/src/tailscale.ts";
 import { hostSocketPath } from "../../../packages/host/src/protocol.ts";
@@ -220,6 +221,7 @@ async function prepareImage(reference: string, options: { pullApp: boolean; pull
     await pullImage(reference, "Downloading Kintsugi");
   const image = JSON.parse(await docker("image", "inspect", reference))[0];
   assertStorageSupport(image.Config.Labels, storageDriver);
+  assertSystemCompatible(systemVersion, parseSystemVersion(image.Config.Labels?.[requiredSystemVersionLabel]));
   if (persisted.proxy && image.Config.Labels?.["kintsugi.deployment-config"] !== "1") throw new Error("App image does not support configured proxy access");
   const preload: unknown = JSON.parse(
     image.Config.Labels?.["eagerly-preload"] ?? "[]",
@@ -482,6 +484,7 @@ const server = Bun.serve({
         healthy,
         busy,
         candidate,
+        systemVersion,
         currentImage: persisted.currentImage,
         previousImage: persisted.previousImage,
         uninstall: persisted.uninstall,

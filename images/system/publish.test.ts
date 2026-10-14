@@ -1,3 +1,4 @@
+import { systemVersion, systemVersionLabel } from "../../packages/shared/src/system-version.ts";
 import { expect, test } from "bun:test";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -31,7 +32,7 @@ async function scenario(options: { local?: string; sameArch?: boolean; missingHe
         ? { digest: digest(ref.endsWith("-amd64") ? "amd64" : "arm64") }
         : { digest: `sha256:${"3".repeat(64)}`, manifests: ["amd64", "arm64"].map(architecture => ({ digest: digest(architecture), platform: { os: "linux", architecture } })) });
     }
-    if (args.includes("{{json .Image}}")) stdout = JSON.stringify({ os: "linux", architecture: args[4]!.endsWith(digest("amd64")) ? "amd64" : "arm64", config: { Labels: { "org.opencontainers.image.revision": options.wrongRevision ? "wrong" : revision } } });
+    if (args.includes("{{json .Image}}")) stdout = JSON.stringify({ os: "linux", architecture: args[4]!.endsWith(digest("amd64")) ? "amd64" : "arm64", config: { Labels: { [systemVersionLabel]: String(systemVersion), "org.opencontainers.image.revision": options.wrongRevision ? "wrong" : revision } } });
     return { stdout, stderr: "", code: 0 };
   };
   let error: unknown;

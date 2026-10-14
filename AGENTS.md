@@ -22,6 +22,13 @@ Do not write UI tests. Follow the [UI testing policy](docs/ui-testing-policy.md)
 - When controlling or staging an Kintsugi instance programmatically, follow [docs/automation.md](docs/automation.md).
 - Whenever modifying the user interface, use elements from the [Kintsugi design system catalogue](packages/design-system/README.md) whenever possible.
 
+### App and installation compatibility
+
+- `packages/shared/src/system-version.ts` owns Kintsugi's compatibility counters and OCI label names. These are independent of image tags and upstream's counters.
+- Publish the System support on a channel before raising the app's minimum for that channel. The support release keeps the app minimum at zero.
+- Add checks to both app-only and installation-wide update paths. Keep paired updates, retained-image rollback, custom sources and explicit pins intact.
+- Treat protocol and persisted-state changes explicitly; a renamed or additional field is not automatically safe for older clients.
+
 ### Composer and soft-keyboard acceptance scripts
 
 - Changes touching the composer, transcript scroll, floating buttons or terminal sizing must run `acceptance/composer-layout.ts`.

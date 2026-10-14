@@ -1,3 +1,5 @@
+import { assertSystemCompatible, requiredSystemVersion } from "@kintsugi/shared/system-version";
+import { readSystemVersion } from "../../../../packages/update/src/server/supervisor.ts";
 import { configureAgentMcp, handleAgentMcpRequest } from "@kintsugi/agent/server";
 import { createKintsugiEventBus, getKintsugiRuntimeContext } from "@kintsugi/core";
 import { designSystemCatalogueHtml } from "@kintsugi/design-system/catalogue";
@@ -56,6 +58,8 @@ const runtimeContext = getKintsugiRuntimeContext();
 
 
 const parentOriginPublisher = await detectParentOriginPublisher(defaultPublicOriginPortRange);
+// Check before constructing the app registry or loading persisted app state. Development without System is unaffected.
+if (parentOriginPublisher.kind === "system" && requiredSystemVersion > 0) assertSystemCompatible(await readSystemVersion(), requiredSystemVersion);
 let parentOriginPortRange = defaultPublicOriginPortRange;
 if (parentOriginPublisher.kind === "system") {
   const response = await fetch("http://127.0.0.1:3001/access");

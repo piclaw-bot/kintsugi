@@ -11,7 +11,8 @@
     "./theme": "./src/theme-setting.ts",
     "./file-metadata": "./src/file-metadata.ts",
     "./network-policy": "./src/network-policy.ts",
-    "./publishing": "./src/publishing.ts"
+    "./publishing": "./src/publishing.ts",
+    "./system-version": "./src/system-version.ts"
   },
   "dependencies": {
     "@kintsugi/core": "workspace:*",

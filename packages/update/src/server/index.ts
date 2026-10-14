@@ -1,3 +1,5 @@
+import { githubRepository } from "@kintsugi/shared/publishing";
+import { copyButtonHtml } from "@kintsugi/design-system/copy-button";
 import { createInstallationClient, type InstallationClient } from "./installation.ts";
 import type { InstallationUpdate } from "@kintsugi/shared/installation-update";
 import { warningBannerHtml } from "@kintsugi/design-system/warning-banner";
@@ -15,13 +17,13 @@ import { fetchChannelImageMetadata, type ImageMetadata } from "./registry.ts";
 import { readStoredUpdateChannel, writeStoredUpdateChannel, readStoredReleaseSource, writeStoredReleaseSource, readStoredTrackingChannel } from "./settings-store.ts";
 import { defaultReleaseSource, releaseReference, trackingReleaseSource, releaseSourceSchema, registryCredentialSchema, type ReleaseSource } from "@kintsugi/shared/release-source";
 import { Value } from "typebox/value";
-import { requestSupervisorUpdate, checkSupervisorRelease, prepareSupervisorRelease, supervisorRegistryRequest, requestSupervisorRollback } from "./supervisor.ts";
+import { readSystemVersion, requestSupervisorUpdate, checkSupervisorRelease, prepareSupervisorRelease, supervisorRegistryRequest, requestSupervisorRollback } from "./supervisor.ts";
 
 const updateSidebarContributionId = "kintsugi-update";
 const updateCheckIntervalMs = 24 * 60 * 60 * 1000;
 const installationStatusPollIntervalMs = 2000;
 
-type UpdateState = "idle" | "checking" | "available" | "pulling" | "ready_to_restart" | "failed" | "restarting";
+type UpdateState = "idle" | "checking" | "available" | "installer_required" | "pulling" | "ready_to_restart" | "failed" | "restarting";
 
 interface StateSnapshot {
   state: UpdateState;
@@ -29,6 +31,8 @@ interface StateSnapshot {
   error?: string;
   selfUpdatable: boolean;
   target?: ImageMetadata;
+  systemVersion?: number;
+  targetNeedsInstaller: boolean;
   updateChannel: UpdateChannel;
   releaseSource: ReleaseSource;
   progressMessage?: string;
@@ -45,6 +49,7 @@ export interface UpdateManagerDeps {
   readChannel?: () => Promise<UpdateChannel | undefined>;
   writeChannel?: (channel: UpdateChannel) => Promise<void>;
   detectRuntime?: () => Promise<SelfUpdateRuntime | undefined>;
+  readSystemVersion?: () => Promise<number>;
   fetchMetadata?: (channel: UpdateChannel) => Promise<ImageMetadata>;
   prepareUpdate?: (reference: string, onProgress: (progress: PullProgress) => void) => Promise<PreparedUpdate>;
   requestUpdate?: (imageId: string) => Promise<void>;
@@ -61,6 +66,7 @@ export class UpdateManager {
   private installationUnavailable = false;
   private installationPlanId: string | undefined;
   private runtime: SelfUpdateRuntime | undefined;
+  private systemVersion: number | undefined;
   private state: UpdateState = "idle";
   private percent: number | undefined;
   private error: string | undefined;
@@ -86,6 +92,7 @@ export class UpdateManager {
         this.installationClient = this.deps.installationClient;
         if (!await this.installationClient.installed()) this.installationClient = undefined;
       }
+      if (this.runtime) this.systemVersion = await (this.deps.readSystemVersion ?? readSystemVersion)();
       this.trackingChannel = await this.deps.readTrackingChannel?.() ?? "latest";
       this.releaseSource = await this.deps.readSource?.() ?? { ...defaultReleaseSource };
       this.updateChannel = await this.deps.readChannel?.() ?? (this.deps.readSource ? "custom" : "latest");
@@ -120,7 +127,8 @@ export class UpdateManager {
 
   snapshot(): StateSnapshot {
     const settings = { releaseSource: this.releaseSource, releaseChannel: this.updateChannel === "custom" ? this.trackingChannel : this.updateChannel, releaseMode: "custom" as const };
-    return { updateScope: this.installationClient ? "installation" : "app", appReference: releaseReference(settings, "app"), systemReference: releaseReference(settings, "system"), state: this.state, percent: this.percent, error: this.error, selfUpdatable: Boolean(this.runtime), target: this.target, updateChannel: this.updateChannel, releaseSource: { ...this.releaseSource }, progressMessage: this.progressMessage };
+    const targetNeedsInstaller = !this.installationClient && this.target !== undefined && this.systemVersion !== undefined && (this.target.requiredSystemVersion === undefined || this.target.requiredSystemVersion > this.systemVersion);
+    return { systemVersion: this.systemVersion, targetNeedsInstaller, updateScope: this.installationClient ? "installation" : "app", appReference: releaseReference(settings, "app"), systemReference: releaseReference(settings, "system"), state: this.state, percent: this.percent, error: this.error, selfUpdatable: Boolean(this.runtime), target: this.target, updateChannel: this.updateChannel, releaseSource: { ...this.releaseSource }, progressMessage: this.progressMessage };
   }
 
   private updateSidebar(checked = false): void {
@@ -167,11 +175,13 @@ export class UpdateManager {
       throw error;
     }
     if (generation !== this.channelGeneration || this.pullPromise || this.prepared || this.restarting) return;
+    const previous = this.target;
     this.target = target;
     const current = target.revision ? this.runtime.currentRevision ?? this.runtime.currentDigest : this.runtime.currentDigest;
     const remote = target.revision ?? target.digest;
     const available = Boolean(remote && current && remote !== current && this.runtime.currentDigest !== target.digest && this.runtime.currentDigest !== target.indexDigest);
     if (!available) this.setState("idle", {}, options.announceCurrent ?? false);
+    else if (this.state === "installer_required" && previous?.digest === target.digest) this.setState("installer_required");
     else this.setState("available");
   }
 
@@ -217,6 +227,7 @@ export class UpdateManager {
     if (!this.target || (this.state !== "available" && this.state !== "failed")) {
       throw new UpdateConflictError("No update is available to download. Check the selected channel first.");
     }
+    if (this.snapshot().targetNeedsInstaller) { this.setState("installer_required"); return Promise.resolve(); }
     this.pullPromise = this.pullNewestTarget().catch((error) => {
       this.setState("failed", { error: errorMessage(error) });
     }).finally(() => {
@@ -332,7 +343,7 @@ function renderCheckForm(): string {
 
 function renderDownloadControl(snapshot: StateSnapshot): string {
   const content = {
-    initialContent: { kind: "text" as const, text: "Download update" },
+    initialContent: { kind: "text" as const, text: snapshot.targetNeedsInstaller ? "Get update" : "Download update" },
     progressContent: { kind: "text" as const, text: "Downloading…" },
     variant: "primary" as const,
     type: "submit" as const,
@@ -377,6 +388,7 @@ function renderCheckFeedback(state: "initial" | "in-progress", feedback = false)
 }
 
 function renderUpdateControl(snapshot: StateSnapshot, surface: UpdateControlSurface): string {
+  if (snapshot.state === "installer_required") return renderInstallerRequired(snapshot);
   if (snapshot.state === "checking") return renderCheckFeedback("in-progress");
   if (!snapshot.selfUpdatable) return "";
   if ((snapshot.state === "failed" && !snapshot.target) || snapshot.state === "idle") return renderCheckFeedback("initial");
@@ -390,6 +402,13 @@ function renderUpdateControl(snapshot: StateSnapshot, surface: UpdateControlSurf
   });
 }
 
+function renderInstallerRequired(snapshot: StateSnapshot): string {
+  const command = `curl -fsSL https://raw.githubusercontent.com/${githubRepository}/main/scripts/install.sh | bash`;
+  return warningBannerHtml({ title: "Update the installation", message: snapshot.target?.requiredSystemVersion === undefined
+    ? "This installation cannot verify the update's requirements. Run the installer to update both components. Custom image pins may need matching versions."
+    : "This update needs newer installation services. Run the installer to update both components. Workspaces will be interrupted; their saved data stays in place.", actionsHtml: copyButtonHtml({ label: "Copy installer command", caption: "Copy installer command", copyText: command }) });
+}
+
 function updateDescription(snapshot: StateSnapshot): string {
   if (!snapshot.selfUpdatable) return "Updates require a System-managed installation.";
   if (snapshot.updateScope === "installation") return snapshot.progressMessage ?? "Check for installation updates.";
@@ -397,6 +416,7 @@ function updateDescription(snapshot: StateSnapshot): string {
     case "idle": return "Check for app updates.";
     case "checking": return "Checking for updates…";
     case "available": return "An app update is available.";
+    case "installer_required": return "";
     case "pulling": return "Downloading the app update…";
     case "ready_to_restart": return "";
     case "restarting": return "";

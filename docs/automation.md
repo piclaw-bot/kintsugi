@@ -166,6 +166,30 @@ The Tagged release workflow validates a `vMAJOR.MINOR.PATCH` tag on main, runs f
 
 Release [`v0.0.1`](https://github.com/rcarmo/kintsugi/releases/tag/v0.0.1) passed [tagged CI](https://github.com/rcarmo/kintsugi/actions/runs/38062757227): 1,905 tests passed, 39 skipped, and native AMD64/ARM64 image checks passed. All three versioned images and matching `latest` manifests are anonymously pullable and declare EROFS/OverlayFS support. Full OverlayFS lifecycle acceptance on an EROFS-free ARM host has not been verified.
 
+## App and installation compatibility
+
+`packages/shared/src/system-version.ts` defines the installation API contract. The
+System image advertises `org.kintsugi.system-version`; app images advertise
+`org.kintsugi.required-system-version`. Missing labels identify existing version-0
+images. Malformed version labels fail validation. The numeric compatibility
+version is separate from the image tag or digest in `releaseSource.systemVersion`.
+
+The initial support release advertises version 1 while the app still requires
+version 0. Publish support before raising the app minimum. These counters do not
+claim upstream's private-network operations or its saved repository format.
+
+Paired updates check candidate versions before download and inspect the prepared
+images again before replacement or retained-pair rollback. App-only updates check
+the running installation. An older metadata API that cannot report an app's
+requirement leaves it unknown and directs the user to the installer; it does not
+claim the target requires version zero. The app and supervisor also check
+requirements before activation. No check rewrites saved repositories or pins.
+
+Publication verifies both native architectures and candidate compatibility before
+writing version or channel tags. Channel promotion advances installation services
+before the app. Local app-only publication checks the selected channel's existing
+System image first. The stored update-plan protocol remains unchanged.
+
 ## Fork release sources
 
 The updater and host installer consume the persisted release selection below. Only pushed version tags publish verified app, System and workspace manifests; ordinary branch CI never publishes images. Upstream-sync automation is not configured. Installer install/update requires a System image carrying `kintsugi.installer-config=1`, built from this branch; an incompatible image is rejected before the existing System is stopped. A retained older System image can still be restored with installer rollback.

@@ -4,6 +4,8 @@ import { join, resolve } from "node:path";
 import { Type } from "typebox";
 import { Value } from "typebox/value";
 import { authenticateRegistry, commandRunner, ensureBuilders, inspectImage, inspectPlatform, platforms, type Run } from "./release-support.ts";
+import { systemRepository } from "../packages/shared/src/publishing.ts";
+import { verifyImagePair } from "./ci-images.ts";
 import { acquireReleaseLock } from "./release-lock.ts";
 
 import { appRepository as image } from "../packages/shared/src/publishing.ts";
@@ -118,6 +120,8 @@ export async function release(options: ReturnType<typeof parseReleaseArgs>, run:
   phase("Confirm main branch has not moved");
   const head = (await run(["git", "ls-remote", "origin", "refs/heads/main"])).stdout.split(/\s+/)[0];
   if (head !== status.commit) throw new Error("origin/main moved during this release. Commit image is uploaded; rerun to release the new branch head.");
+  phase("Verify installation compatibility on target channels");
+  for (const channel of Object.keys(status.channels)) await verifyImagePair(run, `${image}@${status.digest}`, `${systemRepository}:${channel}`);
   await promoteChannels(run, status, save);
   status.state = "published";
   phase(`Published ${Object.keys(status.channels).join(" + ")} — ${status.digest}`);

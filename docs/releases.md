@@ -37,6 +37,14 @@ reuse, native builds and promotion.
 
 `release.yml` runs only on `v*.*.*` tag pushes. It validates stable semver and main ancestry, runs full checks and invokes the native image workflow. Immutable version tags are published for all three images. The newest version advances `latest`; `stable` is unchanged. Ordinary branch pushes do not run CI. No package-write PAT or extra environment variables are needed.
 
+Compatibility labels come from `packages/shared/src/system-version.ts`. Both native
+slices must agree, and the candidate app/System pair must satisfy the app minimum
+before any publication. Promotion advances workspace, System, then app images.
+Local app-only publishing also checks the existing System on every target channel.
+Publish new System support before making an app require it. Unversioned images are
+version 0; this initial support release provides version 1 and keeps the app minimum
+at 0. Saved custom sources, pins and the retained image-pair protocol are unchanged.
+
 Both native slices must pass smoke tests before their receipts are merged.
 Every combined manifest, source/signature label and pinned workspace dependency
 is verified before any `latest` tag changes. Stale main revisions are rejected

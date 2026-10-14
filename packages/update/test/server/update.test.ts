@@ -49,7 +49,8 @@ const exact = `ghcr.io/rcarmo/kintsugi@${newDigest}`;
 function manager(extra: UpdateManagerDeps = {}) {
   return new UpdateManager({
     detectRuntime: async () => ({ currentDigest: oldDigest }),
-    fetchMetadata: async () => ({ digest: newDigest }),
+    readSystemVersion: async () => 1,
+    fetchMetadata: async () => ({ digest: newDigest, requiredSystemVersion: 0 }),
     prepareUpdate: async (reference) => ({ reference, imageId: "sha256:prepared-image-id" }),
     setInterval: noInterval, ...extra,
   });
@@ -59,7 +60,7 @@ test("automatic release checks run once a day after the startup check", async ()
   let interval = 0;
   let checks = 0;
   const instance = manager({
-    fetchMetadata: async () => { checks += 1; return { digest: newDigest }; },
+    fetchMetadata: async () => { checks += 1; return { digest: newDigest, requiredSystemVersion: 0 }; },
     setInterval: (callback, ms) => { tick = callback; interval = ms; },
   });
   await instance.initialize(context().ctx);
@@ -177,13 +178,13 @@ test("restart route acknowledges same-origin reload only after supervisor accept
   expect(response.headers.has("location")).toBe(false);
 });
 test("background checks cannot replace a pinned download or prepared target", async () => {
-  const pendingCheck = deferred<{ digest: string }>();
+  const pendingCheck = deferred<{ digest: string; requiredSystemVersion?: number }>();
   let checks = 0;
-  const instance = manager({ fetchMetadata: async () => ++checks === 1 ? { digest: newDigest } : pendingCheck.promise });
+  const instance = manager({ fetchMetadata: async () => ++checks === 1 ? { digest: newDigest, requiredSystemVersion: 0 } : pendingCheck.promise });
   await instance.initialize(context().ctx);
   const stale = instance.checkNow();
   await instance.startPull();
-  pendingCheck.resolve({ digest: newerDigest });
+  pendingCheck.resolve({ digest: newerDigest, requiredSystemVersion: 0 });
   await stale;
   await instance.checkNow();
   expect(instance.snapshot().target!.digest).toBe(newDigest);
@@ -213,14 +214,14 @@ test("channel changes persist, discard prior prepared images, and survive manage
 });
 test("a superseded channel check cannot publish success or failure", async () => {
   for (const fail of [false, true]) {
-    const pending = deferred<{ digest: string }>();
-    const instance = manager({ readChannel: async () => "stable", fetchMetadata: async (channel) => channel === "latest" ? pending.promise : { digest: newDigest } });
+    const pending = deferred<{ digest: string; requiredSystemVersion?: number }>();
+    const instance = manager({ readChannel: async () => "stable", fetchMetadata: async (channel) => channel === "latest" ? pending.promise : { digest: newDigest, requiredSystemVersion: 0 } });
     await instance.initialize(context().ctx);
     const stale = instance.setUpdateChannel("latest");
     await Bun.sleep(0);
     await instance.setUpdateChannel("stable");
     const snapshot = instance.snapshot();
-    if (fail) pending.reject(new Error("registry failed")); else pending.resolve({ digest: newerDigest });
+    if (fail) pending.reject(new Error("registry failed")); else pending.resolve({ digest: newerDigest, requiredSystemVersion: 0 });
     await stale;
     expect(instance.snapshot()).toEqual(snapshot);
   }
@@ -240,7 +241,7 @@ test("new installations discover latest updates and pin their immutable image", 
   const prepared: string[] = [];
   const instance = manager({
     readChannel: async () => undefined,
-    fetchMetadata: async (channel) => { channels.push(channel); return { digest: newDigest }; },
+    fetchMetadata: async (channel) => { channels.push(channel); return { digest: newDigest, requiredSystemVersion: 0 }; },
     prepareUpdate: async (reference) => { prepared.push(reference); return { reference, imageId: "sha256:latest-image" }; },
   });
   expect(instance.snapshot().updateChannel).toBe("latest");
@@ -256,7 +257,7 @@ test.each(["stable", "latest"] as const)("stored %s channel overrides the latest
   const channels: string[] = [];
   const instance = manager({
     readChannel: async () => channel,
-    fetchMetadata: async (selected) => { channels.push(selected); return { digest: newDigest }; },
+    fetchMetadata: async (selected) => { channels.push(selected); return { digest: newDigest, requiredSystemVersion: 0 }; },
   });
   await instance.initialize(context().ctx);
   expect(instance.snapshot().updateChannel).toBe(channel);
@@ -275,7 +276,7 @@ test("switching from stable to latest persists the channel and refreshes the tar
       writeChannel: writeStoredUpdateChannel,
       fetchMetadata: async (channel: "stable" | "latest" | "custom") => {
         channels.push(channel);
-        return { digest: channel === "latest" ? newerDigest : newDigest };
+        return { digest: channel === "latest" ? newerDigest : newDigest, requiredSystemVersion: 0 };
       },
     };
     const instance = manager(dependencies);
@@ -283,7 +284,7 @@ test("switching from stable to latest persists the channel and refreshes the tar
     await instance.startPull();
     await instance.setUpdateChannel("latest");
     expect(channels).toEqual(["stable", "latest"]);
-    expect(instance.snapshot()).toMatchObject({ updateChannel: "latest", state: "available", target: { digest: newerDigest } });
+    expect(instance.snapshot()).toMatchObject({ updateChannel: "latest", state: "available", target: { digest: newerDigest, requiredSystemVersion: 0 } });
     await expect(instance.restart()).rejects.toThrow("No prepared update");
     expect(await readStoredUpdateChannel()).toBe("latest");
     const restarted = manager(dependencies);
@@ -374,14 +375,14 @@ test("invalid release configuration disables updates without aborting app initia
 });
 
 test("unchanged revision does not report a platform/index digest difference as an update", async () => {
-  const instance = manager({ detectRuntime: async () => ({ currentDigest: oldDigest, currentRevision: "same" }), fetchMetadata: async () => ({ digest: newDigest, revision: "same" }) });
+  const instance = manager({ detectRuntime: async () => ({ currentDigest: oldDigest, currentRevision: "same" }), fetchMetadata: async () => ({ digest: newDigest, requiredSystemVersion: 0, revision: "same" }) });
   await instance.initialize(context().ctx);
   expect(instance.snapshot().state).toBe("idle");
 });
 
 test("saving a source returns success even if its subsequent registry check fails", async () => {
   let fail = false;
-  const instance = manager({ fetchMetadata: async () => { if (fail) throw new Error("Registry unavailable"); return { digest: newDigest }; } });
+  const instance = manager({ fetchMetadata: async () => { if (fail) throw new Error("Registry unavailable"); return { digest: newDigest, requiredSystemVersion: 0 }; } });
   await instance.initialize(context().ctx); fail = true;
   const url = new URL("http://localhost/settings/release-source");
   const response = (await createUpdateRouteHandler(instance)(new Request(url, { method: "POST", headers: { accept: "application/json", "content-type": "application/json" }, body: JSON.stringify({ appRepository: "ghcr.io/example/app", systemRepository: "ghcr.io/example/system" }) }), url))!;
@@ -391,7 +392,7 @@ test("saving a source returns success even if its subsequent registry check fail
 });
 
 test("unlabelled images compare the running index digest with the remote index", async () => {
-  const instance = manager({ detectRuntime: async () => ({ currentDigest: oldDigest }), fetchMetadata: async () => ({ digest: newDigest, indexDigest: oldDigest }) });
+  const instance = manager({ detectRuntime: async () => ({ currentDigest: oldDigest }), fetchMetadata: async () => ({ digest: newDigest, requiredSystemVersion: 0, indexDigest: oldDigest }) });
   await instance.initialize(context().ctx);
   expect(instance.snapshot().state).toBe("idle");
 });
@@ -425,4 +426,39 @@ test("temporary service loss during restart recovers without app-only fallback",
   let available=false;let tick:(()=>void)|undefined;const status=async()=>{if(!available)throw Error("socket unavailable");return {phase:"succeeded" as const,message:"healthy"};};
   const instance=manager({installationClient:{installed:async()=>true,status,check:status,prepare:status,apply:status,rollback:status},setInterval:callback=>{tick=callback;}});
   await instance.initialize(context().ctx);expect(instance.snapshot()).toMatchObject({updateScope:"installation",state:"failed"});available=true;tick!();await Bun.sleep(0);expect(instance.snapshot().state).toBe("idle");
+});
+
+test("app-only updates requiring newer services are refused before downloading", async () => {
+  let downloads = 0;
+  const instance = manager({ readSystemVersion: async () => 1, fetchMetadata: async () => ({ digest: newDigest, requiredSystemVersion: 2 }), prepareUpdate: async () => { downloads++; return { reference: exact, imageId: "unused" }; } });
+  await instance.initialize(context().ctx);
+  expect(instance.snapshot()).toMatchObject({ state: "available", systemVersion: 1, targetNeedsInstaller: true });
+  await instance.startPull();
+  expect(instance.snapshot().state).toBe("installer_required");
+  expect(downloads).toBe(0);
+  await instance.checkNow();
+  expect(instance.snapshot().state).toBe("installer_required");
+});
+
+test("unknown metadata cannot authorise replacement; verified legacy requirements can", async () => {
+  for (const requiredSystemVersion of [undefined, 0]) {
+    let downloads = 0;
+    const instance = manager({ readSystemVersion: async () => 0, fetchMetadata: async () => ({ digest: newDigest, requiredSystemVersion }), prepareUpdate: async () => { downloads++; return { reference: exact, imageId: "prepared" }; } });
+    await instance.initialize(context().ctx);
+    await instance.startPull();
+    expect(downloads).toBe(requiredSystemVersion === undefined ? 0 : 1);
+    expect(instance.snapshot().state).toBe(requiredSystemVersion === undefined ? "installer_required" : "ready_to_restart");
+  }
+});
+
+test("a new compatible target clears installer guidance without changing saved sources", async () => {
+  let requirement = 2;
+  let writes = 0;
+  const instance = manager({ readSystemVersion: async () => 1, fetchMetadata: async () => ({ digest: requirement === 2 ? newDigest : newerDigest, requiredSystemVersion: requirement }), writeSource: async () => { writes++; } });
+  await instance.initialize(context().ctx); await instance.startPull();
+  expect(instance.snapshot().state).toBe("installer_required");
+  requirement = 1;
+  await instance.checkNow();
+  expect(instance.snapshot()).toMatchObject({ state: "available", targetNeedsInstaller: false });
+  expect(writes).toBe(0);
 });

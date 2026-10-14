@@ -22,7 +22,7 @@ describe("registry helpers", () => {
       if (url.endsWith("/blobs/sha256:config")) return Response.json({ os: "linux", architecture: process.arch === "arm64" ? "arm64" : "amd64", config: { Labels: { "org.opencontainers.image.revision": "new" } } });
       throw new Error(`unexpected fetch ${url}`);
     };
-    await expect(fetchChannelImageMetadata("stable", fetcher)).resolves.toEqual({ digest: "sha256:manifest", revision: "new" });
+    await expect(fetchChannelImageMetadata("stable", fetcher)).resolves.toEqual({ digest: "sha256:manifest", revision: "new", requiredSystemVersion: 0 });
   });
 
   test("accepts null optional config label fields", async () => {
@@ -36,6 +36,7 @@ describe("registry helpers", () => {
       await expect(fetchChannelImageMetadata("stable", fetcher)).resolves.toEqual({
         digest: "sha256:manifest",
         revision: undefined,
+        requiredSystemVersion: 0,
       });
     }
   });
@@ -53,6 +54,7 @@ describe("registry helpers", () => {
     await expect(fetchChannelImageMetadata("stable", fetcher)).resolves.toEqual({
       digest: "sha256:platform",
       revision: "indexed",
+      requiredSystemVersion: 0,
     });
   });
 
@@ -104,7 +106,7 @@ test("resolves complete platform download metadata before pulling layers", async
     if (url.endsWith(`/manifests/${digest}`)) return Response.json({ config: { digest: "sha256:config" }, layers: [layer] });
     return Response.json({ os: "linux", architecture: "arm64", config: { Labels: { "eagerly-preload": '["ubuntu:24.04"]' } } });
   }, { os: "linux", architecture: "arm64" });
-  expect(image).toEqual({ reference: `ghcr.io/example/app@${digest}`, layers: [layer], dependencies: ["ubuntu:24.04"] });
+  expect(image).toEqual({ reference: `ghcr.io/example/app@${digest}`, layers: [layer], dependencies: ["ubuntu:24.04"], requiredSystemVersion: 0, systemVersion: 0 });
   expect(calls).toHaveLength(3);
 });
 
@@ -145,6 +147,17 @@ test("latest discovery only requests the new product's latest tag", async () => 
     }
     throw new Error(`unexpected fetch ${url}`);
   };
-  await expect(fetchChannelImageMetadata("latest", fetcher)).resolves.toEqual({ digest: "sha256:latest-manifest", revision: "latest-revision" });
+  await expect(fetchChannelImageMetadata("latest", fetcher)).resolves.toEqual({ digest: "sha256:latest-manifest", revision: "latest-revision", requiredSystemVersion: 0 });
+  expect(calls).toHaveLength(2);
+});
+
+test("registry planning preserves required and provided compatibility without pulling layers", async () => {
+  const imageDigest = `sha256:${"e".repeat(64)}`;
+  const calls: string[] = [];
+  const plan = await resolveImage("ghcr.io/example/app:test", async (input) => {
+    const url = String(input); calls.push(url);
+    return url.includes("/manifests/") ? Response.json({ config: { digest: "sha256:config" }, layers: [] }, { headers: { "docker-content-digest": imageDigest } }) : Response.json({ os: "linux", architecture: "amd64", config: { Labels: { "org.kintsugi.required-system-version": "2", "org.kintsugi.system-version": "3" } } });
+  }, { os: "linux", architecture: "amd64" });
+  expect(plan).toMatchObject({ reference: `ghcr.io/example/app@${imageDigest}`, requiredSystemVersion: 2, systemVersion: 3 });
   expect(calls).toHaveLength(2);
 });

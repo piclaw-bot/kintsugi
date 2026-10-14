@@ -1,4 +1,5 @@
 #!/usr/bin/env bun
+import { systemVersion, systemVersionLabel } from "../../packages/shared/src/system-version.ts";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
@@ -29,11 +30,13 @@ export async function publishSystem(run: Run, directory: string, check = false) 
     await run(["docker", "--context", context, "buildx", "build", "--platform", platform,
       "--provenance=false", "--push", "--progress", "plain", "--tag", slice,
       "--label", `org.opencontainers.image.revision=${revision}`,
+      "--label", `${systemVersionLabel}=${systemVersion}`,
       "--file", "images/system/Dockerfile", "images/system"], { stream: true });
     const manifest = JSON.parse((await run(["docker", "buildx", "imagetools", "inspect", slice, "--format", "{{json .Manifest}}"])).stdout);
     if (!/^sha256:[a-f0-9]{64}$/.test(manifest.digest)) throw new Error(`Registry returned no digest for ${slice}`);
     const pinned = `${image}@${manifest.digest}`;
-    await inspectPlatform(run, pinned, platform, revision);
+    const config = await inspectPlatform(run, pinned, platform, revision);
+    if (config.config.Labels[systemVersionLabel] !== String(systemVersion)) throw new Error("System compatibility label does not match the source checkout");
     slices.push(pinned);
   }
   await run(["docker", "buildx", "imagetools", "create", "--tag", ref, ...slices], { stream: true });
