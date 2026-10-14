@@ -18,6 +18,7 @@ const dictationEventSchema = Type.Object({
   progress: Type.Optional(Type.Number({ minimum: 0, maximum: 100 })),
 });
 type DictationEvent = Static<typeof dictationEventSchema>;
+const trailingSilenceSeconds = 1;
 
 function composeTranscript(prefix: string, spoken: string, suffix: string) {
   const left = prefix && spoken && !/\s$/.test(prefix) && !/^\s/.test(spoken) ? " " : "";
@@ -213,9 +214,15 @@ export function createDictationComposerController(Controller: WorkspaceClientCon
 
     private finish(): void {
       this.setState("finishing", "Finishing…");
+      const { sampleRate } = this.capture!.context;
       this.stopCapture();
-      if (this.socket?.readyState === WebSocket.OPEN) this.commitAudio();
-      else this.socket?.close();
+      if (this.socket?.readyState !== WebSocket.OPEN) {
+        this.socket?.close();
+        return;
+      }
+      // The streaming model holds back its last words until it hears what follows; a commit alone drops them.
+      this.socket.send(new Int16Array(Math.round(sampleRate * trailingSilenceSeconds)).buffer);
+      this.commitAudio();
     }
 
     private commitAudio(): void {
