@@ -26,7 +26,7 @@ async function command(args: string[], timeout = 180_000) {
   return stdout;
 }
 try {
-  await Bun.write(join(directory, "Dockerfile"), "FROM oven/bun:1.4.2-alpine\nUSER root\nRUN apk add --no-cache iproute2 nftables\n");
+  await Bun.write(join(directory, "Dockerfile"), "FROM oven/bun:1.4.2-alpine\nUSER root\nRUN apk add --no-cache iproute2 nftables openssl\n");
   await copyFile(new URL("./verify-listed-hosts-firewall-probe.ts", import.meta.url), join(directory, "probe.ts"));
   const rules = {
     hosts: policy,

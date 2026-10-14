@@ -24,7 +24,7 @@ async function waitReady() {
   throw new Error(`DNS fixture did not start: ${await docker(["exec", name, "journalctl", "--no-pager", "-n", "40"])}`);
 }
 try {
-  await docker(["create", "--name", name, "--security-opt", "writable-cgroups=true", "--cgroupns=private", "--tmpfs", "/run", "--stop-signal", "SIGRTMIN+3", image]);
+  await docker(["create", "--name", name, "--network", "none", "--dns", "192.0.2.53", "--security-opt", "writable-cgroups=true", "--cgroupns=private", "--tmpfs", "/run", "--stop-signal", "SIGRTMIN+3", image]);
   await writeWorkspaceNetworkBootstrap(directory, { mode: "lan", resolver: "198.18.0.1", cidrs: ["192.168.10.0/24"], dns: ["192.168.10.53"], search: ["home.arpa"], denied: [] });
   await docker(["cp", directory + "/.", `${name}:/etc`]);
   const token = join(directory, "token");
@@ -42,13 +42,41 @@ try {
   await waitReady();
   assert.equal(await docker(["exec", name, "cat", "/etc/resolv.conf"]), expected);
   console.log("PASS Docker restart reapplies active DNS");
+  const hosts = { mode: "hosts" as const, cidrs: [], dns: ["192.168.10.53"], search: ["home.arpa"], denied: [], destinations: [{ host: "db.internal", port: 4545, addresses: ["192.168.10.20"] }] };
+  await docker(["stop", name]);
+  await writeWorkspaceNetworkBootstrap(directory, { ...hosts, resolver: "198.18.0.1" });
+  await docker(["cp", directory + "/.", `${name}:/etc`]);
+  await docker(["start", name]);
+  await waitReady();
+  assert.equal(await docker(["exec", name, "cat", "/tmp/network-dns-before-init"]), expected);
+  await docker(["restart", name]);
+  await waitReady();
+  assert.equal(await docker(["exec", name, "cat", "/etc/resolv.conf"]), expected);
+  console.log("PASS listed-host DNS applies before init and survives Docker restart");
+  await docker(["stop", name]);
+  await writeWorkspaceNetworkBootstrap(directory, { ...hosts, dns: [], search: [] });
+  await docker(["cp", directory + "/.", `${name}:/etc`]);
+  await docker(["start", name]);
+  await waitReady();
+  const cleared = await docker(["exec", name, "cat", "/tmp/network-dns-before-init"]);
+  assert.ok(cleared.includes("nameserver 192.0.2.53"));
+  assert.ok(!cleared.includes("198.18.0.1"));
+  console.log("PASS clearing listed-host forwarders restores Docker DNS before init");
+  await docker(["stop", name]);
+  await writeWorkspaceNetworkBootstrap(directory, { ...hosts, resolver: "198.18.0.1" });
+  await docker(["cp", directory + "/.", `${name}:/etc`]);
+  await docker(["start", name]);
+  await waitReady();
+  assert.equal(await docker(["exec", name, "cat", "/etc/resolv.conf"]), expected);
   await docker(["stop", name]);
   await writeWorkspaceNetworkBootstrap(directory, { mode: "off", cidrs: [], dns: [], search: [], denied: [] });
   await docker(["cp", directory + "/.", `${name}:/etc`]);
   await docker(["start", name]);
   await waitReady();
-  assert.ok(!(await docker(["exec", name, "cat", "/etc/resolv.conf"])).includes("192.168.10.53"));
-  console.log("PASS disabling LAN restores Docker default DNS");
+  const disabled = await docker(["exec", name, "cat", "/etc/resolv.conf"]);
+  assert.ok(disabled.includes("nameserver 192.0.2.53"));
+  assert.ok(!disabled.includes("198.18.0.1"));
+  console.log("PASS Off restores Docker DNS and removes the applied System resolver");
 } finally {
   await docker(["rm", "-f", name]);
   await rm(directory, { recursive: true, force: true });

@@ -136,17 +136,28 @@ bun run packages/workspace/scripts/test-network-dns.ts <local-workspace-image>
 bun run packages/workspace/scripts/test-system-resolver.ts <local-system-image>
 ```
 
-The kernel test uses disposable privileged containers and isolated namespaces to exercise IPv4/IPv6 Off/LAN/Private access, DNS-only exceptions, management/peer isolation, revocation and restoration. The DNS test requires a local systemd workspace image and checks DNS before init, reapplication after Docker restart and restoration when disabled. The System resolver integration script uses disposable privileged namespaces to verify native NXDOMAIN fallback, distinct applied views, UDP/TCP ownership, Off and management-port isolation, revocation, inactive empty configuration and restoration before Docker startup. These tests never change host DNS or a live installation. Proxy and shared-policy tests cover forwarder boundaries and protected ranges, plus ordered NXDOMAIN/no-record fallback, search-candidate ordering, operational failure handling and propagation of protocol errors; admin tests cover persistence, defaults, validation, scope enforcement and OpenAPI schemas. No UI tests are added.
+The kernel test uses disposable privileged containers and isolated namespaces to exercise IPv4/IPv6 Off/LAN/Private access, DNS-only exceptions, management/peer isolation, revocation and restoration. The DNS test requires a local systemd workspace image and checks DNS before init, reapplication after Docker restart and restoration when disabled. The System resolver integration script uses a disposable, network-isolated privileged container to verify native NXDOMAIN fallback, distinct applied views, UDP/TCP ownership, Off and management-port isolation, revocation, inactive empty configuration and restoration before Docker startup. These tests never change host DNS or a live installation. Proxy and shared-policy tests cover forwarder boundaries and protected ranges, plus ordered NXDOMAIN/no-record fallback, search-candidate ordering, operational failure handling and propagation of protocol errors; admin tests cover persistence, defaults, validation, scope enforcement and OpenAPI schemas. No UI tests are added.
 
 The listed-host verifier runs production nftables rules in a disposable Docker
 container with no external network, published ports, installation data or Docker
-socket. It builds a local Bun/iproute2/nftables probe image and uses `NET_ADMIN`,
+socket. It builds a local Bun/iproute2/nftables/openssl probe image and uses `NET_ADMIN`,
 `SYS_ADMIN` and an unconfined seccomp profile to create isolated namespaces.
 Its JSON report records 60 packet-flow checks: working IPv4/IPv6 listeners,
 exact TCP grants, rejected ports and UDP, control/peer denials, changed snapshots,
 Off revocation on an established connection, and preserved CIDR/public-egress
 semantics. The public IP is a sandbox-local listener; this does not test internet
 connectivity, System DNS, proxy hostname checks or build-client cgroup rules.
+
+The System resolver script bundles current System and proxy source from the
+checkout; its local image must provide Bun, ip, nft and openssl. Listed-host
+checks use a real changing DNS upstream, private HTTP services and the production
+egress proxy. The proxy rejects same-IP aliases and literal-IP bypasses; native
+access is limited to the pinned IP/TCP-port tuple. Later DNS answers do not widen
+native or proxy permissions. Reapplication replaces the pin, DNS/persistence
+failures restore the prior live snapshot, and a fresh control process restores
+saved pins without resolving them again. The workspace bootstrap script also
+checks listed-host DNS before init, after Docker restart, after clearing
+forwarders and after applying Off.
 
 ## Listed hosts only
 
