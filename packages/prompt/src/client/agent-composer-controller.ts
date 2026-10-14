@@ -75,12 +75,13 @@ export function createAgentComposerController(Controller: WorkspaceClientControl
 
     selected(event?: Event): void {
       if (event && event.target !== this.pane) return;
-      if (!isWorkspacePaneVisible(this.element) || this.activeSelection) return;
+      if (!isWorkspacePaneVisible(this.element)) return;
+      const created = this.pane.dataset.workspaceAgentCreated === "true";
+      if (this.activeSelection && !created) return;
       this.activeSelection = true;
       const input = this.input;
       if (!input) return; // Ended CLI sessions are read-only.
       // Some agent types start ready to write, including on mobile.
-      const created = this.pane.dataset.workspaceAgentCreated === "true";
       delete this.pane.dataset.workspaceAgentCreated;
       // Otherwise, reading comes first on mobile and in CLI views.
       this.setOpen((created && this.openOnCreateValue) || (this.openOnSelectValue && !this.mobile));

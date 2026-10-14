@@ -457,6 +457,12 @@ export function createWorkspacePresentationController(
       if (intent && createdPane) {
         createdPane.dataset.workspaceAgentCreated = "true";
         delete intent.createdAgent;
+        // Lazy SSE insertion connects child controllers at the next mutation checkpoint.
+        // Deliver creation separately so an already-visible surface can still open its composer.
+        queueMicrotask(() => {
+          if (createdPane.isConnected && this.visiblePanes().includes(createdPane))
+            createdPane.dispatchEvent(new CustomEvent("kintsugi:workspace-agent-created", { bubbles: true }));
+        });
       }
       if (options.emit) this.emitVisibilityChanges(before, after);
       if (options.focus && document.hasFocus()) this.focusActiveSurface();
