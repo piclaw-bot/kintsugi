@@ -48,8 +48,8 @@ gate for listed-host mode. Saved custom sources, pins and the retained image-pai
 
 Both native slices must pass smoke tests before their receipts are merged.
 Every combined manifest, source/signature label and pinned workspace dependency
-is verified before any `latest` tag changes. Stale main revisions are rejected
-before writes and again before promotion. Promotion is serialised and never
+is verified before any `latest` tag changes. Tagged source must remain on main;
+only the newest semantic version advances `latest`. Promotion is serialised and never
 cancelled halfway through. **Channel changes are not atomic:** an error after one
 tag advances requires inspection or rerunning the same publication. `stable`
 is never advanced by CI; complete clean-install/update/rollback acceptance first.
@@ -74,12 +74,19 @@ to local release tooling only; GitHub Actions uses its own native runners.
 bun run release             # latest
 bun run release --stable    # latest and stable
 bun run release --check     # validate the builder without publishing
+bun run release --prepare   # upload/verify immutable images, change no channels
+bun run release --revision <full-sha>  # publish a pinned main-branch revision
 ```
 
 The release command targets `origin/main`, `ghcr.io/rcarmo/kintsugi:latest` and
 immutable commit/staging tags. `--stable` also advances `stable`; complete VM
 acceptance before using it. `--check` may be combined with `--stable` and never
-publishes. Upstream Atelier releases use their own repository.
+publishes. `--prepare` builds and uploads verified commit/workspace images without
+changing channels or creating a GitHub Release; it cannot be combined with
+`--stable` or `--check`. `--revision` selects an explicit full SHA that must be an
+ancestor of main. Upstream releases use their own repository. Kintsugi retains its
+version-tagged GitHub Actions publication and does not adopt upstream's separate
+`stable-<id>` release-tag scheme.
 
 App, System and workspace images retain a pinned upstream runtime dependency.
 `images/patched-docker/publish.sh` can publish a fork runtime separately; commit
@@ -138,9 +145,10 @@ Channel tags are not passed to the build. An existing commit image is reused, no
 overwritten, and its two architectures and revision labels must pass verification.
 Rerunning after a completed upload therefore skips the application rebuild.
 
-Before promotion, the command verifies `origin/main` has not moved. If it has, the command
-fails without updating channels; rerun to release the new branch head. Otherwise it
-promotes the verified digest to latest (and stable with `--stable`) and checks its registry digest.
+Before promotion, the local command fetches main again and verifies it still
+contains the selected release commit. Fast-forward commits do not change the
+pinned build; rewritten history stops promotion. The verified digest is promoted
+to latest (and stable with `--stable`) and checked against the registry.
 Channel updates are **not atomic**. Status records each channel separately. A
 failed promotion may have reached the registry even if its response was lost;
 there is no automatic rollback. Inspect the tag/digest or rerun the same release.
@@ -148,8 +156,9 @@ there is no automatic rollback. Inspect the tag/digest or rerun the same release
 An OS lock prevents overlapping releases from the same Git common directory,
 including linked worktrees. **It is not a distributed lock:** do not run releases
 from two independent workspaces simultaneously. Do not run local publishers
-concurrently with CI publication. The branch-head check reduces stale
-promotions but cannot eliminate a race with another workspace's publisher.
+concurrently with CI publication. Concurrent local publishers could promote out
+of order and leave latest on an older commit. Tagged GitHub publication separately
+serialises promotion and only lets the newest semantic version advance latest.
 
 Build caches remain with each Docker daemon. SSH contexts and probe images are
 retained for reuse. The script does not provision Docker or modify the helper's

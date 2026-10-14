@@ -14,6 +14,8 @@ export const usage = `Release Kintsugi from the current origin/main commit.
 
   bun run release             Publish latest
   bun run release --stable    Publish latest and stable
+  bun run release --prepare   Build/upload a verified immutable commit; change no channels
+  bun run release --revision <full-sha>  Use a pinned main-branch commit
   bun run release --check     Check Git, local/SSH Docker builders and both architectures; publish nothing
 
 --check may be combined with --stable. Working files are never released or reset.
@@ -22,16 +24,31 @@ Uses the existing GH_PACKAGE_TOKEN for publishing. Logs/status live under Git's
 common directory in kintsugi-releases/<run-id>/. See docs/releases.md.
 `;
 
+interface ReleaseOptions { stable: boolean; check: boolean; help: boolean; prepare: boolean; revision?: string }
+
+// Selectively adapted from upstream d6339ac2; Kintsugi retains version-tagged GitHub publication.
 export function parseReleaseArgs(args: string[]) {
-  for (const arg of args) {
-    if (!["--stable", "--check", "--help", "-h"].includes(arg)) throw new Error(`Unknown release option: ${arg}`);
+  let revision: string | undefined;
+  for (let index = 0; index < args.length; index++) {
+    const arg = args[index]!;
+    if (arg === "--revision") {
+      if (revision !== undefined) throw new Error("Supply --revision only once");
+      revision = args[++index];
+      if (!revision || !/^[a-f0-9]{40}$/.test(revision)) throw new Error("--revision needs a full Git commit SHA");
+    } else if (!["--stable", "--prepare", "--check", "--help", "-h"].includes(arg)) throw new Error(`Unknown release option: ${arg}`);
   }
-  return { stable: args.includes("--stable"), check: args.includes("--check"), help: args.includes("--help") || args.includes("-h") };
+  const prepare = args.includes("--prepare");
+  const stable = args.includes("--stable");
+  const check = args.includes("--check");
+  if (prepare && (stable || check)) throw new Error("--prepare cannot be combined with --stable or --check");
+  const options: ReleaseOptions = { stable, check, prepare, help: args.includes("--help") || args.includes("-h") };
+  if (revision) options.revision = revision;
+  return options;
 }
 
 type ChannelState = "pending" | "promoting" | "published" | "failed";
 export interface ReleaseStatus {
-  state: "running" | "checked" | "published" | "failed";
+  state: "running" | "prepared" | "checked" | "published" | "failed";
   phase: string;
   startedAt: string;
   updatedAt: string;
@@ -86,7 +103,10 @@ export async function release(options: ReturnType<typeof parseReleaseArgs>, run:
   const phase = (text: string) => { status.phase = text; save(); };
   phase("Resolve origin/main");
   await run(["git", "fetch", "origin", "refs/heads/main"]);
-  status.commit = (await run(["git", "rev-parse", "FETCH_HEAD^{commit}"])).stdout.trim();
+  const main = (await run(["git", "rev-parse", "FETCH_HEAD^{commit}"])).stdout.trim();
+  status.commit = options.revision ?? main;
+  if (options.revision && (await run(["git", "merge-base", "--is-ancestor", options.revision, "FETCH_HEAD"], { allowFailure: true })).code !== 0)
+    throw new Error("The pinned revision is not on origin/main; nothing was published.");
   save();
   phase("Check local and SSH native builders");
   const builders = await ensureBuilders(run, directory);
@@ -116,10 +136,17 @@ export async function release(options: ReturnType<typeof parseReleaseArgs>, run:
   phase("Verify both architectures and revision labels");
   status.digest = await verifyRevision(run, ref, status.commit);
   save();
-  // Avoid promoting a build that was overtaken by new main branch commits while building.
-  phase("Confirm main branch has not moved");
-  const head = (await run(["git", "ls-remote", "origin", "refs/heads/main"])).stdout.split(/\s+/)[0];
-  if (head !== status.commit) throw new Error("origin/main moved during this release. Commit image is uploaded; rerun to release the new branch head.");
+  if (options.prepare) {
+    status.state = "prepared";
+    status.channels = {};
+    phase(`Prepared ${status.commit} — ${status.digest}. No channels or GitHub releases published.`);
+    return;
+  }
+  // Upstream d7254da5: a fast-forward does not invalidate the verified source; rewritten history does.
+  phase("Confirm main still contains this commit");
+  await run(["git", "fetch", "origin", "refs/heads/main"]);
+  if ((await run(["git", "merge-base", "--is-ancestor", status.commit, "FETCH_HEAD"], { allowFailure: true })).code !== 0)
+    throw new Error(`origin/main no longer contains ${status.commit}; inspect rewritten history before retrying.`);
   phase("Verify installation compatibility on target channels");
   for (const channel of Object.keys(status.channels)) await verifyImagePair(run, `${image}@${status.digest}`, `${systemRepository}:${channel}`);
   await promoteChannels(run, status, save);
@@ -135,7 +162,7 @@ async function main(options: ReturnType<typeof parseReleaseArgs>, common: string
   const started = Date.now();
   const status: ReleaseStatus = {
     state: "running", phase: "Starting", startedAt: new Date(started).toISOString(), updatedAt: new Date(started).toISOString(), elapsedSeconds: 0,
-    check: options.check, channels: options.stable ? { latest: "pending", stable: "pending" } : { latest: "pending" },
+    check: options.check, channels: options.prepare ? {} : options.stable ? { latest: "pending", stable: "pending" } : { latest: "pending" },
   };
   const output = (text: string) => { process.stdout.write(text); appendFileSync(logPath, text); };
   let lastPhase = "";

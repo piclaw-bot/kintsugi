@@ -23,6 +23,10 @@ export function imageNotesRepository(source: string | undefined): string | undef
   if (!Value.Check(repositorySchema, path) || [".", ".."].includes(path.split("/")[1]!)) return undefined;
   return path;
 }
+/** Upstream publication trailers are metadata, not human notes or update authority. */
+export function publishedReleaseNotes(body: string): string {
+  return body.replace(/\n+<!-- (?:agents-in-the-cloud-release|kintsugi-release) \{[^\r\n]*\} -->\s*$/, "").trim();
+}
 export interface PublishedRelease { tag: string; revision: string; notes: string; publishedAt: string; url: string }
 export interface ReleaseHistory { releases: PublishedRelease[]; targetHasNotes: boolean; compareUrl: string }
 
@@ -61,8 +65,8 @@ export async function fetchReleaseHistory(current: string, target: string, fetch
     if (entry.draft || entry.prerelease || !entry.tag_name) continue;
     if (!entry.published_at) throw new Error("Published release is missing its publication date");
     // target_commitish may be a moving branch. Resolve the published tag, including annotated tags.
-    const { sha } = await get(`commits/${encodeURIComponent(entry.tag_name)}`, Type.Object({ sha: revisionSchema }));
-    const notes = entry.body?.trim() ?? "";
+    const { sha } = await get(`commits/${encodeURIComponent(`refs/tags/${entry.tag_name}`)}`, Type.Object({ sha: revisionSchema }));
+    const notes = publishedReleaseNotes(entry.body ?? "");
     if (sha === target && notes) targetHasNotes = true;
     if (crossed.has(sha) && notes) releases.push({ tag: entry.tag_name, revision: sha, notes, publishedAt: entry.published_at, url: `https://github.com/${repository}/releases/tag/${encodeURIComponent(entry.tag_name)}` });
   }

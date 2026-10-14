@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { fetchReleaseHistory, parseNotesRepository, imageNotesRepository } from "../../src/server/release-history.ts";
+import { fetchReleaseHistory, parseNotesRepository, imageNotesRepository, publishedReleaseNotes } from "../../src/server/release-history.ts";
 const sha = (n: number) => n.toString(16).padStart(40, "0");
 const entry = (n: number) => ({ tag_name: `v0.1.${n}`, body: `# Version ${n}\n\n- A change.`, draft: false, prerelease: false, published_at: `2026-08-${String(n).padStart(2, "0")}T12:00:00Z`, target_commitish: "main" });
 function fixture(entries = [entry(1), entry(2), entry(3), entry(4)]) {
@@ -8,8 +8,8 @@ function fixture(entries = [entry(1), entry(2), entry(3), entry(4)]) {
     expect(url.origin).toBe("https://api.github.com");
     expect(url.pathname).toStartWith("/repos/rcarmo/kintsugi/");
     if (url.pathname.endsWith("/releases")) return Response.json(url.searchParams.get("page") === "1" ? entries : []);
-    if (url.pathname.endsWith("/commits/unrelated")) return Response.json({sha:sha(999)});
-    if (url.pathname.endsWith("/commits/stable")) return Response.json({sha:sha(9)});
+    if (decodeURIComponent(url.pathname).endsWith("/refs/tags/unrelated")) return Response.json({sha:sha(999)});
+    if (decodeURIComponent(url.pathname).endsWith("/refs/tags/stable")) return Response.json({sha:sha(9)});
     if (url.pathname.includes("/commits/")) return Response.json({ sha: sha(Number(url.pathname.split(".").at(-1))) });
     const match = url.pathname.match(/compare\/([a-f0-9]+)\.\.\.([a-f0-9]+)$/)!;
     const left = parseInt(match[1]!, 16), right = parseInt(match[2]!, 16);
@@ -73,4 +73,20 @@ test("notes repository parsing rejects foreign URLs, credentials, traversal and 
   expect(imageNotesRepository("https://github.com/Example/custom.git")).toBe("Example/custom");
   for(const value of ["https://github.com/example/custom","../repo","example/..","example/custom/tree/main","user@host/repo"]) expect(()=>parseNotesRepository(value)).toThrow();
   for(const value of ["https://evil.example/example/custom","http://github.com/example/custom","https://secret@github.com/example/custom","https://github.com/example/custom?token=secret","https://github.com/example/custom/tree/main"])expect(imageNotesRepository(value)).toBeUndefined();
+});
+
+test("upstream stable publication metadata is hidden without requiring its notes format", () => {
+  const body = '# Human notes\n\n- A benefit.\n\n<!-- agents-in-the-cloud-release {"revision":"abc","digest":"sha256:metadata"} -->\n';
+  expect(publishedReleaseNotes(body)).toBe('# Human notes\n\n- A benefit.');
+  expect(publishedReleaseNotes('# Plain GitHub release\n')).toBe('# Plain GitHub release');
+  expect(publishedReleaseNotes('# Notes\n\n<!-- another-publisher {"x":1} -->')).toContain('another-publisher');
+});
+test("published tag resolution cannot accidentally select a same-named branch", async () => {
+  const base=fixture([entry(2)]);let requested=false;
+  await fetchReleaseHistory(sha(1),sha(2),async(input,init)=>{
+    const url=new URL(input);
+    if(url.pathname.includes('/commits/')){expect(decodeURIComponent(url.pathname)).toEndWith('/commits/refs/tags/v0.1.2');requested=true;}
+    return base(input);
+  });
+  expect(requested).toBe(true);
 });

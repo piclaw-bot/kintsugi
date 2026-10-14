@@ -18,8 +18,8 @@ function status(stable = false): ReleaseStatus {
 }
 
 test("release only supports latest or both, plus non-publishing checks", () => {
-  expect(parseReleaseArgs([])).toEqual({ stable: false, check: false, help: false });
-  expect(parseReleaseArgs(["--stable", "--check"])).toEqual({ stable: true, check: true, help: false });
+  expect(parseReleaseArgs([])).toEqual({ stable: false, check: false, help: false, prepare: false });
+  expect(parseReleaseArgs(["--stable", "--check"])).toEqual({ stable: true, check: true, help: false, prepare: false });
   expect(() => parseReleaseArgs(["--channel", "stable"])).toThrow("Unknown release option");
 });
 
@@ -72,7 +72,7 @@ test("promotion fails if registry readback differs", async () => {
   expect(current.channels.latest).toBe("failed");
 });
 
-async function scenario(options: { appRequirement?: string; systemVersion?: string; check?: boolean; exists?: boolean; moved?: boolean; buildFailure?: boolean; sameArch?: boolean; localArm?: boolean; badDriver?: boolean; missingHelper?: boolean }) {
+async function scenario(options: { appRequirement?: string; systemVersion?: string; check?: boolean; exists?: boolean; rewritten?: boolean; advanced?: boolean; prepare?: boolean; revision?: string; buildFailure?: boolean; sameArch?: boolean; localArm?: boolean; badDriver?: boolean; missingHelper?: boolean }) {
   const directory = mkdtempSync(join(tmpdir(), "kintsugi-release-test-"));
   const calls: { args: string[]; cwd?: string }[] = [];
   let uploaded = options.exists ?? false;
@@ -87,8 +87,8 @@ async function scenario(options: { appRequirement?: string; systemVersion?: stri
   try {
     const run: Run = async (args, command) => {
       calls.push({ args, cwd: command?.cwd });
-      if (args[0] === "git" && args[1] === "rev-parse") return ok(commit);
-      if (args[0] === "git" && args[1] === "ls-remote") return ok(`${options.moved ? "new-commit" : commit}\trefs/heads/main`);
+      if (args[0] === "git" && args[1] === "rev-parse") return ok(options.advanced ? "c".repeat(40) : commit);
+      if (args[0] === "git" && args[1] === "merge-base") return {code:options.rewritten ? 1 : 0,stdout:"",stderr:""};
       if (args.includes("context") && args.includes("show")) return ok("default");
       if (args.includes("{{json .}}")) {
         const local = args[args.indexOf("--context") + 1] === "default";
@@ -111,7 +111,7 @@ async function scenario(options: { appRequirement?: string; systemVersion?: stri
       return ok();
     };
     let error: unknown;
-    try { await release({ check: current.check, stable: false, help: false }, run, current, () => {}, directory); }
+    try { await release(parseReleaseArgs([...(current.check ? ["--check"] : []), ...(options.prepare ? ["--prepare"] : []), ...(options.revision ? ["--revision",options.revision] : [])]), run, current, () => {}, directory); }
     catch (caught) { error = caught; }
     return { calls, current, error };
   } finally {
@@ -148,7 +148,7 @@ test("new commit is built in an isolated checkout with no latest tag before veri
   const { calls, current, error } = await scenario({});
   expect(error).toBeUndefined();
   expect(current.state).toBe("published");
-  expect(calls.find(({ args }) => args.includes("ls-remote"))!.args).toEqual(["git", "ls-remote", "origin", "refs/heads/main"]);
+  expect(calls.some(({args})=>args.join(" ")===`git merge-base --is-ancestor ${commit} FETCH_HEAD`)).toBe(true);
   expect(calls.flatMap(({ args }) => args).some(arg => /^ghcr\.io\/lucasmeijer\/atelier(?=[:@])/.test(arg) || arg === "ghcr.io/rcarmo/kintsugi:stable")).toBe(false);
   const build = calls.find(({ args }) => args[0] === "bun")!;
   expect(build.cwd).toEndWith("/source");
@@ -165,9 +165,9 @@ test("retry reuses uploaded commit instead of rebuilding", async () => {
   expect(calls.some(({ args }) => args[0] === "bun" || args.includes("worktree"))).toBe(false);
 });
 
-test("main branch moving prevents all channel updates", async () => {
-  const { calls, error } = await scenario({ exists: true, moved: true });
-  expect(String(error)).toContain("origin/main moved");
+test("rewritten main history prevents all channel updates", async () => {
+  const { calls, error } = await scenario({ exists: true, rewritten: true });
+  expect(String(error)).toContain("no longer contains");
   expect(calls.some(({ args }) => args.includes("imagetools") && args.includes("create"))).toBe(false);
 });
 
@@ -270,4 +270,32 @@ test("local app publication refuses an incompatible System channel before promot
   expect(error).toBeInstanceOf(Error);
   expect(String(error)).toContain("needs installation compatibility version 2");
   expect(calls.some(({ args }) => args.includes("create") && args.some(arg => arg.endsWith(":latest") || arg.endsWith(":stable")))).toBe(false);
+});
+
+test("preparation verifies immutable images without promoting channels or publishing notes", async () => {
+  const {calls,current,error}=await scenario({prepare:true});
+  expect(error).toBeUndefined();expect(current.state).toBe("prepared");expect(current.digest).toBe(digest);expect(current.channels).toEqual({});
+  expect(calls.some(({args})=>args.includes("create")&&args.some(arg=>arg.endsWith(":latest")||arg.endsWith(":stable")))).toBe(false);
+  expect(calls.some(({args})=>args[0]==="gh")).toBe(false);
+});
+test("pinned preparation uses the approved SHA even after main advances", async () => {
+  const {calls,current,error}=await scenario({prepare:true,advanced:true,revision:commit});
+  expect(error).toBeUndefined();expect(current.commit).toBe(commit);
+  expect(calls.some(({args})=>args.join(" ")===`git merge-base --is-ancestor ${commit} FETCH_HEAD`)).toBe(true);
+  expect(calls.find(({args})=>args.includes("worktree")&&args.includes("add"))?.args.at(-1)).toBe(commit);
+});
+test("pinned publication tolerates a fast-forward but never changes its code revision", async () => {
+  const {current,error}=await scenario({exists:true,advanced:true,revision:commit});
+  expect(error).toBeUndefined();expect(current.state).toBe("published");expect(current.commit).toBe(commit);
+});
+test("prepare/revision parsing rejects ambiguous channels and malformed or duplicate SHAs", () => {
+  expect(()=>parseReleaseArgs(["--prepare","--stable"])).toThrow();expect(()=>parseReleaseArgs(["--prepare","--check"])).toThrow();
+  expect(()=>parseReleaseArgs(["--revision"])).toThrow("full Git commit");expect(()=>parseReleaseArgs(["--revision","main"])).toThrow("full Git commit");
+  expect(()=>parseReleaseArgs(["--revision",commit,"--revision",commit])).toThrow("only once");
+});
+
+test("a pinned revision outside main is rejected before authentication or builder work", async () => {
+  const {calls,error}=await scenario({prepare:true,revision:commit,rewritten:true});
+  expect(String(error)).toContain("not on origin/main");
+  expect(calls.some(({args})=>args[0]==="docker"||args[0]==="ssh"||args[0]==="bun")).toBe(false);
 });
