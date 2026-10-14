@@ -6,10 +6,12 @@
     ".": "./src/index.ts",
     "./server": "./src/server/index.ts",
     "./secret-path-policy": "./src/secret-path-policy.ts",
-    "./secret-host-defaults": "./src/secret-host-defaults.ts"
+    "./secret-host-defaults": "./src/secret-host-defaults.ts",
+    "./private-network": "./src/private-network.ts"
   },
   "dependencies": {
     "@kintsugi/core": "workspace:*",
+    "@kintsugi/shared": "workspace:*",
     "@kintsugi/observable-terminal": "workspace:*",
     "@kintsugi/workspace": "workspace:*",
     "typebox": "^1.0.57"

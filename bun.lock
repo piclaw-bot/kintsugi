@@ -506,6 +506,7 @@
       "name": "@kintsugi/workspace-templates",
       "dependencies": {
         "@kintsugi/core": "workspace:*",
+        "@kintsugi/shared": "workspace:*",
         "@kintsugi/observable-terminal": "workspace:*",
         "@kintsugi/workspace": "workspace:*",
         "typebox": "^1.0.57",

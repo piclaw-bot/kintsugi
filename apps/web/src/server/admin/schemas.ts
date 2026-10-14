@@ -1,3 +1,4 @@
+import { privateNetworkAccessInput } from "../settings/private-network.ts";
 import { networkConfigurationSchema, networkModeSchema } from "@kintsugi/shared/network-policy";
 import { accessModeSchema } from "@kintsugi/shared";
 import { releaseSourceSchema, registryCredentialSchema } from "@kintsugi/shared/release-source";
@@ -18,6 +19,7 @@ export const workspaceCreateSchema = object({
 /** Runtime validation and OpenAPI share exactly the same mutation contracts. */
 export function adminInputSchema(route: AdminRoute): TSchema {
   const path = route.path;
+  if (path.endsWith("/private-network-access")) return privateNetworkAccessInput;
   if (path === "/settings/network") return networkConfigurationSchema;
   if (path === "/workspaces/{id}/network") return object({ mode: networkModeSchema });
   if (path === "/settings/release-source") return releaseSourceSchema;

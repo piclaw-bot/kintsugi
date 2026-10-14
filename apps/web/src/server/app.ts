@@ -1,3 +1,4 @@
+import { handlePrivateNetworkSettings } from "./settings/private-network.ts";
 import { handleWorkspaceNetwork } from "./settings/network.ts";
 import { templateSettingsHostId, templateSettingsFrameId } from "./template-settings.ts";
 import { maybeNameWorkspaceFromPrompt } from "@kintsugi/builtin-agent/server";
@@ -1206,6 +1207,8 @@ export function createWebApp(deps: WebAppDeps): WebApp {
     if (url.pathname === "/workspaces" && request.method === "POST") return await createWorkspaceEndpoint(request);
     if (url.pathname === "/workspaces/open-oldest-attention" && request.method === "POST") return openOldestAttentionWorkspaceEndpoint();
 
+    const privateNetworkResponse = await handlePrivateNetworkSettings(request, url);
+    if (privateNetworkResponse) return privateNetworkResponse;
     const workspaceTemplateResponse = await workspaceTemplateRoutes.handle(request, url);
     if (workspaceTemplateResponse) return workspaceTemplateResponse;
 

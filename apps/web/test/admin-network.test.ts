@@ -93,3 +93,40 @@ test("admin OpenAPI exposes exact network mutation schemas, scopes and bearer au
   expect(workspace.properties.mode.anyOf.map((option: { const: string }) => option.const)).toEqual(["off", "lan", "private"]);
   expect(workspace.additionalProperties).toBe(false);
 }));
+
+test("private host lists require security scope and saving them does not enable any workspace", () => fixture(async ({ call, store }) => {
+  const path = "/global-workspace-settings/private-network-access";
+  expect((await call(path)).status).toBe(200);
+  expect(await (await call(path)).json()).toEqual({ privateNetworkAccess: [] });
+  for (const method of ["GET", "POST"]) {
+    expect((await call(path, method, method === "POST" ? { privateNetworkAccess: [] } : undefined, null)).status).toBe(401);
+    for (const scope of ["configuration", "workspaces", "host:read", "secrets"] as const) {
+      const token = await store.issue({ name: scope, scopes: [scope] });
+      expect((await call(path, method, method === "POST" ? { privateNetworkAccess: [] } : undefined, token.secret)).status).toBe(403);
+    }
+  }
+  const saved = await call(path, "POST", { privateNetworkAccess: ["DB.INTERNAL.:05432", "db.internal:5432", "192.168.1.20:22"] });
+  expect(saved.status).toBe(200);
+  expect(await saved.json()).toEqual({ privateNetworkAccess: ["db.internal:5432", "192.168.1.20:22"] });
+  const network = await (await call("/workspaces/network-one/network")).json();
+  expect(network.network).toMatchObject({ mode: "off", applied: { mode: "off" }, restartRequired: false });
+  expect((await (await call("/global-workspace-settings")).json()).globalWorkspaceSettings).not.toHaveProperty("privateNetworkAccess");
+  const invalidLists: JsonObject[] = [{}, { privateNetworkAccess: "db.internal:22" }, { privateNetworkAccess: ["*.internal:22"] }, { privateNetworkAccess: ["127.0.0.1:3000"] }, { privateNetworkAccess: [], extra: true }, { privateNetworkAccess: ["db.internal:22\nother.internal:443"] }];
+  for (const body of invalidLists) expect((await call(path, "POST", body)).status).toBe(400);
+  expect(await (await call(path)).json()).toEqual({ privateNetworkAccess: ["db.internal:5432", "192.168.1.20:22"] });
+  const api = await (await call("/openapi.json")).json();
+  expect(api.paths[path].post["x-admin-scopes-any-of"]).toEqual(["security"]);
+}));
+
+test("template host-list API validates template identity and keeps scopes separate", () => fixture(async ({ call, store }) => {
+  const issued = await store.issue({ name: "template-create", scopes: ["configuration", "security"] });
+  const created = await call("/workspace-templates", "POST", { gitUrl: "https://example.com/private-host-template.git" }, issued.secret);
+  expect(created.status).toBe(200);
+  const { workspaceTemplate } = await created.json();
+  const path = `/workspace-templates/${workspaceTemplate.id}/private-network-access`;
+  expect((await call(path, "POST", { privateNetworkAccess: ["db.internal:5432"] })).status).toBe(200);
+  expect(await (await call(path)).json()).toEqual({ privateNetworkAccess: ["db.internal:5432"] });
+  expect(await (await call("/global-workspace-settings/private-network-access")).json()).toEqual({ privateNetworkAccess: [] });
+  expect((await call("/workspace-templates/missing/private-network-access", "POST", { privateNetworkAccess: ["db.internal:22"] })).status).toBe(404);
+  expect((await (await call("/workspace-templates")).json()).workspaceTemplates[0]).not.toHaveProperty("privateNetworkAccess");
+}));

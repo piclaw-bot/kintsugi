@@ -19,6 +19,8 @@ for (const prefix of [template, globalSettings]) {
   for (const suffix of ["secrets", "secrets/{secretId}", "secrets/{secretId}/delete"]) route("POST", `${prefix}/${suffix}`, ["secrets"]);
   for (const suffix of ["ssh-known-hosts", "ssh-keys", "ssh-keys/{keyId}", "ssh-keys/{keyId}/delete"]) route("POST", `${prefix}/${suffix}`, ["security"], `Manage ${prefix === globalSettings ? "shared" : "template"} SSH configuration`);
   route("GET", `${prefix}/ssh-known-hosts`, ["security"]);
+  route("GET", `${prefix}/private-network-access`, ["security"], "Read configured exact private TCP destinations; saving alone grants no access");
+  route("POST", `${prefix}/private-network-access`, ["security"], "Replace exact private TCP destinations; workspace access stays unchanged until explicitly applied");
   route("GET", `${prefix}/ssh-keys/{keyId}/public-key`, ["security"]);
 }
 for (const suffix of ["delete", "preload-images"]) route("POST", `${template}/${suffix}`, ["configuration"]);
