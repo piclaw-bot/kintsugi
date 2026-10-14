@@ -9,7 +9,8 @@ export interface Stage {
   kintsugi: string;
   workspaceId: string;
   builtinId: string;
-  piId: string;
+  /** Omitted only by the explicitly partial layout-only setup. */
+  piId?: string;
   terminalKey: string;
 }
 
@@ -50,7 +51,7 @@ async function until<T>(what: string, timeoutMs: number, probe: () => Promise<T 
   }
 }
 
-export async function stage(options: { kintsugi: string; workspaceId?: string; model?: string; log(message: string): void }): Promise<Stage> {
+export async function stage(options: { kintsugi: string; workspaceId?: string; model?: string; layoutOnly?: boolean; log(message: string): void }): Promise<Stage> {
   const { kintsugi, log } = options;
   let id = options.workspaceId;
   if (!id) {
@@ -72,7 +73,7 @@ export async function stage(options: { kintsugi: string; workspaceId?: string; m
     builtin = current.agents.find((agent) => agent.agentTypeId === "builtin")!;
   }
   const transcript = await fetch(new URL(`/workspaces/${id}?agent=${builtin.id}`, kintsugi)).then((response) => response.text());
-  if (!transcript.includes("SIGWINCH")) {
+  if (!options.layoutOnly && !transcript.includes("SIGWINCH")) {
     log("generating a long transcript");
     if (options.model) await json(kintsugi, `/workspaces/${id}/agents/${builtin.id}/model`, { method: "POST", body: { model: options.model } });
     await json(kintsugi, `/workspaces/${id}/agents/${builtin.id}/messages`, { method: "POST", body: { text: longPrompt, mode: "send" } });
@@ -80,7 +81,7 @@ export async function stage(options: { kintsugi: string; workspaceId?: string; m
     await until("the long answer", 300_000, async () => (await workspace(kintsugi, id!)).agents.find((agent) => agent.id === builtin!.id)!.busy ? undefined : true);
   }
   let pi = current.agents.find((agent) => agent.agentTypeId === "pi");
-  if (!pi) {
+  if (!pi && !options.layoutOnly) {
     log("creating Pi agent");
     const created = await json<{ command: { agentId: string } }>(kintsugi, `/workspaces/${id}/commands/agent.create.pi`, { method: "POST", body: {} });
     pi = { id: created.command.agentId, agentTypeId: "pi", busy: false, title: "Pi" };
@@ -93,7 +94,7 @@ export async function stage(options: { kintsugi: string; workspaceId?: string; m
     terminal = (await workspace(kintsugi, id)).workViews.find((view) => view.reference.type === "terminal")!;
   }
   await stagePromptTemplateButton(id);
-  return { kintsugi, workspaceId: id, builtinId: builtin.id, piId: pi.id, terminalKey: terminal.key };
+  return { kintsugi, workspaceId: id, builtinId: builtin.id, piId: pi?.id, terminalKey: terminal.key };
 }
 
 /** A prompt template with its composer button enabled, so composers show their Prompt template button row. */

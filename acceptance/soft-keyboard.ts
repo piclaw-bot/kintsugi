@@ -45,6 +45,7 @@ await mkdir(out, { recursive: true });
 const log = (message: string): void => console.log(`[soft-keyboard] ${message}`);
 
 const setup: Stage = await stage({ kintsugi: args.kintsugi, workspaceId: args.workspace, model: args.model, log });
+if (!setup.piId) throw new Error("Soft-keyboard acceptance requires a staged Pi agent");
 const sim = await Simulator.connect();
 const inspector = await sim.inspector();
 log(`simulator ${sim.udid}; inspector ${inspector.url}`);

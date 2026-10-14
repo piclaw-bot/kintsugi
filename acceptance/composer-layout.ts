@@ -9,6 +9,10 @@
  *   kintsugi-desktop start            # prints the CDP URL
  *   bun acceptance/composer-layout.ts [--kintsugi http://localhost:3000] [--cdp http://127.0.0.1:9222]
  *     [--workspace <id>] [--model provider::model] [--out <dir>] [--only <regex>]
+ *     [--layout-only] # explicitly partial: no sends, busy states or long-transcript checks
+ *
+ * Layout-only uses Set up later on the acceptance instance and stages no Pi agent
+ * or inference. Its six scenarios are explicitly partial, never full acceptance.
  *
  * Every transition is checked on a per-frame trace: each tracked element changes
  * at most once, all changes land in the same frame, and the settled arrangement
@@ -31,6 +35,7 @@ const { values: args } = parseArgs({
     model: { type: "string" },
     out: { type: "string" },
     only: { type: "string" },
+    "layout-only": { type: "boolean", default: false },
   },
 });
 
@@ -39,14 +44,22 @@ const out = args.out ?? `/persistent/acceptance-reports/composer-layout-${stamp}
 await mkdir(out, { recursive: true });
 const log = (message: string): void => console.log(`[composer-layout] ${message}`);
 
-const setup: Stage = await stage({ kintsugi: args.kintsugi, workspaceId: args.workspace, model: args.model, log });
-log(`workspace ${setup.workspaceId}: built-in ${setup.builtinId}, Pi ${setup.piId}, terminal ${setup.terminalKey}`);
-const report = new Report(out, "Composer layout acceptance (Tier 1, Chrome)", {
-  kintsugi: args.kintsugi, workspace: setup.workspaceId, "built-in agent": setup.builtinId, "Pi agent": setup.piId, "Terminal view": setup.terminalKey, started: new Date().toISOString(),
+const setup: Stage = await stage({ kintsugi: args.kintsugi, workspaceId: args.workspace, model: args.model, layoutOnly: args["layout-only"], log });
+log(`workspace ${setup.workspaceId}: built-in ${setup.builtinId}, Pi ${setup.piId ?? "not staged (partial)"}, terminal ${setup.terminalKey}`);
+const report = new Report(out, args["layout-only"] ? "Composer layout acceptance (partial, no inference)" : "Composer layout acceptance (Tier 1, Chrome)", {
+  scope: args["layout-only"] ? "Only no-inference layout scenarios; send, busy, long-transcript and iOS keyboard acceptance are not covered" : "Full Tier 1 Chrome acceptance",
+  kintsugi: args.kintsugi, workspace: setup.workspaceId, "built-in agent": setup.builtinId, "Pi agent": setup.piId ?? "not staged (partial mode)", "Terminal view": setup.terminalKey, started: new Date().toISOString(),
 });
+
+if (args["layout-only"]) {
+  // Use the app’s Set up later operation on this operator-selected acceptance instance.
+  const response = await fetch(new URL("/onboarding/finish", args.kintsugi), { method: "POST", headers: { Origin: new URL(args.kintsugi).origin } });
+  if (!response.ok) throw new Error(`Could not dismiss acceptance-instance onboarding (HTTP ${response.status})`);
+}
 
 const page = await ChromePage.open(args.cdp);
 const builtinUrl = `${setup.kintsugi}/workspaces/${setup.workspaceId}?agent=${setup.builtinId}`;
+if (!args["layout-only"] && !setup.piId) throw new Error("Full acceptance requires a staged Pi agent");
 const piUrl = `${setup.kintsugi}/workspaces/${setup.workspaceId}?agent=${setup.piId}`;
 const terminalUrl = `${setup.kintsugi}/workspaces/${setup.workspaceId}?workView=${encodeURIComponent(setup.terminalKey)}`;
 const draftKey = `kintsugi.agentComposerText:${JSON.stringify([setup.workspaceId, setup.builtinId])}`;
@@ -71,7 +84,10 @@ const bottom = (box: Box): number => box ? box[1] + box[3] : Number.NaN;
 let floatingInset = 4;
 const floatingLabel = { opener: "Open composer", followLatest: "Follow latest", pendingTranscript: "Will autoswitch to transcript when agent is done" };
 
+const layoutOnlyScenarios = new Set(["mobile-D1-selection", "mobile-H1-H7-height", "mobile-terminal-tab", "desktop-D1-selection", "mobile-launch-editor", "desktop-launch-editor"]);
+
 async function scenario(name: string, description: string, body: (recorder: ScenarioRecorder) => Promise<void>): Promise<void> {
+  if (args["layout-only"] && !layoutOnlyScenarios.has(name)) return;
   if (args.only && !new RegExp(args.only).test(name)) return;
   log(`scenario ${name}`);
   const recorder = await report.scenario(name, description);
@@ -180,6 +196,10 @@ for (const name of ["first", "second", "third", "fourth"]) {
 
 // ─── Mobile layout ──────────────────────────────────────────────────────────
 await page.layout("mobile");
+if (args["layout-only"]) {
+  await page.navigate(terminalUrl, ".terminal-view .observable-terminal-host");
+  await Bun.sleep(2000); // Establish the terminal dimensions before any scenario.
+}
 await page.navigate(builtinUrl, sel.transcript);
 
 await scenario("mobile-D1-selection", "D1/G1: selecting a workspace on mobile shows the transcript with the composer closed; a saved draft shows a dot on open-composer.", async (recorder) => {
@@ -241,6 +261,19 @@ await scenario("mobile-H1-H7-height", "H1–H7 with the keyboard down: line-by-l
   await Bun.sleep(300);
   const promptTemplateButtons = '.agent-composer-pane .composer-prompt-template-buttons [data-agent-prompt-template-button]';
   const hadPromptTemplateButtons = await page.visible(promptTemplateButtons);
+  const buttonEdges = await page.evaluate<{ template: number; send: number; contained: boolean }>(`(() => {
+    const pane = [...document.querySelectorAll(".agent-composer-pane")].find(e => e.checkVisibility());
+    const buttons = [...pane.querySelectorAll(".composer-prompt-template-buttons [data-agent-prompt-template-button]")].filter(e => e.checkVisibility());
+    const slot = pane.querySelector(".composer-send").getBoundingClientRect();
+    const action = [...pane.querySelectorAll(".composer-send button")].find(e => e.checkVisibility()).getBoundingClientRect();
+    const bounds = pane.getBoundingClientRect();
+    return { template: buttons.at(-1).getBoundingClientRect().bottom, send: slot.bottom, contained: action.top >= slot.top - 1 && action.bottom <= slot.bottom + 1 && action.left >= bounds.left && action.right <= bounds.right };
+  })()`);
+  recorder.add(
+    check("Prompt template buttons align with the send action slot", close(buttonEdges.template, buttonEdges.send, 1), `template bottom ${buttonEdges.template}, action slot bottom ${buttonEdges.send}`),
+    check("Primary action stays within its slot and composer", buttonEdges.contained, JSON.stringify(buttonEdges)),
+  );
+  await recorder.file("empty.png", await page.screenshot());
   // The buttons set the empty composer's height, so the text field simply takes the prompt template buttons' place.
   await transition(recorder, "first letter", () => page.insertText("L"), { expectChange: false });
   recorder.add(check("Prompt template buttons hide once something is written", hadPromptTemplateButtons && !await page.visible(promptTemplateButtons), hadPromptTemplateButtons ? "shown when empty, hidden after one letter" : "no prompt template buttons staged in this workspace"));
@@ -323,23 +356,25 @@ await scenario("mobile-D2-send", "D2: sending on mobile closes the composer in o
   await Bun.sleep(8000);
 });
 
-await page.navigate(piUrl, sel.terminal);
-await Bun.sleep(2500);
-// Selecting transcript can now queue autoswitch before Pi has a completed turn.
-await page.tap(sel.viewTranscript);
-await Bun.sleep(500);
-if (!await page.visible(sel.cliTranscript)) {
-  log("giving Pi a turn");
-  await openComposer();
-  await resetComposerText();
-  await page.tap(sel.input);
-  await page.insertText("Reply with just the word OK.");
-  await page.tap(".cli-agent-body .composer-send button");
-  await page.waitFor(sel.cliTranscript, 120_000);
-  await page.evaluate<boolean>("(document.activeElement.blur(), true)");
+if (!args["layout-only"]) {
+  await page.navigate(piUrl, sel.terminal);
+  await Bun.sleep(2500);
+  // Selecting transcript can now queue autoswitch before Pi has a completed turn.
+  await page.tap(sel.viewTranscript);
+  await Bun.sleep(500);
+  if (!await page.visible(sel.cliTranscript)) {
+    log("giving Pi a turn");
+    await openComposer();
+    await resetComposerText();
+    await page.tap(sel.input);
+    await page.insertText("Reply with just the word OK.");
+    await page.tap(".cli-agent-body .composer-send button");
+    await page.waitFor(sel.cliTranscript, 120_000);
+    await page.evaluate<boolean>("(document.activeElement.blur(), true)");
+  }
+  await page.tap(sel.showTerminal);
+  await Bun.sleep(400);
 }
-await page.tap(sel.showTerminal);
-await Bun.sleep(400);
 
 await scenario("mobile-D14-terminal-focus", "D14: focusing the Pi terminal collapses the open composer (keeping its draft) in one step; the terminal moves, never resizes.", async (recorder) => {
   await openComposer();
@@ -581,7 +616,8 @@ for (const layout of ["mobile", "desktop"] as const) {
   });
 }
 
+if (!report.scenarios.length) throw new Error("No acceptance scenarios matched the selection");
 const { passed, index } = await report.write();
 await page.close();
-log(`${passed ? "PASS" : "FAIL"} — report: ${index}`);
+log(`${passed ? "PASS" : "FAIL"}${args["layout-only"] ? " (partial, no inference; not full acceptance)" : ""} — report: ${index}`);
 process.exit(passed ? 0 : 1);

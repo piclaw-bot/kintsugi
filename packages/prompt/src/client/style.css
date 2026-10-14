@@ -59,6 +59,7 @@
 .composer-button { position: relative; display: flex; align-items: center; justify-content: center; width: var(--composer-control-size); height: var(--composer-control-size); }
 /* A captioned action (such as Connect to send) is wider than the column and extends to the left. */
 .composer-send { justify-content: flex-end; }
+.composer-send > * { flex-shrink: 0; }
 .composer-prompt-template-buttons { grid-area: 2 / 1; padding: 0 0 var(--composer-control-inset) var(--composer-control-inset); }
 /* Text may come right down to the prompt template buttons. */
 html:not(.software-keyboard-visible) .composer:not(.composer-has-text) .composer-input-area:has(> .composer-prompt-template-buttons:not(:empty)) > .composer-input { padding-bottom: 2px; }
@@ -78,6 +79,7 @@ html:not(.software-keyboard-visible) .composer:not(.composer-has-text) .composer
   .composer-input { font-size: 16px; }
   /* Tight enough for the column to fit under the 40% max on a phone (4 × 50px + 10px). */
   .composer-buttons { --composer-control-inset: 4px; gap: 2px; padding-block: 2px; }
+  .composer-prompt-template-buttons { padding-bottom: 2px; }
 }
 
 /* The floating stack sits at the bottom right of the transcript or terminal.
