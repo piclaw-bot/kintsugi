@@ -463,6 +463,7 @@
     "packages/update": {
       "name": "@kintsugi/update",
       "dependencies": {
+        "@kintsugi/host": "workspace:*",
         "@kintsugi/core": "workspace:*",
         "@kintsugi/design-system": "workspace:*",
         "@kintsugi/shared": "workspace:*",
@@ -484,6 +485,7 @@
     "packages/workspace": {
       "name": "@kintsugi/workspace",
       "dependencies": {
+        "@kintsugi/workspace-templates": "workspace:*",
         "@kintsugi/core": "workspace:*",
         "@kintsugi/design-system": "workspace:*",
         "@kintsugi/host": "workspace:*",

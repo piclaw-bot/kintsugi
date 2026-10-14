@@ -3,6 +3,7 @@ import { clearGitHubToken as clearStoredGitHubToken, discoverGitHubToken, hasGit
 import { workspaceTemplateIdOfInit, revealEffectiveSecrets, onWorkspaceTemplateStoreChanged, workspaceTemplateSecretPlaceholder, workspaceTemplateSecretHosts, workspaceTemplateSecretAllowsPath } from "@kintsugi/workspace-templates";
 import { getWorkspaceInit, getAppliedWorkspaceNetwork, type WorkspaceInitInstruction } from "@kintsugi/workspace";
 import { matchHostname } from "./patterns.ts";
+import { privateNetworkDestinationAllowed } from "@kintsugi/shared/network-destinations";
 import { workspaceNetworkAddressAllowed } from "@kintsugi/shared/network-policy";
 import { createHttpHooks, type RequestTransformHttpHooks, type SecretRequestTransform, type SecretDefinition } from "./placeholder-hooks.ts";
 
@@ -103,7 +104,10 @@ function buildContext(workspaceId: string, secrets: Record<string, SecretDefinit
   const hooks = createHttpHooks({
     allowedHosts: ["*"],
     blockInternalRanges: false,
-    isIpAllowed: ({ ip }) => workspaceNetworkAddressAllowed(ip, withHostNetworkBoundary(getAppliedWorkspaceNetwork(workspaceId))),
+    isIpAllowed: (request) => {
+      const policy = withHostNetworkBoundary(getAppliedWorkspaceNetwork(workspaceId));
+      return workspaceNetworkAddressAllowed(request.ip, policy) || privateNetworkDestinationAllowed(policy.destinations ?? [], request, { enabled: policy.mode === "hosts", denied: policy.denied });
+    },
     replaceSecretsInQuery: false,
     secrets,
     onRequest: async (request, registerSecret) => {

@@ -90,7 +90,7 @@ test("admin OpenAPI exposes exact network mutation schemas, scopes and bearer au
   expect(global.additionalProperties).toBe(false);
   expect(global.properties.dns.maxItems).toBe(3);
   const workspace = document.paths["/workspaces/{id}/network"].post.requestBody.content["application/json"].schema;
-  expect(workspace.properties.mode.anyOf.map((option: { const: string }) => option.const)).toEqual(["off", "lan", "private"]);
+  expect(workspace.properties.mode.anyOf.map((option: { const: string }) => option.const)).toEqual(["off", "lan", "private", "hosts"]);
   expect(workspace.additionalProperties).toBe(false);
 }));
 

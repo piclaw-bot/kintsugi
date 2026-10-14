@@ -4,7 +4,12 @@ import { existsSync } from "node:fs";
 import { Type } from "typebox";
 import { Value } from "typebox/value";
 import { getKintsugiRuntimeContext, readTextIfExists, writeJsonAtomic, requireDocker } from "@kintsugi/core";
-import { hostRequest, hostAvailable } from "@kintsugi/host/control";
+import { effectivePrivateNetworkAccess } from "@kintsugi/workspace-templates/private-network";
+import { workspaceTemplateIdOfInit } from "@kintsugi/workspace-templates";
+import { getWorkspaceInit } from "./index.ts";
+import { listedHostsSystemVersion } from "@kintsugi/shared/system-version";
+import { formatPrivateNetworkDestination } from "@kintsugi/shared/network-destinations";
+import { hostRequest, hostAvailable, readSystemVersion } from "@kintsugi/host/control";
 import { NetworkConfigurationError, networkModeSchema, networkPolicySchema, parseNetworkConfiguration, parseNetworkPolicy, emptyNetworkConfiguration, offNetworkPolicy, privateNetworkCidrs, networkResolvConf, type WorkspaceNetworkMode, type WorkspaceNetworkPolicy, type NetworkConfiguration } from "@kintsugi/shared/network-policy";
 import { createWorkspaceMetadataState } from "./metadata-state.ts";
 
@@ -38,7 +43,14 @@ export async function setWorkspaceNetworkMode(id: string, mode: WorkspaceNetwork
   const parsed = Value.Parse(networkModeSchema, mode);
   const config = await getNetworkConfiguration();
   if (parsed === "lan" && !config.cidrs.length) throw new NetworkConfigurationError("Configure local LAN CIDRs in Network settings first");
+  if (parsed === "hosts") await requireListedHostSupport();
   state(id).write(id, { ...state(id).read(id), mode: parsed });
+}
+async function requireListedHostSupport(): Promise<void> {
+  if (!hostAvailable() || await readSystemVersion() < listedHostsSystemVersion) throw new NetworkConfigurationError("Listed hosts need newer installation services. Update the installation first.");
+}
+async function workspaceDestinations(id: string) {
+  return effectivePrivateNetworkAccess(workspaceTemplateIdOfInit(await getWorkspaceInit(id)));
 }
 export async function workspaceNetworkRestartRequired(id: string): Promise<boolean> {
   const mode = getWorkspaceNetworkMode(id);
@@ -47,7 +59,12 @@ export async function workspaceNetworkRestartRequired(id: string): Promise<boole
   if (mode === "off") return false;
   if (applied.dns.length && !applied.resolver) return true; // Older snapshots need the System DNS bootstrap.
   const config = await getNetworkConfiguration();
-  return JSON.stringify([mode === "private" ? privateNetworkCidrs : config.cidrs, config.dns, config.search]) !== JSON.stringify([applied.cidrs, applied.dns, applied.search]);
+  if (mode === "hosts") {
+    const desired = (await workspaceDestinations(id)).map(formatPrivateNetworkDestination).sort();
+    const appliedHosts = (applied.destinations ?? []).map(formatPrivateNetworkDestination).sort();
+    if (JSON.stringify(desired) !== JSON.stringify(appliedHosts)) return true;
+  }
+  return JSON.stringify([mode === "hosts" ? [] : mode === "private" ? privateNetworkCidrs : config.cidrs, config.dns, config.search]) !== JSON.stringify([applied.cidrs, applied.dns, applied.search]);
 }
 
 /** Called only while stopped, before Docker starts the container. */
@@ -60,10 +77,16 @@ export async function prepareWorkspaceNetwork(id: string): Promise<WorkspaceNetw
     state(id).write(id, { ...state(id).read(id), applied });
     return applied;
   }
-  const applied = await hostRequest({ operation: "network", workspaceId: id, mode, configuration });
+  let applied: WorkspaceNetworkPolicy;
+  if (mode === "hosts") {
+    await requireListedHostSupport();
+    applied = await hostRequest({ operation: "network", workspaceId: id, mode, configuration, destinations: await workspaceDestinations(id) });
+  } else applied = await hostRequest({ operation: "network", workspaceId: id, mode, configuration });
+  const parsedApplied = parseNetworkPolicy(applied);
+  if (parsedApplied.mode !== mode) throw new Error("Installation returned a different network permission mode");
   // A settings edit during the privileged RPC remains pending, not overwritten.
-  state(id).write(id, { ...state(id).read(id), applied });
-  return applied;
+  state(id).write(id, { ...state(id).read(id), applied: parsedApplied });
+  return parsedApplied;
 }
 
 export async function revokeWorkspaceNetwork(id: string): Promise<void> {

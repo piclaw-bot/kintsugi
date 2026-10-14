@@ -166,6 +166,43 @@ The Tagged release workflow validates a `vMAJOR.MINOR.PATCH` tag on main, runs f
 
 Release [`v0.0.1`](https://github.com/rcarmo/kintsugi/releases/tag/v0.0.1) passed [tagged CI](https://github.com/rcarmo/kintsugi/actions/runs/38062757227): 1,905 tests passed, 39 skipped, and native AMD64/ARM64 image checks passed. All three versioned images and matching `latest` manifests are anonymously pullable and declare EROFS/OverlayFS support. Full OverlayFS lifecycle acceptance on an EROFS-free ARM host has not been verified.
 
+## Exact private TCP destinations
+
+Global and per-template settings expose a **Listed private hosts** editor. The JSON
+endpoints are `GET/POST /global-workspace-settings/private-network-access` and
+`GET/POST /workspace-templates/{workspaceTemplateId}/private-network-access`, with
+`{"privateNetworkAccess":["db.internal:5432","192.168.1.20:22"]}`. Admin bindings
+require `security` scope for both reads and writes. Lists are kept separately from
+legacy template records and are omitted from general discovery summaries.
+
+Saving a list grants nothing. Select workspace network mode `hosts` (**Listed hosts
+only**) explicitly, then park/unpark the workspace to apply it. This optional mode
+requires System compatibility version 2. The app minimum remains 0 because this
+is an optional, explicitly gated feature. App images advertise network-policy
+format support separately with `org.kintsugi.network-policy-version`. Existing
+Off, Local LAN and routed-private
+modes retain their previous semantics. Off permits public internet only.
+
+The applied snapshot combines global and template entries and resolves names
+through the workspace DNS view. Addresses are pinned until the next park/unpark;
+list, forwarder and search-domain edits remain pending. Protected ranges, local
+control services and peer bridges override all entries. Public internet remains
+available. Tailnet, metadata, loopback and multicast destinations remain blocked.
+
+The firewall enforces exact private IP/TCP-port tuples. The proxy additionally
+checks the hostname and uses the same pinned addresses. Native applications can
+reach another service name on an allowed IP/port; the kernel cannot enforce a
+hostname. A DNS failure leaves the previous policy authoritative and does not
+partially apply the new grants.
+
+Listed-host snapshots are a newer stored policy format. Image rollback does not
+restore settings: turn Off and park/unpark **every affected workspace** before
+selecting images that cannot read this format. New planners, activation and
+rollback checks refuse incompatible images while desired/applied listed-host
+state remains. The matching installer also checks this before replacement; use
+the current installer for recovery. No release or deployment is implied by
+saving settings or pushing source code.
+
 ## App and installation compatibility
 
 `packages/shared/src/system-version.ts` defines the installation API contract. The
@@ -175,7 +212,8 @@ images. Malformed version labels fail validation. The numeric compatibility
 version is separate from the image tag or digest in `releaseSource.systemVersion`.
 
 The initial support release advertises version 1 while the app still requires
-version 0. Publish support before raising the app minimum. These counters do not
+version 0. System version 2 adds optional listed-host policies; app images advertise
+`org.kintsugi.network-policy-version` for reading that stored format. Publish support before raising the app minimum. These counters do not
 claim upstream's private-network operations or its saved repository format.
 
 Paired updates check candidate versions before download and inspect the prepared

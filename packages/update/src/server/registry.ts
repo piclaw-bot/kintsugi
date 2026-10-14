@@ -1,4 +1,4 @@
-import { parseSystemVersion, systemVersionLabel, requiredSystemVersionLabel } from "@kintsugi/shared/system-version";
+import { parseSystemVersion, systemVersionLabel, requiredSystemVersionLabel, networkPolicyVersionLabel } from "@kintsugi/shared/system-version";
 import { type UpdateChannel } from "./update-channel.ts";
 import { Type, type Static } from "typebox";
 import { Value } from "typebox/value";
@@ -8,7 +8,7 @@ export const repository = appRepository.replace(/^ghcr\.io\//, "");
 
 export type HttpFetcher = (input: string | URL, init?: RequestInit) => Promise<Response>;
 
-export interface ImageMetadata { digest: string; revision?: string; indexDigest?: string; requiredSystemVersion?: number; }
+export interface ImageMetadata { digest: string; revision?: string; indexDigest?: string; requiredSystemVersion?: number; networkPolicyVersion?: number; }
 
 interface RegistryAuth { realm: string; service?: string; scope?: string }
 
@@ -141,7 +141,7 @@ export async function fetchChannelImageMetadata(channel: UpdateChannel, fetcher:
   if (channel === "custom") throw new Error("Custom discovery requires the selected release source");
   const { base } = parseReference(`${appRepository}:${channel}`);
   const image = await fetchRegistryImage(base, channel, fetcher, platform);
-  return { digest: image.digest, revision: image.labels["org.opencontainers.image.revision"], requiredSystemVersion: parseSystemVersion(image.labels[requiredSystemVersionLabel]) };
+  return { digest: image.digest, revision: image.labels["org.opencontainers.image.revision"], requiredSystemVersion: parseSystemVersion(image.labels[requiredSystemVersionLabel]), networkPolicyVersion: parseSystemVersion(image.labels[networkPolicyVersionLabel]) };
 }
 
 const imageReferenceSchema = Type.String({ pattern: "^[a-zA-Z0-9][a-zA-Z0-9._/:@-]*$" });
@@ -149,6 +149,7 @@ const imageReferenceSchema = Type.String({ pattern: "^[a-zA-Z0-9][a-zA-Z0-9._/:@
 export interface PlannedImage {
   requiredSystemVersion?: number;
   systemVersion?: number;
+  networkPolicyVersion?: number;
   reference: string;
   revision?: string;
   indexDigest?: string;
@@ -181,7 +182,7 @@ export async function resolveImage(reference: string, fetcher: HttpFetcher = fet
   // Preserve an explicitly selected index digest so Docker also registers that declared reference.
   const pinnedDigest = reference.includes("@") ? version : image.digest;
   if (!/^sha256:[a-f0-9]{64}$/.test(pinnedDigest)) throw new Error("Invalid image digest");
-  const plan: PlannedImage = { requiredSystemVersion: parseSystemVersion(image.labels[requiredSystemVersionLabel]), systemVersion: parseSystemVersion(image.labels[systemVersionLabel]), reference: `${registry}/${name}@${pinnedDigest}`, layers: image.layers, dependencies };
+  const plan: PlannedImage = { networkPolicyVersion: parseSystemVersion(image.labels[networkPolicyVersionLabel]), requiredSystemVersion: parseSystemVersion(image.labels[requiredSystemVersionLabel]), systemVersion: parseSystemVersion(image.labels[systemVersionLabel]), reference: `${registry}/${name}@${pinnedDigest}`, layers: image.layers, dependencies };
   if (image.rootDigest && image.rootDigest !== image.digest && /^sha256:[a-f0-9]{64}$/.test(image.rootDigest)) plan.indexDigest = image.rootDigest;
   if (image.labels["org.opencontainers.image.revision"]) plan.revision = image.labels["org.opencontainers.image.revision"];
   return plan;

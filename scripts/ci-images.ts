@@ -1,4 +1,4 @@
-import { assertSystemCompatible, parseSystemVersion, systemVersion, systemVersionLabel, requiredSystemVersion, requiredSystemVersionLabel } from "../packages/shared/src/system-version.ts";
+import { assertSystemCompatible, parseSystemVersion, systemVersion, systemVersionLabel, requiredSystemVersion, requiredSystemVersionLabel, networkPolicyVersion, networkPolicyVersionLabel } from "../packages/shared/src/system-version.ts";
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import type { Run } from "./release-support.ts";
@@ -44,6 +44,7 @@ export async function verifiedImage(run: Run, ref: string, label: string, expect
     if (`${config.os}/${config.architecture}` !== platform || config.config?.Labels?.[label] !== expected)
       throw new Error(`${ref}: ${platform} label ${label} does not match ${expected}`);
     if (label === "com.kintsugi.system.signature" && config.config.Labels[systemVersionLabel] !== String(systemVersion)) throw new Error(`${ref}: System compatibility label does not match the source`);
+    if (label === "org.opencontainers.image.revision" && config.config.Labels[networkPolicyVersionLabel] !== String(networkPolicyVersion)) throw new Error(`${ref}: app network-policy label does not match the source`);
     if (label === "org.opencontainers.image.revision" && config.config.Labels[requiredSystemVersionLabel] !== String(requiredSystemVersion)) throw new Error(`${ref}: app compatibility label does not match the source`);
     if (label === "com.kintsugi.system.signature" && config.config.Labels["kintsugi.installer-config"] !== "1")
       throw new Error(`${ref}: missing installer capability`);

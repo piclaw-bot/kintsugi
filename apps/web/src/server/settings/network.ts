@@ -48,12 +48,14 @@ export async function renderWorkspaceNetwork(id: string, title: string, error = 
   const mode = getWorkspaceNetworkMode(id);
   const pending = await workspaceNetworkRestartRequired(id);
   const applied = getAppliedWorkspaceNetwork(id);
-  const labels = { off: "Off — public internet only", lan: "Local LAN — configured CIDRs", private: "Routed private networks — RFC1918 and IPv6 ULA" };
+  const labels = { off: "Off — public internet only", lan: "Local LAN — configured CIDRs", private: "Routed private networks — RFC1918 and IPv6 ULA", hosts: "Listed hosts only — exact TCP destinations" };
   const options = Object.entries(labels).map(([value, caption]) => `<option value="${value}"${mode === value ? " selected" : ""}>${caption}</option>`).join("");
   return dialogHtml({ element: { id: "workspace_network_dialog", attributesHtml: "data-dialog-auto-show" }, iconHtml: Icons.Settings, titleCaption: `Network: ${title}`, bodyHtml: `<form method="post" action="/workspaces/${encodeURIComponent(id)}/network" data-turbo="true">
     ${error ? `<p class="settings-error" role="alert">${escapeHtml(error)}</p>` : ""}
     <label class="settings-field"><span class="settings-field-label">LAN access</span><select name="mode" class="popup-select" data-controller="popup-select">${options}</select></label>
+    <p>Listed hosts only grants TCP access to the global and template lists, without broad CIDR access. Edit those lists in Global workspace settings or Template settings.</p>
     <p>Applies to every process and agent in this workspace. Other workspaces and Kintsugi management services stay isolated. Tailnet, link-local and multicast traffic are not enabled.</p>
+    <p><a href="/settings?section=global-workspace-settings" data-turbo-frame="_top">Edit global listed hosts</a></p>
     <p>Configured DNS forwarders enable LAN names and .local resolution through System. With no forwarders, Docker’s default DNS stays in use. Bonjour service browsing is not enabled.</p>
     <p>${pending ? "Restart needed. Park and unpark this workspace to apply changes; parking closes terminal and VS Code views." : "Changes apply after you park and unpark this workspace."} Current access: ${escapeHtml(labels[applied.mode])}.</p>
     <p><a href="/settings?section=network" data-turbo-frame="_top">Installation network settings</a></p>${save()}</form>` });
@@ -64,7 +66,7 @@ export async function handleWorkspaceNetwork(request: Request, id: string, title
   if (request.method === "POST") {
     try {
       const mode = request.headers.get("content-type")?.includes("application/json") ? (await readJsonObject(request)).mode : (await request.formData()).get("mode");
-      if (!Value.Check(networkModeSchema, mode)) throw new NetworkConfigurationError("LAN access must be off, lan, or private");
+      if (!Value.Check(networkModeSchema, mode)) throw new NetworkConfigurationError("Network access must be off, lan, private, or hosts");
       await setWorkspaceNetworkMode(id, mode);
     } catch (failure) {
       if (!(failure instanceof NetworkConfigurationError)) throw failure;

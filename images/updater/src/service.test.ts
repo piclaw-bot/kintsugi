@@ -151,3 +151,10 @@ test("a cached ready plan is revalidated before being offered after restart", as
     expect(calls.some(args => args[0] === "bash")).toBe(false);
   }, async args => incompatible && args[1] === "exec" && args.includes("image") ? { code: 0, stdout: JSON.stringify([{ Id: old, Config: { Labels: { "org.kintsugi.required-system-version": "2" } } }]) } : { code: 75, stdout: "" });
 });
+
+test("paired planning refuses legacy images while listed-host data remains", () => fixture(async (updater, directory, calls) => {
+  const metadata = join(directory, "app/workspaces/listed-one/metadata"); await mkdir(metadata, { recursive: true });
+  await writeFile(join(metadata, "network.json"), JSON.stringify({ mode: "hosts" }));
+  await expect(updater.check()).rejects.toThrow("before downgrading");
+  expect(calls.some(args => args.includes("pull") || args[0] === "bash")).toBe(false);
+}));

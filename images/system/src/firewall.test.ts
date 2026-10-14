@@ -110,3 +110,15 @@ test("System resolver input grants only the owning enabled bridge's TCP/UDP port
   expect(input.indexOf("198.18.0.0/15 counter drop")).toBeLessThan(input.indexOf("ct state established,related"));
   expect(input).not.toContain("th dport 8080");
 });
+
+test("listed-host mode grants only pinned TCP ports after protected and peer denials", () => {
+  const bridge = "atw-123456789ab";
+  const rules = workspaceFirewallRules("/system/build", [], false, [{ bridge, policy: { mode: "hosts", cidrs: [], dns: [], search: [], denied: ["172.18.0.0/16"], destinations: [{ host: "db.internal", port: 5432, addresses: ["192.168.1.20"] }] } }]);
+  const grant = `iifname "${bridge}" ip daddr 192.168.1.20 meta l4proto tcp tcp dport 5432 counter accept`;
+  expect(rules).toContain(grant);
+  expect(rules.indexOf(grant)).toBeGreaterThan(rules.indexOf('meta iifkind "bridge" meta oifkind "bridge" counter drop'));
+  expect(rules.indexOf(grant)).toBeGreaterThan(rules.indexOf(`iifname "${bridge}" ip daddr 172.18.0.0/16 counter drop`));
+  expect(rules).not.toContain(`iifname "${bridge}" ip daddr 192.168.1.20 counter accept`);
+  expect(rules).not.toContain("udp dport 5432");
+  expect(() => workspaceFirewallRules("/system/build", [], false, [{ bridge, policy: { mode: "hosts", cidrs: ["192.168.1.0/24"], dns: [], search: [], denied: [] } }])).toThrow("cannot contain CIDR grants");
+});

@@ -780,6 +780,17 @@ if (operation === 'auth-check') {
 } else if (operation === 'credentials') {
   if (!registryAuth) throw Error('Registry auth is required');
   await writeAuth();
+} else if (operation === 'network-data-version') {
+  const policies = await read('/data/supervisor/workspace-networks.json');
+  let required = Object.values(policies).some(policy => policy && typeof policy === 'object' && policy.mode === 'hosts') ? 2 : 0;
+  let workspaces;
+  try { workspaces = (await fs.readdir('/data/app/workspaces', {withFileTypes:true})).filter(entry => entry.isDirectory()).map(entry => entry.name); }
+  catch(error) { if(error.code !== 'ENOENT') throw Error('Cannot inspect network policy compatibility'); workspaces = []; }
+  for (const id of workspaces) {
+    const saved = await read('/data/app/workspaces/'+id+'/metadata/network.json');
+    if (saved.mode === 'hosts' || saved.applied?.mode === 'hosts') required = 2;
+  }
+  process.stdout.write(String(required)+"\n");
 } else if (operation === 'rollback-plan') {
   if (!imageIdPattern.test(history.previousSystemImage ?? '') || !imageIdPattern.test(history.previousAppImage ?? '')) throw Error('No retained System/app rollback pair');
   console.log([history.previousSystemImage,history.previousAppImage,hostname].join('\n'));
@@ -886,6 +897,8 @@ case "$action" in
       app_image="${app_image_override:-$source_repository:latest}"
     else
       old_system_image="$(docker inspect --format '{{.Image}}' "$system_name")"
+      network_data_version="$(release_plan "$old_system_image" network-data-version 2>>"$log_file")" || fail "Cannot verify network policy compatibility; nothing was replaced"
+      case "$network_data_version" in 0|2) ;; *) fail "Invalid network policy compatibility state; nothing was replaced" ;; esac
       plan_operation=plan; if [ "$action" = rollback ]; then plan_operation=rollback-plan; fi
       plan="$(release_plan "$old_system_image" "$plan_operation" 2>>"$log_file")" || fail "Cannot read the saved release source; nothing was replaced"
       plan_fields=(); while IFS= read -r field; do plan_fields+=("$field"); done <<<"$plan"
@@ -1015,6 +1028,15 @@ case "$action" in
         pinned_app="$(prepare_installed_app 2>>"$log_file")" || fail "Cannot prepare the selected app; existing System was not replaced"
       fi
       [[ "$pinned_app" =~ ^sha256:[a-f0-9]{64}$ ]] || fail "App image was not pinned; nothing was replaced"
+    fi
+    if [ "$installed" -eq 1 ] && [ "${network_data_version:-0}" -gt 0 ]; then
+      target_network_version="$(docker image inspect --format '{{index .Config.Labels "org.kintsugi.system-version"}}' "$system_image")"
+      [[ "$target_network_version" =~ ^[1-9][0-9]{0,9}$ ]] && [ "$target_network_version" -le 2147483647 ] && [ "$target_network_version" -ge "$network_data_version" ] || fail "Listed-host settings require compatible installation images. Apply Off before downgrading; nothing was replaced"
+      if [ "$(docker inspect --format '{{.State.Running}}' "$system_name")" = true ]; then
+        target_app_network_version="$(docker exec "$system_name" docker image inspect --format '{{index .Config.Labels "org.kintsugi.network-policy-version"}}' "$pinned_app")" || fail "Cannot inspect app network compatibility; nothing was replaced"
+        [[ "$target_app_network_version" =~ ^[1-9][0-9]{0,9}$ ]] && [ "$target_app_network_version" -le 2147483647 ] && [ "$target_app_network_version" -ge "$network_data_version" ] || fail "Listed-host settings require compatible app images. Apply Off before downgrading; nothing was replaced"
+      fi
+      # Offline recovery is allowed only with a compatible System; it validates app/data before activation.
     fi
     if [ "$installed" -eq 1 ] && [ -n "$admin_bootstrap" ]; then
       docker exec -i "$system_name" docker run --rm -i --network none --mount type=bind,source=/data/app,target=/data/app,readonly --entrypoint bun "$pinned_app" /app/apps/web/scripts/admin-bindings.ts bootstrap --file /dev/stdin --check < "$admin_bootstrap" >>"$log_file" 2>&1 || fail "Invalid admin bootstrap; existing services were retained"

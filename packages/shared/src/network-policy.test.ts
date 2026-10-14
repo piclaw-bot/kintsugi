@@ -27,3 +27,9 @@ test("DNS uses exactly the configured forwarders and search list", () => {
   expect(addressInCidrs("192.168.10.255", lan.cidrs)).toBe(true);
   expect(parseNetworkCidr("fd12:3456::/64").family).toBe(6);
 });
+
+test("listed-host policies never grant by CIDR, including malformed non-empty CIDR snapshots", () => {
+  const policy: WorkspaceNetworkPolicy = { mode: "hosts", cidrs: ["192.168.1.0/24"], dns: [], search: [], denied: [] };
+  expect(workspaceNetworkAddressAllowed("192.168.1.20", policy)).toBe(false);
+  expect(workspaceNetworkAddressAllowed("8.8.8.8", policy)).toBe(true);
+});

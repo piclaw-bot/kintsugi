@@ -4,7 +4,7 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { verifyImagePair, channelMatches, digestValue, publishVersion, releaseTag, sliceReferences, verifiedImage } from "./ci-images.ts";
-import { systemVersion, systemVersionLabel, requiredSystemVersion, requiredSystemVersionLabel } from "../packages/shared/src/system-version.ts";
+import { systemVersion, systemVersionLabel, requiredSystemVersion, requiredSystemVersionLabel, networkPolicyVersion, networkPolicyVersionLabel } from "../packages/shared/src/system-version.ts";
 import type { Run } from "./release-support.ts";
 
 const digest = `sha256:${"a".repeat(64)}`;
@@ -29,6 +29,7 @@ function runner(options: { missing?: string; modifyManifest?: (value: ReturnType
       [label]: commit,
       [systemVersionLabel]: String(systemVersion),
       [requiredSystemVersionLabel]: String(requiredSystemVersion),
+      [networkPolicyVersionLabel]: String(networkPolicyVersion),
       "eagerly-preload": JSON.stringify([workspace]),
       "com.kintsugi.workspace-image.ref": workspace,
       "com.kintsugi.system.signature": "signature",

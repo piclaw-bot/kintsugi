@@ -498,6 +498,8 @@ html.software-keyboard-visible .composer.launch-composer :is(.agent-attach-row, 
 .template-settings-inline-records { display: grid; gap: 8px; }
 .template-settings-inline-body { display: grid; gap: 16px; padding-inline-start: 8px; }
 .template-settings-inline .form-actions[hidden] { display: none; }
+.private-network-editor .form-actions { flex-wrap: wrap; }
+.private-network-editor .form-actions > .button { flex-shrink: 0; }
 @media (max-width: 640px) {
   .template-settings-inline-fields { grid-template-columns: minmax(0, 1fr); }
 }

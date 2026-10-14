@@ -1,3 +1,5 @@
+import { Type } from "typebox";
+import { Value } from "typebox/value";
 import { createConnection } from "node:net";
 import { createInterface } from "node:readline";
 import { existsSync } from "node:fs";
@@ -56,3 +58,13 @@ export const hostTerminalSocket: WorkspaceServerSocketHandler = (url) => {
     close() { clientOpen = false; upstream?.destroy(); },
   };
 };
+
+/** Status from an unversioned installation reports version zero. */
+export async function readSystemVersion(fetcher: (input: string | URL, init?: RequestInit) => Promise<Response> = fetch): Promise<number> {
+  const response = await fetcher("http://127.0.0.1:3001/status", { signal: AbortSignal.timeout(10_000), redirect: "error" });
+  if (!response.ok) throw new Error("Cannot read installation compatibility status.");
+  let value: unknown;
+  try { value = await response.json(); } catch { throw new Error("Invalid installation compatibility status."); }
+  if (!Value.Check(Type.Object({ systemVersion: Type.Optional(Type.Integer({ minimum: 0, maximum: 2147483647 })) }), value)) throw new Error("Invalid installation compatibility status.");
+  return value.systemVersion ?? 0;
+}

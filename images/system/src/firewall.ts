@@ -24,7 +24,8 @@ export function workspaceFirewallRules(buildClientsCgroup: string, nameservers: 
       return `    iifname "${bridge}" ${family === 4 ? "ip" : "ip6"} daddr ${canonicalNetworkCidr(cidr)} counter ${verdict}`;
     });
     const dns = policy.dns.map(address => `    iifname "${bridge}" ${isIP(address) === 4 ? "ip" : "ip6"} daddr ${address} meta l4proto { tcp, udp } th dport 53 counter accept`);
-    return [...dns, ...subnetRules([...protectedNetworkCidrs, ...policy.denied], "drop"), ...subnetRules(policy.cidrs, "accept")];
+    const exact = policy.mode === "hosts" ? (policy.destinations ?? []).flatMap(destination => destination.addresses.map(address => `    iifname "${bridge}" ${isIP(address) === 4 ? "ip" : "ip6"} daddr ${address} meta l4proto tcp tcp dport ${destination.port} counter accept`)) : [];
+    return [...dns, ...subnetRules([...protectedNetworkCidrs, ...policy.denied], "drop"), ...exact, ...subnetRules(policy.mode === "hosts" ? [] : policy.cidrs, "accept")];
   });
   const resolverInput = networks.flatMap(({ bridge, policy }) => policy.mode !== "off" && policy.dns.length && policy.resolver ? [`    iifname "${bridge}" ip daddr ${policy.resolver} meta l4proto { tcp, udp } th dport 53 counter accept`] : []);
   return `add table inet kintsugi_workspaces

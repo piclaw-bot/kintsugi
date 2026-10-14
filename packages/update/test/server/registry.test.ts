@@ -22,7 +22,7 @@ describe("registry helpers", () => {
       if (url.endsWith("/blobs/sha256:config")) return Response.json({ os: "linux", architecture: process.arch === "arm64" ? "arm64" : "amd64", config: { Labels: { "org.opencontainers.image.revision": "new" } } });
       throw new Error(`unexpected fetch ${url}`);
     };
-    await expect(fetchChannelImageMetadata("stable", fetcher)).resolves.toEqual({ digest: "sha256:manifest", revision: "new", requiredSystemVersion: 0 });
+    await expect(fetchChannelImageMetadata("stable", fetcher)).resolves.toEqual({ digest: "sha256:manifest", revision: "new", requiredSystemVersion: 0, networkPolicyVersion: 0 });
   });
 
   test("accepts null optional config label fields", async () => {
@@ -36,7 +36,7 @@ describe("registry helpers", () => {
       await expect(fetchChannelImageMetadata("stable", fetcher)).resolves.toEqual({
         digest: "sha256:manifest",
         revision: undefined,
-        requiredSystemVersion: 0,
+        requiredSystemVersion: 0, networkPolicyVersion: 0,
       });
     }
   });
@@ -54,7 +54,7 @@ describe("registry helpers", () => {
     await expect(fetchChannelImageMetadata("stable", fetcher)).resolves.toEqual({
       digest: "sha256:platform",
       revision: "indexed",
-      requiredSystemVersion: 0,
+      requiredSystemVersion: 0, networkPolicyVersion: 0,
     });
   });
 
@@ -106,7 +106,7 @@ test("resolves complete platform download metadata before pulling layers", async
     if (url.endsWith(`/manifests/${digest}`)) return Response.json({ config: { digest: "sha256:config" }, layers: [layer] });
     return Response.json({ os: "linux", architecture: "arm64", config: { Labels: { "eagerly-preload": '["ubuntu:24.04"]' } } });
   }, { os: "linux", architecture: "arm64" });
-  expect(image).toEqual({ reference: `ghcr.io/example/app@${digest}`, layers: [layer], dependencies: ["ubuntu:24.04"], requiredSystemVersion: 0, systemVersion: 0 });
+  expect(image).toEqual({ reference: `ghcr.io/example/app@${digest}`, layers: [layer], dependencies: ["ubuntu:24.04"], requiredSystemVersion: 0, systemVersion: 0, networkPolicyVersion: 0 });
   expect(calls).toHaveLength(3);
 });
 
@@ -147,7 +147,7 @@ test("latest discovery only requests the new product's latest tag", async () => 
     }
     throw new Error(`unexpected fetch ${url}`);
   };
-  await expect(fetchChannelImageMetadata("latest", fetcher)).resolves.toEqual({ digest: "sha256:latest-manifest", revision: "latest-revision", requiredSystemVersion: 0 });
+  await expect(fetchChannelImageMetadata("latest", fetcher)).resolves.toEqual({ digest: "sha256:latest-manifest", revision: "latest-revision", requiredSystemVersion: 0, networkPolicyVersion: 0 });
   expect(calls).toHaveLength(2);
 });
 

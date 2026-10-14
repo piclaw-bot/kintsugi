@@ -17,7 +17,7 @@ export interface HostResults {
 export type HostResult = HostResults[keyof HostResults];
 const terminalId = Type.String({ pattern: "^host-[a-f0-9-]{36}$" });
 const requestSchema = Type.Union([
-  Type.Object({ operation: Type.Literal("network"), workspaceId: Type.String({ pattern: "^[a-zA-Z0-9][a-zA-Z0-9_.-]*$" }), mode: networkModeSchema, configuration: networkConfigurationSchema }),
+  Type.Object({ operation: Type.Literal("network"), destinations: Type.Optional(Type.Array(Type.Object({ host: Type.String({ maxLength: 253 }), port: Type.Integer({ minimum: 1, maximum: 65535 }) }, { additionalProperties: false }), { maxItems: 256 })), workspaceId: Type.String({ pattern: "^[a-zA-Z0-9][a-zA-Z0-9_.-]*$" }), mode: networkModeSchema, configuration: networkConfigurationSchema }),
   Type.Object({ operation: Type.Literal("list") }),
   Type.Object({ operation: Type.Literal("create") }),
   Type.Object({ operation: Type.Literal("terminate"), id: terminalId }),

@@ -2,7 +2,7 @@ import { Type } from "typebox";
 import { Value } from "typebox/value";
 import { parsePrivateNetworkDestination, formatPrivateNetworkDestination } from "@kintsugi/shared/network-destinations";
 import { NetworkConfigurationError } from "@kintsugi/shared/network-policy";
-import { readJsonObject } from "@kintsugi/core";
+import { requestAcceptsJson, readJsonObject } from "@kintsugi/core";
 import { errorMessage } from "@kintsugi/shared";
 import { jsonResponse } from "@kintsugi/shared/http";
 import { globalWorkspaceConfiguration, type ConfigurationScope } from "@kintsugi/workspace-templates";
@@ -13,7 +13,7 @@ export const privateNetworkAccessInput = Type.Object({ privateNetworkAccess: Typ
 /** JSON security API. Configuration does not enable any workspace or replace its applied policy. */
 export async function handlePrivateNetworkSettings(request: Request, url: URL): Promise<Response | undefined> {
   const match = url.pathname.match(/^\/(?:workspace-templates\/([^/]+)|global-workspace-settings)\/private-network-access$/);
-  if (!match) return;
+  if (!match || !requestAcceptsJson(request) && !request.headers.get("content-type")?.includes("application/json")) return;
   const scope: ConfigurationScope = match[1] === undefined ? globalWorkspaceConfiguration : decodeURIComponent(match[1]);
   if (request.method === "GET") return jsonResponse({ privateNetworkAccess: await getPrivateNetworkAccess(scope) });
   if (request.method !== "POST") return new Response("Method not allowed", { status: 405, headers: { allow: "GET, POST" } });

@@ -52,7 +52,7 @@ export function createReleaseRequests(options: {
         const component = url.searchParams.get("component") ?? "app";
         if (component !== "app" && component !== "system") return Response.json({ error: "Unsupported release component" }, { status: 400 });
         const plan = await resolveImage(releaseReference(settings, component), await options.registry.fetcher(options.fetcher));
-        return Response.json({ reference: plan.reference, digest: plan.reference.split("@")[1], revision: plan.revision, indexDigest: plan.indexDigest, requiredSystemVersion: plan.requiredSystemVersion ?? 0 });
+        return Response.json({ reference: plan.reference, digest: plan.reference.split("@")[1], revision: plan.revision, indexDigest: plan.indexDigest, requiredSystemVersion: plan.requiredSystemVersion ?? 0, networkPolicyVersion: plan.networkPolicyVersion ?? 0 });
       }
       if (url.pathname === "/release/prepare" && request.method === "POST") {
         if (options.busy()) return Response.json({ error: "An update is in progress" }, { status: 409 });

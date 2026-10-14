@@ -1,3 +1,5 @@
+import { requiredNetworkStateVersion, assertNetworkStateCompatible } from "../../../packages/shared/src/network-compatibility.ts";
+import { systemVersionLabel } from "../../../packages/shared/src/system-version.ts";
 import { systemVersion, requiredSystemVersionLabel, parseSystemVersion, assertSystemCompatible } from "../../../packages/shared/src/system-version.ts";
 import { updaterSocket } from "../../../packages/shared/src/installation-update.ts";
 import { tailscaleHttpsSettingsUrl, TailscaleHttpsDisabledError } from "../../../packages/shared/src/tailscale.ts";
@@ -222,6 +224,7 @@ async function prepareImage(reference: string, options: { pullApp: boolean; pull
   const image = JSON.parse(await docker("image", "inspect", reference))[0];
   assertStorageSupport(image.Config.Labels, storageDriver);
   assertSystemCompatible(systemVersion, parseSystemVersion(image.Config.Labels?.[requiredSystemVersionLabel]));
+  assertNetworkStateCompatible(await requiredNetworkStateVersion("/data"), image.Config.Labels, { [systemVersionLabel]: String(systemVersion) });
   if (persisted.proxy && image.Config.Labels?.["kintsugi.deployment-config"] !== "1") throw new Error("App image does not support configured proxy access");
   const preload: unknown = JSON.parse(
     image.Config.Labels?.["eagerly-preload"] ?? "[]",

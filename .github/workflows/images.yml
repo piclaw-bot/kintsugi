@@ -37,6 +37,7 @@ jobs:
       system_signature: ${{ steps.plan.outputs.system_signature }}
       system_compatibility: ${{ steps.plan.outputs.system_compatibility }}
       app_compatibility: ${{ steps.plan.outputs.app_compatibility }}
+      app_network: ${{ steps.plan.outputs.app_network }}
       workspace_exists: ${{ steps.workspace.outputs.exists }}
       workspace_ref: ${{ steps.workspace.outputs.ref }}
       system_exists: ${{ steps.system.outputs.exists }}
@@ -85,7 +86,7 @@ jobs:
             echo "workspace=ghcr.io/${owner,,}/kintsugi-workspace"
             echo "signature=$signature"
             echo "system_signature=$system_signature"
-            bun -e 'import {systemVersion,systemVersionLabel,requiredSystemVersion,requiredSystemVersionLabel} from "./packages/shared/src/system-version.ts";process.stdout.write("system_compatibility="+systemVersionLabel+"="+systemVersion+"\napp_compatibility="+requiredSystemVersionLabel+"="+requiredSystemVersion+"\n");'
+            bun -e 'import {systemVersion,systemVersionLabel,requiredSystemVersion,requiredSystemVersionLabel,networkPolicyVersionLabel,networkPolicyVersion} from "./packages/shared/src/system-version.ts";process.stdout.write("system_compatibility="+systemVersionLabel+"="+systemVersion+"\napp_compatibility="+requiredSystemVersionLabel+"="+requiredSystemVersion+"\napp_network="+networkPolicyVersionLabel+"="+networkPolicyVersion+"\n");'
           } >> "$GITHUB_OUTPUT"
       - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4
         if: inputs.publish
@@ -404,6 +405,7 @@ jobs:
           labels: |
             com.kintsugi.workspace-image.ref=${{ steps.dependency.outputs.ref }}
             ${{ needs.prepare.outputs.app_compatibility }}
+            ${{ needs.prepare.outputs.app_network }}
           cache-from: |
             type=gha,scope=app-${{ matrix.arch }}
             ${{ inputs.publish && format('type=registry,ref=ghcr.io/{0}/kintsugi:cache-{1}', github.repository_owner, matrix.arch) || '' }}

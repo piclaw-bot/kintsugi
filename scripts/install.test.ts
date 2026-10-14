@@ -2,7 +2,7 @@ import { expect, test } from "bun:test";
 
 const installer = (await Bun.file(new URL("./install.sh", import.meta.url)).text()).replace("no_updater=0", "no_updater=1");
 
-function run(options: { hostUpdater?: boolean; savedStorageDriver?: string; storageCompatible?: boolean; erofsMissing?: boolean; savedRepository?: string; savedHostname?: string; appPrepareFails?: boolean; savedRegistry?: boolean; rollbackAvailable?: boolean; installerCompatible?: boolean; promptRepository?: string; promptHostname?: string; systemState?: "restarting" | "exited"; portMappings?: string; nonRoot?: boolean; denySudo?: boolean; mac?: boolean; wsl?: boolean; installed?: boolean; old?: boolean; legacyAtelier?: boolean; legacyVolumeOnly?: boolean; legacyPreSystem?: boolean; legacyDownloadFails?: boolean; legacyDelegateFails?: boolean; pullFails?: boolean; pullDenied?: boolean; appFails?: boolean; retryUpdateRequest?: boolean; rejectUpdateRequest?: boolean; pendingHealth?: boolean; missingFilesystem?: boolean; loadable?: boolean; uninstallAnswer?: string; uninstallFails?: boolean; uninstallRequestFails?: boolean; inventoryFails?: boolean; volumeOnly?: boolean; volumeRemovalFails?: boolean; initiallyStopped?: boolean } = {}, args: string[] = []) {
+function run(options: { networkDataVersion?: number; systemCompatibility?: string; appNetworkCompatibility?: string; hostUpdater?: boolean; savedStorageDriver?: string; storageCompatible?: boolean; erofsMissing?: boolean; savedRepository?: string; savedHostname?: string; appPrepareFails?: boolean; savedRegistry?: boolean; rollbackAvailable?: boolean; installerCompatible?: boolean; promptRepository?: string; promptHostname?: string; systemState?: "restarting" | "exited"; portMappings?: string; nonRoot?: boolean; denySudo?: boolean; mac?: boolean; wsl?: boolean; installed?: boolean; old?: boolean; legacyAtelier?: boolean; legacyVolumeOnly?: boolean; legacyPreSystem?: boolean; legacyDownloadFails?: boolean; legacyDelegateFails?: boolean; pullFails?: boolean; pullDenied?: boolean; appFails?: boolean; retryUpdateRequest?: boolean; rejectUpdateRequest?: boolean; pendingHealth?: boolean; missingFilesystem?: boolean; loadable?: boolean; uninstallAnswer?: string; uninstallFails?: boolean; uninstallRequestFails?: boolean; inventoryFails?: boolean; volumeOnly?: boolean; volumeRemovalFails?: boolean; initiallyStopped?: boolean } = {}, args: string[] = []) {
   const pinned = `sha256:${"c".repeat(64)}`;
   const logPath = `/tmp/kintsugi-install-test-${crypto.randomUUID()}.log`;
   const mock = `
@@ -42,6 +42,7 @@ docker() {
       esac ;;
     'cp '*) printf '%s' '{"auths":{"ghcr.io":{"auth":"Zml4dHVyZTp0b2tlbg=="}}}' > "$3"; return 0 ;;
     'run --rm')
+      if [[ "$*" == *' network-data-version '* ]]; then echo ${options.networkDataVersion ?? 0}; return 0; fi
       if [[ "$*" == *' rollback-plan '* ]]; then if [ "${options.rollbackAvailable === false ? 0 : 1}" -eq 0 ]; then return 1; fi; printf '%s\n%s\n%s\n' ${pinned} ${pinned} kintsugi-system; return 0; fi
       if [[ "$*" == *' auth-check '* ]]; then echo ${options.savedRegistry ? 1 : 0}; return 0; fi
       if [[ "$*" == *" plan "* ]]; then
@@ -56,7 +57,7 @@ docker() {
         printf '%s\n%s\n%s\n' "\${system:-$source-system:latest}" "\${app:-$source:latest}" "\${hostname:-${options.savedHostname ?? 'kintsugi-system'}}"
       fi
       return 0 ;;
-    'image inspect') if [[ "$*" == *'deployment-config'* ]]; then echo 1; elif [[ "$*" == *'storage-drivers'* ]]; then echo ${options.storageCompatible === false ? 'erofs' : 'erofs,overlayfs'}; elif [[ "$*" == *'installer-config'* ]]; then echo ${options.installerCompatible === false ? 0 : 1}; elif [[ "$*" == *'{{.Id}}'* ]]; then echo ${pinned}; fi; return 0 ;;
+    'image inspect') if [[ "$*" == *'org.kintsugi.system-version'* ]]; then echo ${options.systemCompatibility ?? '0'}; elif [[ "$*" == *'deployment-config'* ]]; then echo 1; elif [[ "$*" == *'storage-drivers'* ]]; then echo ${options.storageCompatible === false ? 'erofs' : 'erofs,overlayfs'}; elif [[ "$*" == *'installer-config'* ]]; then echo ${options.installerCompatible === false ? 0 : 1}; elif [[ "$*" == *'{{.Id}}'* ]]; then echo ${pinned}; fi; return 0 ;;
     'pull '*)
       if [ "${options.pullDenied ? 1 : 0}" -eq 1 ]; then echo 'Error response from daemon: Head "https://ghcr.io/v2/rcarmo/kintsugi-system/manifests/latest": denied: denied' >&2; return 1; fi
       return ${options.pullFails ? 1 : 0} ;;
@@ -76,6 +77,7 @@ docker() {
         printf '${options.uninstallFails ? "failed\\nvolume is in use" : "complete\\nManaged resources deleted"}\\n'; return 0
       fi ;;
     'exec kintsugi-system')
+      if [[ "$*" == *'org.kintsugi.network-policy-version'* ]]; then echo ${options.appNetworkCompatibility ?? '0'}; return 0; fi
       if [[ "$*" == *"Cannot prepare the selected app"* ]]; then
         if [ "${options.appPrepareFails ? 1 : 0}" -eq 1 ]; then return 1; fi
         echo ${pinned}; return 0
@@ -686,4 +688,15 @@ test("default host updater rejects a missing systemd manager before replacing Sy
 test("explicit no-updater supports isolated non-systemd installs",()=>{
   const result=run({hostUpdater:true,installed:true},["--no-updater","--non-interactive","--action","update","--confirm-replace"]);
   expect(result.status).toBe(0);expect(result.output).not.toContain("SYSTEMCTL");
+});
+
+test("listed-host data rejects legacy app/System targets before stopping the installation", () => {
+  for (const versions of [{ systemCompatibility: "1", appNetworkCompatibility: "2" }, { systemCompatibility: "2", appNetworkCompatibility: "0" }]) {
+    const result = run({ installed: true, networkDataVersion: 2, ...versions });
+    expect(result.status).not.toBe(0);
+    expect(result.output).toContain("Apply Off before downgrading");
+    expect(result.output).not.toContain("DOCKER stop");
+    expect(result.output).not.toContain("DOCKER rm kintsugi-system");
+  }
+  expect(run({ installed: true, networkDataVersion: 2, systemCompatibility: "2", appNetworkCompatibility: "2" }).status).toBe(0);
 });

@@ -12,6 +12,8 @@
     "./file-metadata": "./src/file-metadata.ts",
     "./network-policy": "./src/network-policy.ts",
     "./network-destinations": "./src/network-destinations.ts",
+    "./network-lookup": "./src/network-lookup.ts",
+    "./network-compatibility": "./src/network-compatibility.ts",
     "./publishing": "./src/publishing.ts",
     "./system-version": "./src/system-version.ts"
   },

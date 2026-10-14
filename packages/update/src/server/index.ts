@@ -1,3 +1,5 @@
+import { requiredAppNetworkStateVersion } from "@kintsugi/shared/network-compatibility";
+import { getKintsugiRuntimeContext } from "@kintsugi/core";
 import { githubRepository } from "@kintsugi/shared/publishing";
 import { copyButtonHtml } from "@kintsugi/design-system/copy-button";
 import { createInstallationClient, type InstallationClient } from "./installation.ts";
@@ -33,6 +35,7 @@ interface StateSnapshot {
   target?: ImageMetadata;
   systemVersion?: number;
   targetNeedsInstaller: boolean;
+  targetNeedsPolicyReset: boolean;
   updateChannel: UpdateChannel;
   releaseSource: ReleaseSource;
   progressMessage?: string;
@@ -50,6 +53,7 @@ export interface UpdateManagerDeps {
   writeChannel?: (channel: UpdateChannel) => Promise<void>;
   detectRuntime?: () => Promise<SelfUpdateRuntime | undefined>;
   readSystemVersion?: () => Promise<number>;
+  readNetworkStateVersion?: () => Promise<number>;
   fetchMetadata?: (channel: UpdateChannel) => Promise<ImageMetadata>;
   prepareUpdate?: (reference: string, onProgress: (progress: PullProgress) => void) => Promise<PreparedUpdate>;
   requestUpdate?: (imageId: string) => Promise<void>;
@@ -67,6 +71,7 @@ export class UpdateManager {
   private installationPlanId: string | undefined;
   private runtime: SelfUpdateRuntime | undefined;
   private systemVersion: number | undefined;
+  private networkStateVersion = 0;
   private state: UpdateState = "idle";
   private percent: number | undefined;
   private error: string | undefined;
@@ -127,8 +132,9 @@ export class UpdateManager {
 
   snapshot(): StateSnapshot {
     const settings = { releaseSource: this.releaseSource, releaseChannel: this.updateChannel === "custom" ? this.trackingChannel : this.updateChannel, releaseMode: "custom" as const };
+    const targetNeedsPolicyReset = !this.installationClient && this.target !== undefined && this.networkStateVersion > (this.target.networkPolicyVersion ?? 0);
     const targetNeedsInstaller = !this.installationClient && this.target !== undefined && this.systemVersion !== undefined && (this.target.requiredSystemVersion === undefined || this.target.requiredSystemVersion > this.systemVersion);
-    return { systemVersion: this.systemVersion, targetNeedsInstaller, updateScope: this.installationClient ? "installation" : "app", appReference: releaseReference(settings, "app"), systemReference: releaseReference(settings, "system"), state: this.state, percent: this.percent, error: this.error, selfUpdatable: Boolean(this.runtime), target: this.target, updateChannel: this.updateChannel, releaseSource: { ...this.releaseSource }, progressMessage: this.progressMessage };
+    return { systemVersion: this.systemVersion, targetNeedsInstaller, targetNeedsPolicyReset, updateScope: this.installationClient ? "installation" : "app", appReference: releaseReference(settings, "app"), systemReference: releaseReference(settings, "system"), state: this.state, percent: this.percent, error: this.error, selfUpdatable: Boolean(this.runtime), target: this.target, updateChannel: this.updateChannel, releaseSource: { ...this.releaseSource }, progressMessage: this.progressMessage };
   }
 
   private updateSidebar(checked = false): void {
@@ -167,6 +173,9 @@ export class UpdateManager {
     if (this.state === "idle" || this.state === "failed") this.setState("checking");
     let target: ImageMetadata;
     try {
+      const dataVersion = await this.readNetworkStateVersion();
+      if (generation !== this.channelGeneration || this.pullPromise || this.prepared || this.restarting) return;
+      this.networkStateVersion = dataVersion;
       target = await (this.deps.fetchMetadata ?? fetchChannelImageMetadata)(channel);
     } catch (error) {
       // A superseded channel's failures are as stale as its successful responses.
@@ -227,7 +236,8 @@ export class UpdateManager {
     if (!this.target || (this.state !== "available" && this.state !== "failed")) {
       throw new UpdateConflictError("No update is available to download. Check the selected channel first.");
     }
-    if (this.snapshot().targetNeedsInstaller) { this.setState("installer_required"); return Promise.resolve(); }
+    if (this.snapshot().targetNeedsInstaller || this.snapshot().targetNeedsPolicyReset) { this.setState("installer_required"); return Promise.resolve(); }
+    this.setState("pulling");
     this.pullPromise = this.pullNewestTarget().catch((error) => {
       this.setState("failed", { error: errorMessage(error) });
     }).finally(() => {
@@ -236,7 +246,11 @@ export class UpdateManager {
     return this.pullPromise;
   }
 
+  private async readNetworkStateVersion(): Promise<number> { return (this.deps.readNetworkStateVersion ?? (() => requiredAppNetworkStateVersion(getKintsugiRuntimeContext().kintsugiDataDir)))(); }
+
   private async pullNewestTarget(): Promise<void> {
+    this.networkStateVersion = await this.readNetworkStateVersion();
+    if (this.snapshot().targetNeedsPolicyReset) { this.setState("installer_required"); return; }
     if (this.installationClient) {
       const checked = await this.installationClient.check();
       this.acceptInstallation(checked);
@@ -403,6 +417,7 @@ function renderUpdateControl(snapshot: StateSnapshot, surface: UpdateControlSurf
 }
 
 function renderInstallerRequired(snapshot: StateSnapshot): string {
+  if (snapshot.targetNeedsPolicyReset) return warningBannerHtml({ title: "Apply Off before downgrading", message: "This image cannot read saved listed-host policies. Turn off listed-host access and park/unpark every affected workspace before downgrading. Saved data was not changed." });
   const command = `curl -fsSL https://raw.githubusercontent.com/${githubRepository}/main/scripts/install.sh | bash`;
   return warningBannerHtml({ title: "Update the installation", message: snapshot.target?.requiredSystemVersion === undefined
     ? "This installation cannot verify the update's requirements. Run the installer to update both components. Custom image pins may need matching versions."

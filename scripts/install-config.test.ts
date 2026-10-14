@@ -129,3 +129,15 @@ test("proxy origin, preview range and selected mode survive update and rollback"
  expect(JSON.parse(await readFile(join(directory,"supervisor/state.json"),"utf8"))).toMatchObject({proxy,accessMode:"proxy"});
  for(const invalid of [{...proxy,origin:"https://agent-host.local/path"},{...proxy,adminPort:3001},{...proxy,previewPorts:{start:41010,end:41000}}])expect(run("plan",...args.slice(0,9),JSON.stringify(invalid),"proxy").status).not.toBe(0);
 }));
+
+test("the portable installer detects desired and applied listed-host state before downgrade", () => fixture(async (directory, run) => {
+  await mkdir(join(directory, "app/workspaces/one/metadata"), { recursive: true });
+  await writeFile(join(directory, "app/workspaces/unrelated-file"), "not a workspace");
+  expect(run("network-data-version").stdout).toBe("0");
+  await writeFile(join(directory, "app/workspaces/one/metadata/network.json"), JSON.stringify({ mode: "hosts" }));
+  expect(run("network-data-version").stdout).toBe("2");
+  await writeFile(join(directory, "app/workspaces/one/metadata/network.json"), JSON.stringify({ mode: "off", applied: { mode: "hosts" } }));
+  expect(run("network-data-version").stdout).toBe("2");
+  await writeFile(join(directory, "app/workspaces/one/metadata/network.json"), JSON.stringify({ mode: "off", applied: { mode: "off" } }));
+  expect(run("network-data-version").stdout).toBe("0");
+}));

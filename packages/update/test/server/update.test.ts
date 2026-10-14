@@ -50,6 +50,7 @@ function manager(extra: UpdateManagerDeps = {}) {
   return new UpdateManager({
     detectRuntime: async () => ({ currentDigest: oldDigest }),
     readSystemVersion: async () => 1,
+    readNetworkStateVersion: async () => 0,
     fetchMetadata: async () => ({ digest: newDigest, requiredSystemVersion: 0 }),
     prepareUpdate: async (reference) => ({ reference, imageId: "sha256:prepared-image-id" }),
     setInterval: noInterval, ...extra,
@@ -131,6 +132,7 @@ test("download remains in progress until all preparation completes; restart uses
   await instance.initialize(context().ctx);
   const pull = instance.startPull();
   expect(instance.startPull()).toBe(pull);
+  await Bun.sleep(0); // The data-format preflight completes before downloads begin.
   expect(instance.snapshot()).toMatchObject({ state: "pulling", percent: 60 });
   await expect(instance.restart()).rejects.toThrow("No prepared update");
   await expect(instance.setUpdateChannel("latest")).rejects.toThrow("in progress");
@@ -183,6 +185,7 @@ test("background checks cannot replace a pinned download or prepared target", as
   const instance = manager({ fetchMetadata: async () => ++checks === 1 ? { digest: newDigest, requiredSystemVersion: 0 } : pendingCheck.promise });
   await instance.initialize(context().ctx);
   const stale = instance.checkNow();
+  await Bun.sleep(0); // Admit the registry request before starting the immutable download.
   await instance.startPull();
   pendingCheck.resolve({ digest: newerDigest, requiredSystemVersion: 0 });
   await stale;
@@ -461,4 +464,14 @@ test("a new compatible target clears installer guidance without changing saved s
   await instance.checkNow();
   expect(instance.snapshot()).toMatchObject({ state: "available", targetNeedsInstaller: false });
   expect(writes).toBe(0);
+});
+
+test("a data-incompatible app-only downgrade is refused before downloading", async () => {
+  let downloads = 0;
+  const instance = manager({ readSystemVersion: async () => 2, readNetworkStateVersion: async () => 2, fetchMetadata: async () => ({ digest: newDigest, requiredSystemVersion: 0, networkPolicyVersion: 0 }), prepareUpdate: async () => { downloads++; return { reference: exact, imageId: "unused" }; } });
+  await instance.initialize(context().ctx);
+  expect(instance.snapshot().targetNeedsPolicyReset).toBe(true);
+  await instance.startPull();
+  expect(instance.snapshot().state).toBe("installer_required");
+  expect(downloads).toBe(0);
 });

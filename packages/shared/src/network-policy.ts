@@ -1,3 +1,4 @@
+import { parsePrivateNetworkDestination, privateNetworkDestinationAddressAllowed, privateNetworkDestinationHost } from "./network-destinations.ts";
 import { networkInterfaces } from "node:os";
 import { existsSync } from "node:fs";
 import type { JsonValue } from "@kintsugi/core";
@@ -8,7 +9,7 @@ import { isWorkspaceEgressAddress } from "./egress-policy.ts";
 
 export class NetworkConfigurationError extends Error {}
 
-export const networkModeSchema = Type.Union([Type.Literal("off"), Type.Literal("lan"), Type.Literal("private")]);
+export const networkModeSchema = Type.Union([Type.Literal("off"), Type.Literal("lan"), Type.Literal("private"), Type.Literal("hosts")]);
 export type WorkspaceNetworkMode = Static<typeof networkModeSchema>;
 export const networkConfigurationSchema = Type.Object({
   cidrs: Type.Array(Type.String(), { maxItems: 64 }),
@@ -16,6 +17,7 @@ export const networkConfigurationSchema = Type.Object({
   search: Type.Array(Type.String(), { maxItems: 6 }),
 }, { additionalProperties: false });
 export type NetworkConfiguration = Static<typeof networkConfigurationSchema>;
+export const appliedNetworkDestinationSchema = Type.Object({ host: Type.String({ maxLength: 253 }), port: Type.Integer({ minimum: 1, maximum: 65535 }), addresses: Type.Array(Type.String(), { minItems: 1, maxItems: 32 }) }, { additionalProperties: false });
 export const networkPolicySchema = Type.Object({
   mode: networkModeSchema,
   cidrs: Type.Array(Type.String(), { maxItems: 64 }),
@@ -23,6 +25,7 @@ export const networkPolicySchema = Type.Object({
   search: Type.Array(Type.String(), { maxItems: 6 }),
   denied: Type.Array(Type.String()),
   resolver: Type.Optional(Type.String()),
+  destinations: Type.Optional(Type.Array(appliedNetworkDestinationSchema, { maxItems: 256 })),
 }, { additionalProperties: false });
 export type WorkspaceNetworkPolicy = Static<typeof networkPolicySchema>;
 export const emptyNetworkConfiguration = (): NetworkConfiguration => ({ cidrs: [], dns: [], search: [] });
@@ -91,6 +94,13 @@ export function parseNetworkPolicy(value: JsonValue): WorkspaceNetworkPolicy {
   const policy = Value.Parse(networkPolicySchema, value);
   parseNetworkConfiguration({ cidrs: policy.mode === "private" ? [] : policy.cidrs, dns: policy.dns, search: policy.search });
   for (const cidr of [...policy.cidrs, ...policy.denied]) parseNetworkCidr(cidr);
+  if (policy.mode === "hosts" && policy.cidrs.length) throw new NetworkConfigurationError("Listed-host policies cannot contain CIDR grants");
+  if (policy.mode !== "hosts" && policy.destinations?.length) throw new NetworkConfigurationError("Exact destinations require listed-host mode");
+  for (const destination of policy.destinations ?? []) {
+    const host = privateNetworkDestinationHost(destination.host);
+    parsePrivateNetworkDestination(`${isIP(host) === 6 ? `[${host}]` : host}:${destination.port}`);
+    if (host !== destination.host || destination.addresses.some(address => !privateNetworkDestinationAddressAllowed(address, []))) throw new NetworkConfigurationError("Invalid applied private destination");
+  }
   if (policy.resolver !== undefined && (policy.mode === "off" || !policy.dns.length || isIP(policy.resolver) !== 4 || !addressInCidrs(policy.resolver, [workspaceResolverCidr]))) throw new NetworkConfigurationError("Invalid System workspace resolver address");
   return policy;
 }
@@ -98,7 +108,7 @@ export function parseNetworkPolicy(value: JsonValue): WorkspaceNetworkPolicy {
 export function workspaceNetworkAddressAllowed(ip: string, policy: WorkspaceNetworkPolicy): boolean {
   if (addressInCidrs(ip, policy.denied)) return false;
   if (isWorkspaceEgressAddress(ip)) return true;
-  return policy.mode !== "off" && !addressInCidrs(ip, protectedNetworkCidrs) && addressInCidrs(ip, policy.cidrs);
+  return (policy.mode === "lan" || policy.mode === "private") && !addressInCidrs(ip, protectedNetworkCidrs) && addressInCidrs(ip, policy.cidrs);
 }
 
 export const workspaceResolverCidr = "198.18.0.0/15";

@@ -135,3 +135,19 @@ bun run packages/workspace/scripts/test-system-resolver.ts <local-system-image>
 ```
 
 The kernel test uses disposable privileged containers and isolated namespaces to exercise IPv4/IPv6 Off/LAN/Private access, DNS-only exceptions, management/peer isolation, revocation and restoration. The DNS test requires a local systemd workspace image and checks DNS before init, reapplication after Docker restart and restoration when disabled. The System resolver integration script uses disposable privileged namespaces to verify native NXDOMAIN fallback, distinct applied views, UDP/TCP ownership, Off and management-port isolation, revocation, inactive empty configuration and restoration before Docker startup. These tests never change host DNS or a live installation. Proxy and shared-policy tests cover forwarder boundaries and protected ranges, plus ordered NXDOMAIN/no-record fallback, search-candidate ordering, operational failure handling and propagation of protocol errors; admin tests cover persistence, defaults, validation, scope enforcement and OpenAPI schemas. No UI tests are added.
+
+## Listed hosts only
+
+System compatibility version 2 adds an explicit `hosts` mode alongside the CIDR
+modes illustrated above. Global and per-template lists combine; configuring a
+list does not enable it. Apply by parking/unparking an explicitly enabled
+workspace. DNS names are resolved through that workspace's view and pinned for
+the applied snapshot. Native rules grant private IP/TCP-port tuples; the proxy
+also checks the hostname. Control/peer and protected-range denials remain first.
+The existing CIDR and DNS diagrams continue to describe those modes.
+
+Disable and apply Off before an image downgrade that cannot read listed-host
+snapshots. The current planner and installer refuse incompatible image pairs
+while this newer stored format is desired or applied. See
+[exact private TCP destinations](automation.md#exact-private-tcp-destinations)
+for API scopes and details.

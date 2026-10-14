@@ -13,12 +13,12 @@ export async function requestSupervisorUpdate(image: string, fetcher: HttpFetche
   if (response.status !== 202) throw new Error((await response.text()).trim() || `Supervisor refused update: ${response.status}`);
 }
 
-export async function checkSupervisorRelease(fetcher: HttpFetcher = fetch, component: "app" | "system" = "app"): Promise<{ digest: string; revision?: string; indexDigest?: string; requiredSystemVersion?: number }> {
+export async function checkSupervisorRelease(fetcher: HttpFetcher = fetch, component: "app" | "system" = "app"): Promise<{ digest: string; revision?: string; indexDigest?: string; requiredSystemVersion?: number; networkPolicyVersion?: number }> {
   const response = await fetcher(`${supervisorOrigin}/release/check?component=${component}`);
   if (!response.ok) throw new Error("Cannot check the configured release source. Check System registry access.");
   const value: unknown = await response.json();
-  if (!Value.Check(Type.Object({ digest: Type.String({ pattern: "^sha256:[a-f0-9]{64}$" }), requiredSystemVersion: Type.Optional(Type.Integer({ minimum: 0, maximum: 2147483647 })), revision: Type.Optional(Type.String()), indexDigest: Type.Optional(Type.String({ pattern: "^sha256:[a-f0-9]{64}$" })) }), value)) throw new Error("Invalid System release response");
-  return { digest: value.digest, revision: value.revision, indexDigest: value.indexDigest, requiredSystemVersion: value.requiredSystemVersion };
+  if (!Value.Check(Type.Object({ digest: Type.String({ pattern: "^sha256:[a-f0-9]{64}$" }), requiredSystemVersion: Type.Optional(Type.Integer({ minimum: 0, maximum: 2147483647 })), networkPolicyVersion: Type.Optional(Type.Integer({ minimum: 0, maximum: 2147483647 })), revision: Type.Optional(Type.String()), indexDigest: Type.Optional(Type.String({ pattern: "^sha256:[a-f0-9]{64}$" })) }), value)) throw new Error("Invalid System release response");
+  return { digest: value.digest, revision: value.revision, indexDigest: value.indexDigest, requiredSystemVersion: value.requiredSystemVersion, networkPolicyVersion: value.networkPolicyVersion };
 }
 
 export async function prepareSupervisorRelease(reference: string, fetcher: HttpFetcher = fetch): Promise<{ imageId: string; reference: string }> {
@@ -44,12 +44,4 @@ export async function requestSupervisorRollback(fetcher: HttpFetcher = fetch): P
   if (response.status !== 202) throw new Error("System cannot roll back. Check the previous image and its workspace dependencies.");
 }
 
-/** Status from an unversioned installation reports version zero. */
-export async function readSystemVersion(fetcher: HttpFetcher = fetch): Promise<number> {
-  const response = await fetcher(`${supervisorOrigin}/status`, { signal: AbortSignal.timeout(10_000), redirect: "error" });
-  if (!response.ok) throw new Error("Cannot read installation compatibility status.");
-  let value: unknown;
-  try { value = await response.json(); } catch { throw new Error("Invalid installation compatibility status."); }
-  if (!Value.Check(Type.Object({ systemVersion: Type.Optional(Type.Integer({ minimum: 0, maximum: 2147483647 })) }), value)) throw new Error("Invalid installation compatibility status.");
-  return value.systemVersion ?? 0;
-}
+export { readSystemVersion } from "@kintsugi/host/control";

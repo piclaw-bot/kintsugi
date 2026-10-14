@@ -1,3 +1,5 @@
+import { resolvePrivateNetworkDestinations } from "./private-network.ts";
+import type { PrivateNetworkDestination } from "../../../packages/shared/src/network-destinations.ts";
 import { assignWorkspaceResolvers, createWorkspaceResolverControl, type WorkspacePolicies } from "./workspace-resolver.ts";
 import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
@@ -20,9 +22,15 @@ export async function systemNetworkDestinations(): Promise<string[]> {
 
 /** Privileged control is only on the app-owned Unix socket. Settings never
  * arrive from workspace traffic or a public supervisor endpoint. */
-export async function createWorkspaceNetworkControl(buildClientsCgroup: string, path = "/data/supervisor/workspace-networks.json") {
+export async function createWorkspaceNetworkControl(buildClientsCgroup: string, path = "/data/supervisor/workspace-networks.json", backend: {
+  destinations?: typeof systemNetworkDestinations;
+  install?: typeof installWorkspaceFirewall;
+  resolvers?: ReturnType<typeof createWorkspaceResolverControl>;
+  resolve?: typeof resolvePrivateNetworkDestinations;
+} = {}) {
   const serialize = createKeyedOperationQueue();
-  const updateResolvers = createWorkspaceResolverControl();
+  const updateResolvers = backend.resolvers ?? createWorkspaceResolverControl();
+  const controlAddresses = backend.destinations ?? systemNetworkDestinations;
   let policies: WorkspacePolicies = {};
   try {
     const saved = JSON.parse(await readFile(path, "utf8"));
@@ -30,26 +38,36 @@ export async function createWorkspaceNetworkControl(buildClientsCgroup: string, 
   } catch (error) { if (!isNotFoundError(error)) throw error; }
   policies = assignWorkspaceResolvers(policies);
   const install = async (next: WorkspacePolicies) => {
-    const denied = await systemNetworkDestinations();
+    const denied = await controlAddresses();
     const networks = Object.entries(next).map(([id, policy]) => ({ bridge: workspaceNetworkBridge(id), policy: { ...policy, denied } }));
-    await installWorkspaceFirewall(buildClientsCgroup, resolverAddresses(await readFile("/etc/resolv.conf", "utf8")), networks);
+    await (backend.install ?? installWorkspaceFirewall)(buildClientsCgroup, resolverAddresses(await readFile("/etc/resolv.conf", "utf8")), networks);
     // Never bind DNS before its bridge/port ACL has been installed.
     await updateResolvers(next);
   };
   // Restore permissions before dockerd can auto-start existing containers.
   await install(policies);
   if (Object.keys(policies).length) await writeJsonAtomic(path, policies, { mode: 0o600 });
-  return (request: { workspaceId: string; mode: WorkspaceNetworkMode; configuration: NetworkConfiguration }): Promise<WorkspaceNetworkPolicy> => serialize("network", async () => {
+  return (request: { workspaceId: string; mode: WorkspaceNetworkMode; configuration: NetworkConfiguration; destinations?: PrivateNetworkDestination[] }): Promise<WorkspaceNetworkPolicy> => serialize("network", async () => {
     workspaceNetworkBridge(request.workspaceId);
     const config = parseNetworkConfiguration(request.configuration);
+    if (request.mode !== "hosts" && request.destinations?.length) throw new Error("Exact destinations require listed-host mode");
     if (request.mode === "lan" && !config.cidrs.length) throw new Error("Configure local LAN CIDRs before enabling Local LAN access");
-    const policy: WorkspaceNetworkPolicy = request.mode === "off" ? { ...offNetworkPolicy(), denied: await systemNetworkDestinations() } : {
-      mode: request.mode, cidrs: request.mode === "private" ? [...privateNetworkCidrs] : config.cidrs,
-      dns: config.dns, search: config.search, denied: await systemNetworkDestinations(),
+    const policy: WorkspaceNetworkPolicy = request.mode === "off" ? { ...offNetworkPolicy(), denied: await controlAddresses() } : {
+      mode: request.mode, cidrs: request.mode === "hosts" ? [] : request.mode === "private" ? [...privateNetworkCidrs] : config.cidrs,
+      dns: config.dns, search: config.search, denied: await controlAddresses(),
     };
     if (policy.dns.some(address => addressInCidrs(address, policy.denied))) throw new Error("DNS forwarder cannot be a Kintsugi control or workspace address");
     const next = assignWorkspaceResolvers({ ...policies, [request.workspaceId]: { ...policy, resolver: request.mode !== "off" ? policies[request.workspaceId]?.resolver : undefined } });
-    try { await install(next); await writeJsonAtomic(path, next, { mode: 0o600 }); }
+    try {
+      await install(next);
+      if (request.mode === "hosts") {
+        const applied = next[request.workspaceId]!;
+        const destinations = await (backend.resolve ?? resolvePrivateNetworkDestinations)(request.destinations ?? [], applied);
+        next[request.workspaceId] = { ...applied, destinations: destinations.map(entry => ({ ...entry, addresses: [...entry.addresses] })) };
+        await install(next);
+      }
+      await writeJsonAtomic(path, next, { mode: 0o600 });
+    }
     catch (error) { await install(policies); throw error; }
     policies = next;
     return next[request.workspaceId]!;

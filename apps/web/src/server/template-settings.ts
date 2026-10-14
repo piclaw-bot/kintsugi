@@ -1,3 +1,4 @@
+import { getPrivateNetworkAccess } from "@kintsugi/workspace-templates/private-network";
 import { disclosureHtml } from "@kintsugi/design-system/disclosure";
 import { invalidArguments } from "@kintsugi/core";
 import { buttonHtml } from "@kintsugi/design-system/button";
@@ -37,7 +38,7 @@ function sectionFor(value?: string): TemplateSettingsSection | undefined {
     default: throw invalidArguments("Unknown template settings section");
   }
 }
-const sections = ["general", "global-secrets", "global-ssh", "global-environment", "secrets", "ssh", "environment", "container", "developer"] as const;
+const sections = ["general", "global-secrets", "global-ssh", "global-environment", "global-network", "secrets", "ssh", "environment", "network", "container", "developer"] as const;
 const recordSections: readonly TemplateSettingsSection[] = sections.filter(section => section !== "general" && section !== "developer");
 const captionButton = (caption: string, attributesHtml: string, variant: "secondary" | "primary" = "secondary") => buttonHtml({ type: "button", variant, content: { kind: "caption", caption }, attributesHtml });
 const paragraph = (text: string) => `<p class="template-settings-note">${escapeHtml(text)}</p>`;
@@ -61,7 +62,7 @@ const editorKey = (section: TemplateSettingsSection, editor?: string) => `${sect
 /** Renders the editors for one scope's records: where their forms post and which editor is open or just saved. */
 interface Editors {
   /** Global sections are prefixed so their editors stay distinct within a template's settings. */
-  section(name: "secrets" | "ssh" | "environment"): TemplateSettingsSection;
+  section(name: "secrets" | "ssh" | "environment" | "network"): TemplateSettingsSection;
   form(path: string, contents: string, options: EditorFormOptions): string;
   disclosure(section: TemplateSettingsSection, editor: string | undefined, label: string, contents: string, description?: string, attributesHtml?: string): string;
   removeForm(path: string, section: TemplateSettingsSection, label: string, consequence: string): string;
@@ -160,8 +161,14 @@ function assertRecordExists(e: Editors, records: ScopeConfiguration, { section, 
   if (section === e.section("secrets") && !records.secrets.some(secret => secret.id === editor) || section === e.section("environment") && !records.environment.some(variable => variable.id === editor) || section === e.section("ssh") && editor !== "known-hosts" && !records.sshKeys.some(key => key.id === editor)) throw invalidArguments("Settings record not found");
 }
 
-function configurationSections(e: Editors, records: ScopeConfiguration, counterpart?: Counterpart): string {
-  return `<div class="template-settings-inline-records">${secretsSection(e, records.secrets, counterpart)}${sshSection(e, records.sshKeys, records.sshKnownHosts)}${environmentSection(e, records.environment, counterpart)}</div>`;
+function privateNetworkSection(e: Editors, entries: string[]): string {
+  const section = e.section("network");
+  const form = e.form("/private-network-access", `${textarea("Private TCP destinations, one per line", "privateNetworkAccess", entries.join("\n"), 5, 'spellcheck="false" placeholder="db.internal:5432"')}${paragraph("Global and template lists combine. Saving a list does not enable access. Choose Listed hosts only for a workspace, then park and unpark to apply it. Other modes keep their existing CIDR rules.")}${paragraph("Private addresses and exact host:port names only. Protected services and peer workspaces stay blocked. DNS addresses are pinned until the next restart.")}`, { section });
+  return e.disclosure(section, undefined, "Listed private hosts", `<div class="private-network-editor">${form}</div>`);
+}
+
+function configurationSections(e: Editors, records: ScopeConfiguration, counterpart?: Counterpart, destinations: string[] = []): string {
+  return `<div class="template-settings-inline-records">${secretsSection(e, records.secrets, counterpart)}${sshSection(e, records.sshKeys, records.sshKnownHosts)}${environmentSection(e, records.environment, counterpart)}${privateNetworkSection(e, destinations)}</div>`;
 }
 
 export function templateSettingsErrorHtml(message: string): string {
@@ -181,7 +188,7 @@ function editorContentAttributes(location: string, focus: string | undefined, su
 
 
 export async function renderTemplateSettingsFrame(id: string, location: TemplateSettingsLocation, references: TemplateSettingsReference[], saved = false, submittedPath?: string): Promise<string> {
-  const [t, own, global] = await Promise.all([getWorkspaceTemplateConfiguration(id), getConfiguration(id), getConfiguration(globalWorkspaceConfiguration)]);
+  const [t, own, global, ownHosts, globalHosts] = await Promise.all([getWorkspaceTemplateConfiguration(id), getConfiguration(id), getConfiguration(globalWorkspaceConfiguration), getPrivateNetworkAccess(id), getPrivateNetworkAccess(globalWorkspaceConfiguration)]);
   const section = sectionFor(location.section) ?? "index";
   const editor = location.editor ?? (location.section === "privileged" ? "docker" : location.section === "preload-images" ? "images" : location.section === "dockerfile" ? "dockerfile" : undefined);
   if (editor && !recordSections.includes(section)) throw invalidArguments("This settings section has no record editor");
@@ -192,8 +199,8 @@ export async function renderTemplateSettingsFrame(id: string, location: Template
   assertRecordExists(ownEditors, own, current);
   assertRecordExists(globalEditors, global, current);
   const general = ownEditors.form("", `<div class="template-settings-inline-fields">${field("Display name", "name", t.name, 'required autocomplete="off" data-1p-ignore="true"')}${field("Repository", "gitUrl", formatWorkspaceTemplateSpec(t), "required")}</div><label class="template-settings-color"><span>Swatch color</span><input type="hidden" name="swatchColor" value="${escapeHtml(t.swatchColor ?? "")}"><span class="template-settings-color-control"><span class="workspace-template-icon" style="--workspace-template-swatch: ${escapeHtml(t.swatchColor ?? workspaceTemplateSwatchColor(t.id))}" aria-hidden="true"></span><input type="color" name="swatchColorPicker" aria-label="Swatch color" data-settings-editor-target="colorPicker" data-default-color="${workspaceTemplateSwatchColor(t.id)}" data-action="input->settings-editor#colorChanged change->settings-editor#colorChanged"></span></label>`, { section: "general", autosave: true });
-  const shared = disclosureHtml({ summary: { kind: "compact", width: "fit", label: { kind: "text", text: "Shared with all templates" } }, bodyHtml: `<div class="template-settings-inline-body">${configurationSections(globalEditors, global, { records: own, describe: name => `Overridden by per-template ${name} with the same name` })}</div>`, open: section.startsWith("global-") });
-  const onlyHere = disclosureHtml({ summary: { kind: "compact", width: "fit", label: { kind: "text", text: "Only for this template" } }, bodyHtml: `<div class="template-settings-inline-body">${configurationSections(ownEditors, own, { records: global, describe: name => `Overrides global ${name} with the same name` })}</div>`, open: ["secrets", "ssh", "environment"].includes(section) });
+  const shared = disclosureHtml({ summary: { kind: "compact", width: "fit", label: { kind: "text", text: "Shared with all templates" } }, bodyHtml: `<div class="template-settings-inline-body">${configurationSections(globalEditors, global, { records: own, describe: name => `Overridden by per-template ${name} with the same name` }, globalHosts)}</div>`, open: section.startsWith("global-") });
+  const onlyHere = disclosureHtml({ summary: { kind: "compact", width: "fit", label: { kind: "text", text: "Only for this template" } }, bodyHtml: `<div class="template-settings-inline-body">${configurationSections(ownEditors, own, { records: global, describe: name => `Overrides global ${name} with the same name` }, ownHosts)}</div>`, open: ["secrets", "ssh", "environment", "network"].includes(section) });
   const dockerSupport = ownEditors.form("/privileged", `${selection("Docker support", "privileged", String(t.privileged ?? false), [{ value: "false", label: "Off" }, { value: "true", label: "On" }])}${paragraph("Privileged workspaces can access host devices and data. Enable only for templates and agents you trust.")}`, { section: "container", editor: "docker", autosave: true });
   const images = ownEditors.disclosure("container", "images", "Preloaded images", ownEditors.form("/preload-images", `${t.privileged ? "" : paragraph("Turn on Docker support to edit preloaded images. Saved references are kept while Docker is off.")}${textarea("Image references, one per line", "preloadImages", (t.preloadImages ?? []).join("\n"), 6, `spellcheck="false"${t.privileged ? "" : " readonly"}`)}`, { section: "container", editor: "images", available: Boolean(t.privileged) }));
   const dockerfile = ownEditors.disclosure("container", "dockerfile", "Custom Dockerfile", ownEditors.form("/dockerfile", `${textarea("Dockerfile override", "dockerfile", t.dockerfile ?? "", 14, 'spellcheck="false" placeholder="FROM kintsugi-workspace"')}${paragraph("Leave blank to use the repository Dockerfile or default image. An override must start with FROM kintsugi-workspace.")}`, { section: "container", editor: "dockerfile" }));
@@ -221,13 +228,14 @@ export async function renderTemplateSettings(id: string, location: TemplateSetti
 /** Global workspace settings as their own editor frame, shown in app Settings. */
 export async function renderGlobalWorkspaceSettingsFrame(location: TemplateSettingsLocation = {}, saved = false, submittedPath?: string): Promise<string> {
   const records = await getConfiguration(globalWorkspaceConfiguration);
+  const destinations = await getPrivateNetworkAccess(globalWorkspaceConfiguration);
   const section = sectionFor(location.section);
   const current = { section: section ?? "index", editor: location.editor };
   const e = editors(globalWorkspaceConfiguration, current, saved);
   assertRecordExists(e, records, current);
   return `<turbo-frame id="${globalWorkspaceSettingsFrameId}" data-settings-editor-target="frame"><div class="template-settings-inline-body" ${editorContentAttributes(globalWorkspaceSettingsUrl, section ? editorKey(section, location.editor) : undefined, submittedPath)}>
     ${editorErrorsHtml(globalWorkspaceSettingsErrorId)}
-    ${configurationSections(e, records)}
+    ${configurationSections(e, records, undefined, destinations)}
   </div></turbo-frame>`;
 }
 

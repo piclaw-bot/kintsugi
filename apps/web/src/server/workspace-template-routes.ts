@@ -1,3 +1,4 @@
+import { setPrivateNetworkAccess } from "@kintsugi/workspace-templates/private-network";
 import { globalWorkspaceSettingsErrorId, globalWorkspaceSettingsFrameId, globalWorkspaceSettingsPath, globalWorkspaceSettingsUrl, renderGlobalWorkspaceSettingsFrame, renderTemplateSettings, renderTemplateSettingsFrame, templateSettingsErrorHtml, templateSettingsErrorId, templateSettingsFrameId, templateSettingsHostId, templateSettingsUrl, type TemplateSettingsLocation, type TemplateSettingsSection, type TemplateSettingsReference } from "./template-settings.ts";
 import { KintsugiCoreError, invalidArguments, readJsonObject, requestAcceptsJson, type JsonObject } from "@kintsugi/core";
 import { buttonHtml } from "@kintsugi/design-system/button";
@@ -144,13 +145,13 @@ export function createWorkspaceTemplateRoutes(deps: {
     return await settingsPageResponse(request, workspaceTemplateId, section, record, false);
   }
 
-  type ConfigurationResult = { secret: WorkspaceTemplateSecretSummary; deleted?: true } | { environmentVariable: WorkspaceTemplateEnvironmentVariable; deleted?: true } | { key: WorkspaceTemplateSshKeySummary } | { knownHosts: string };
+  type ConfigurationResult = { secret: WorkspaceTemplateSecretSummary; deleted?: true } | { environmentVariable: WorkspaceTemplateEnvironmentVariable; deleted?: true } | { key: WorkspaceTemplateSshKeySummary } | { knownHosts: string } | { privateNetworkAccess: string[] };
 
   /**
    * Secrets, SSH keys and Environment variables re-render whichever settings page edited them.
    * Save/create remains in the record's editor; deletion returns to the list because that editor no longer exists.
    */
-  async function configurationSettingsResponse(request: Request, scope: ConfigurationScope, name: "secrets" | "ssh" | "environment", record: string, result: ConfigurationResult): Promise<Response> {
+  async function configurationSettingsResponse(request: Request, scope: ConfigurationScope, name: "secrets" | "ssh" | "environment" | "network", record: string | undefined, result: ConfigurationResult): Promise<Response> {
     deps.invalidatePresentation();
     if (requestAcceptsJson(request)) return jsonResponse(result);
     const url = new URL(request.url);
@@ -310,7 +311,7 @@ export function createWorkspaceTemplateRoutes(deps: {
 
   /** Secrets, SSH keys and Environment variables for a template or for all workspaces share one set of endpoints. */
   async function handleConfigurationRoute(request: Request, url: URL): Promise<Response | undefined> {
-    const match = url.pathname.match(/^\/(?:workspace-templates\/([^/]+)|global-workspace-settings)\/(secrets|environment|ssh-keys|ssh-known-hosts)(?:\/([^/]+))?(?:\/(delete|public-key))?$/);
+    const match = url.pathname.match(/^\/(?:workspace-templates\/([^/]+)|global-workspace-settings)\/(secrets|environment|ssh-keys|ssh-known-hosts|private-network-access)(?:\/([^/]+))?(?:\/(delete|public-key))?$/);
     if (!match) return undefined;
     const [, workspaceTemplateId, concern, recordId, action] = match;
     const scope: ConfigurationScope = workspaceTemplateId === undefined ? globalWorkspaceConfiguration : decodeURIComponent(workspaceTemplateId);
@@ -332,6 +333,13 @@ export function createWorkspaceTemplateRoutes(deps: {
         if (request.method === "GET" && record && action === "public-key") return textResponse(await deriveWorkspaceTemplateSshPublicKey(scope, record));
         if (post && record && !action) return await renameSshKeyEndpoint(scope, record, request);
         if (post && record && action === "delete") return await deleteSshKeyFromForm(scope, record, request);
+        return undefined;
+      case "private-network-access":
+        if (record || action) return undefined;
+        if (post) {
+          const privateNetworkAccess = await setPrivateNetworkAccess(scope, String((await request.formData()).get("privateNetworkAccess") ?? ""));
+          return configurationSettingsResponse(request, scope, "network", undefined, { privateNetworkAccess });
+        }
         return undefined;
       case "ssh-known-hosts":
         if (record) return undefined;

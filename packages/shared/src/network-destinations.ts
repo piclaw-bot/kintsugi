@@ -8,7 +8,7 @@ export interface AppliedPrivateNetworkDestination extends PrivateNetworkDestinat
 
 const hostnamePattern = /^(?=.{1,253}$)[a-z0-9_](?:[a-z0-9_-]{0,61}[a-z0-9_])?(?:\.[a-z0-9_](?:[a-z0-9_-]{0,61}[a-z0-9_])?)*$/;
 const invalidDestination = () => new NetworkConfigurationError("Use an exact host:port, IPv4:port or [IPv6]:port. URLs, wildcards, paths and CIDRs are not supported.");
-function requestedHost(hostname: string): string {
+export function privateNetworkDestinationHost(hostname: string): string {
   const host = hostname.toLowerCase().replace(/^\[(.*)\]$/, "$1").replace(/\.$/, "");
   return !host.includes("%") && isIP(host) === 6 ? new URL(`https://[${host}]`).hostname.slice(1, -1) : host;
 }
@@ -24,7 +24,7 @@ export function parsePrivateNetworkDestination(entry: string): PrivateNetworkDes
   const match = /^(?:\[([^\]]+)\]|([^:[\]]+)):(\d{1,5})$/.exec(entry.trim().toLowerCase());
   const port = Number(match?.[3]);
   if (!match || port < 1 || port > 65535) throw invalidDestination();
-  let host = requestedHost(match[1] ?? match[2]!);
+  let host = privateNetworkDestinationHost(match[1] ?? match[2]!);
   const family = isIP(host);
   if (/\s/.test(host) || host.includes("%") || match[1] !== undefined && family !== 6) throw invalidDestination();
   if (family) {
@@ -54,6 +54,6 @@ export function parsePrivateNetworkDestinations(input: string): PrivateNetworkDe
 /** Permission exception only: Off stays closed, ports and pinned addresses must match, and denials always win. */
 export function privateNetworkDestinationAllowed(destinations: readonly AppliedPrivateNetworkDestination[], request: { hostname: string; ip: string; port: number }, policy: { enabled: boolean; denied: readonly string[] }): boolean {
   if (!policy.enabled || !Number.isInteger(request.port) || request.port < 1 || request.port > 65535 || !privateNetworkDestinationAddressAllowed(request.ip, policy.denied)) return false;
-  const host = requestedHost(request.hostname);
-  return destinations.some(destination => destination.host === host && destination.port === request.port && destination.addresses.some(address => requestedHost(address) === requestedHost(request.ip)));
+  const host = privateNetworkDestinationHost(request.hostname);
+  return destinations.some(destination => destination.host === host && destination.port === request.port && destination.addresses.some(address => privateNetworkDestinationHost(address) === privateNetworkDestinationHost(request.ip)));
 }
