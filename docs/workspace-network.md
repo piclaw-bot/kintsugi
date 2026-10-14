@@ -9,6 +9,7 @@ Workspace LAN access is a persistent, opt-in egress permission. It defaults to `
 | `off` | None; retain public-internet egress and default Docker DNS |
 | `lan` | Installation-configured LAN CIDRs |
 | `private` | RFC1918 (`10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`) and IPv6 ULA (`fc00::/7`) |
+| `hosts` | Restart-pinned private IP/TCP-port tuples from global and template lists; requires System compatibility version 2 |
 
 Existing host routes must reach the selected destinations. `lan` requires at least one CIDR. DNS forwarders are optional: an empty list keeps Docker DNS, including in LAN/Private mode, and leaves System DNS inactive. Search domains apply with configured forwarders. The installation configuration has three required arrays:
 
@@ -118,7 +119,7 @@ Admin reads and mutations require the **`security` scope**, bearer authenticatio
 | GET | `/settings/network` | None |
 | POST | `/settings/network` | Installation configuration above; replaces all three arrays |
 | GET | `/workspaces/{id}/network` | None |
-| POST | `/workspaces/{id}/network` | `{"mode":"off"}`, `{"mode":"lan"}` or `{"mode":"private"}` |
+| POST | `/workspaces/{id}/network` | `{"mode":"off"}`, `{"mode":"lan"}`, `{"mode":"private"}` or `{"mode":"hosts"}` |
 
 Installation responses contain `network.cidrs`, `network.dns` and `network.search`. Workspace responses contain `network.mode` (desired), `network.applied` (mode, CIDRs, DNS upstreams, search, denied ranges and optional System `resolver` address) and `network.restartRequired`. Installation writes do not restart workspaces. Park/unpark endpoints separately require `workspaces`; avoid forced parking without reviewing open views. Schemas and scope requirements are included in `/openapi.json`.
 
@@ -130,11 +131,22 @@ From the repository root:
 bun run check
 bun test packages/shared/src/network-policy.test.ts packages/workspace/test/network.test.ts packages/proxy-egress/test/workspace-dns.test.ts apps/web/test/admin-network.test.ts images/system/src/firewall.test.ts images/system/src/dns-forwarder.test.ts
 python3 images/system/firewall-kernel-smoke.py
+bun scripts/verify-listed-hosts-firewall.ts --out artifacts/listed-hosts-firewall.json
 bun run packages/workspace/scripts/test-network-dns.ts <local-workspace-image>
 bun run packages/workspace/scripts/test-system-resolver.ts <local-system-image>
 ```
 
 The kernel test uses disposable privileged containers and isolated namespaces to exercise IPv4/IPv6 Off/LAN/Private access, DNS-only exceptions, management/peer isolation, revocation and restoration. The DNS test requires a local systemd workspace image and checks DNS before init, reapplication after Docker restart and restoration when disabled. The System resolver integration script uses disposable privileged namespaces to verify native NXDOMAIN fallback, distinct applied views, UDP/TCP ownership, Off and management-port isolation, revocation, inactive empty configuration and restoration before Docker startup. These tests never change host DNS or a live installation. Proxy and shared-policy tests cover forwarder boundaries and protected ranges, plus ordered NXDOMAIN/no-record fallback, search-candidate ordering, operational failure handling and propagation of protocol errors; admin tests cover persistence, defaults, validation, scope enforcement and OpenAPI schemas. No UI tests are added.
+
+The listed-host verifier runs production nftables rules in a disposable Docker
+container with no external network, published ports, installation data or Docker
+socket. It builds a local Bun/iproute2/nftables probe image and uses `NET_ADMIN`,
+`SYS_ADMIN` and an unconfined seccomp profile to create isolated namespaces.
+Its JSON report records 60 packet-flow checks: working IPv4/IPv6 listeners,
+exact TCP grants, rejected ports and UDP, control/peer denials, changed snapshots,
+Off revocation on an established connection, and preserved CIDR/public-egress
+semantics. The public IP is a sandbox-local listener; this does not test internet
+connectivity, System DNS, proxy hostname checks or build-client cgroup rules.
 
 ## Listed hosts only
 
