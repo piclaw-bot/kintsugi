@@ -536,8 +536,13 @@ html.software-keyboard-visible .composer.launch-composer :is(.agent-attach-row, 
 .app-settings-expanded { display: grid; gap: 16px; }
 .app-settings-content .developer-tools-action + .developer-tools-action { border-top: 0; }
 @media (max-width: 700px) {
-  .app-settings-content .settings-commit-identity { grid-template-columns: minmax(0, 1fr); }
+  .app-settings-content { padding-block: 24px; }
+  .app-settings-overview { gap: 32px; }
+  .app-settings-content .settings-sec-inline { row-gap: 16px; }
+  .app-settings-content .settings-commit-identity { grid-template-columns: minmax(0, 1fr); gap: 24px; }
+  .app-settings-content .settings-commit-identity .settings-field { gap: 12px; }
   .app-settings-content .settings-sec-dictation > form { flex-basis: auto; }
+  .app-settings-content .app-settings-disclosures { gap: 16px; }
 }
 
 .app-settings-section-frame { display: block; min-width: 0; }
