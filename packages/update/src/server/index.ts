@@ -1,8 +1,8 @@
-import { fetchReleaseHistory } from "./release-history.ts";
+import { fetchReleaseHistory, parseNotesRepository, imageNotesRepository } from "./release-history.ts";
 import { renderMarkdown } from "@kintsugi/markdown";
 import { dialogHtml } from "@kintsugi/design-system/dialog";
 import { requiredAppNetworkStateVersion } from "@kintsugi/shared/network-compatibility";
-import { getKintsugiRuntimeContext } from "@kintsugi/core";
+import { getKintsugiRuntimeContext, discoverGitHubToken } from "@kintsugi/core";
 import { appRepository, githubRepository } from "@kintsugi/shared/publishing";
 import { copyButtonHtml } from "@kintsugi/design-system/copy-button";
 import { createInstallationClient, type InstallationClient } from "./installation.ts";
@@ -58,7 +58,7 @@ export interface UpdateManagerDeps {
   readSystemVersion?: () => Promise<number>;
   readNetworkStateVersion?: () => Promise<number>;
   fetchReleaseHistory?: typeof fetchReleaseHistory;
-  resolveNotesRevision?: (reference: string) => Promise<string | undefined>;
+  resolveNotesMetadata?: (reference: string) => Promise<ImageMetadata>;
   fetchMetadata?: (channel: UpdateChannel) => Promise<ImageMetadata>;
   prepareUpdate?: (reference: string, onProgress: (progress: PullProgress) => void) => Promise<PreparedUpdate>;
   requestUpdate?: (imageId: string) => Promise<void>;
@@ -316,18 +316,27 @@ export class UpdateManager {
     catch (error) { console.error("Release source saved; discovery failed", error); }
   }
 
-  async releaseHistory() {
-    if (this.releaseSource.appRepository !== appRepository) throw new Error("Release notes are available for the default Kintsugi app source only. Your custom source and version selection are unchanged.");
+  async releaseHistory(repositoryOverride?: string) {
     const current = this.runtime?.currentRevision;
     const target = this.target;
     if (!current || !target) throw new Error("This installation or update does not identify its code revision, so we can’t show the changes between them.");
+    const override = repositoryOverride ? parseNotesRepository(repositoryOverride) : undefined;
     const generation = this.channelGeneration;
-    // Paired plans store pinned image references, not revision metadata. Resolve that exact app, never a moving channel.
-    const revision = target.revision ?? await (this.deps.resolveNotesRevision ?? (async reference => (await resolveImage(reference)).revision))(
-      `${appRepository}@${target.digest}`);
-
+    const source = this.releaseSource.appRepository;
+    const reference = `${source}@${target.digest}`;
+    let metadata = target;
+    if (!target.revision || (!override && source !== appRepository && !target.source)) {
+      metadata = await (this.deps.resolveNotesMetadata ?? (async reference => {
+        const image = await resolveImage(reference);
+        return { digest: image.reference.split("@")[1]!, revision: image.revision, source: image.source };
+      }))(reference);
+      if (metadata.digest !== target.digest && metadata.indexDigest !== target.digest) throw new Error("The selected image changed while loading notes. Check for updates again.");
+    }
+    const revision = metadata.revision;
     if (!revision) throw new Error("The selected app image does not identify its code revision.");
-    const history = await (this.deps.fetchReleaseHistory ?? fetchReleaseHistory)(current, revision);
+    const repository = override ?? imageNotesRepository(metadata.source) ?? (source === appRepository ? githubRepository : undefined);
+    if (!repository) throw new Error("This image has no GitHub source label. Enter its GitHub repository in owner/name form to load notes.");
+    const history = await (this.deps.fetchReleaseHistory ?? fetchReleaseHistory)(current, revision, undefined, { repository, token: discoverGitHubToken() });
     if (generation !== this.channelGeneration || target.digest !== this.target?.digest) throw new Error("The update selection changed. Open What’s new again for the selected update.");
     return history;
   }
@@ -343,6 +352,7 @@ const manager = new UpdateManager({
   readChannel: readStoredUpdateChannel, writeChannel: writeStoredUpdateChannel,
   readSource: readStoredReleaseSource, writeSource: writeStoredReleaseSource, readTrackingChannel: readStoredTrackingChannel,
   fetchMetadata: () => checkSupervisorRelease(),
+  resolveNotesMetadata: reference => checkSupervisorRelease(fetch, "app", reference),
   prepareUpdate: (reference) => prepareSupervisorRelease(reference),
 });
 
@@ -511,7 +521,8 @@ function renderSidebarRow(snapshot: StateSnapshot): string {
 
 function renderNotesButton(snapshot: StateSnapshot, surface: UpdateControlSurface): string {
   if (!snapshot.selfUpdatable || !snapshot.target || snapshot.state === "idle" || snapshot.state === "checking") return "";
-  return `<form method="get" action="/update/notes" data-turbo="true" data-turbo-frame="update_notes_${surface}"><input type="hidden" name="surface" value="${surface}">${buttonHtml({ type: "submit", variant: "secondary", content: { kind: "caption", caption: "What’s new" } })}</form>`;
+  const repository = snapshot.updateChannel === "custom" || snapshot.releaseSource.appRepository !== appRepository ? `<label>GitHub notes repository (optional)<input class="text-field" name="repository" placeholder="Auto from image, or owner/name" value="${escapeHtml(imageNotesRepository(snapshot.target.source) ?? "")}" autocomplete="off"></label>` : "";
+  return `<form class="update-notes-form" method="get" action="/update/notes" data-turbo="true" data-turbo-frame="update_notes_${surface}"><input type="hidden" name="surface" value="${surface}">${repository}${buttonHtml({ type: "submit", variant: "secondary", content: { kind: "caption", caption: "What’s new" } })}</form>`;
 }
 
 function renderError(snapshot: StateSnapshot): string {
@@ -527,7 +538,7 @@ export function createUpdateRouteHandler(updateManager: UpdateManager): (request
       if (surface !== "settings" && surface !== "sidebar") return new Response("Missing update control surface", { status: 400 });
       let bodyHtml: string;
       try {
-        const history = await updateManager.releaseHistory();
+        const history = await updateManager.releaseHistory(url.searchParams.get("repository")?.trim() || undefined);
         bodyHtml = history.releases.map(release => `<article><p class="settings-sub"><a href="${escapeHtml(release.url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(release.tag)}</a> · ${escapeHtml(release.publishedAt.slice(0, 10))}</p><div class="markdown">${renderMarkdown("", release.notes)}</div></article>`).join("") || "<p>No published release notes between these app versions.</p>";
         if (!history.targetHasNotes) bodyHtml += "<p>This app build also includes changes without published release notes.</p>";
         bodyHtml += `<p><a href="${escapeHtml(history.compareUrl)}" target="_blank" rel="noopener noreferrer">View app changes on GitHub</a></p><p>These notes cover the app. Installation updates may also change System and workspace images.</p>`;

@@ -19,3 +19,6 @@
 .release-source-settings h3 { margin-top: 24px; }
 
 .release-source-settings code { overflow-wrap: anywhere; }
+
+.update-sidebar-row .update-notes-form, .update-settings-control .update-notes-form { flex-wrap: wrap; gap: 8px; min-width: 0; }
+.update-notes-form label { display: grid; gap: 4px; width: 100%; }

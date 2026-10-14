@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { fetchReleaseHistory } from "../../src/server/release-history.ts";
+import { fetchReleaseHistory, parseNotesRepository, imageNotesRepository } from "../../src/server/release-history.ts";
 const sha = (n: number) => n.toString(16).padStart(40, "0");
 const entry = (n: number) => ({ tag_name: `v0.1.${n}`, body: `# Version ${n}\n\n- A change.`, draft: false, prerelease: false, published_at: `2026-08-${String(n).padStart(2, "0")}T12:00:00Z`, target_commitish: "main" });
 function fixture(entries = [entry(1), entry(2), entry(3), entry(4)]) {
@@ -8,6 +8,8 @@ function fixture(entries = [entry(1), entry(2), entry(3), entry(4)]) {
     expect(url.origin).toBe("https://api.github.com");
     expect(url.pathname).toStartWith("/repos/rcarmo/kintsugi/");
     if (url.pathname.endsWith("/releases")) return Response.json(url.searchParams.get("page") === "1" ? entries : []);
+    if (url.pathname.endsWith("/commits/unrelated")) return Response.json({sha:sha(999)});
+    if (url.pathname.endsWith("/commits/stable")) return Response.json({sha:sha(9)});
     if (url.pathname.includes("/commits/")) return Response.json({ sha: sha(Number(url.pathname.split(".").at(-1))) });
     const match = url.pathname.match(/compare\/([a-f0-9]+)\.\.\.([a-f0-9]+)$/)!;
     const left = parseInt(match[1]!, 16), right = parseInt(match[2]!, 16);
@@ -50,4 +52,25 @@ test("downgrades, divergence, malformed revisions and GitHub failures are explic
   await expect(fetchReleaseHistory("invalid", sha(3), fixture())).rejects.toThrow();
   await expect(fetchReleaseHistory(sha(1), sha(3), async () => new Response("", { status: 403 }))).rejects.toThrow("GitHub 403");
   await expect(fetchReleaseHistory(sha(1), sha(3), async () => Response.json({ status: "ahead", commits: [{ sha: "invalid" }] }))).rejects.toThrow();
+});
+
+test("custom GitHub repositories support non-semver tags and keep auth on the fixed API host", async () => {
+  const result = await fetchReleaseHistory(sha(1), sha(2), async (input, init) => {
+    const url = new URL(input);
+    expect(url.origin).toBe("https://api.github.com"); expect(url.pathname).toStartWith("/repos/example/custom/");
+    expect(new Headers(init?.headers).get("authorization")).toBe("Bearer fixture-secret");
+    expect(init?.redirect).toBe("error");
+    if(url.pathname.endsWith("/releases"))return Response.json([{...entry(2),tag_name:"stable-2026-10-release"}]);
+    if(url.pathname.includes("/commits/"))return Response.json({sha:sha(2)});
+    return Response.json({status:"ahead",commits:[{sha:sha(2)}]});
+  }, {repository:"example/custom",token:"fixture-secret"});
+  expect(result.releases[0]?.tag).toBe("stable-2026-10-release");
+  expect(result.releases[0]?.url).toContain("github.com/example/custom/");
+  expect(result.compareUrl).toContain("github.com/example/custom/");
+});
+test("notes repository parsing rejects foreign URLs, credentials, traversal and extra paths", () => {
+  expect(parseNotesRepository(" example/custom ")).toBe("example/custom");
+  expect(imageNotesRepository("https://github.com/Example/custom.git")).toBe("Example/custom");
+  for(const value of ["https://github.com/example/custom","../repo","example/..","example/custom/tree/main","user@host/repo"]) expect(()=>parseNotesRepository(value)).toThrow();
+  for(const value of ["https://evil.example/example/custom","http://github.com/example/custom","https://secret@github.com/example/custom","https://github.com/example/custom?token=secret","https://github.com/example/custom/tree/main"])expect(imageNotesRepository(value)).toBeUndefined();
 });

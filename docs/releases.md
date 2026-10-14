@@ -42,8 +42,9 @@ slices must agree, and the candidate app/System pair must satisfy the app minimu
 before any publication. Promotion advances workspace, System, then app images.
 Local app-only publishing also checks the existing System on every target channel.
 Publish new System support before making an app require it. Unversioned images are
-version 0; this initial support release provides version 1 and keeps the app minimum
-at 0. Saved custom sources, pins and the retained image-pair protocol are unchanged.
+version 0. Version 1 provides the compatibility foundation; version 2 adds optional
+listed-host policies. The app minimum stays at 0, with an explicit capability-2
+gate for listed-host mode. Saved custom sources, pins and the retained image-pair protocol are unchanged.
 
 Both native slices must pass smoke tests before their receipts are merged.
 Every combined manifest, source/signature label and pinned workspace dependency

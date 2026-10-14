@@ -151,3 +151,21 @@ test.each(["amd64", "arm64"])("Docker Hub custom sources resolve %s and strip au
   expect(result.reference).toBe(`docker.io/example/app@${digest}`);
   expect(result.revision).toBe("custom-revision");
 });
+
+test("notes metadata reads the exact configured app digest and rejects foreign or moving references", async () => {
+  const folder = await directory(); const settingsPath = join(folder, "update.json");
+  await writeFile(settingsPath, JSON.stringify({ releaseMode: "custom", releaseSource: { appRepository: "ghcr.io/example/app", systemRepository: "ghcr.io/example/system" } }));
+  const calls: string[] = [];
+  const { createReleaseRequests } = await import("./releases.ts");
+  const handler = createReleaseRequests({ settingsPath, registry: createReleaseRegistry(join(folder, "auth")), busy: () => false, prepare: async () => { throw new Error("Notes never prepare an image"); }, fetcher: async input => {
+    const url = String(input); calls.push(url);
+    if (url.endsWith(`/manifests/${digest}`)) return Response.json({ config: { digest: "sha256:config" }, layers: [] }, { headers: { "docker-content-digest": digest } });
+    if (url.endsWith("/blobs/sha256:config")) return Response.json({ os: "linux", architecture: process.arch === "arm64" ? "arm64" : "amd64", config: { Labels: { "org.opencontainers.image.source": "https://github.com/example/code", "org.opencontainers.image.revision": "a".repeat(40) } } });
+    throw new Error("Unexpected registry lookup");
+  } });
+  const response = await handler(new Request(`http://localhost/release/check?reference=${encodeURIComponent(`ghcr.io/example/app@${digest}`)}`));
+  expect(response?.status).toBe(200); expect(await response?.json()).toMatchObject({ digest, source: "https://github.com/example/code", revision: "a".repeat(40) });
+  expect(calls[0]).toEndWith(`/manifests/${digest}`);
+  for (const reference of ["ghcr.io/other/app@"+digest,"ghcr.io/example/app:latest","ghcr.io/example/app@bad"]) expect((await handler(new Request(`http://localhost/release/check?reference=${encodeURIComponent(reference)}`)))?.status).toBe(400);
+  expect(calls).toHaveLength(2);
+});

@@ -494,7 +494,7 @@ test("paired notes resolve the plan's immutable app digest, not a channel", asyn
   const instance = manager({
     detectRuntime: async () => ({ currentDigest: oldDigest, currentRevision: revision(1) }),
     installationClient: { installed: async () => true, status, check: status, prepare: status, apply: status, rollback: status },
-    resolveNotesRevision: async reference => { expect(reference).toBe(exact); return revision(2); },
+    resolveNotesMetadata: async reference => { expect(reference).toBe(exact); return {digest:newDigest,revision:revision(2)}; },
     fetchReleaseHistory: async (current, target) => { expect([current, target]).toEqual([revision(1), revision(2)]); return history; },
   });
   await instance.initialize(context().ctx);
@@ -502,10 +502,10 @@ test("paired notes resolve the plan's immutable app digest, not a channel", asyn
 });
 test("custom release sources never receive default-repository history or an implicit source change", async () => {
   let fetched = false;
-  const instance = manager({ readSource: async () => ({ appRepository: "docker.io/example/private", systemRepository: "ghcr.io/example/system", appVersion: "v3" }), fetchReleaseHistory: async () => { fetched = true; return history; } });
+  const instance = manager({ detectRuntime: async () => ({currentDigest:oldDigest,currentRevision:revision(1)}), resolveNotesMetadata: async () => ({digest:newDigest,revision:revision(2)}), readSource: async () => ({ appRepository: "docker.io/example/private", systemRepository: "ghcr.io/example/system", appVersion: "v3" }), fetchReleaseHistory: async () => { fetched = true; return history; } });
   await instance.initialize(context().ctx);
   const before = instance.snapshot();
-  await expect(instance.releaseHistory()).rejects.toThrow("default Kintsugi app source");
+  await expect(instance.releaseHistory()).rejects.toThrow("no GitHub source label");
   expect(fetched).toBe(false);
   expect(instance.snapshot()).toEqual(before);
 });
@@ -528,4 +528,17 @@ test("an in-flight notes response cannot describe a superseded update selection"
   await instance.setUpdateChannel("stable");
   pending.resolve(history);
   await expect(notes).rejects.toThrow("selection changed");
+});
+
+test("custom notes resolve the configured pinned image and use its GitHub source label", async () => {
+  const instance=manager({detectRuntime:async()=>({currentDigest:oldDigest,currentRevision:revision(1)}),readSource:async()=>({appRepository:"docker.io/example/app",systemRepository:"ghcr.io/example/system",appVersion:"v3"}),resolveNotesMetadata:async reference=>{expect(reference).toBe(`docker.io/example/app@${newDigest}`);return {digest:newDigest,revision:revision(2),source:"https://github.com/example/code.git"};},fetchReleaseHistory:async(_current,_target,_fetcher,options)=>{expect(options?.repository).toBe("example/code");return history;}});
+  await instance.initialize(context().ctx);const before=instance.snapshot();expect(await instance.releaseHistory()).toEqual(history);expect(instance.snapshot()).toEqual(before);
+});
+test("explicit GitHub notes override does not mutate sources or need registry rediscovery", async () => {
+  let inspected=false;const instance=manager({detectRuntime:async()=>({currentDigest:oldDigest,currentRevision:revision(1)}),readSource:async()=>({appRepository:"docker.io/example/app",systemRepository:"ghcr.io/example/system"}),fetchMetadata:async()=>({digest:newDigest,revision:revision(2),requiredSystemVersion:0}),resolveNotesMetadata:async()=>{inspected=true;throw Error("not needed");},fetchReleaseHistory:async(_current,_target,_fetcher,options)=>{expect(options?.repository).toBe("example/notes");return history;}});
+  await instance.initialize(context().ctx);const before=instance.snapshot();await instance.releaseHistory("example/notes");expect(inspected).toBe(false);expect(instance.snapshot()).toEqual(before);await expect(instance.releaseHistory("https://evil.example/repo")).rejects.toThrow("owner/name");
+});
+test("older metadata readers cannot substitute a moving channel for a pinned notes target", async () => {
+  const instance=manager({detectRuntime:async()=>({currentDigest:oldDigest,currentRevision:revision(1)}),fetchMetadata:async()=>({digest:newDigest,requiredSystemVersion:0}),resolveNotesMetadata:async()=>({digest:newerDigest,revision:revision(2),source:"https://github.com/example/repo"})});
+  await instance.initialize(context().ctx);await expect(instance.releaseHistory()).rejects.toThrow("selected image changed");expect(instance.snapshot().state).toBe("available");
 });
