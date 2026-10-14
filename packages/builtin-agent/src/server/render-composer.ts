@@ -46,6 +46,7 @@ export async function renderAgentPane(ctx: AgentRenderContext, agent: Pick<Works
   return `<section id="${domId("agent_pane", ctx.workspaceId, agent.agentId)}" data-turbo-permanent class="agent-pane builtin-agent-shell" data-agent-source="${escapeHtml(key)}">
     <div class="agent-pane agent-composer-pane" id="${ids.pane(ctx)}"
       ${state.readOnly ? "" : `data-controller="agent-pane agent-attachments agent-composer composer-focus"
+      data-agent-composer-open-on-create-value="true"
       data-agent-pane-workspace-id-value="${escapeHtml(ctx.workspaceId)}"
       data-agent-pane-agent-id-value="${escapeHtml(ctx.agentId)}"
       ${presentation.moduleChannel ? `data-agent-pane-module-channel-value="${escapeHtml(presentation.moduleChannel)}"` : ""}

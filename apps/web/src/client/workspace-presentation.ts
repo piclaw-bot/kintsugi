@@ -46,7 +46,7 @@ interface TurboLike {
   StreamActions: Record<string, (this: StreamElement) => void | Promise<void>>;
 }
 
-const navigationIntents = new Map<string, { agent?: string; work?: string }>();
+const navigationIntents = new Map<string, { agent?: string; work?: string; createdAgent?: string }>();
 
 const visiblePresentationPanes = new WeakSet<HTMLElement>();
 const agentPaneWidthStorageKey = "kintsugi:agent-pane-width";
@@ -64,7 +64,7 @@ function workspaceNavigationStorageKey(workspaceId: string): string {
 }
 
 function persistIntendedAgent(workspaceId: string, agentId: string): void {
-  navigationIntents.set(workspaceId, { ...navigationIntents.get(workspaceId), agent: agentId });
+  navigationIntents.set(workspaceId, { ...navigationIntents.get(workspaceId), agent: agentId, createdAgent: agentId });
   const storageKey = workspaceNavigationStorageKey(workspaceId);
   const state = storedNavigation(sessionStorage, storageKey) ?? {};
   sessionStorage.setItem(storageKey, JSON.stringify({ ...state, activeAgentId: agentId, phoneDestination: "agents" } satisfies StoredPersonalNavigation));
@@ -451,6 +451,13 @@ export function createWorkspacePresentationController(
         pane.dataset.workspaceLogicallyVisible = String(afterSet.has(pane));
         pane.dataset.workspaceSurfaceVisible = String(visiblePresentationPanes.has(pane));
       });
+      // Mark the newly created pane when it arrives, before its visibility event.
+      const intent = navigationIntents.get(this.workspaceIdValue);
+      const createdPane = after.find(pane => pane.dataset.workspacePaneRole === "agent" && pane.dataset.workspacePaneId === intent?.createdAgent);
+      if (intent && createdPane) {
+        createdPane.dataset.workspaceAgentCreated = "true";
+        delete intent.createdAgent;
+      }
       if (options.emit) this.emitVisibilityChanges(before, after);
       if (options.focus && document.hasFocus()) this.focusActiveSurface();
     }

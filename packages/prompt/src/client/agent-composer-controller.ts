@@ -12,8 +12,9 @@ const longPressMs = 500;
 export function createAgentComposerController(Controller: WorkspaceClientControllerConstructor) {
   return class AgentComposerController extends Controller {
     static targets = ["opener"];
-    static values = { openOnSelect: { type: Boolean, default: true } };
+    static values = { openOnSelect: { type: Boolean, default: true }, openOnCreate: Boolean };
     declare readonly openOnSelectValue: boolean;
+    declare readonly openOnCreateValue: boolean;
     declare readonly element: HTMLElement;
     declare readonly openerTarget: HTMLButtonElement;
     declare readonly hasOpenerTarget: boolean;
@@ -78,8 +79,11 @@ export function createAgentComposerController(Controller: WorkspaceClientControl
       this.activeSelection = true;
       const input = this.input;
       if (!input) return; // Ended CLI sessions are read-only.
-      // Reading comes first on mobile and in CLI views.
-      this.setOpen(this.openOnSelectValue && !this.mobile);
+      // Some agent types start ready to write, including on mobile.
+      const created = this.pane.dataset.workspaceAgentCreated === "true";
+      delete this.pane.dataset.workspaceAgentCreated;
+      // Otherwise, reading comes first on mobile and in CLI views.
+      this.setOpen((created && this.openOnCreateValue) || (this.openOnSelectValue && !this.mobile));
       if (focusLikelyOpensSoftwareKeyboard()) this.blurInput();
       else if (document.hasFocus()) {
         if (this.isOpen) input.focus({ preventScroll: true });
