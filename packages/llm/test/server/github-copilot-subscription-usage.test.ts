@@ -1,4 +1,4 @@
-import { expect, test } from "bun:test";
+import { expect, test, setSystemTime } from "bun:test";
 import { fetchGitHubCopilotSubscriptionUsage } from "../../src/server/github-copilot-subscription-usage.ts";
 import { usageWindowTiming, selectPacingWindow, estimatedTimeToHitLimitSeconds } from "../../src/server/usage-window.ts";
 
@@ -117,14 +117,18 @@ test("UTC reset date takes priority over the older date-only field", async () =>
 });
 
 test("each quota's epoch-seconds reset overrides account dates independently", async () => {
-  const usage = await fetchGitHubCopilotSubscriptionUsage("token", async () => Response.json({ ...payload(), quota_reset_date_utc: "2026-12-01T00:00:00Z", quota_snapshots: {
-    premium_interactions: { percent_remaining: 25, quota_reset_at: Date.parse("2026-11-01T00:00:00Z") / 1000 },
-    chat: { percent_remaining: 50, quota_reset_at: Date.parse("2026-10-15T13:00:00Z") / 1000 },
-  } }));
-  expect(usage.windows[0]!.resetsAt).toBe("2026-11-01T00:00:00.000Z");
-  expect(usage.windows[0]!.durationSeconds).toBe(31 * 86400);
-  expect(usage.allowances?.find((allowance) => allowance.quotaId === "chat")?.resetsAt).toBe("2026-10-15T13:00:00.000Z");
-  expect(usage.windows).toHaveLength(1);
+  // Keep both per-quota resets in the future so this tests precedence, not expiry.
+  setSystemTime(new Date("2026-10-14T12:00:00Z"));
+  try {
+    const usage = await fetchGitHubCopilotSubscriptionUsage("token", async () => Response.json({ ...payload(), quota_reset_date_utc: "2026-12-01T00:00:00Z", quota_snapshots: {
+      premium_interactions: { percent_remaining: 25, quota_reset_at: Date.parse("2026-11-01T00:00:00Z") / 1000 },
+      chat: { percent_remaining: 50, quota_reset_at: Date.parse("2026-10-15T13:00:00Z") / 1000 },
+    } }));
+    expect(usage.windows[0]!.resetsAt).toBe("2026-11-01T00:00:00.000Z");
+    expect(usage.windows[0]!.durationSeconds).toBe(31 * 86400);
+    expect(usage.allowances?.find((allowance) => allowance.quotaId === "chat")?.resetsAt).toBe("2026-10-15T13:00:00.000Z");
+    expect(usage.windows).toHaveLength(1);
+  } finally { setSystemTime(); }
 });
 
 test("offset timestamps resolve to UTC without daylight-saving or host-timezone shifts", async () => {
