@@ -291,3 +291,37 @@ export async function collectChangesComparison(root: Repository, base: string, e
   const capturedStats = stats.filter((stat) => stat !== undefined);
   return { index: { phase: "ready", files: capturedStats.map(({ additions: _a, deletions: _d, binarySizes: _b, ...summary }) => summary) }, stats: capturedStats, files };
 }
+
+/** Files at the comparison's target that it leaves unchanged. Submodules have no contents to show. */
+export async function collectUnchangedPaths(root: Repository, target: string | undefined, changed: ReadonlySet<string>): Promise<string[]> {
+  const records = (output: Buffer) => output.toString("utf8").split("\0").filter(Boolean);
+  let paths: string[];
+  if (target) {
+    // <mode> SP <type> SP <object> TAB <path>
+    paths = records(await git(root, ["ls-tree", "-r", "-z", "--full-tree", target])).filter(record => record.split(" ")[1] === "blob").map(record => record.slice(record.indexOf("\t") + 1));
+  } else {
+    // <mode> SP <object> SP <stage> TAB <path>
+    const [indexed, deleted] = await Promise.all([git(root, ["ls-files", "-z", "--stage"]), git(root, ["ls-files", "-z", "--deleted"])]);
+    const missing = new Set(records(deleted));
+    paths = [...new Set(records(indexed).filter(record => !record.startsWith("160000 ")).map(record => record.slice(record.indexOf("\t") + 1)))].filter(path => !missing.has(path));
+  }
+  return paths.filter(path => !changed.has(path)).sort((a, b) => a.localeCompare(b));
+}
+
+export type UnchangedFile =
+  | { kind: "text"; text: string; mode?: string }
+  | { kind: "binary" | "large" };
+
+export async function readUnchangedContents(root: Repository, target: string | undefined, path: string): Promise<{ contents: Buffer; mode?: string }> {
+  const file = target ? { contents: await git(root, ["cat-file", "blob", `${target}:${path}`]) } : await root.workingFile(path);
+  if (!file) throw new Error(`${path} no longer exists`);
+  return file;
+}
+
+export async function readUnchangedFile(root: Repository, target: string | undefined, path: string): Promise<UnchangedFile> {
+  const { contents, mode } = await readUnchangedContents(root, target, path);
+  const text = decodeText(contents);
+  if (text === undefined) return { kind: "binary" };
+  if (contents.byteLength > maxChangesTextBytes || lineCount(text) > maxChangesTextLines) return { kind: "large" };
+  return { kind: "text", text, mode };
+}

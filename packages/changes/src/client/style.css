@@ -161,3 +161,4 @@
 @container (max-width: 500px) { .changes-image-comparison { grid-template-columns: minmax(0, 1fr); } }
 
 .changes-revert-block { display: flex; justify-content: flex-end; padding: 2px 8px; }
+.changes-unchanged-header .content-row__label-text { color: var(--text-muted); }

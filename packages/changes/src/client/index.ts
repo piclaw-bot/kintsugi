@@ -11,16 +11,18 @@ import { changesDiffOptions, wordDiffCSS } from "@kintsugi/syntax/diff-options";
 
 const layoutStorageKey = "kintsugi:changes-layout";
 const wrapStorageKey = "kintsugi:changes-wrap";
+const unchangedStorageKey = "kintsugi:changes-unchanged";
 
 const viewerCSS = `${wordDiffCSS} [data-diffs-header] { background: var(--bg); }`;
-
-type FileSummary = { path: string };
 
 function createChangesController(Controller: WorkspaceClientControllerConstructor) {
   return class ChangesController extends Controller {
     declare readonly element: HTMLElement;
-    static targets = ["revertBlock", "imageFile", "imageHost", "viewer", "model", "error", "errorMessage", "collapseToggle", "commentGutter", "commentEditor", "commentCard", "commentsModel", "listEditor", "orphanHost", "orphanDisclosure", "orphanContent"];
+    static targets = ["unchangedHeader", "empty", "revertBlock", "imageFile", "imageHost", "viewer", "model", "error", "errorMessage", "collapseToggle", "commentGutter", "commentEditor", "commentCard", "commentsModel", "listEditor", "orphanHost", "orphanDisclosure", "orphanContent"];
     static values = { workspaceId: String, snapshotId: String, collapsed: Boolean };
+    declare readonly unchangedHeaderTarget: HTMLTemplateElement;
+    declare readonly emptyTarget: HTMLElement;
+    declare readonly hasEmptyTarget: boolean;
     declare readonly revertBlockTarget: HTMLTemplateElement;
     declare readonly imageFileTargets: HTMLDetailsElement[];
     declare readonly imageHostTarget: HTMLElement;
@@ -52,7 +54,7 @@ function createChangesController(Controller: WorkspaceClientControllerConstructo
     private orphansOpen?: boolean;
     private hasOrphans = false;
     private gutters = new WeakMap<HTMLElement, { path: string; hovered: () => { lineNumber: number; side?: "additions" | "deletions" } | undefined }>();
-    private files: FileSummary[] = [];
+    private files = new Set<string>();
     private loaded = new Set<string>();
     private pending = new Set<string>();
     private abort?: AbortController;
@@ -60,6 +62,10 @@ function createChangesController(Controller: WorkspaceClientControllerConstructo
     private layout: "unified" | "split" = "unified";
     private wrap = true;
     private collapsed = false;
+    private showUnchanged = false;
+    private unchanged?: string[];
+    private headerTemplates = new Map<string, HTMLTemplateElement>();
+    private editable = new Set<string>();
     private readonly headerMedia = window.matchMedia("(max-width: 700px), (pointer: coarse)");
     private get headerHeight(): number { return this.headerMedia.matches ? 58 : 36; }
     private readonly resizeHeaders = (): void => {
@@ -82,6 +88,31 @@ function createChangesController(Controller: WorkspaceClientControllerConstructo
       this.pending.clear();
       this.renderedComments.clear();
       this.revealedLines.clear();
+      this.headerTemplates.clear();
+      this.editable.clear();
+    }
+
+    /** Show changed files, plus unchanged ones when asked, in path order. Unchanged files load once opened. */
+    private compose(): void {
+      const paths = [...this.files, ...(this.showUnchanged ? this.unchanged ?? [] : [])].sort((a, b) => a.localeCompare(b));
+      this.viewer!.setItems(paths.map((path): CodeViewItem<ChangesAnnotation> => this.viewer!.getItem(path)
+        ?? { id: path, type: "file", file: { name: path, contents: "Loading file…", lang: "text", cacheKey: `${this.snapshotIdValue}:loading:${path}` }, collapsed: true, version: 0 }));
+    }
+
+    private async loadUnchanged(signal: AbortSignal): Promise<void> {
+      if (this.unchanged) return;
+      try {
+        const query = new URLSearchParams({ snapshot: this.snapshotIdValue });
+        const result = await fetch(`/workspaces/${encodeURIComponent(this.workspaceIdValue)}/changes/unchanged?${query}`, { signal, headers: { Accept: "text/html" } });
+        if (!result.ok) throw new Error(await result.text());
+        const document = new DOMParser().parseFromString(await result.text(), "text/html");
+        // SAFETY: The unchanged endpoint serializes this snapshot’s unchanged paths.
+        this.unchanged = JSON.parse(document.querySelector("script[data-changes-unchanged]")!.textContent!) as string[];
+      } catch (error) {
+        if (signal.aborted) return;
+        this.showError(`Couldn’t list unchanged files: ${error instanceof Error ? error.message : String(error)}`);
+        console.error(error);
+      }
     }
 
     private async mount(): Promise<void> {
@@ -89,18 +120,24 @@ function createChangesController(Controller: WorkspaceClientControllerConstructo
       const shell = this.element.closest<HTMLElement>(".changes-body")!;
       this.layout = localStorage.getItem(layoutStorageKey) === "split" ? "split" : "unified";
       this.wrap = localStorage.getItem(wrapStorageKey) !== "false";
+      this.showUnchanged = localStorage.getItem(unchangedStorageKey) === "true";
       for (const radio of this.element.querySelectorAll<HTMLElement>("[data-layout]")) radio.setAttribute("aria-checked", String(radio.dataset.layout === this.layout));
       this.element.querySelector('[data-action="changes#toggleWrap"]')!.setAttribute("aria-checked", String(this.wrap));
+      this.element.querySelector('[data-action="changes#toggleUnchanged"]')!.setAttribute("aria-checked", String(this.showUnchanged));
+      for (const template of this.element.querySelectorAll<HTMLTemplateElement>("template[data-changes-header]")) this.headerTemplates.set(template.dataset.changesHeader!, template);
       // SAFETY: renderChanges emits this private model with type-matched loading items.
-      const model = JSON.parse(this.modelTarget.textContent!) as { items: CodeViewItem<ChangesAnnotation>[]; files: (FileSummary & { image: boolean })[] };
-      this.files = model.files.filter(file => !file.image);
+      const model = JSON.parse(this.modelTarget.textContent!) as { items: CodeViewItem<ChangesAnnotation>[]; files: { path: string; image: boolean }[] };
+      this.files = new Set(model.files.filter(file => !file.image).map(file => file.path));
       // SAFETY: The edit controller transfers only file disclosure booleans in this presentation model.
       const disclosure = new Map(Object.entries(JSON.parse(shell.dataset.changesFileCollapse ?? "{}") as Record<string, boolean>));
       for (const image of this.imageFileTargets) image.open = !(disclosure.get(image.dataset.changesImage!) ?? this.collapsed);
       for (const item of model.items) if (item.type === "file") this.loaded.add(item.id);
-      if (!model.files.length) { this.syncCollapseControl(); return; }
+      if (!model.files.length && !this.showUnchanged) { this.syncCollapseControl(); return; }
       const abort = this.abort = new AbortController();
-      const [{ CodeView }] = await Promise.all([import("@pierre/diffs"), import("@kintsugi/syntax/pierre")]);
+      const [[{ CodeView }]] = await Promise.all([
+        Promise.all([import("@pierre/diffs"), import("@kintsugi/syntax/pierre")]),
+        this.showUnchanged ? this.loadUnchanged(abort.signal) : undefined,
+      ]);
       if (abort.signal.aborted) return;
       this.options = {
         ...changesDiffOptions,
@@ -126,14 +163,17 @@ function createChangesController(Controller: WorkspaceClientControllerConstructo
         itemMetrics: { diffHeaderHeight: this.headerHeight },
         unsafeCSS: viewerCSS,
         onPostRender: (_node, _instance, _phase, context) => {
-          void this.loadFile(context.item.id, abort.signal);
+          // Unchanged files load on demand; there can be thousands of them.
+          if (this.files.has(context.item.id) || !context.item.collapsed) void this.loadFile(context.item.id, abort.signal);
           if (context.type === "diff" && !this.element.dataset.codeEditing && this.loaded.has(context.item.id)) this.revealCommentLines(context.item, context.instance);
         },
         renderCustomHeader: (_file, context) => this.header(context.item.id, context.item.collapsed === true),
       };
       this.viewer = new CodeView<ChangesAnnotation, undefined>(this.options);
       this.viewer.setup(this.viewerTarget);
+      if (this.hasEmptyTarget) this.imageHostTarget.prepend(this.emptyTarget);
       this.viewer.setItems(model.items.map((item) => ({ ...item, collapsed: disclosure.get(item.id) ?? this.collapsed })));
+      if (this.showUnchanged) this.compose();
       const scroll = Number(shell.dataset.changesScroll ?? 0);
       delete shell.dataset.changesFileCollapse;
       delete shell.dataset.changesScroll;
@@ -184,10 +224,17 @@ function createChangesController(Controller: WorkspaceClientControllerConstructo
     dismissError(): void { this.errorTarget.hidden = true; }
 
     private header(path: string, collapsed: boolean): HTMLElement {
-      const template = Array.from(this.element.querySelectorAll<HTMLTemplateElement>("template[data-changes-header]")).find((entry) => entry.dataset.changesHeader === path)!;
+      const template = this.headerTemplates.get(path) ?? this.unchangedHeaderTarget;
       // SAFETY: Header templates contain one server-rendered div with an Content row button.
       const header = template.content.firstElementChild!.cloneNode(true) as HTMLElement;
       const button = header.querySelector("button")!;
+      if (template === this.unchangedHeaderTarget) {
+        button.dataset.path = path;
+        header.querySelector(".content-row__label-text")!.textContent = path;
+        const edit = header.querySelector<HTMLButtonElement>('[data-action="changes-edit#begin"]')!;
+        if (this.editable.has(path)) { edit.dataset.path = path; edit.setAttribute("aria-label", `Edit ${path}`); }
+        else { edit.remove(); header.querySelector(".changes-file-edit-actions")!.remove(); }
+      }
       button.setAttribute("aria-expanded", String(!collapsed));
       button.setAttribute("aria-label", `${collapsed ? "Expand" : "Collapse"} ${path}`);
       const edit = header.querySelector<HTMLButtonElement>('[data-action="changes-edit#begin"]');
@@ -208,10 +255,10 @@ function createChangesController(Controller: WorkspaceClientControllerConstructo
 
     private syncCollapseControl(): void {
       // Mixed states offer Collapse all; Expand all is only useful once everything is closed.
-      this.collapsed = (this.files.length > 0 || this.imageFileTargets.length > 0 || this.hasOrphanDisclosureTarget)
+      this.collapsed = (this.files.size > 0 || this.imageFileTargets.length > 0 || this.hasOrphanDisclosureTarget)
         && (!this.hasOrphanDisclosureTarget || !this.orphansOpen)
         && this.imageFileTargets.every(image => !image.open)
-        && this.files.every(file => this.viewer?.getItem(file.path)?.collapsed === true);
+        && [...this.files].every(path => this.viewer?.getItem(path)?.collapsed === true);
       if (!this.hasCollapseToggleTarget) return;
       this.collapseToggleTarget.disabled = false;
       this.collapseToggleTarget.dataset.collapsed = String(this.collapsed);
@@ -228,11 +275,14 @@ function createChangesController(Controller: WorkspaceClientControllerConstructo
         const result = await fetch(`/workspaces/${encodeURIComponent(this.workspaceIdValue)}/changes/file?${query}`, { signal, headers: { Accept: "text/html" } });
         if (!result.ok) throw new Error(await result.text());
         const document = new DOMParser().parseFromString(await result.text(), "text/html");
+        const script = document.querySelector<HTMLScriptElement>("script[data-changes-file]")!;
         // SAFETY: The Changes file endpoint serializes a CodeViewItem captured by this snapshot.
-        const item = JSON.parse(document.querySelector("script[data-changes-file]")!.textContent!) as CodeViewItem<ChangesAnnotation>;
-        if (signal.aborted) return;
+        const item = JSON.parse(script.textContent!) as CodeViewItem<ChangesAnnotation>;
+        // Hiding unchanged files removes them; they load again when shown and opened.
+        const previous = this.viewer!.getItem(path);
+        if (signal.aborted || !previous) return;
+        if (script.dataset.editable === "true") this.editable.add(path);
         this.loaded.add(path);
-        const previous = this.viewer!.getItem(path)!;
         this.viewer!.updateItem({ ...item, collapsed: previous.collapsed, version: (previous.version ?? 0) + 1 });
         this.renderedComments.delete(path);
         this.updateComments(path);
@@ -483,6 +533,21 @@ function createChangesController(Controller: WorkspaceClientControllerConstructo
       this.viewer?.setOptions(this.options);
     }
 
+    async toggleUnchanged(event: Event): Promise<void> {
+      this.showUnchanged = !this.showUnchanged;
+      localStorage.setItem(unchangedStorageKey, String(this.showUnchanged));
+      // SAFETY: The unchanged action is attached to the server-rendered checkbox menu item.
+      (event.currentTarget as HTMLButtonElement).setAttribute("aria-checked", String(this.showUnchanged));
+      if (!this.viewer) {
+        // An empty comparison has no viewer until there is something to list.
+        if (this.showUnchanged && !this.abort) void this.mount();
+        return;
+      }
+      if (this.showUnchanged) await this.loadUnchanged(this.abort!.signal);
+      else for (const path of this.unchanged ?? []) this.loaded.delete(path);
+      if (this.viewer) this.compose();
+    }
+
     toggleWrap(event: Event): void {
       this.wrap = !this.wrap;
       localStorage.setItem(wrapStorageKey, String(this.wrap));
@@ -496,9 +561,14 @@ function createChangesController(Controller: WorkspaceClientControllerConstructo
       this.syncCollapseControl();
       this.collapsed = !this.collapsed;
       for (const image of this.imageFileTargets) image.open = !this.collapsed;
-      for (const file of this.files) {
-        const item = this.viewer?.getItem(file.path);
+      for (const path of this.files) {
+        const item = this.viewer?.getItem(path);
         if (item) this.viewer!.updateItem({ ...item, collapsed: this.collapsed, version: (item.version ?? 0) + 1 });
+      }
+      // Unchanged files only ever collapse together; expanding them all would load the whole repository.
+      if (this.collapsed) for (const path of this.unchanged ?? []) {
+        const item = this.viewer?.getItem(path);
+        if (item && !item.collapsed) this.viewer!.updateItem({ ...item, collapsed: true, version: (item.version ?? 0) + 1 });
       }
       if (this.hasOrphanDisclosureTarget) { this.orphansOpen = !this.collapsed; this.syncOrphans(); }
       this.syncCollapseControl();

@@ -3,7 +3,7 @@ import { afterEach, describe, expect, test } from "bun:test";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { collectChangesComparison, collectChangesFile, collectChangesIndex, collectChangesStats, type ChangesFile } from "../src/server/diff.ts";
+import { collectChangesComparison, collectChangesFile, collectChangesIndex, collectChangesStats, collectUnchangedPaths, readUnchangedFile, type ChangesFile } from "../src/server/diff.ts";
 import { command, createChangesRepository } from "./support/repository.ts";
 
 const roots: string[] = [];
@@ -153,5 +153,23 @@ describe("Changes collection", () => {
     expect((await changesFiles(root))[0]!.kind).toBe("binary");
   });
 
-});
 
+  test("lists and reads unchanged files in the working tree and in commits", async () => {
+    const root = await repository();
+    await mkdir(join(root, "src"));
+    await writeFile(join(root, "src", "kept.ts"), "export const kept = 1;\n");
+    await writeFile(join(root, "gone.txt"), "soon deleted\n");
+    await command(root, "git", "add", ".");
+    await command(root, "git", "commit", "-qm", "more");
+    await writeFile(join(root, "changed.ts"), "const after = true;\n");
+    await rm(join(root, "gone.txt"));
+    await writeFile(join(root, "ignored.txt"), "not listed\n");
+    const repo = localRepository(root);
+    const working = await collectChangesComparison(repo, "HEAD");
+    expect(await collectUnchangedPaths(repo, undefined, new Set(working.files.keys()))).toEqual([".gitignore", "empty.txt", "src/kept.ts"]);
+    expect(await readUnchangedFile(repo, undefined, "src/kept.ts")).toEqual({ kind: "text", text: "export const kept = 1;\n", mode: "100644" });
+    const commit = (await Bun.$`git -C ${root} rev-parse HEAD`.text()).trim();
+    expect(await collectUnchangedPaths(repo, commit, new Set(["changed.ts"]))).toEqual([".gitignore", "empty.txt", "gone.txt", "src/kept.ts"]);
+    expect(await readUnchangedFile(repo, commit, "gone.txt")).toEqual({ kind: "text", text: "soon deleted\n" });
+  });
+});

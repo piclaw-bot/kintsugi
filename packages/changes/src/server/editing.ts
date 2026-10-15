@@ -12,8 +12,7 @@ interface EditSession { model: EditModel; snapshot: ChangesSnapshot; expected: W
 /** A lease pins the reviewed input, independent of subsequent live snapshot refreshes. */
 export function createChangesEditStore() {
   const sessions = new Map<string, Map<string, EditSession>>();
-  async function begin(workspaceId: string, root: Repository, snapshot: ChangesSnapshot, path: string): Promise<EditModel> {
-    const file = snapshot.files.get(path);
+  async function begin(workspaceId: string, root: Repository, snapshot: ChangesSnapshot, path: string, file = snapshot.files.get(path)): Promise<EditModel> {
     if (snapshot.endpoints.target !== workingTree || !file || !canEditFile(file)) throw new EditError("This file is read-only in this comparison.");
     const working = await root.workingFile(path, true);
     if (!working || working.mode !== file.newMode) throw new EditError("This file is no longer editable. Refresh Changes.", 409);

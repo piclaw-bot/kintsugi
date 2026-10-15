@@ -12,9 +12,11 @@ import { matchRoute, response, textResponse } from "@kintsugi/shared/http";
 import { workspaceRepository } from "@kintsugi/workspace/git";
 import { Type } from "typebox";
 import { Value } from "typebox/value";
-import { renderEditModel, changesBodyId, comparisonId, errorId, historyContentId, renderChanges, renderChangesTitle, renderChangesFile, renderComparison, renderError, renderHistory, renderDiff } from "./render.ts";
+import { collectUnchangedPaths, readUnchangedFile, type ChangesFile, type UnchangedFile } from "./diff.ts";
+import { canEditFile } from "../editing.ts";
+import { renderEditModel, renderUnchangedFile, renderUnchangedPaths, changesBodyId, comparisonId, errorId, historyContentId, renderChanges, renderChangesTitle, renderChangesFile, renderComparison, renderError, renderHistory, renderDiff } from "./render.ts";
 import type { DiffEndpoints } from "../history.ts";
-import { captureChanges, commitHistory, InvalidDiffEndpoints, type ChangesSnapshot } from "./snapshot.ts";
+import { captureChanges, commitHistory, InvalidDiffEndpoints, workingTree, type ChangesSnapshot } from "./snapshot.ts";
 
 const reference = { type: "changes" } as const;
 const referenceSchema = Type.Object({ type: Type.Literal("changes") });
@@ -29,6 +31,21 @@ function current(workspaceId: string): Promise<ChangesState> {
     void state.catch(() => { if (states.get(workspaceId) === state) states.delete(workspaceId); });
   }
   return state;
+}
+const unchangedPaths = new WeakMap<ChangesSnapshot, Promise<Set<string>>>();
+function unchanged(workspaceId: string, snapshot: ChangesSnapshot): Promise<Set<string>> {
+  let paths = unchangedPaths.get(snapshot);
+  if (!paths) {
+    paths = snapshot.index.phase === "ready" ? collectUnchangedPaths(workspaceRepository(workspaceId), snapshot.target, new Set(snapshot.files.keys())).then(list => new Set(list)) : Promise.resolve(new Set());
+    unchangedPaths.set(snapshot, paths);
+    void paths.catch(() => { if (unchangedPaths.get(snapshot) === paths) unchangedPaths.delete(snapshot); });
+  }
+  return paths;
+}
+const isUnchanged = async (workspaceId: string, snapshot: ChangesSnapshot, path: string) => (await unchanged(workspaceId, snapshot)).has(path);
+/** Unchanged working-tree text files can be edited like changed ones. */
+function editableUnchangedFile(snapshot: ChangesSnapshot, path: string, file: UnchangedFile): ChangesFile | undefined {
+  return snapshot.endpoints.target === workingTree && file.kind === "text" ? { path, change: "modified", kind: "text", newContents: file.text, newMode: file.mode } : undefined;
 }
 const replace = (target: string, html: string) => `<turbo-stream action="replace" target="${escapeHtml(target)}"><template>${html}</template></turbo-stream>`;
 const diffEndpointsSchema = Type.Object({ target: Type.String(), base: Type.Optional(Type.Union([Type.String(), Type.Null()])) });
@@ -82,7 +99,8 @@ export const kintsugiServerModule: WorkspaceModule = {
           if (data.get("snapshot") !== snapshot.id) throw new EditError("This comparison changed. Refresh Changes before editing.", 409);
           const path = data.get("path");
           if (!Value.Check(Type.String({ minLength: 1, maxLength: 4096 }), path)) throw new EditError("Choose a file to edit.", 400);
-          const model = await changesEdits.begin(workspaceId, workspaceRepository(workspaceId), snapshot, path);
+          const file = snapshot.files.get(path) ?? (await isUnchanged(workspaceId, snapshot, path) ? editableUnchangedFile(snapshot, path, await readUnchangedFile(workspaceRepository(workspaceId), undefined, path)) : undefined);
+          const model = await changesEdits.begin(workspaceId, workspaceRepository(workspaceId), snapshot, path, file);
           return response(renderEditModel(model));
         }
         const token = data.get("token");
@@ -149,12 +167,19 @@ export const kintsugiServerModule: WorkspaceModule = {
     if (match) return request.method === "GET" ? await deletionReviewFileResponse(match[0]!, url) : textResponse("Method not allowed", { status: 405 });
     match = matchRoute(url, /^\/workspaces\/([^/]+)\/changes\/deletion\/commit$/);
     if (match) return request.method === "GET" ? await deletionReviewCommitResponse(match[0]!, url) : textResponse("Method not allowed", { status: 405 });
-    match = matchRoute(url, /^\/workspaces\/([^/]+)\/changes\/(file|image)$/);
+    match = matchRoute(url, /^\/workspaces\/([^/]+)\/changes\/(file|image|unchanged)$/);
     if (match) {
       if (request.method !== "GET") return textResponse("Method not allowed", { status: 405 });
-      const { snapshot } = await current(match[0]!);
+      const workspaceId = match[0]!, { snapshot } = await current(workspaceId);
       if (url.searchParams.get("snapshot") !== snapshot.id) return textResponse("This comparison has changed. Reopen Changes to load the current snapshot.", { status: 409 });
-      const file = snapshot.files.get(url.searchParams.get("path") ?? "");
+      if (match[1] === "unchanged") return response(renderUnchangedPaths([...await unchanged(workspaceId, snapshot)]));
+      const path = url.searchParams.get("path") ?? "";
+      const file = snapshot.files.get(path);
+      if (!file && match[1] === "file" && await isUnchanged(workspaceId, snapshot, path)) {
+        const unchangedFile = await readUnchangedFile(workspaceRepository(workspaceId), snapshot.target, path);
+        const editable = editableUnchangedFile(snapshot, path, unchangedFile);
+        return response(renderUnchangedFile(snapshot.id, path, unchangedFile, editable !== undefined && canEditFile(editable)));
+      }
       if (!file) return textResponse("Changed file not found", { status: 404 });
       if (match[1] === "file") return response(renderChangesFile(file, snapshot.id, snapshot.endpoints.target === "working"));
       const side = url.searchParams.get("side");

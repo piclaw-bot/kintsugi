@@ -12,7 +12,7 @@ import { contentRowHtml } from "@kintsugi/design-system/content-row";
 import { popupHtml } from "@kintsugi/design-system/popup";
 import { domId, escapeHtml } from "@kintsugi/shared";
 import { parseDiffFromFile, type CodeViewItem } from "@pierre/diffs";
-import type { ChangesFile } from "./diff.ts";
+import type { ChangesFile, UnchangedFile } from "./diff.ts";
 import { type HistoryModel } from "../history.ts";
 import type { ChangesHistory, ChangesSnapshot } from "./snapshot.ts";
 
@@ -75,6 +75,17 @@ export function renderChangesFile(file: ChangesFile, snapshotId: string, editabl
   return `<script type="application/json" data-changes-file>${json(item)}</script>`;
 }
 
+/** An unchanged file as the Files view would show it. */
+export function renderUnchangedFile(snapshotId: string, path: string, file: UnchangedFile, editable: boolean): string {
+  const contents = file.kind === "text" ? file.text : file.kind === "large" ? "This file is too large to show here." : "No preview available for this file.";
+  const item: CodeViewItem<undefined> = { id: path, type: "file", version: 1, file: { name: path, lang: file.kind === "text" ? undefined : "text", contents, cacheKey: `${snapshotId}:${path}` } };
+  return `<script type="application/json" data-changes-file data-editable="${editable}">${json(item)}</script>`;
+}
+
+export function renderUnchangedPaths(paths: string[]): string {
+  return `<script type="application/json" data-changes-unchanged>${json(paths)}</script>`;
+}
+
 function renderRename(file: Pick<ChangesFile, "previousPath">): string {
   return file.previousPath ? `<span class="changes-rename" title="Previously ${escapeHtml(file.previousPath)}">Renamed</span>` : "";
 }
@@ -120,11 +131,13 @@ export function renderDiff(workspaceId: string, snapshot: ChangesSnapshot, colla
   const additions = snapshot.stats.reduce((total, file) => total + file.additions, 0);
   const deletions = snapshot.stats.reduce((total, file) => total + file.deletions, 0);
   const iconButton = (label: string, action: string, icon: string, attributes = "") => buttonHtml({ type: "button", variant: "secondary", content: { kind: "icon-only", iconHtml: icon, label }, attributesHtml: `data-action="changes#${action}" ${attributes}` });
-  const layoutItem = (layout: "unified" | "split", label: string) => contentRowHtml({ width: "fill", kind: "compact", label: { kind: "text", text: label }, trailingHtml: `<span class="changes-menu-check">${Icons.Check}</span>`, element: { tag: "button", attributesHtml: `type="button" role="menuitemradio" aria-checked="${layout === "unified"}" data-layout="${layout}" data-action="changes#chooseLayout"` } });
+  const menuItem = (label: string, role: "menuitemradio" | "menuitemcheckbox", checked: boolean, attributes: string) => contentRowHtml({ width: "fill", kind: "compact", label: { kind: "text", text: label }, trailingHtml: `<span class="changes-menu-check">${Icons.Check}</span>`, element: { tag: "button", attributesHtml: `type="button" role="${role}" aria-checked="${checked}" ${attributes}` } });
+  const layoutItem = (layout: "unified" | "split", label: string) => menuItem(label, "menuitemradio", layout === "unified", `data-layout="${layout}" data-action="changes#chooseLayout"`);
+  const checkItem = (label: string, action: string, checked: boolean) => menuItem(label, "menuitemcheckbox", checked, `data-action="changes#${action}"`);
   const displayMenu = popupHtml({
     id: domId("changes", workspaceId, snapshot.id, "display"), label: "Display options",
     trigger: { variant: "secondary", content: { kind: "icon-only", iconHtml: Icons.Settings, label: "Display options" } },
-    contentHtml: `${layoutItem("unified", "Unified diff")}${layoutItem("split", "Side-by-side diff")}<hr class="popup-menu__separator">${contentRowHtml({ width: "fill", kind: "compact", label: { kind: "text", text: "Wrap long lines" }, trailingHtml: `<span class="changes-menu-check">${Icons.Check}</span>`, element: { tag: "button", attributesHtml: 'type="button" role="menuitemcheckbox" aria-checked="true" data-action="changes#toggleWrap"' } })}`,
+    contentHtml: `${layoutItem("unified", "Unified diff")}${layoutItem("split", "Side-by-side diff")}<hr class="popup-menu__separator">${checkItem("Wrap long lines", "toggleWrap", true)}<hr class="popup-menu__separator">${checkItem("Show unchanged files", "toggleUnchanged", false)}`,
   });
   const collapseIcons = `<span class="changes-collapse-icon">${Icons.CollapseAll}</span><span class="changes-expand-icon">${Icons.ExpandAll}</span>`;
   const headers = files.filter(file => !file.image).map((file) => `<template data-changes-header="${escapeHtml(file.path)}"><div class="changes-file-header" data-changes-edit-target="fileHeader">${contentRowHtml({
@@ -133,6 +146,10 @@ export function renderDiff(workspaceId: string, snapshot: ChangesSnapshot, colla
     trailingHtml: `${renderRename(file)}<span class="changes-file-stats">${file.binarySizes ? "<span>Binary</span>" : `<span class="changes-additions">+${file.additions}</span><span class="changes-deletions">−${file.deletions}</span>`}</span>`,
     element: { tag: "button", attributesHtml: `type="button" data-path="${escapeHtml(file.path)}" data-action="changes#toggleFile" aria-expanded="${!collapsed}"` },
   })}${file.editable ? buttonHtml({ type: "button", variant: "secondary", content: { kind: "caption", caption: "Edit" }, attributesHtml: `data-action="changes-edit#begin" data-path="${escapeHtml(file.path)}" aria-label="Edit ${escapeHtml(file.path)}"${collapsed ? " hidden" : ""}` }) + renderFileEditActions() : ""}</div></template>`).join("");
+  const unchangedHeader = `<template data-changes-target="unchangedHeader"><div class="changes-file-header changes-unchanged-header" data-changes-edit-target="fileHeader">${contentRowHtml({
+    width: "fill", kind: "compact", label: { kind: "text", text: "" }, leadingHtml: Icons.Disclosure,
+    element: { tag: "button", attributesHtml: 'type="button" data-action="changes#toggleFile"' },
+  })}${buttonHtml({ type: "button", variant: "secondary", content: { kind: "caption", caption: "Edit" }, attributesHtml: 'data-action="changes-edit#begin"' })}${renderFileEditActions()}</div></template>`;
   const commentTemplates = `<template data-changes-target="revertBlock"><div class="changes-revert-block">${buttonHtml({ type: "button", variant: "secondary", content: { kind: "caption", caption: "Revert hunk" }, attributesHtml: 'data-action="changes-edit#revertBlock"' })}</div></template>
     <template data-changes-target="commentGutter">${buttonHtml({ type: "button", variant: "secondary", content: { kind: "icon-only", iconHtml: Icons.Plus, label: "Add a comment" }, attributesHtml: 'data-action="changes#addComment"' })}</template>
     <template data-changes-target="commentEditor"><form class="changes-comment changes-comment-editor" data-action="submit->changes#saveComment keydown.meta+enter->changes#commentShortcut keydown.ctrl+enter->changes#commentShortcut keydown.esc->changes#cancelComment"><textarea class="textarea" rows="3" required maxlength="10000" aria-label="Comment" placeholder="Leave a comment" data-action="input->changes#commentInput"></textarea><footer><span class="changes-comment-footer-space"></span>${buttonHtml({ type: "button", variant: "secondary", content: { kind: "caption", caption: "Discard" }, attributesHtml: 'data-action="changes#cancelComment"' })}${buttonHtml({ type: "submit", variant: "primary", content: { kind: "caption", caption: "Comment" } })}</footer></form></template>
@@ -147,7 +164,7 @@ export function renderDiff(workspaceId: string, snapshot: ChangesSnapshot, colla
     <div data-controller="live-surface" data-live-surface-workspace-value="${escapeHtml(workspaceId)}" data-live-surface-kind-value="review-comments" data-live-surface-key-value="${snapshot.id}" data-live-surface-eager-value="true">${renderCommentsModel(snapshot.id, comments)}</div>
     ${renderCommentActions(workspaceId, snapshot.id, comments)}
     <div id="${changesBodyId(workspaceId, snapshot.id)}-error" class="changes-error" data-changes-target="error" role="alert" hidden><span data-changes-target="errorMessage"></span>${iconButton("Dismiss file error", "dismissError", Icons.Close)}</div>
-    <div class="changes-surface"><div class="changes-viewer kintsugi-pierre-host" data-changes-target="viewer" aria-label="Changes diff">${files.length ? "" : `<div class="changes-empty">${escapeHtml(empty)}</div>`}<div data-changes-target="imageHost">${images}</div><div data-changes-target="orphanHost">${renderOrphanComments(snapshot.id, comments)}<div class="changes-orphan-editor" data-changes-target="listEditor" hidden></div></div></div></div>
-    <script type="application/json" data-changes-target="model">${json({ files, items })}</script><script type="application/json" data-changes-diff-endpoints-target="comparisonModel">${json({ endpoints: snapshot.endpoints, label: snapshot.label, baseLabel: snapshot.baseLabel, targetLabel: snapshot.targetLabel })}</script>${headers}${commentTemplates}
+    <div class="changes-surface"><div class="changes-viewer kintsugi-pierre-host" data-changes-target="viewer" aria-label="Changes diff">${files.length ? "" : `<div class="changes-empty" data-changes-target="empty">${escapeHtml(empty)}</div>`}<div data-changes-target="imageHost">${images}</div><div data-changes-target="orphanHost">${renderOrphanComments(snapshot.id, comments)}<div class="changes-orphan-editor" data-changes-target="listEditor" hidden></div></div></div></div>
+    <script type="application/json" data-changes-target="model">${json({ files, items })}</script><script type="application/json" data-changes-diff-endpoints-target="comparisonModel">${json({ endpoints: snapshot.endpoints, label: snapshot.label, baseLabel: snapshot.baseLabel, targetLabel: snapshot.targetLabel })}</script>${headers}${unchangedHeader}${commentTemplates}
   </section>`;
 }
