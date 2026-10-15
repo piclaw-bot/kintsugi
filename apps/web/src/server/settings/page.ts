@@ -1,3 +1,4 @@
+import { imageSource } from "@kintsugi/shared/publishing";
 import { renderNetworkSettings, handleNetworkSettings } from "./network.ts";
 import { connectionModeManaged, renderConnectionModeSettings } from "./connection-mode.ts";
 import { actionLinkHtml } from "@kintsugi/design-system/action-link";
@@ -42,7 +43,7 @@ async function renderCommitIdentitySettings(): Promise<string> {
 function renderBuildIdentity(): string {
   const commit = process.env.ATELIER_COMMIT_ID;
   if (!commit) return `<span class="settings-build-identity">Local development build</span>`;
-  const commitUrl = `https://github.com/rcarmo/kintsugi/commit/${encodeURIComponent(commit)}`;
+  const commitUrl = `${imageSource}/commit/${encodeURIComponent(commit)}`;
   return `<a class="settings-build-identity" href="${commitUrl}" target="_blank" rel="noreferrer">${escapeHtml(commit.slice(0, 7))}</a>`;
 }
 

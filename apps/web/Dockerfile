@@ -78,7 +78,6 @@ ARG ATELIER_EAGERLY_PRELOAD="[]"
 ENV ATELIER_COMMIT_ID=${ATELIER_COMMIT_ID}
 LABEL kintsugi.deployment-config="1"
 LABEL kintsugi.storage-drivers="erofs,overlayfs" \
-      org.opencontainers.image.source="https://github.com/rcarmo/kintsugi" \
       org.opencontainers.image.revision="${ATELIER_COMMIT_ID}" \
       eagerly-preload="${ATELIER_EAGERLY_PRELOAD}"
 RUN printf '%s\n' "$ATELIER_DEFAULT_WORKSPACE_IMAGE" > /app/.kintsugi-default-workspace-image

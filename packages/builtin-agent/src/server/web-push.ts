@@ -1,3 +1,4 @@
+import { imageSource } from "@kintsugi/shared/publishing";
 import { getWorkspaceInit, getWorkspaceTitle } from "@kintsugi/workspace";
 import { isGitWorkspaceTemplateInit } from "@kintsugi/workspace-templates";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
@@ -58,7 +59,7 @@ export async function sendTurnNotification(ctx: AgentRenderContext, subscription
       url: `/workspaces/${encodeURIComponent(ctx.workspaceId)}?agent=${encodeURIComponent(ctx.agentId)}`,
       tag: `agent-turn:${ctx.workspaceId}:${ctx.agentId}`,
     }), {
-      vapidDetails: { subject: "https://github.com/rcarmo/kintsugi", ...vapid },
+      vapidDetails: { subject: imageSource, ...vapid },
       TTL: 60 * 60,
       urgency: "high",
       timeout: 15_000,

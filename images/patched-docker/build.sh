@@ -19,6 +19,8 @@ done
 if "$default_platforms"; then
     set -- --platform linux/arm64,linux/amd64 "$@"
 fi
+source_label=$(cd "$(dirname "$0")/../.." && bun -e 'import {imageSource} from "./packages/shared/src/publishing.ts"; process.stdout.write(imageSource)')
 exec docker buildx build \
     --tag "$build_image" \
+    --label "org.opencontainers.image.source=$source_label" \
     "$@" "$(cd "$(dirname "$0")" && pwd)"

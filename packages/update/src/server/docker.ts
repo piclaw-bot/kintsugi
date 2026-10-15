@@ -1,3 +1,4 @@
+import { imageSource } from "@kintsugi/shared/publishing";
 import { assertSystemCompatible } from "@kintsugi/shared/system-version";
 import { readSystemVersion } from "./supervisor.ts";
 import { readStorageDriver, assertStorageSupport } from "@kintsugi/core";
@@ -72,7 +73,7 @@ export async function pruneUnusedKintsugiImages(exec: DockerExec = dockerExec): 
   // Source alone also matches System and the shared Docker runtime. Only app
   // images carry both source and eagerly-preload; workspace images have a signature.
   const filters = [
-    ["label=org.opencontainers.image.source=https://github.com/rcarmo/kintsugi", "label=eagerly-preload"],
+    [`label=org.opencontainers.image.source=${imageSource}`, "label=eagerly-preload"],
     ["label=com.kintsugi.workspace-image.signature"],
   ];
   for (const labels of filters) {

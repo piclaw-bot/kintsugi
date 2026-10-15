@@ -80,8 +80,7 @@ RUN cd /tmp \
     && mkdir /out && tar xzf containerd-2.4.0-beta.0-linux-${TARGETARCH}.tar.gz -C /out
 
 FROM ubuntu AS runtime
-LABEL org.opencontainers.image.source="https://github.com/rcarmo/kintsugi" \
-      org.opencontainers.image.title="Kintsugi Docker runtime" \
+LABEL org.opencontainers.image.title="Kintsugi Docker runtime" \
       org.opencontainers.image.description="Ubuntu-based Docker runtime with patched embedded BuildKit and containerd EROFS shared-cache support."
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates erofs-utils iproute2 iptables libseccomp2 runc tini \

@@ -1,3 +1,4 @@
+import { imageSource } from "../packages/shared/src/publishing.ts";
 import { assertSystemCompatible, parseSystemVersion, systemVersion, systemVersionLabel, requiredSystemVersion, requiredSystemVersionLabel, networkPolicyVersion, networkPolicyVersionLabel } from "../packages/shared/src/system-version.ts";
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
@@ -43,6 +44,7 @@ export async function verifiedImage(run: Run, ref: string, label: string, expect
     const config = JSON.parse(result.stdout);
     if (`${config.os}/${config.architecture}` !== platform || config.config?.Labels?.[label] !== expected)
       throw new Error(`${ref}: ${platform} label ${label} does not match ${expected}`);
+    if (config.config.Labels["org.opencontainers.image.source"] !== imageSource) throw new Error(`${ref}: source label does not match the publishing configuration`);
     if (label === "com.kintsugi.system.signature" && config.config.Labels[systemVersionLabel] !== String(systemVersion)) throw new Error(`${ref}: System compatibility label does not match the source`);
     if (label === "org.opencontainers.image.revision" && config.config.Labels[networkPolicyVersionLabel] !== String(networkPolicyVersion)) throw new Error(`${ref}: app network-policy label does not match the source`);
     if (label === "org.opencontainers.image.revision" && config.config.Labels[requiredSystemVersionLabel] !== String(requiredSystemVersion)) throw new Error(`${ref}: app compatibility label does not match the source`);

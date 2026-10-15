@@ -1,3 +1,4 @@
+import { imageSource } from "@kintsugi/shared/publishing";
 import { mkdir, readdir, readFile, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { writeFileAtomic } from "@kintsugi/core";
@@ -46,7 +47,7 @@ export async function syncWorkspaceDocs(repositoryRoot: string, destination: str
   }
   await prune();
   for (const directory of directories) await mkdir(join(destination, directory), { recursive: true });
-  const repositoryUrl = "https://github.com/rcarmo/kintsugi";
+  const repositoryUrl = imageSource;
   const build = buildCommit
     ? `[${buildCommit.slice(0, 7)}](${repositoryUrl}/commit/${encodeURIComponent(buildCommit)})`
     : "local development build";

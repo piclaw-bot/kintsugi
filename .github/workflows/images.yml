@@ -38,6 +38,7 @@ jobs:
       system_compatibility: ${{ steps.plan.outputs.system_compatibility }}
       app_compatibility: ${{ steps.plan.outputs.app_compatibility }}
       app_network: ${{ steps.plan.outputs.app_network }}
+      image_source: ${{ steps.plan.outputs.image_source }}
       workspace_exists: ${{ steps.workspace.outputs.exists }}
       workspace_ref: ${{ steps.workspace.outputs.ref }}
       system_exists: ${{ steps.system.outputs.exists }}
@@ -86,6 +87,7 @@ jobs:
             echo "workspace=ghcr.io/${owner,,}/kintsugi-workspace"
             echo "signature=$signature"
             echo "system_signature=$system_signature"
+            bun -e 'import {imageSource} from "./packages/shared/src/publishing.ts";console.log("image_source=org.opencontainers.image.source="+imageSource)'
             bun -e 'import {systemVersion,systemVersionLabel,requiredSystemVersion,requiredSystemVersionLabel,networkPolicyVersionLabel,networkPolicyVersion} from "./packages/shared/src/system-version.ts";process.stdout.write("system_compatibility="+systemVersionLabel+"="+systemVersion+"\napp_compatibility="+requiredSystemVersionLabel+"="+requiredSystemVersion+"\napp_network="+networkPolicyVersionLabel+"="+networkPolicyVersion+"\n");'
           } >> "$GITHUB_OUTPUT"
       - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4
@@ -191,7 +193,7 @@ jobs:
           push: ${{ inputs.publish }}
           provenance: false
           tags: ${{ needs.prepare.outputs.workspace }}:${{ needs.prepare.outputs.signature }}-${{ matrix.arch }}
-          labels: org.opencontainers.image.source=https://github.com/${{ github.repository }}
+          labels: ${{ needs.prepare.outputs.image_source }}
           cache-from: |
             type=gha,scope=workspace-${{ matrix.arch }}
             ${{ inputs.publish && format('type=registry,ref={0}:cache-{1}', needs.prepare.outputs.workspace, matrix.arch) || '' }}
@@ -304,6 +306,7 @@ jobs:
           provenance: false
           tags: ghcr.io/${{ github.repository_owner }}/kintsugi-system:content-${{ needs.prepare.outputs.system_signature }}-${{ matrix.arch }}
           labels: |
+            ${{ needs.prepare.outputs.image_source }}
             org.opencontainers.image.revision=${{ needs.prepare.outputs.commit }}
             com.kintsugi.system.signature=${{ needs.prepare.outputs.system_signature }}
             ${{ needs.prepare.outputs.system_compatibility }}
@@ -403,6 +406,7 @@ jobs:
             ATELIER_DEFAULT_WORKSPACE_IMAGE=${{ steps.dependency.outputs.ref }}
             ATELIER_EAGERLY_PRELOAD=["${{ steps.dependency.outputs.ref }}"]
           labels: |
+            ${{ needs.prepare.outputs.image_source }}
             com.kintsugi.workspace-image.ref=${{ steps.dependency.outputs.ref }}
             ${{ needs.prepare.outputs.app_compatibility }}
             ${{ needs.prepare.outputs.app_network }}

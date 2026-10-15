@@ -16,8 +16,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 LABEL kintsugi.host-updater="1"
 LABEL kintsugi.deployment-config="1"
 LABEL kintsugi.installer-config="1" kintsugi.storage-drivers="erofs,overlayfs"
-LABEL org.opencontainers.image.source="https://github.com/rcarmo/kintsugi" \
-      org.opencontainers.image.title="Kintsugi System"
+LABEL org.opencontainers.image.title="Kintsugi System"
 COPY --from=bun /usr/local/bin/bun /usr/local/bin/bun
 COPY --from=tailscale /usr/local/bin/tailscale /usr/local/bin/tailscale
 COPY --from=tailscale /usr/local/bin/tailscaled /usr/local/bin/tailscaled

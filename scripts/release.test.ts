@@ -193,6 +193,8 @@ test(`image build CLI pairs images from its working checkout, not its tooling ch
     writeFileSync(join(checkout, "packages/workspace-image/runtime-image"), "example.com/release-runtime:regression-test\n");
     const compatibilityPath = join(checkout, "packages/shared/src/system-version.ts");
     writeFileSync(compatibilityPath, readFileSync(compatibilityPath, "utf8").replace("requiredSystemVersion = 0", "requiredSystemVersion = 3"));
+    const publishingPath = join(checkout, "packages/shared/src/publishing.ts");
+    writeFileSync(publishingPath, readFileSync(publishingPath, "utf8").replace('githubRepository = "rcarmo/kintsugi"', 'githubRepository = "example/portable-fork"'));
     const expectedContext = join(directory, "expected-context");
     const generated = Bun.spawnSync(["bun", join(checkout, "packages/workspace-image/scripts/build-context.mjs"), expectedContext], { cwd: checkout });
     expect(generated.exitCode).toBe(0);
@@ -222,6 +224,8 @@ test(`image build CLI pairs images from its working checkout, not its tooling ch
     const appBuild = builds[split ? 2 : 1]!;
     expect(appBuild).toContain(`ghcr.io/rcarmo/kintsugi:sha-test${split ? "-amd64" : ""}`);
     expect(appBuild).toContain("org.kintsugi.required-system-version=3");
+    expect(appBuild).toContain("org.opencontainers.image.source=https://github.com/example/portable-fork");
+    expect(readFileSync(join(expectedContext, "Dockerfile"), "utf8")).toContain('org.opencontainers.image.source="https://github.com/example/portable-fork"');
     const workspaceArg = appBuild.find(arg => arg.startsWith("ATELIER_DEFAULT_WORKSPACE_IMAGE="))!;
     expect(workspaceArg).toBe(`ATELIER_DEFAULT_WORKSPACE_IMAGE=ghcr.io/rcarmo/kintsugi-workspace:${expectedSignature}@${digest}`);
     expect(builds[0]).toContain(`ghcr.io/rcarmo/kintsugi-workspace:${expectedSignature}${split ? "-amd64" : ""}`);

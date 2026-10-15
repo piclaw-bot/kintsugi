@@ -5,6 +5,7 @@ import { cp, lstat, mkdir, readFile, readdir, readlink, rm, writeFile } from "no
 import { basename, dirname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { imageSource } from "../../shared/src/publishing.ts";
 import { workspaceRuntimeUnits } from "../src/workspace-systemd-units.ts";
 
 const outDir = process.argv[2];
@@ -131,7 +132,7 @@ dockerfile += `RUN systemctl mask systemd-binfmt.service\n`;
 dockerfile += `ENTRYPOINT ["/usr/local/bin/kintsugi-workspace-init"]\nCMD []\nWORKDIR /work\n`;
 await writeFile(join(outDir, "Dockerfile"), dockerfile);
 // Identity covers the Docker build context, including generated instructions,
-// file modes and symlinks, excluding the self-referential signature label added below.
+// file modes and symlinks, excluding publication/storage metadata labels added below.
 // Timestamps and the checkout's absolute path do not count.
 async function hashContext(directory, prefix = "") {
   for (const name of (await readdir(directory)).sort()) {
@@ -147,6 +148,7 @@ async function hashContext(directory, prefix = "") {
 await hashContext(outDir);
 const signature = hash.digest("hex").slice(0, 16);
 dockerfile += `LABEL kintsugi.storage-drivers="erofs,overlayfs"\n`;
+dockerfile += `LABEL org.opencontainers.image.source=${quote(imageSource)}\n`;
 dockerfile += `LABEL com.kintsugi.workspace-image.signature=${quote(signature)}\n`;
 await writeFile(join(outDir, "Dockerfile"), dockerfile);
 await writeFile(join(outDir, "metadata.json"), `${JSON.stringify({ tag: `kintsugi-workspace:${signature}`, modules: moduleNames }, null, 2)}\n`);

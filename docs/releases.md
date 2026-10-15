@@ -46,6 +46,14 @@ version 0. Version 1 provides the compatibility foundation; version 2 adds optio
 listed-host policies. The app minimum stays at 0, with an explicit capability-2
 gate for listed-host mode. Saved custom sources, pins and the retained image-pair protocol are unchanged.
 
+`packages/shared/src/publishing.ts` also owns image source attribution. Standard
+app, System, workspace and patched-runtime builders stamp its `imageSource` value;
+source-checkout metadata wins when build tooling lives in another checkout.
+Manifest reuse rejects missing or foreign source labels. Direct Dockerfile builds
+must supply the same `org.opencontainers.image.source` label before publication.
+Changing attribution does not alter the workspace runtime-content signature;
+source labels are checked separately during reuse.
+
 Both native slices must pass smoke tests before their receipts are merged.
 Every combined manifest, source/signature label and pinned workspace dependency
 is verified before any `latest` tag changes. Tagged source must remain on main;

@@ -6,7 +6,7 @@ import { join, resolve } from "node:path";
 import { authenticateRegistry, commandRunner, ensureBuilders, inspectImage, inspectPlatform, platforms, type Run } from "../../scripts/release-support.ts";
 
 const root = resolve(import.meta.dir, "../..");
-import { systemRepository as image } from "../../packages/shared/src/publishing.ts";
+import { systemRepository as image, imageSource } from "../../packages/shared/src/publishing.ts";
 
 export async function publishSystem(run: Run, directory: string, check = false) {
   if (!check && (await run(["git", "status", "--porcelain"])).stdout.trim())
@@ -29,6 +29,7 @@ export async function publishSystem(run: Run, directory: string, check = false) 
     const slice = `${ref}-${platform.split("/")[1]}`;
     await run(["docker", "--context", context, "buildx", "build", "--platform", platform,
       "--provenance=false", "--push", "--progress", "plain", "--tag", slice,
+      "--label", `org.opencontainers.image.source=${imageSource}`,
       "--label", `org.opencontainers.image.revision=${revision}`,
       "--label", `${systemVersionLabel}=${systemVersion}`,
       "--file", "images/system/Dockerfile", "images/system"], { stream: true });
@@ -36,6 +37,7 @@ export async function publishSystem(run: Run, directory: string, check = false) 
     if (!/^sha256:[a-f0-9]{64}$/.test(manifest.digest)) throw new Error(`Registry returned no digest for ${slice}`);
     const pinned = `${image}@${manifest.digest}`;
     const config = await inspectPlatform(run, pinned, platform, revision);
+    if (config.config.Labels["org.opencontainers.image.source"] !== imageSource) throw new Error("System source label does not match the source checkout");
     if (config.config.Labels[systemVersionLabel] !== String(systemVersion)) throw new Error("System compatibility label does not match the source checkout");
     slices.push(pinned);
   }

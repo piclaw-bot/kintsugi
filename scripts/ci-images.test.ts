@@ -1,3 +1,4 @@
+import { imageSource } from "../packages/shared/src/publishing.ts";
 import { expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
@@ -27,6 +28,7 @@ function runner(options: { missing?: string; modifyManifest?: (value: ReturnType
     }
     const value = { os: "linux", architecture: args.includes(`${image}@${amd64}`) ? "amd64" : "arm64", config: { Labels: {
       [label]: commit,
+      "org.opencontainers.image.source": imageSource,
       [systemVersionLabel]: String(systemVersion),
       [requiredSystemVersionLabel]: String(requiredSystemVersion),
       [networkPolicyVersionLabel]: String(networkPolicyVersion),
@@ -195,4 +197,17 @@ test("release checks pair compatibility before publishing and advances services 
   expect(steps[publishIndex].run).toContain("for kind in workspace system app");
   expect(workflow.jobs.system.steps.find((step: { id?: string }) => step.id === "system").with.labels).toContain("system_compatibility");
   expect(workflow.jobs.images.steps.find((step: { id?: string }) => step.id === "app").with.labels).toContain("app_compatibility");
+});
+
+test("manifest reuse refuses absent or foreign source attribution", async () => {
+  for (const source of [undefined, "https://github.com/another/fork"]) {
+    await expect(verifiedImage(runner({modifyConfig:value=>{if(source===undefined)delete value.config.Labels["org.opencontainers.image.source"];else value.config.Labels["org.opencontainers.image.source"]=source;}}),image,label,commit)).rejects.toThrow("source label");
+  }
+});
+test("every native image workflow takes source attribution from publishing configuration", () => {
+  const workflow=Bun.YAML.parse(readFileSync(new URL("../.github/workflows/images.yml",import.meta.url),"utf8"));
+  for(const [job,id] of [["workspace","build"],["system","system"],["images","app"]]){
+    const step=workflow.jobs[job].steps.find((step:{id?:string})=>step.id===id);
+    expect(step.with.labels).toContain("needs.prepare.outputs.image_source");
+  }
 });
