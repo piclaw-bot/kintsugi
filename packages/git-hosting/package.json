@@ -6,6 +6,7 @@
     ".": "./src/index.ts"
   },
   "dependencies": {
+    "@kintsugi/bitbucket": "workspace:*",
     "@kintsugi/core": "workspace:*",
     "@kintsugi/github": "workspace:*"
   }

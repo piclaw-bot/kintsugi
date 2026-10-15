@@ -297,12 +297,20 @@
     "packages/git-hosting": {
       "name": "@kintsugi/git-hosting",
       "dependencies": {
+        "@kintsugi/bitbucket": "workspace:*",
         "@kintsugi/core": "workspace:*",
         "@kintsugi/github": "workspace:*"
       }
     },
     "packages/github": {
       "name": "@kintsugi/github",
+      "dependencies": {
+        "@kintsugi/core": "workspace:*",
+        "typebox": "^1.0.57"
+      }
+    },
+    "packages/bitbucket": {
+      "name": "@kintsugi/bitbucket",
       "dependencies": {
         "@kintsugi/core": "workspace:*",
         "typebox": "^1.0.57"
@@ -559,6 +567,8 @@
     "@gespenst/core": "0.1.1",
   },
   "packages": {
+    "@kintsugi/bitbucket": ["@kintsugi/bitbucket@workspace:packages/bitbucket"],
+
     "@kintsugi/github": ["@kintsugi/github@workspace:packages/github"],
 
     "@kintsugi/git-hosting": ["@kintsugi/git-hosting@workspace:packages/git-hosting"],

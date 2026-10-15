@@ -207,7 +207,7 @@ describe("workspace source preparation", () => {
     expect(await Bun.file(join(source.worktreePath, ".git", "objects", "info", "alternates")).exists()).toBe(false);
   });
 
-  test("applies the stored GitHub token to host-side git commands before container creation", async () => {
+  test("applies stored git hosting tokens to host-side git commands before container creation", async () => {
     const fixture = await createRemote();
     tempRoots.push(fixture.root);
     const realGit = (await run(["which", "git"])).stdout.trim();
@@ -215,11 +215,12 @@ describe("workspace source preparation", () => {
     tempRoots.push(fakeBin);
     const tokenLog = join(fakeBin, "tokens.log");
     const fakeGit = join(fakeBin, "git");
-    await writeFile(fakeGit, `#!/bin/sh\nprintf '%s\\n' "\${GH_TOKEN-}" >> ${JSON.stringify(tokenLog)}\nexec ${JSON.stringify(realGit)} "$@"\n`);
+    await writeFile(fakeGit, `#!/bin/sh\nprintf '%s\\n' "\${GH_TOKEN-} \${BITBUCKET_API_TOKEN-}" >> ${JSON.stringify(tokenLog)}\nexec ${JSON.stringify(realGit)} "$@"\n`);
     await chmod(fakeGit, 0o755);
     const previousPath = process.env.PATH;
     process.env.PATH = `${fakeBin}:${previousPath ?? ""}`;
     saveGitHostingCredential(gitHostingProvider("github"), { token: "github-token" });
+    saveGitHostingCredential(gitHostingProvider("bitbucket"), { token: "bitbucket-token", account: "me@example.com" });
     try {
       await prepareWorkspaceSource({ workspaceId: "ws-token", gitUrl: fixture.remote, branch: "main" });
     } finally {
@@ -229,7 +230,7 @@ describe("workspace source preparation", () => {
 
     const tokens = (await Bun.file(tokenLog).text()).trim().split("\n");
     expect(tokens.length).toBeGreaterThan(0);
-    expect(tokens.every((token) => token === "github-token")).toBe(true);
+    expect(tokens.every((token) => token === "github-token bitbucket-token")).toBe(true);
   });
 
   test("initializes nested submodules recursively in the reusable template and workspace", async () => {

@@ -2,6 +2,7 @@ import { afterEach, beforeEach, expect, test } from "bun:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { gitHostingProvider } from "@kintsugi/git-hosting";
 import { shouldSearchRepositories } from "@kintsugi/shared";
 import { searchRepositories } from "../src/server/repository-search.ts";
 
@@ -24,6 +25,8 @@ beforeEach(async () => {
     if (url.host === "api.github.com" && url.pathname === "/user") return Response.json({ login: "me" });
     if (url.host === "api.github.com" && url.pathname === "/user/orgs") return Response.json([]);
     if (url.host === "api.github.com") return Response.json({ items: [{ full_name: `octo/${url.searchParams.get("q")!.split(" ")[0]}`, description: null, private: false, clone_url: "https://github.com/octo/widget.git" }] });
+    if (url.host === "api.bitbucket.org" && url.pathname === "/2.0/user/workspaces") return Response.json({ values: [{ workspace: { slug: "team" } }] });
+    if (url.host === "api.bitbucket.org" && url.pathname === "/2.0/repositories/team") return Response.json({ values: [{ full_name: "team/widget", is_private: true }] });
     throw new Error(`unexpected fetch ${url.href}`);
   }, { preconnect: originalFetch.preconnect });
 });
@@ -40,6 +43,7 @@ afterEach(async () => {
 test("explicit provider URLs bypass search while repository names remain searchable", () => {
   expect(shouldSearchRepositories("github.com/octocat/Hello-World")).toBe(false);
   expect(shouldSearchRepositories(" GitHub.com/octocat/Hello-World.git#main ")).toBe(false);
+  expect(shouldSearchRepositories("bitbucket.org/workspace/repo")).toBe(false);
   expect(shouldSearchRepositories("https://github.com/octocat/Hello-World")).toBe(false);
   expect(shouldSearchRepositories("Hello-World")).toBe(true);
 });
@@ -50,11 +54,17 @@ test("without connections only public GitHub is searched", async () => {
   expect(requests.every((url) => url.host === "api.github.com")).toBe(true);
 });
 
-test("a rate limit becomes a notice instead of failing the search", async () => {
-  globalThis.fetch = Object.assign(async () => new Response("rate limited", { status: 429, headers: { "retry-after": "9" } }), { preconnect: originalFetch.preconnect });
+test("searches every connected provider and keeps one provider's rate limit to itself", async () => {
+  gitHostingProvider("bitbucket").saveCredential({ token: "bitbucket-token", account: "me@example.com" });
 
   const searches = await searchRepositories("gadget");
-  expect(searches[0]!.notice).toBe("GitHub search is rate limited. Try again in 9 seconds.");
+  expect(searches.map((search) => search.provider.id)).toEqual(["github", "bitbucket"]);
+
+  const fetchBitbucket = globalThis.fetch;
+  globalThis.fetch = Object.assign(async (input: Parameters<typeof fetch>[0]) => new URL(String(input)).host === "api.bitbucket.org" ? new Response("", { status: 429, headers: { "retry-after": "9" } }) : fetchBitbucket(input), { preconnect: originalFetch.preconnect });
+  const limited = await searchRepositories("limited");
+  expect(limited[1]!.notice).toBe("Bitbucket search is rate limited. Try again in 9 seconds.");
+  expect(limited[0]!.repositories.length).toBeGreaterThan(0);
 });
 
 test("results are cached per provider, credential and normalized query", async () => {

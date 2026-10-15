@@ -378,7 +378,7 @@ The `update-channel` section is **Update channel**, with **Stable**, **Latest** 
 
 The `update` section is **Updates**, the feature for managing Kintsugi installation Updates. It is separate from Workspace package and agent CLI updates.
 
-Settings is app-level, not configuration for the selected Workspace, a Workspace template, or an individual Agent. Git hosting connections are shared across Workspaces; their tokens are distinct from the Commit identity used to author commits. Connect one with POST `/settings/git-hosting/:provider/connect` (`github`) and form field `token`. The settings section is a registered settings contribution ID, such as `theme`, `commit-identity`, `git-hosting`, `models`, `dictation`, or `update`.
+Settings is app-level, not configuration for the selected Workspace, a Workspace template, or an individual Agent. Git hosting connections (GitHub and Bitbucket) are shared across Workspaces; their tokens are distinct from the Commit identity used to author commits. Connect one with POST `/settings/git-hosting/:provider/connect` (`github` or `bitbucket`) and form field `token`, plus `account` (the Atlassian account email) for Bitbucket. The settings section is a registered settings contribution ID, such as `theme`, `commit-identity`, `git-hosting`, `models`, `dictation`, or `update`.
 
 ## Create and wait for a workspace
 

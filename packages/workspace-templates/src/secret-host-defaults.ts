@@ -48,7 +48,7 @@ const defaults: ReadonlyArray<readonly [names: readonly string[], hosts: string]
   // Code, packages and registries
   [["GITHUB_TOKEN", "GH_TOKEN"], "github.com, api.github.com, uploads.github.com"],
   [["GITLAB_TOKEN"], "gitlab.com"],
-  [["BITBUCKET_TOKEN"], "bitbucket.org, api.bitbucket.org"],
+  [["BITBUCKET_TOKEN", "BITBUCKET_API_TOKEN"], "bitbucket.org, api.bitbucket.org"],
   [["NPM_TOKEN"], "registry.npmjs.org"],
   [["CARGO_REGISTRY_TOKEN"], "crates.io"],
   [["GEM_HOST_API_KEY"], "rubygems.org"],
