@@ -2,9 +2,21 @@ import { expect, test } from "bun:test";
 import { createSocket } from "node:dgram";
 import { createServer } from "node:net";
 import dns from "node:dns/promises";
-import { forwardDns, startDnsForwarder } from "./dns-forwarder.ts";
+import { forwardDns, startDnsForwarder as bindDnsForwarder } from "./dns-forwarder.ts";
 import { assignWorkspaceResolvers } from "./workspace-resolver.ts";
 import { offNetworkPolicy, parseNetworkPolicy, networkResolvConf, type WorkspaceNetworkPolicy } from "../../../packages/shared/src/network-policy.ts";
+
+// TCP and UDP have independent ephemeral-port pools. Retry only setup collisions,
+// never resolver work or assertions; System’s fixed production port is unchanged.
+async function retryDnsBind<T>(bind: () => Promise<T>): Promise<T> {
+  for (let attempt = 0; ; attempt++) {
+    try { return await bind(); }
+    catch (error) {
+      if (attempt === 7 || !(error instanceof Error && "code" in error && error.code === "EADDRINUSE")) throw error;
+    }
+  }
+}
+const startDnsForwarder = (...args: Parameters<typeof bindDnsForwarder>) => retryDnsBind(() => bindDnsForwarder(...args));
 
 function query(type = 1) {
   const header = Buffer.alloc(12);
@@ -21,7 +33,7 @@ function reply(request: Buffer, code = 0, data?: Buffer, truncated = false) {
   record.writeUInt16BE(data?.length ?? 0, 10);
   return Buffer.concat([header, request.subarray(12), ...(data ? [record, data] : [])]);
 }
-async function fixture(answer: (request: Buffer, tcp: boolean) => Buffer | undefined, address = "127.0.0.1") {
+async function bindFixture(answer: (request: Buffer, tcp: boolean) => Buffer | undefined, address = "127.0.0.1") {
   const udp = createSocket(address.includes(":") ? "udp6" : "udp4");
   const requests: Array<{ tcp: boolean; request: Buffer }> = [];
   udp.on("message", (request, remote) => {
@@ -47,11 +59,25 @@ async function fixture(answer: (request: Buffer, tcp: boolean) => Buffer | undef
     });
   });
   const port = udp.address().port;
-  await new Promise<void>(resolve => tcp.listen(port, address, resolve));
+  try {
+    await new Promise<void>((resolve, reject) => { tcp.once("error", reject); tcp.listen(port, address, () => { tcp.removeListener("error", reject); resolve(); }); });
+  } catch (error) { await new Promise<void>(resolve => udp.close(() => resolve())); throw error; }
   return { upstream: { address, port }, requests, close: async () => {
     await Promise.all([new Promise<void>(resolve => udp.close(() => resolve())), new Promise<void>(resolve => tcp.close(() => resolve()))]);
   } };
 }
+
+const fixture = (...args: Parameters<typeof bindFixture>) => retryDnsBind(() => bindFixture(...args));
+
+test("DNS fixture setup retries only address collisions and never suppresses other failures", async () => {
+  let attempts = 0;
+  expect(await retryDnsBind(async () => { if (++attempts < 3) throw Object.assign(new Error("occupied"), { code: "EADDRINUSE" }); return "bound"; })).toBe("bound");
+  expect(attempts).toBe(3);
+  await expect(retryDnsBind(async () => { throw Object.assign(new Error("permission denied"), { code: "EACCES" }); })).rejects.toThrow("permission denied");
+  let collisions = 0;
+  await expect(retryDnsBind(async () => { collisions++; throw Object.assign(new Error("still occupied"), { code: "EADDRINUSE" }); })).rejects.toThrow("still occupied");
+  expect(collisions).toBe(8);
+});
 
 test("System DNS retries negative answers and operational failures in order, preserving the wire reply", async () => {
   for (const code of [0, 2, 3, 5]) {
