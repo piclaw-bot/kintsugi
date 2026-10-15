@@ -46,6 +46,12 @@ version 0. Version 1 provides the compatibility foundation; version 2 adds optio
 listed-host policies. The app minimum stays at 0, with an explicit capability-2
 gate for listed-host mode. Saved custom sources, pins and the retained image-pair protocol are unchanged.
 
+Built-in code mode adds journal bookkeeping and executable task definitions to the
+app, not a new System operation. Stop active code-mode scripts before downgrading
+to an app that predates this tool: an older registry must not be assumed to resume
+those tasks. Image rollback preserves journals; it does not restore old session
+data.
+
 `packages/shared/src/publishing.ts` also owns image source attribution. Standard
 app, System, workspace and patched-runtime builders stamp its `imageSource` value;
 source-checkout metadata wins when build tooling lives in another checkout.
