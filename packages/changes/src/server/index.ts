@@ -12,7 +12,7 @@ import { matchRoute, response, textResponse } from "@kintsugi/shared/http";
 import { workspaceRepository } from "@kintsugi/workspace/git";
 import { Type } from "typebox";
 import { Value } from "typebox/value";
-import { collectUnchangedPaths, readUnchangedFile, type ChangesFile, type UnchangedFile } from "./diff.ts";
+import { collectUnchangedPaths, readUnchangedContents, readUnchangedFile, unchangedMediaType, type ChangesFile, type UnchangedFile } from "./diff.ts";
 import { canEditFile } from "../editing.ts";
 import { renderEditModel, renderUnchangedFile, renderUnchangedPaths, changesBodyId, comparisonId, errorId, historyContentId, renderChanges, renderChangesTitle, renderChangesFile, renderComparison, renderError, renderHistory, renderDiff } from "./render.ts";
 import type { DiffEndpoints } from "../history.ts";
@@ -167,18 +167,27 @@ export const kintsugiServerModule: WorkspaceModule = {
     if (match) return request.method === "GET" ? await deletionReviewFileResponse(match[0]!, url) : textResponse("Method not allowed", { status: 405 });
     match = matchRoute(url, /^\/workspaces\/([^/]+)\/changes\/deletion\/commit$/);
     if (match) return request.method === "GET" ? await deletionReviewCommitResponse(match[0]!, url) : textResponse("Method not allowed", { status: 405 });
-    match = matchRoute(url, /^\/workspaces\/([^/]+)\/changes\/(file|image|unchanged)$/);
+    match = matchRoute(url, /^\/workspaces\/([^/]+)\/changes\/(file|image|unchanged|unchanged-media)$/);
     if (match) {
       if (request.method !== "GET") return textResponse("Method not allowed", { status: 405 });
       const workspaceId = match[0]!, { snapshot } = await current(workspaceId);
       if (url.searchParams.get("snapshot") !== snapshot.id) return textResponse("This comparison has changed. Reopen Changes to load the current snapshot.", { status: 409 });
       if (match[1] === "unchanged") return response(renderUnchangedPaths([...await unchanged(workspaceId, snapshot)]));
       const path = url.searchParams.get("path") ?? "";
+      if (match[1] === "unchanged-media") {
+        const contentType = unchangedMediaType(path);
+        if (!contentType || !await isUnchanged(workspaceId, snapshot, path)) return textResponse("Unchanged file not found", { status: 404 });
+        const { contents } = await readUnchangedContents(workspaceRepository(workspaceId), snapshot.target, path);
+        return new Response(new Uint8Array(contents), { headers: {
+          "Content-Type": contentType, "Cache-Control": "private, no-store",
+          "X-Content-Type-Options": "nosniff", "Content-Security-Policy": "sandbox; default-src 'none'; style-src 'unsafe-inline'",
+        } });
+      }
       const file = snapshot.files.get(path);
       if (!file && match[1] === "file" && await isUnchanged(workspaceId, snapshot, path)) {
         const unchangedFile = await readUnchangedFile(workspaceRepository(workspaceId), snapshot.target, path);
         const editable = editableUnchangedFile(snapshot, path, unchangedFile);
-        return response(renderUnchangedFile(snapshot.id, path, unchangedFile, editable !== undefined && canEditFile(editable)));
+        return response(renderUnchangedFile(workspaceId, snapshot.id, path, unchangedFile, editable !== undefined && canEditFile(editable)));
       }
       if (!file) return textResponse("Changed file not found", { status: 404 });
       if (match[1] === "file") return response(renderChangesFile(file, snapshot.id, snapshot.endpoints.target === "working"));

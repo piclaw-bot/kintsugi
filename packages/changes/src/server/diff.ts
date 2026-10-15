@@ -310,7 +310,13 @@ export async function collectUnchangedPaths(root: Repository, target: string | u
 
 export type UnchangedFile =
   | { kind: "text"; text: string; mode?: string }
+  | { kind: "image"; contentType: string }
   | { kind: "binary" | "large" };
+
+/** Images are recognised by name, like the Files view, and streamed rather than read here. */
+export function unchangedMediaType(path: string): string | undefined {
+  return imageMimeByExtension[extensionOf(path)];
+}
 
 export async function readUnchangedContents(root: Repository, target: string | undefined, path: string): Promise<{ contents: Buffer; mode?: string }> {
   const file = target ? { contents: await git(root, ["cat-file", "blob", `${target}:${path}`]) } : await root.workingFile(path);
@@ -319,6 +325,8 @@ export async function readUnchangedContents(root: Repository, target: string | u
 }
 
 export async function readUnchangedFile(root: Repository, target: string | undefined, path: string): Promise<UnchangedFile> {
+  const contentType = unchangedMediaType(path);
+  if (contentType) return { kind: "image", contentType };
   const { contents, mode } = await readUnchangedContents(root, target, path);
   const text = decodeText(contents);
   if (text === undefined) return { kind: "binary" };

@@ -1,4 +1,3 @@
-import { disclosureHtml } from "@kintsugi/design-system/disclosure";
 import { canEditFile, type EditModel } from "../editing.ts";
 import { canRevertFile } from "../reverting.ts";
 import { renderEditFeedback, renderFileEditActions } from "./editing-render.ts";
@@ -13,6 +12,7 @@ import { popupHtml } from "@kintsugi/design-system/popup";
 import { domId, escapeHtml } from "@kintsugi/shared";
 import { parseDiffFromFile, type CodeViewItem } from "@pierre/diffs";
 import type { ChangesFile, UnchangedFile } from "./diff.ts";
+import type { MediaAnnotation } from "../reverting.ts";
 import { type HistoryModel } from "../history.ts";
 import type { ChangesHistory, ChangesSnapshot } from "./snapshot.ts";
 
@@ -64,21 +64,31 @@ export function renderEditModel(model: EditModel): string {
   return `<script type="application/json" data-changes-edit-model>${json(model)}</script>`;
 }
 
-function fileItem(file: ChangesFile, snapshotId: string, version: number, editable: boolean): CodeViewItem<undefined> {
+function fileItem(file: ChangesFile, snapshotId: string, version: number, editable: boolean): CodeViewItem<MediaAnnotation> {
   return { id: file.path, type: "file", version, file: { name: file.path, lang: editable ? undefined : "text", contents: editable ? file.newContents! : file.detail ?? "No text changes to display.", cacheKey: `${snapshotId}:${file.path}` } };
 }
 
 export function renderChangesFile(file: ChangesFile, snapshotId: string, editable = false): string {
-  const item: CodeViewItem<undefined> = file.diff
+  const item: CodeViewItem<MediaAnnotation> = file.diff
     ? { id: file.path, type: "diff", fileDiff: file.diff, version: 1 }
     : fileItem(file, snapshotId, 1, editable && canEditFile(file));
   return `<script type="application/json" data-changes-file>${json(item)}</script>`;
 }
 
-/** An unchanged file as the Files view would show it. */
-export function renderUnchangedFile(snapshotId: string, path: string, file: UnchangedFile, editable: boolean): string {
+const mediaAnnotation = (path: string) => [{ lineNumber: 1, metadata: { kind: "media" as const, path } }];
+const mediaItem = (path: string, cacheKey: string, version: number): CodeViewItem<MediaAnnotation> => ({ id: path, type: "file", version, file: { name: path, lang: "text", contents: "", cacheKey }, annotations: mediaAnnotation(path) });
+const mediaTemplate = (path: string, html: string) => `<template data-changes-media="${escapeHtml(path)}"><div class="changes-media">${html}</div></template>`;
+
+/** An unchanged file as the Files view would show it: text, or an image preview. */
+export function renderUnchangedFile(workspaceId: string, snapshotId: string, path: string, file: UnchangedFile, editable: boolean): string {
+  const cacheKey = `${snapshotId}:${path}`;
+  if (file.kind === "image") {
+    const src = escapeHtml(`/workspaces/${encodeURIComponent(workspaceId)}/changes/unchanged-media?${new URLSearchParams({ snapshot: snapshotId, path })}`);
+    const media = `<div class="changes-image-canvas"><img src="${src}" alt="${escapeHtml(path)}" loading="lazy" decoding="async"></div>`;
+    return `<script type="application/json" data-changes-file>${json(mediaItem(path, cacheKey, 1))}</script>${mediaTemplate(path, media)}`;
+  }
   const contents = file.kind === "text" ? file.text : file.kind === "large" ? "This file is too large to show here." : "No preview available for this file.";
-  const item: CodeViewItem<undefined> = { id: path, type: "file", version: 1, file: { name: path, lang: file.kind === "text" ? undefined : "text", contents, cacheKey: `${snapshotId}:${path}` } };
+  const item: CodeViewItem<undefined> = { id: path, type: "file", version: 1, file: { name: path, lang: file.kind === "text" ? undefined : "text", contents, cacheKey } };
   return `<script type="application/json" data-changes-file data-editable="${editable}">${json(item)}</script>`;
 }
 
@@ -96,7 +106,7 @@ const imageStatus = {
   modified: { label: "Modified", color: "changes-rename" },
 };
 
-function renderImageFile(workspaceId: string, snapshot: ChangesSnapshot, file: ChangesFile, collapsed: boolean): string {
+function renderImageComparison(workspaceId: string, snapshot: ChangesSnapshot, file: ChangesFile): string {
   const sides = (["before", "after"] as const).filter(side => !(file.change === "added" && side === "before") && !(file.change === "removed" && side === "after"));
   const figures = sides.map(side => {
     const image = file.images![side];
@@ -105,13 +115,7 @@ function renderImageFile(workspaceId: string, snapshot: ChangesSnapshot, file: C
     const src = `/workspaces/${encodeURIComponent(workspaceId)}/changes/image?${query}`;
     return `<figure><figcaption>${label}<span>${escapeHtml(side === "before" ? snapshot.baseLabel : snapshot.targetLabel)}</span></figcaption><div class="changes-image-canvas">${image ? `<img src="${escapeHtml(src)}" alt="${escapeHtml(`${file.path} — ${label.toLowerCase()}`)}" loading="lazy" decoding="async">` : "<span>No image preview</span>"}</div></figure>`;
   }).join("");
-  const status = imageStatus[file.change];
-  return `<div class="changes-image-file">${disclosureHtml({
-    open: !collapsed,
-    element: { attributesHtml: `data-changes-target="imageFile" data-changes-image="${escapeHtml(file.path)}" data-action="toggle->changes#imageToggled"` },
-    summary: { width: "fill", kind: "compact", label: { kind: "text", text: file.path }, trailingHtml: `${renderRename(file)}<span class="changes-file-stats"><span class="${status.color}">${status.label}</span></span>` },
-    bodyHtml: `<div class="changes-image-comparison">${figures}</div>`,
-  })}</div>`;
+  return mediaTemplate(file.path, `<div class="changes-image-comparison">${figures}</div>`);
 }
 
 export function renderDiff(workspaceId: string, snapshot: ChangesSnapshot, collapsed: boolean): string {
@@ -120,14 +124,15 @@ export function renderDiff(workspaceId: string, snapshot: ChangesSnapshot, colla
     const captured = snapshot.files.get(file.path)!, working = snapshot.endpoints.target === workingTree;
     return { ...file, image: !!captured.images, editable: working && canEditFile(captured), revertible: working && canRevertFile(captured) };
   });
-  const items: CodeViewItem<undefined>[] = files.filter(file => !file.image).map((file) => {
+  const items: CodeViewItem<MediaAnnotation>[] = files.map((file) => {
     const captured = snapshot.files.get(file.path)!;
+    if (file.image) return mediaItem(file.path, `${snapshot.id}:${file.path}`, 0);
     if (!captured.diff) return fileItem(captured, snapshot.id, 0, file.editable);
     const loadingDiff = parseDiffFromFile({ name: file.previousPath ?? file.path, contents: "" }, { name: file.path, contents: "Loading diff…", lang: "text" });
     loadingDiff.cacheKey = `${snapshot.id}:loading:${file.path}`;
     return { id: file.path, type: "diff", fileDiff: loadingDiff, version: 0 };
   });
-  const images = files.filter(file => file.image).map(file => renderImageFile(workspaceId, snapshot, snapshot.files.get(file.path)!, collapsed)).join("");
+  const mediaTemplates = files.filter(file => file.image).map(file => renderImageComparison(workspaceId, snapshot, snapshot.files.get(file.path)!)).join("");
   const additions = snapshot.stats.reduce((total, file) => total + file.additions, 0);
   const deletions = snapshot.stats.reduce((total, file) => total + file.deletions, 0);
   const iconButton = (label: string, action: string, icon: string, attributes = "") => buttonHtml({ type: "button", variant: "secondary", content: { kind: "icon-only", iconHtml: icon, label }, attributesHtml: `data-action="changes#${action}" ${attributes}` });
@@ -140,10 +145,10 @@ export function renderDiff(workspaceId: string, snapshot: ChangesSnapshot, colla
     contentHtml: `${layoutItem("unified", "Unified diff")}${layoutItem("split", "Side-by-side diff")}<hr class="popup-menu__separator">${checkItem("Wrap long lines", "toggleWrap", true)}<hr class="popup-menu__separator">${checkItem("Show unchanged files", "toggleUnchanged", false)}`,
   });
   const collapseIcons = `<span class="changes-collapse-icon">${Icons.CollapseAll}</span><span class="changes-expand-icon">${Icons.ExpandAll}</span>`;
-  const headers = files.filter(file => !file.image).map((file) => `<template data-changes-header="${escapeHtml(file.path)}"><div class="changes-file-header" data-changes-edit-target="fileHeader">${contentRowHtml({
+  const headers = files.map((file) => `<template data-changes-header="${escapeHtml(file.path)}"><div class="changes-file-header" data-changes-edit-target="fileHeader">${contentRowHtml({
     width: "fill",
     kind: "compact", label: { kind: "text", text: file.path }, leadingHtml: Icons.Disclosure,
-    trailingHtml: `${renderRename(file)}<span class="changes-file-stats">${file.binarySizes ? "<span>Binary</span>" : `<span class="changes-additions">+${file.additions}</span><span class="changes-deletions">−${file.deletions}</span>`}</span>`,
+    trailingHtml: `${renderRename(file)}<span class="changes-file-stats">${file.image ? `<span class="${imageStatus[file.change].color}">${imageStatus[file.change].label}</span>` : file.binarySizes ? "<span>Binary</span>" : `<span class="changes-additions">+${file.additions}</span><span class="changes-deletions">−${file.deletions}</span>`}</span>`,
     element: { tag: "button", attributesHtml: `type="button" data-path="${escapeHtml(file.path)}" data-action="changes#toggleFile" aria-expanded="${!collapsed}"` },
   })}${file.editable ? buttonHtml({ type: "button", variant: "secondary", content: { kind: "caption", caption: "Edit" }, attributesHtml: `data-action="changes-edit#begin" data-path="${escapeHtml(file.path)}" aria-label="Edit ${escapeHtml(file.path)}"${collapsed ? " hidden" : ""}` }) + renderFileEditActions() : ""}</div></template>`).join("");
   const unchangedHeader = `<template data-changes-target="unchangedHeader"><div class="changes-file-header changes-unchanged-header" data-changes-edit-target="fileHeader">${contentRowHtml({
@@ -164,7 +169,7 @@ export function renderDiff(workspaceId: string, snapshot: ChangesSnapshot, colla
     <div data-controller="live-surface" data-live-surface-workspace-value="${escapeHtml(workspaceId)}" data-live-surface-kind-value="review-comments" data-live-surface-key-value="${snapshot.id}" data-live-surface-eager-value="true">${renderCommentsModel(snapshot.id, comments)}</div>
     ${renderCommentActions(workspaceId, snapshot.id, comments)}
     <div id="${changesBodyId(workspaceId, snapshot.id)}-error" class="changes-error" data-changes-target="error" role="alert" hidden><span data-changes-target="errorMessage"></span>${iconButton("Dismiss file error", "dismissError", Icons.Close)}</div>
-    <div class="changes-surface"><div class="changes-viewer kintsugi-pierre-host" data-changes-target="viewer" aria-label="Changes diff">${files.length ? "" : `<div class="changes-empty" data-changes-target="empty">${escapeHtml(empty)}</div>`}<div data-changes-target="imageHost">${images}</div><div data-changes-target="orphanHost">${renderOrphanComments(snapshot.id, comments)}<div class="changes-orphan-editor" data-changes-target="listEditor" hidden></div></div></div></div>
-    <script type="application/json" data-changes-target="model">${json({ files, items })}</script><script type="application/json" data-changes-diff-endpoints-target="comparisonModel">${json({ endpoints: snapshot.endpoints, label: snapshot.label, baseLabel: snapshot.baseLabel, targetLabel: snapshot.targetLabel })}</script>${headers}${unchangedHeader}${commentTemplates}
+    <div class="changes-surface"><div class="changes-viewer kintsugi-pierre-host" data-changes-target="viewer" aria-label="Changes diff">${files.length ? "" : `<div class="changes-empty" data-changes-target="empty">${escapeHtml(empty)}</div>`}<div data-changes-target="viewHeader"></div><div data-changes-target="orphanHost">${renderOrphanComments(snapshot.id, comments)}<div class="changes-orphan-editor" data-changes-target="listEditor" hidden></div></div></div></div>
+    <script type="application/json" data-changes-target="model">${json({ files, items })}</script><script type="application/json" data-changes-diff-endpoints-target="comparisonModel">${json({ endpoints: snapshot.endpoints, label: snapshot.label, baseLabel: snapshot.baseLabel, targetLabel: snapshot.targetLabel })}</script>${headers}${mediaTemplates}${unchangedHeader}${commentTemplates}
   </section>`;
 }

@@ -200,14 +200,9 @@ export function createChangesEditController(Controller: WorkspaceClientControlle
       const shell = this.shell;
       const scroll = this.element.querySelector<HTMLElement>('[data-changes-target="viewer"]')!.scrollTop;
       // SAFETY: The viewer model is the server-rendered list of file IDs.
-      const files = (JSON.parse(this.element.querySelector('script[data-changes-target="model"]')!.textContent!) as { files: { path: string; image: boolean }[] }).files;
-      const images = Array.from(this.element.querySelectorAll<HTMLDetailsElement>("[data-changes-image]"));
+      const files = (JSON.parse(this.element.querySelector('script[data-changes-target="model"]')!.textContent!) as { files: { path: string }[] }).files;
       // The saved file stays open, including a previously unchanged file that now becomes a change.
-      const collapsed = Object.fromEntries([
-        ...files.filter(file => !file.image).map(file => [file.path, this.viewer!.getItem(file.path)!.collapsed === true]),
-        ...images.map(image => [image.dataset.changesImage!, !image.open]),
-        [this.model.path, false],
-      ]);
+      const collapsed = { ...Object.fromEntries(files.map(file => [file.path, this.viewer!.getItem(file.path)!.collapsed === true])), [this.model.path]: false };
       try {
         const data = new FormData();
         data.set("token", this.model.token); data.set("contents", this.text); data.set("ranges", JSON.stringify(this.ranges));

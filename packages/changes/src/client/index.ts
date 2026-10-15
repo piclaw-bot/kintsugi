@@ -2,7 +2,7 @@ import { createChangesEditController, syncFileEditButtons } from "./editing-cont
 import { showButtonConfirmation } from "@kintsugi/design-system/button-confirmation/client";
 import { createReviewCopyController } from "./review-copy-controller.ts";
 import { exportReviewComments, type CommentAnnotation, type CommentPlacement } from "../comments.ts";
-import type { ChangesAnnotation, RevertAnnotation } from "../reverting.ts";
+import type { ChangesAnnotation, MediaAnnotation, RevertAnnotation } from "../reverting.ts";
 import { createDeletionReviewController } from "./deletion-controller.ts";
 import type { CodeView, CodeViewItem, CodeViewOptions, CodeViewDiffItem, VirtualizedFileDiff, SelectedLineRange } from "@pierre/diffs";
 import { copyTextToClipboard, type WorkspaceClientModule, type WorkspaceClientControllerConstructor } from "@kintsugi/shared";
@@ -13,19 +13,19 @@ const layoutStorageKey = "kintsugi:changes-layout";
 const wrapStorageKey = "kintsugi:changes-wrap";
 const unchangedStorageKey = "kintsugi:changes-unchanged";
 
-const viewerCSS = `${wordDiffCSS} [data-diffs-header] { background: var(--bg); }`;
+// Media previews sit on a file’s only, empty line; its number means nothing there.
+const viewerCSS = `${wordDiffCSS} [data-diffs-header] { background: var(--bg); } :host([data-changes-media]) [data-line-number-content] { visibility: hidden; }`;
 
 function createChangesController(Controller: WorkspaceClientControllerConstructor) {
   return class ChangesController extends Controller {
     declare readonly element: HTMLElement;
-    static targets = ["unchangedHeader", "empty", "revertBlock", "imageFile", "imageHost", "viewer", "model", "error", "errorMessage", "collapseToggle", "commentGutter", "commentEditor", "commentCard", "commentsModel", "listEditor", "orphanHost", "orphanDisclosure", "orphanContent"];
+    static targets = ["unchangedHeader", "empty", "revertBlock", "viewHeader", "viewer", "model", "error", "errorMessage", "collapseToggle", "commentGutter", "commentEditor", "commentCard", "commentsModel", "listEditor", "orphanHost", "orphanDisclosure", "orphanContent"];
     static values = { workspaceId: String, snapshotId: String, collapsed: Boolean };
     declare readonly unchangedHeaderTarget: HTMLTemplateElement;
     declare readonly emptyTarget: HTMLElement;
     declare readonly hasEmptyTarget: boolean;
     declare readonly revertBlockTarget: HTMLTemplateElement;
-    declare readonly imageFileTargets: HTMLDetailsElement[];
-    declare readonly imageHostTarget: HTMLElement;
+    declare readonly viewHeaderTarget: HTMLElement;
     declare readonly viewerTarget: HTMLElement;
     declare readonly modelTarget: HTMLScriptElement;
     declare readonly errorTarget: HTMLElement;
@@ -65,6 +65,7 @@ function createChangesController(Controller: WorkspaceClientControllerConstructo
     private showUnchanged = false;
     private unchanged?: string[];
     private headerTemplates = new Map<string, HTMLTemplateElement>();
+    private media = new Map<string, HTMLTemplateElement>();
     private editable = new Set<string>();
     private readonly headerMedia = window.matchMedia("(max-width: 700px), (pointer: coarse)");
     private get headerHeight(): number { return this.headerMedia.matches ? 58 : 36; }
@@ -81,7 +82,7 @@ function createChangesController(Controller: WorkspaceClientControllerConstructo
     disconnect(): void {
       this.headerMedia.removeEventListener("change", this.resizeHeaders);
       this.abort?.abort();
-      if (this.viewer) { this.viewerTarget.appendChild(this.imageHostTarget); this.viewerTarget.appendChild(this.orphanHostTarget); }
+      if (this.viewer) { this.viewerTarget.appendChild(this.viewHeaderTarget); this.viewerTarget.appendChild(this.orphanHostTarget); }
       this.viewer?.cleanUp();
       this.viewer = undefined;
       this.loaded.clear();
@@ -89,6 +90,7 @@ function createChangesController(Controller: WorkspaceClientControllerConstructo
       this.renderedComments.clear();
       this.revealedLines.clear();
       this.headerTemplates.clear();
+      this.media.clear();
       this.editable.clear();
     }
 
@@ -126,11 +128,11 @@ function createChangesController(Controller: WorkspaceClientControllerConstructo
       this.element.querySelector('[data-action="changes#toggleUnchanged"]')!.setAttribute("aria-checked", String(this.showUnchanged));
       for (const template of this.element.querySelectorAll<HTMLTemplateElement>("template[data-changes-header]")) this.headerTemplates.set(template.dataset.changesHeader!, template);
       // SAFETY: renderChanges emits this private model with type-matched loading items.
-      const model = JSON.parse(this.modelTarget.textContent!) as { items: CodeViewItem<ChangesAnnotation>[]; files: { path: string; image: boolean }[] };
-      this.files = new Set(model.files.filter(file => !file.image).map(file => file.path));
+      const model = JSON.parse(this.modelTarget.textContent!) as { items: CodeViewItem<ChangesAnnotation>[]; files: { path: string }[] };
+      this.files = new Set(model.files.map(file => file.path));
+      for (const template of this.element.querySelectorAll<HTMLTemplateElement>("template[data-changes-media]")) this.media.set(template.dataset.changesMedia!, template);
       // SAFETY: The edit controller transfers only file disclosure booleans in this presentation model.
       const disclosure = new Map(Object.entries(JSON.parse(shell.dataset.changesFileCollapse ?? "{}") as Record<string, boolean>));
-      for (const image of this.imageFileTargets) image.open = !(disclosure.get(image.dataset.changesImage!) ?? this.collapsed);
       for (const item of model.items) if (item.type === "file") this.loaded.add(item.id);
       if (!model.files.length && !this.showUnchanged) { this.syncCollapseControl(); return; }
       const abort = this.abort = new AbortController();
@@ -152,8 +154,8 @@ function createChangesController(Controller: WorkspaceClientControllerConstructo
           this.gutters.set(button, { path: context.item.id, hovered });
           return button;
         },
-        renderAnnotation: ({ metadata }) => metadata.kind === "revert" ? this.renderRevert(metadata) : this.renderComment(metadata),
-        renderCodeViewHeader: () => this.imageHostTarget,
+        renderAnnotation: ({ metadata }) => metadata.kind === "media" ? this.renderMedia(metadata) : metadata.kind === "revert" ? this.renderRevert(metadata) : this.renderComment(metadata),
+        renderCodeViewHeader: () => this.viewHeaderTarget,
         renderCodeViewFooter: () => this.orphanHostTarget,
         diffStyle: this.layout,
         overflow: this.wrap ? "wrap" : "scroll",
@@ -162,7 +164,8 @@ function createChangesController(Controller: WorkspaceClientControllerConstructo
         layout: { paddingTop: 0, paddingBottom: 8, gap: 0 },
         itemMetrics: { diffHeaderHeight: this.headerHeight },
         unsafeCSS: viewerCSS,
-        onPostRender: (_node, _instance, _phase, context) => {
+        onPostRender: (node, _instance, _phase, context) => {
+          node.toggleAttribute("data-changes-media", context.item.annotations?.some(annotation => annotation.metadata.kind === "media") === true);
           // Unchanged files load on demand; there can be thousands of them.
           if (this.files.has(context.item.id) || !context.item.collapsed) void this.loadFile(context.item.id, abort.signal);
           if (context.type === "diff" && !this.element.dataset.codeEditing && this.loaded.has(context.item.id)) this.revealCommentLines(context.item, context.instance);
@@ -171,7 +174,7 @@ function createChangesController(Controller: WorkspaceClientControllerConstructo
       };
       this.viewer = new CodeView<ChangesAnnotation, undefined>(this.options);
       this.viewer.setup(this.viewerTarget);
-      if (this.hasEmptyTarget) this.imageHostTarget.prepend(this.emptyTarget);
+      if (this.hasEmptyTarget) this.viewHeaderTarget.prepend(this.emptyTarget);
       this.viewer.setItems(model.items.map((item) => ({ ...item, collapsed: disclosure.get(item.id) ?? this.collapsed })));
       if (this.showUnchanged) this.compose();
       const scroll = Number(shell.dataset.changesScroll ?? 0);
@@ -251,13 +254,10 @@ function createChangesController(Controller: WorkspaceClientControllerConstructo
       this.syncCollapseControl();
     }
 
-    imageToggled(): void { this.syncCollapseControl(); }
-
     private syncCollapseControl(): void {
       // Mixed states offer Collapse all; Expand all is only useful once everything is closed.
-      this.collapsed = (this.files.size > 0 || this.imageFileTargets.length > 0 || this.hasOrphanDisclosureTarget)
+      this.collapsed = (this.files.size > 0 || this.hasOrphanDisclosureTarget)
         && (!this.hasOrphanDisclosureTarget || !this.orphansOpen)
-        && this.imageFileTargets.every(image => !image.open)
         && [...this.files].every(path => this.viewer?.getItem(path)?.collapsed === true);
       if (!this.hasCollapseToggleTarget) return;
       this.collapseToggleTarget.disabled = false;
@@ -281,6 +281,8 @@ function createChangesController(Controller: WorkspaceClientControllerConstructo
         // Hiding unchanged files removes them; they load again when shown and opened.
         const previous = this.viewer!.getItem(path);
         if (signal.aborted || !previous) return;
+        const media = document.querySelector<HTMLTemplateElement>("template[data-changes-media]");
+        if (media) this.media.set(path, media);
         if (script.dataset.editable === "true") this.editable.add(path);
         this.loaded.add(path);
         this.viewer!.updateItem({ ...item, collapsed: previous.collapsed, version: (previous.version ?? 0) + 1 });
@@ -340,7 +342,7 @@ function createChangesController(Controller: WorkspaceClientControllerConstructo
 
     private revealCommentLines(item: CodeViewDiffItem<ChangesAnnotation>, instance: VirtualizedFileDiff<ChangesAnnotation, undefined>): void {
       // Pierre keeps annotations in collapsed context hidden. Reveal their exact line ranges.
-      for (const annotation of item.annotations ?? []) if (annotation.metadata.kind !== "revert") for (const line of [annotation.metadata.start, annotation.metadata.end]) {
+      for (const annotation of item.annotations ?? []) if (annotation.metadata.kind === "comment" || annotation.metadata.kind === "draft") for (const line of [annotation.metadata.start, annotation.metadata.end]) {
         const key = `${item.id}:${annotation.side}:${line}`;
         if (this.revealedLines.has(key)) continue;
         this.revealedLines.add(key);
@@ -352,6 +354,11 @@ function createChangesController(Controller: WorkspaceClientControllerConstructo
         if (following !== -1) instance.expandHunk(following, "up", start(following) - line);
         else instance.expandHunk(hunks.length - 1, "down", line - end(hunks.length - 1));
       }
+    }
+
+    private renderMedia(annotation: MediaAnnotation): HTMLElement {
+      // SAFETY: Media templates contain one server-rendered preview element.
+      return this.media.get(annotation.path)!.content.firstElementChild!.cloneNode(true) as HTMLElement;
     }
 
     private renderRevert(annotation: RevertAnnotation): HTMLElement {
@@ -560,7 +567,6 @@ function createChangesController(Controller: WorkspaceClientControllerConstructo
     toggleCollapse(): void {
       this.syncCollapseControl();
       this.collapsed = !this.collapsed;
-      for (const image of this.imageFileTargets) image.open = !this.collapsed;
       for (const path of this.files) {
         const item = this.viewer?.getItem(path);
         if (item) this.viewer!.updateItem({ ...item, collapsed: this.collapsed, version: (item.version ?? 0) + 1 });
