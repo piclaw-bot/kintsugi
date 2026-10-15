@@ -25,7 +25,7 @@ export type HttpHooks = {
 export type RegisterRequestSecret = (value: string) => void;
 export type SecretRequestTransform = (request: Request, registerSecret: RegisterRequestSecret) => Promise<Request>;
 
-export type SecretDefinition = { hosts: string[]; value: string; allowInPath?: boolean; resolve?: () => Promise<string>; placeholder?: string };
+export type SecretDefinition = { hosts: string[]; origins?: string[]; value: string; allowInPath?: boolean; resolve?: () => Promise<string>; placeholder?: string };
 export type CreateHttpHooksOptions = {
   allowedHosts?: string[];
   allowedInternalHosts?: string[];
@@ -154,6 +154,11 @@ function getHostname(url: string): string {
 
 function assertSecretValuesAllowedForHost(request: Request, hostname: string, entries: SecretEntry[], checkQuery: boolean) {
   for (const entry of entries) {
+    const origin = new URL(request.url).origin;
+    if (entry.origins && !entry.origins.includes(origin)) {
+      const values = [entry.value, entry.placeholder];
+      if (requestContainsSecretValuesInHeaders(request.headers, values) || (checkQuery && requestContainsSecretValuesInQuery(request.url, values)) || (entry.allowInPath && values.some(value => value && new URL(request.url).pathname.includes(value)))) throw new HttpRequestBlockedError(`secret ${entry.name} not allowed for origin: ${origin}`);
+    }
     if (matchesAnyHost(hostname, entry.hosts)) continue;
     if (requestContainsSecretValuesInHeaders(request.headers, [entry.value]) || (checkQuery && requestContainsSecretValuesInQuery(request.url, [entry.value]))) throw new HttpRequestBlockedError(`secret ${entry.name} not allowed for host: ${hostname || "unknown"}`);
   }

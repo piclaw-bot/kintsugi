@@ -1,7 +1,7 @@
 import { withHostNetworkBoundary } from "../egress/network-boundary.ts";
 import { workspaceTemplateIdOfInit, revealEffectiveSecrets, onWorkspaceTemplateStoreChanged, workspaceTemplateSecretPlaceholder, workspaceTemplateSecretHosts, workspaceTemplateSecretAllowsPath } from "@kintsugi/workspace-templates";
 import { getWorkspaceInit, getAppliedWorkspaceNetwork, type WorkspaceInitInstruction } from "@kintsugi/workspace";
-import { connectedGitHostingProviders, onGitHostingCredentialsChanged } from "@kintsugi/git-hosting";
+import { connectedGitHostingProviders, gitHostingConnection, onGitHostingCredentialsChanged } from "@kintsugi/git-hosting";
 import { matchHostname } from "./patterns.ts";
 import { privateNetworkDestinationAllowed } from "@kintsugi/shared/network-destinations";
 import { workspaceNetworkAddressAllowed } from "@kintsugi/shared/network-policy";
@@ -61,7 +61,8 @@ export async function createWorkspaceSecretContext(workspaceId: string, init?: W
   const plainEnv: Record<string, string> = {};
   for (const { provider, credential } of connectedGitHostingProviders()) {
     const placeholder = workspaceTemplateSecretPlaceholder(provider.tokenEnvVar);
-    secrets[provider.tokenEnvVar] = { value: credential.token, hosts: provider.tokenHosts, placeholder };
+    const connection = gitHostingConnection(provider, credential);
+    secrets[provider.tokenEnvVar] = { value: credential.token, hosts: connection.tokenHosts, origins: connection.tokenOrigins, placeholder };
     Object.assign(plainEnv, provider.workspaceEnv(credential));
     for (const alias of provider.tokenEnvAliases) plainEnv[alias] = placeholder;
   }

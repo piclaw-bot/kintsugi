@@ -51,17 +51,21 @@ function connectionForm(surface: SettingsSurface, provider: GitHostingProvider, 
   const account = connectForm.account
     ? `<input class="settings-input text-field" type="email" name="account" placeholder="${escapeHtml(connectForm.account.placeholder)}" aria-label="${escapeHtml(connectForm.account.label)}" autocomplete="email" required>`
     : "";
+  const server = connectForm.serverUrl
+    ? `<input class="settings-input text-field" type="url" name="serverUrl" placeholder="${escapeHtml(connectForm.serverUrl.placeholder)}" aria-label="${escapeHtml(connectForm.serverUrl.label)}" autocomplete="url" required>`
+    : "";
   return `<form id="${connectFormId(surface, provider)}" class="git-hosting-connect-form${rowClass} form-stack" method="post" action="${routePath(provider, "connect", surface)}" data-turbo="true">
     ${connectForm.instructionsHtml}
     <p>Kintsugi keeps the token outside Agent sandboxes, so Agents can work with your ${escapeHtml(provider.label)} repositories without seeing it.</p>
     ${error ? `<p class="settings-error">${escapeHtml(error)}</p>` : ""}
-    ${account}
+    ${server}${account}
     <div class="git-hosting-connect-controls"><input class="settings-input text-field" type="password" data-1p-ignore name="token" placeholder="${escapeHtml(connectForm.tokenPlaceholder)}" aria-label="${escapeHtml(provider.label)} token" autocomplete="off" required>${connectButton}</div>
   </form>`;
 }
 
 export function renderGitHostingConnection(surface: SettingsSurface, provider: GitHostingProvider, options: { expanded?: boolean; error?: string } = {}): string {
-  const connected = Boolean(provider.credential());
+  const credential = provider.credential();
+  const connected = Boolean(credential);
   const id = connectionId(surface, provider);
   if (surface === "onboarding" && !connected) return `<div class="git-hosting-connection" id="${id}">${connectionForm(surface, provider, options.error ?? "")}</div>`;
   const expanded = !connected && (options.expanded || Boolean(options.error));
@@ -70,7 +74,7 @@ export function renderGitHostingConnection(surface: SettingsSurface, provider: G
     : expanded ? "" : actionLinkHtml({ href: `/settings/git-hosting/${provider.id}/connect`, variant: "secondary", content: { kind: "caption", caption: "Connect" }, attributesHtml: 'data-turbo-stream="true"' });
   return `<div class="managed-list__item git-hosting-connection" id="${id}">
     ${providerBadgeHtml(provider.id, provider.label, "settings-provider-icon managed-list__visual")}
-    <div class="managed-list__content"><div class="managed-list__label"><span class="managed-list__label-text">${escapeHtml(provider.label)}</span></div>${expanded ? connectionForm(surface, provider, options.error ?? "") : ""}</div>
+    <div class="managed-list__content"><div class="managed-list__label"><span class="managed-list__label-text">${escapeHtml(provider.label)}</span></div>${credential?.serverUrl ? `<div class="git-hosting-server-url">${escapeHtml(credential.serverUrl)}</div>` : ""}${expanded ? connectionForm(surface, provider, options.error ?? "") : ""}</div>
     ${actions ? `<div class="managed-list__actions">${actions}</div>` : ""}
   </div>`;
 }
@@ -92,9 +96,11 @@ export async function handleGitHostingSettingsRequest(request: Request, url: URL
     const form = await request.formData();
     const token = String(form.get("token") ?? "").trim();
     const account = form.has("account") ? String(form.get("account")).trim() : undefined;
-    const validation = await provider.validateCredential({ token, account });
+    const serverUrl = form.has("serverUrl") ? String(form.get("serverUrl")).trim() : undefined;
+    const credential = { token, account, serverUrl };
+    const validation = await provider.validateCredential(credential);
     if (!validation.ok) return stream(replace(connectionId(surface, provider), renderGitHostingConnection(surface, provider, { error: validation.message })));
-    saveGitHostingCredential(provider, { token, account });
+    saveGitHostingCredential(provider, validation.credential ?? credential);
     if (!await getStoredCommitIdentity()) await setCommitIdentity(validation.identity);
     return surface === "onboarding"
       ? stream(update("onboarding_modal_host", await renderOnboardingDialog({ resumeAfterConnect: true })))

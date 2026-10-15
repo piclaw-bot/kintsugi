@@ -77,6 +77,28 @@ describe("workspace secrets", () => {
     expect((await getWorkspaceSecretContext("test-workspace", async () => undefined)).env.GITLAB_TOKEN).toBe("KINTSUGI_PROXY_READY_GITLAB_TOKEN");
   });
 
+  test("a configurable Gitea token is restricted to its exact HTTPS origin without granting private network access", async () => {
+    const provider = gitHostingProvider("gitea");
+    saveGitHostingCredential(provider, { serverUrl: "https://git.example.test:8443/forge", account: "alice", token: "gitea-origin-secret" });
+    const context = await createWorkspaceSecretContext("test-workspace");
+    expect(context.env.GITEA_TOKEN).toBe("KINTSUGI_PROXY_READY_GITEA_TOKEN");
+    expect(Object.values(context.env)).not.toContain("gitea-origin-secret");
+    const auth = `Basic ${btoa(`alice:${context.env.GITEA_TOKEN}`)}`;
+    const result = await context.hooks.onRequest(new Request("https://git.example.test:8443/forge/alice/repo.git", { headers: { authorization: auth } }));
+    expect(result.headers.get("authorization")).toBe(`Basic ${btoa("alice:gitea-origin-secret")}`);
+    expect(context.hooks.scrubResponseHeader(result.headers.get("authorization")!, result)).not.toContain(btoa("alice:gitea-origin-secret"));
+    for (const origin of ["https://git.example.test", "http://git.example.test:8443", "https://git.example.test:9443", "https://other.example.test:8443"]) {
+      await expect(context.hooks.onRequest(new Request(origin, { headers: { authorization: auth } }))).rejects.toThrow("not allowed for origin");
+    }
+    expect(await context.hooks.isIpAllowed!({ hostname: "git.example.test", ip: "192.168.1.8", family: 4, port: 8443, protocol: "https" })).toBe(false);
+    saveGitHostingCredential(provider, { serverUrl: "https://new.example.test", account: "bob", token: "rotated-secret" });
+    const rotated = await getWorkspaceSecretContext("test-workspace", async () => undefined);
+    expect(rotated).not.toBe(context);
+    await expect(rotated.hooks.onRequest(new Request("https://git.example.test:8443", { headers: { authorization: auth } }))).rejects.toThrow("not allowed for origin");
+    clearGitHostingCredential(provider);
+    expect((await getWorkspaceSecretContext("test-workspace", async () => undefined)).env.GITEA_TOKEN).toBeUndefined();
+  });
+
   test("includes encrypted Workspace template secrets with default and custom placeholders", async () => {
     const workspaceTemplate = (await addWorkspaceTemplate("https://github.com/org/repo.git")).workspaceTemplate;
     await createWorkspaceTemplateSecret(workspaceTemplate.id, { envName: "API_TOKEN", hostPattern: "api.example.com, *.example.org", secretValue: "real-secret" });

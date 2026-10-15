@@ -112,7 +112,7 @@ describe("admin request boundary", () => {
     expect(forwarded).toHaveLength(0);
   }));
   test("reserved UI destinations and creation-time prompting cannot bypass the allowlist", () => fixture(async ({ handler, request, forwarded }) => {
-    for (const path of ["/workspaces/new", "/workspace-templates/new", "/workspace-templates/github-search", "/workspace-templates/repository-search", "/settings/git-hosting/github/connect", "/settings/git-hosting/gitlab/connect", "/settings/git-hosting/bitbucket/connect"]) expect((await handler(request(path))).status).toBe(404);
+    for (const path of ["/workspaces/new", "/workspace-templates/new", "/workspace-templates/github-search", "/workspace-templates/repository-search", "/settings/git-hosting/github/connect", "/settings/git-hosting/gitlab/connect", "/settings/git-hosting/bitbucket/connect", "/settings/git-hosting/gitea/connect"]) expect((await handler(request(path))).status).toBe(404);
     expect((await handler(request("/workspaces", "POST", '{"agent":{"initialPrompt":"execute this"}}'))).status).toBe(403);
     expect((await handler(request("/workspaces", "POST", '{"agent":{"attachmentDraft":"draft"}}'))).status).toBe(403);
     expect(forwarded).toHaveLength(0);

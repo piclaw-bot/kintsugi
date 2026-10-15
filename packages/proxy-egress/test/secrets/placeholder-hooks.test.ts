@@ -22,6 +22,20 @@ describe("secret placeholder hooks", () => {
     expect(result.headers.get("authorization")).toBe("Bearer real-secret");
   });
 
+  test("optional origin restrictions reject plaintext, alternate ports and literal credentials before injection", async () => {
+    const { httpHooks } = createHttpHooks({ secrets: { TOKEN: { value: "gitea-secret", hosts: ["git.example.test"], origins: ["https://git.example.test:8443"], placeholder: "GITEA_PLACEHOLDER", allowInPath: true } } });
+    for (const origin of ["http://git.example.test:8443", "https://git.example.test", "https://git.example.test:9443"]) {
+      for (const authorization of ["token GITEA_PLACEHOLDER", "token gitea-secret", `Basic ${btoa("alice:GITEA_PLACEHOLDER")}`, `Basic ${btoa("alice:gitea-secret")}`]) {
+        const request = new Request(origin, { headers: { authorization } });
+        await expect(httpHooks.onRequest(request)).rejects.toThrow("not allowed for origin");
+        expect(request.headers.get("authorization")).toBe(authorization);
+      }
+      await expect(httpHooks.onRequest(new Request(`${origin}/GITEA_PLACEHOLDER`))).rejects.toThrow("not allowed for origin");
+    }
+    const allowed = await httpHooks.onRequest(new Request("https://git.example.test:8443/repo", { headers: { authorization: "token GITEA_PLACEHOLDER" } }));
+    expect(allowed.headers.get("authorization")).toBe("token gitea-secret");
+  });
+
   test("blocks placeholder sent to disallowed host", async () => {
     const hooks = createHttpHooks({ secrets: { GH_TOKEN: { value: "real-secret", hosts: ["github.com"], placeholder: "KINTSUGI_SECRET_fake" } } });
     await expect(hooks.httpHooks.onRequest!(new Request("https://example.com", { headers: { authorization: "Bearer KINTSUGI_SECRET_fake" } }))).rejects.toBeInstanceOf(HttpRequestBlockedError);

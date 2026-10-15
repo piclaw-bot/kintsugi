@@ -340,7 +340,7 @@ function workspaceCreateDockerArgs(container: string, image: string, plan: Works
 function workspaceGitCredentialInitScript(): string {
   return `cat > /usr/local/bin/kintsugi-git-credential <<'EOF'
 #!/bin/sh
-${gitCredentialHelperShellBody}
+${gitCredentialHelperShellBody()}
 EOF
 chmod 755 /usr/local/bin/kintsugi-git-credential
 git config --system credential.helper '!/usr/local/bin/kintsugi-git-credential'`;

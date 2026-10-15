@@ -297,6 +297,7 @@
     "packages/git-hosting": {
       "name": "@kintsugi/git-hosting",
       "dependencies": {
+        "@kintsugi/gitea": "workspace:*",
         "@kintsugi/gitlab": "workspace:*",
         "@kintsugi/bitbucket": "workspace:*",
         "@kintsugi/core": "workspace:*",
@@ -319,6 +320,13 @@
     },
     "packages/gitlab": {
       "name": "@kintsugi/gitlab",
+      "dependencies": {
+        "@kintsugi/core": "workspace:*",
+        "typebox": "^1.0.57"
+      }
+    },
+    "packages/gitea": {
+      "name": "@kintsugi/gitea",
       "dependencies": {
         "@kintsugi/core": "workspace:*",
         "typebox": "^1.0.57"
@@ -575,6 +583,8 @@
     "@gespenst/core": "0.1.1",
   },
   "packages": {
+    "@kintsugi/gitea": ["@kintsugi/gitea@workspace:packages/gitea"],
+
     "@kintsugi/gitlab": ["@kintsugi/gitlab@workspace:packages/gitlab"],
 
     "@kintsugi/bitbucket": ["@kintsugi/bitbucket@workspace:packages/bitbucket"],

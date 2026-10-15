@@ -65,6 +65,24 @@ test("searches every connected provider and keeps one provider's rate limit to i
   expect(searches[1]!.notice).toBe("GitLab search is rate limited. Try again in 9 seconds.");
 });
 
+test("a configured Gitea instance is searched without sending its credential to other providers", async () => {
+  gitHostingProvider("gitea").saveCredential({ serverUrl: "https://git.example.test:8443/forge", account: "alice", token: "gitea-search-secret" });
+  const githubFetch = globalThis.fetch;
+  globalThis.fetch = Object.assign(async (input: Parameters<typeof fetch>[0], init?: RequestInit) => {
+    const url = new URL(String(input));
+    if (url.host === "git.example.test:8443") {
+      expect(url.pathname).toBe("/forge/api/v1/repos/search");
+      expect(new Headers(init?.headers).get("authorization")).toBe("token gitea-search-secret");
+      return Response.json({ data: [{ full_name: "alice/private", private: true, clone_url: "https://git.example.test:8443/forge/alice/private.git" }] });
+    }
+    expect(new Headers(init?.headers).get("authorization") ?? "").not.toContain("gitea-search-secret");
+    return githubFetch(input, init);
+  }, { preconnect: originalFetch.preconnect });
+  const results = await searchRepositories("private");
+  expect(results.map(result => result.provider.id)).toEqual(["github", "gitea"]);
+  expect(results[1]!.repositories[0]).toMatchObject({ fullName: "alice/private", private: true });
+});
+
 test("results are cached per provider, credential and normalized query", async () => {
   await searchRepositories("cached");
   const count = requests.length;

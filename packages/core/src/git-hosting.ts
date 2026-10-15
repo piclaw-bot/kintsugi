@@ -4,11 +4,14 @@ import { dirname, join } from "node:path";
 import type { Static, TSchema } from "typebox";
 import { Value } from "typebox/value";
 import { getKintsugiRuntimeContext } from "./runtime-context.ts";
+import { shellQuote } from "./shell.ts";
 
 export interface GitHostingCredential {
   token: string;
   /** The account the token belongs to, for providers whose API needs it next to the token. */
   account?: string;
+  /** Configured instance for self-hosted providers. */
+  serverUrl?: string;
 }
 
 export interface GitHostingIdentity {
@@ -16,7 +19,7 @@ export interface GitHostingIdentity {
   email: string;
 }
 
-export type GitHostingValidation = { ok: true; identity: GitHostingIdentity } | { ok: false; message: string };
+export type GitHostingValidation = { ok: true; identity: GitHostingIdentity; credential?: GitHostingCredential } | { ok: false; message: string };
 
 export interface GitHostingRepository {
   fullName: string;
@@ -36,6 +39,7 @@ export interface GitHostingConnectForm {
   instructionsHtml: string;
   tokenPlaceholder: string;
   account?: { label: string; placeholder: string };
+  serverUrl?: { label: string; placeholder: string };
 }
 
 /** One place where people keep repositories, connected with a token that never enters a workspace. */
@@ -51,6 +55,10 @@ export interface GitHostingProvider {
   tokenEnvAliases: string[];
   /** Hosts where the egress proxy substitutes the real token. */
   tokenHosts: string[];
+  /** Exact HTTPS origins for a configurable provider; restricts scheme and port as well as host. */
+  tokenOrigins?: string[];
+  /** Resolve instance-specific routing from the same credential snapshot used for its token. */
+  connection?(credential: GitHostingCredential): Pick<GitHostingProvider, "gitHost" | "gitUsername" | "tokenHosts" | "tokenOrigins">;
   /** Verified known_hosts records trusted by default. */
   sshKnownHosts: string;
   connectForm: GitHostingConnectForm;
@@ -79,7 +87,7 @@ export function createGitHostingCache<T>(ttlMs: number): (credential: GitHosting
   return async (credential, key, load) => {
     const now = Date.now();
     for (const [entryKey, entry] of entries) if (entry.expiresAt <= now) entries.delete(entryKey);
-    const credentialKey = credential ? createHash("sha256").update(`${credential.account ?? ""}:${credential.token}`).digest("hex") : "anonymous";
+    const credentialKey = credential ? createHash("sha256").update(JSON.stringify([credential.serverUrl ?? "", credential.account ?? "", credential.token])).digest("hex") : "anonymous";
     const cacheKey = `${credentialKey}:${key}`;
     const cached = entries.get(cacheKey);
     if (cached) return cached.value;
@@ -121,7 +129,11 @@ type CredentialHelperProvider = Pick<GitHostingProvider, "gitHost" | "gitUsernam
 
 // Submodule URLs are repository-controlled, so each token is only offered to its own host.
 export function gitCredentialHelperShellBody(providers: readonly CredentialHelperProvider[]): string {
-  const cases = providers.map((provider) => `    ${provider.gitHost}|${provider.gitHost}:443) username=${provider.gitUsername}; token="\${${provider.tokenEnvVar}:-}" ;;`).join("\n");
+  const cases = providers.filter(provider => provider.gitHost).map((provider) => {
+    const host = new URL(`https://${provider.gitHost}`);
+    const hosts = host.port ? [host.host] : [host.host, `${host.hostname}:443`];
+    return `    ${hosts.map(shellQuote).join("|")}) username=${shellQuote(provider.gitUsername)}; token="\${${provider.tokenEnvVar}:-}" ;;`;
+  }).join("\n");
   return `test "$1" = get || exit 0
 protocol=
 host=

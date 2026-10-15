@@ -155,6 +155,7 @@ const providerBrandColors: BrandStringRegistry = {
   github: "#24292f",
   gitlab: "#FC6D26",
   bitbucket: "#0052CC",
+  gitea: "#609926",
 };
 
 function providerInitial(label: string): string {

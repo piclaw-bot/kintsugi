@@ -2,8 +2,9 @@ import { gitCredentialHelperShellBody as credentialHelperShellBody, invalidArgum
 import { bitbucketProvider } from "@kintsugi/bitbucket";
 import { gitHubProvider } from "@kintsugi/github";
 import { gitLabProvider } from "@kintsugi/gitlab";
+import { giteaProvider } from "@kintsugi/gitea";
 
-export const gitHostingProviders: readonly GitHostingProvider[] = [gitHubProvider, gitLabProvider, bitbucketProvider];
+export const gitHostingProviders: readonly GitHostingProvider[] = [gitHubProvider, gitLabProvider, bitbucketProvider, giteaProvider];
 
 export function gitHostingProvider(id: string): GitHostingProvider {
   const provider = gitHostingProviders.find((candidate) => candidate.id === id);
@@ -34,18 +35,26 @@ export function clearGitHostingCredential(provider: GitHostingProvider): void {
   for (const listener of listeners) listener();
 }
 
-export const gitCredentialHelperShellBody = credentialHelperShellBody(gitHostingProviders);
-
-export const gitCredentialHelperCommand = `!f() { ${gitCredentialHelperShellBody}; }; f`;
-
-/** Real tokens for host-side git; workspaces only ever receive placeholders. */
-export function gitHostingTokenEnvironment(): Record<string, string> {
-  return Object.fromEntries(connectedGitHostingProviders().map(({ provider, credential }) => [provider.tokenEnvVar, credential.token]));
+export function gitHostingConnection(provider: GitHostingProvider, credential: GitHostingCredential) {
+  return provider.connection?.(credential) ?? provider;
 }
+
+/** Capture configurable hosts, usernames and tokens together, so instance rotation cannot mix credentials. */
+export function gitHostingGitConfiguration() {
+  const connected = new Map(connectedGitHostingProviders().map(({ provider, credential }) => [provider, credential]));
+  const providers = gitHostingProviders.map(provider => {
+    const credential = connected.get(provider);
+    return { ...(credential ? gitHostingConnection(provider, credential) : provider), tokenEnvVar: provider.tokenEnvVar };
+  });
+  const shellBody = credentialHelperShellBody(providers);
+  return { shellBody, command: `!f() { ${shellBody}; }; f`, environment: Object.fromEntries([...connected].map(([provider, credential]) => [provider.tokenEnvVar, credential.token])) };
+}
+
+export function gitCredentialHelperShellBody(): string { return gitHostingGitConfiguration().shellBody; }
 
 export const gitHostingKnownHosts = gitHostingProviders.map((provider) => provider.sshKnownHosts).join("");
 
 /** `github.com/org/repo` style shorthand for a provider-hosted repository. */
 export function gitHostingShorthandUrl(spec: string): string | undefined {
-  return gitHostingProviders.some((provider) => spec.toLowerCase().startsWith(`${provider.gitHost}/`)) ? `https://${spec}` : undefined;
+  return gitHostingProviders.some((provider) => provider.gitHost && spec.toLowerCase().startsWith(`${provider.gitHost}/`)) ? `https://${spec}` : undefined;
 }
