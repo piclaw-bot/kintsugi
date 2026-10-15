@@ -43,6 +43,8 @@ const modelsHosts: readonly ModelsHost[] = ["dialog", "settings", "onboarding"];
 const ids = {
   panel: (host: ModelsHost) => domId("models_panel", host),
   connect: (host: ModelsHost) => domId("models_connect", host),
+  reconnect: (host: ModelsHost, provider: string) => domId("models_reconnect", host, provider),
+  connectionStep: (host: ModelsHost, provider: string, reconnect: boolean) => reconnect ? ids.reconnect(host, provider) : ids.connect(host),
   otherProviders: (host: ModelsHost) => domId("models_other_providers", host),
   enabledModels: (host: ModelsHost) => domId("models_enabled_models", host),
   catalogue: (host: ModelsHost) => domId("models_catalogue", host),
@@ -107,7 +109,7 @@ function renderAccountCard(account: Account, host: ModelsHost, open: boolean): s
     : `<turbo-frame class="model-provider-usage" id="${providerUsageFrameId("limits", account.id, host)}" src="${usagePath}/limits?scope=${host}" loading="lazy"><p class="usage-caption" role="status"><span class="status-spinner" aria-hidden="true"></span> Checking usage…</p></turbo-frame>`;
   const notice = account.provider === "anthropic" && account.method === "subscription" ? warningBannerHtml(anthropicSubscriptionNotice) : "";
   const reconnect = account.method === "subscription" && account.connection === "needs_attention"
-    ? `<form method="post" action="/models/providers/${encodeURIComponent(account.provider)}/connect?${hostQuery(host)}&method=oauth" data-turbo="true">${buttonHtml({ type: "submit", variant: "primary", content: { kind: "caption", caption: "Sign in again" } })}</form>`
+    ? `<form method="post" action="/models/providers/${encodeURIComponent(account.provider)}/connect?${hostQuery(host)}&reconnect=1" data-turbo="true">${buttonHtml({ type: "submit", variant: "primary", content: { kind: "caption", caption: "Sign in again" } })}</form>`
     : "";
   const disconnect = `<form method="post" action="/models/providers/${encodeURIComponent(account.provider)}/forget?${hostQuery(host)}" data-turbo="true">${destructiveConfirmationHtml({
     id: domId("forget_provider", host, account.id),
@@ -123,7 +125,10 @@ function renderAccountCard(account: Account, host: ModelsHost, open: boolean): s
     leadingHtml: providerIcon(account.provider, account.label),
     trailingHtml: rings,
   };
-  return `<div class="model-account">${disclosureHtml({ summary, open: open || account.connection === "needs_attention", bodyHtml: `<div class="form-section">${notice}${usage}<div class="model-account__actions">${reconnect}${disconnect}</div></div>` })}</div>`;
+  const actions = `<div class="model-account__actions">${reconnect}${disconnect}</div>`;
+  // Signing in again happens right here in the card, in place of its actions.
+  const actionsHtml = reconnect ? `<turbo-frame id="${ids.reconnect(host, account.provider)}" class="model-connect">${actions}</turbo-frame>` : actions;
+  return `<div class="model-account">${disclosureHtml({ summary, open: open || account.connection === "needs_attention", bodyHtml: `<div class="form-section">${notice}${usage}${actionsHtml}</div>` })}</div>`;
 }
 
 function renderProviderChoice(provider: Pick<ProviderChoice, "provider" | "label">, host: ModelsHost, width: "fit" | "fill" = "fit", customApi?: CustomOpenAIProtocol): string {
@@ -149,8 +154,8 @@ function renderOtherProviders(providers: ProviderChoice[], host: ModelsHost, que
   return `<turbo-frame id="${ids.otherProviders(host)}"><div class="model-providers" tabindex="0" role="region" aria-label="Other model providers">${choices || '<div class="managed-list__empty" role="status">No matching model providers.</div>'}</div></turbo-frame>`;
 }
 
-function connectFrame(host: ModelsHost, body: string): string {
-  return `<turbo-frame id="${ids.connect(host)}" class="model-connect">${body}</turbo-frame>`;
+function connectFrame(host: ModelsHost, body: string, frameId = ids.connect(host)): string {
+  return `<turbo-frame id="${frameId}" class="model-connect">${body}</turbo-frame>`;
 }
 
 /** Providers without an account yet, split into popular ones and the rest. */
@@ -334,14 +339,16 @@ function renderConnectionStep(provider: Pick<ProviderChoice, "provider" | "label
   bodyHtml: string;
   actionsHtml?: string;
   attributesHtml?: string;
+  /** Signing in again inside the provider's card, which already names the provider. */
+  reconnect?: boolean;
 }): string {
-  return connectFrame(host, `<div id="model_connection_step" class="model-provider-connection"${options.attributesHtml ? ` ${options.attributesHtml}` : ""}>
-    ${providerHeading(provider)}
+  return connectFrame(host, `<div id="model_connection_step" class="model-provider-connection${options.reconnect ? " model-provider-connection--reconnect" : ""}"${options.attributesHtml ? ` ${options.attributesHtml}` : ""}>
+    ${options.reconnect ? "" : providerHeading(provider)}
     <div class="model-connection-content">
       ${options.bodyHtml}
     </div>
     <div class="model-setup-actions">${options.actionsHtml ?? backToChoices(host)}</div>
-  </div>`);
+  </div>`, ids.connectionStep(host, provider.provider, options.reconnect ?? false));
 }
 function openAISignInNotice(provider: string): string {
   return provider === "openai" ? warningBannerHtml({
@@ -399,7 +406,7 @@ async function connectStep(providerId: string, host: ModelsHost, requestedMethod
   const provider = providerChoices(runtime).find((candidate) => candidate.provider === providerId);
   if (!provider) throw new Error(`Unknown provider: ${providerId}`);
   const method = provider.methods.find((candidate) => candidate === requestedMethod) ?? (provider.methods.length === 1 ? provider.methods[0] : undefined);
-  if (method === "oauth") return renderOAuthConnectionStep(await startOAuthFlow(provider, host));
+  if (method === "oauth") return renderOAuthConnectionStep(await startOAuthFlow({ ...provider, host, reconnect: false }));
   if (method === "api_key") return renderApiKeyConnectionStep(provider, host);
   return renderConnectionMethods(provider, host);
 }
@@ -410,6 +417,7 @@ type PendingOAuthFlow = {
   provider: string;
   label: string;
   host: ModelsHost;
+  reconnect: boolean;
   revision: number;
   loginMethod: "default" | "browser";
   status: "pending" | "complete" | "error";
@@ -425,19 +433,19 @@ type PendingOAuthFlow = {
 
 const pendingOAuthFlows = new Map<string, PendingOAuthFlow>();
 
-async function startOAuthFlow(provider: Pick<ProviderChoice, "provider" | "label">, host: ModelsHost, loginMethod: PendingOAuthFlow["loginMethod"] = "default"): Promise<PendingOAuthFlow> {
+async function startOAuthFlow(target: Pick<PendingOAuthFlow, "provider" | "label" | "host" | "reconnect">, loginMethod: PendingOAuthFlow["loginMethod"] = "default"): Promise<PendingOAuthFlow> {
   // The credential runtime serializes logins per provider. An abandoned dialog must
   // not leave the next attempt queued behind a device code nobody will approve.
   for (const previous of pendingOAuthFlows.values()) {
-    if (previous.provider !== provider.provider || previous.status !== "pending") continue;
+    if (previous.provider !== target.provider || previous.status !== "pending") continue;
     previous.status = "error";
     previous.error = "This sign-in was replaced by a newer attempt. Start again to connect.";
     previous.prompt = undefined;
     previous.abort.abort();
   }
-  const flow: PendingOAuthFlow = { id: crypto.randomUUID(), provider: provider.provider, label: provider.label, host, loginMethod, revision: 0, status: "pending", abort: new AbortController() };
+  const flow: PendingOAuthFlow = { id: crypto.randomUUID(), provider: target.provider, label: target.label, host: target.host, reconnect: target.reconnect, loginMethod, revision: 0, status: "pending", abort: new AbortController() };
   pendingOAuthFlows.set(flow.id, flow);
-  void loginPiOAuthProvider(provider.provider, {
+  void loginPiOAuthProvider(target.provider, {
     signal: flow.abort.signal,
     notify: (event) => {
       if (event.type === "auth_url") { flow.revision++; flow.authUrl = event.url; }
@@ -445,7 +453,7 @@ async function startOAuthFlow(provider: Pick<ProviderChoice, "provider" | "label
     },
     prompt: (prompt) => handleOAuthPrompt(flow, prompt),
   }).then(async () => {
-    await seedProviderEnabledModels(provider.provider);
+    await seedProviderEnabledModels(target.provider);
     flow.status = "complete";
     flow.prompt = undefined;
   }).catch((error) => {
@@ -620,6 +628,7 @@ function renderOAuthConnectionStep(flow: PendingOAuthFlow): string {
   return renderConnectionStep(flow, flow.host, {
     bodyHtml: `${flow.status !== "complete" ? openAISignInNotice(flow.provider) : ""}${body}`,
     actionsHtml: alternateLogin ? `<div class="model-setup-choices">${action}${alternateLogin}</div>` : action,
+    reconnect: flow.reconnect,
     attributesHtml: `data-controller="oauth-flow" data-oauth-flow-status-url-value="${oauthFlowPath(flow, "status")}?revision=${flow.revision}" data-oauth-flow-active-value="${flow.status === "pending" && !(flow.prompt && !flow.authUrl && !flow.verificationUri)}" data-oauth-flow-poll-ms-value="${pollMs}"`,
   });
 }
@@ -717,9 +726,13 @@ export async function handleModelsRequest(request: Request, url: URL, renderPick
   }
   let match = url.pathname.match(/^\/models\/providers\/([^/]+)\/connect$/);
   if (match && request.method === "POST") {
-    const provider = decodeURIComponent(match[1]!);
-    if (!providerChoices(await createPiModelRuntime()).some((candidate) => candidate.provider === provider)) return response("Unknown provider", { status: 400 });
-    return stream(replace(ids.connect(host), await connectStep(provider, host, url.searchParams.get("method") ?? undefined)));
+    const provider = providerChoices(await createPiModelRuntime()).find((candidate) => candidate.provider === decodeURIComponent(match![1]!));
+    if (!provider) return response("Unknown provider", { status: 400 });
+    if (url.searchParams.get("reconnect") === "1") {
+      const flow = await startOAuthFlow({ ...provider, host, reconnect: true });
+      return stream(replace(ids.reconnect(host, flow.provider), renderOAuthConnectionStep(flow)));
+    }
+    return stream(replace(ids.connect(host), await connectStep(provider.provider, host, url.searchParams.get("method") ?? undefined)));
   }
   match = url.pathname.match(/^\/models\/providers\/([^/]+)\/api-key$/);
   if (match && request.method === "POST") {
@@ -744,9 +757,9 @@ export async function handleModelsRequest(request: Request, url: URL, renderPick
     if (!flow || flow.provider !== provider) return response("Sign-in session expired", { status: 410 });
     if (action === "browser") {
       if (!canSwitchToBrowserAuth(flow)) return response("Browser sign-in cannot replace this attempt", { status: 409 });
-      const next = await startOAuthFlow(flow, flow.host, "browser");
+      const next = await startOAuthFlow(flow, "browser");
       pendingOAuthFlows.delete(flowId);
-      return stream(replace(ids.connect(flow.host), renderOAuthConnectionStep(next)));
+      return stream(replace(ids.connectionStep(flow.host, flow.provider, flow.reconnect), renderOAuthConnectionStep(next)));
     }
     if (action === "prompt") {
       const form = await request.formData();
@@ -765,7 +778,7 @@ export async function handleModelsRequest(request: Request, url: URL, renderPick
       return panelResponse(flow.host, renderPickerUpdates);
     }
     if (action === "status" && flow.status === "pending" && url.searchParams.get("revision") === String(flow.revision)) return stream("");
-    return stream(replace(ids.connect(flow.host), renderOAuthConnectionStep(flow)));
+    return stream(replace(ids.connectionStep(flow.host, flow.provider, flow.reconnect), renderOAuthConnectionStep(flow)));
   }
   match = url.pathname.match(/^\/models\/providers\/([^/]+)\/forget$/);
   if (match && request.method === "POST") {

@@ -36,6 +36,7 @@
 .model-connection-content { display: grid; gap: 16px; min-width: 0; overflow-wrap: anywhere; }
 .model-connection-content .settings-oauth-card { min-width: 0; }
 .model-provider-connection > .model-setup-actions { margin-top: 0; }
+.model-provider-connection--reconnect { padding: 0; border: 0; }
 .model-provider-results { display: block; }
 .model-provider-models { max-height: min(280px, 30vh); padding-block: 4px; }
 .enabled-models .managed-list__items { max-height: min(260px, 32vh); }
