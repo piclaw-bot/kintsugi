@@ -15,7 +15,7 @@ import { durableEntryContent } from "../../src/server/durable-images.ts";
 import { CodemodeSandbox } from "@earendil-works/pi-codemode";
 import { createWorkspaceCodemodeExtension } from "../../src/server/durable-codemode.ts";
 import { durableViewState, projectDurableTranscript } from "../../src/server/durable-transcript.ts";
-import type { ToolView, TranscriptItem } from "@agents-in-the-cloud/agent/server/transcript";
+import type { ToolView, TranscriptItem } from "@kintsugi/agent/server/transcript";
 
 const context = BACKGROUND_CONTEXT;
 const paths: string[] = [];
