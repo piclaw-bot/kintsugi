@@ -28,8 +28,8 @@ const roles = tagHighlighter([
   { tag: [tags.typeName, tags.className], class: "type" },
   { tag: tags.tagName, class: "tag" },
   { tag: tags.attributeName, class: "attribute" },
-  { tag: tags.function(tags.variableName), class: "function" },
-  { tag: [tags.variableName, tags.propertyName], class: "variable" },
+  { tag: [tags.function(tags.variableName), tags.function(tags.propertyName)], class: "function" },
+  { tag: tags.variableName, class: "variable" },
   { tag: [tags.operator, tags.punctuation], class: "punctuation" },
 ]);
 

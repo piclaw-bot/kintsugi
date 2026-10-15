@@ -31,6 +31,14 @@ test("parser recognizes nested web languages and TypeScript JSX", () => {
   expect(parserHighlightSpans("print('hello')", "python")).toBeUndefined();
 });
 
+test("parser colors method calls as functions and leaves property names plain", () => {
+  const code = "const entry = { name: task.name, at: Date.now() };";
+  const roles = new Map(parserHighlightSpans(code, "javascript")!.map((span) => [code.slice(span.from, span.to), span.role]));
+  expect(roles.get("now")).toBe("function");
+  expect(roles.get("task")).toBe("variable");
+  expect(roles.has("name")).toBe(false);
+});
+
 test("highlight cache shares resolved aliases without sharing different languages", () => {
   const code = "const cacheIdentityTest = 92841;";
   const first = highlightCodeHtml({ code, language: "js" });
