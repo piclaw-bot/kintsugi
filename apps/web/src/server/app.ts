@@ -495,12 +495,21 @@ export function createWebApp(deps: WebAppDeps): WebApp {
       agent: presentation.agents.find(agent => agent.id === selection.agent)?.id ?? presentation.agents[0]?.id,
       workView: presentation.workViews.find(view => view.key === selection.workView)?.key,
     };
+    async function loadPane(label: string, render: () => string | Promise<string>): Promise<string> {
+      try { return await render(); }
+      catch (error) {
+        const message = errorMessage(error);
+        logError(`Could not load ${label} in workspace ${id}: ${message}`);
+        const retry = new URLSearchParams({ retryPane: "1", agent: presentation.initialSelection?.agent ?? "", workView: presentation.initialSelection?.workView ?? "" });
+        return warningBannerHtml({ title: "This pane could not be loaded", message, role: "alert", actionsHtml: actionLinkHtml({ href: `/workspaces/${encodeURIComponent(id)}?${retry}`, variant: "secondary", content: { kind: "caption", caption: "Retry pane" } }) });
+      }
+    }
     await Promise.all([
-      ...presentation.agents.filter(agent => agent.id === presentation.initialSelection!.agent).map(async agent => { agent.bodyHtml = await agentTabs.render({ workspaceId: id, agentId: agent.id }); }),
+      ...presentation.agents.filter(agent => agent.id === presentation.initialSelection!.agent).map(async agent => { agent.bodyHtml = await loadPane("Agent " + agent.id, () => agentTabs.render({ workspaceId: id, agentId: agent.id })); }),
       ...presentation.workViews.filter(view => view.key === presentation.initialSelection!.workView).map(async view => {
         if (view.availability.phase === "unavailable") return;
         const reference = storedWorkViews.find(stored => workViewKey(stored.reference) === view.key)!.reference;
-        view.bodyHtml = await workViewAdapterByType.get(reference.type)!.render({ workspaceId: id, reference });
+        view.bodyHtml = await loadPane("Work view " + view.key, () => workViewAdapterByType.get(reference.type)!.render({ workspaceId: id, reference }));
       }),
     ]);
     return presentation;
@@ -676,6 +685,7 @@ export function createWebApp(deps: WebAppDeps): WebApp {
   }
 
   async function workspacePage(id: string, request: Request): Promise<Response> {
+    if (new URL(request.url).searchParams.get("retryPane") === "1") invalidateWorkspace(id);
     if (requestAcceptsJson(request)) return await workspaceJson(id);
     const entry = requireWorkspace(id);
     if (entry.parked) return Response.redirect(new URL("/", request.url).toString(), 302);

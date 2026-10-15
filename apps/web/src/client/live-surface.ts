@@ -15,6 +15,7 @@ class LiveSurfaceController extends Controller<HTMLElement> {
   private subscription?: CableSubscription;
   private pending?: ReturnType<typeof Promise.withResolvers<void>>;
   ready = false;
+  private failure?: HTMLElement;
 
   connect(): void {
     mounts.set(this.element, this);
@@ -48,6 +49,28 @@ class LiveSurfaceController extends Controller<HTMLElement> {
     void this.ensureReady();
   }
 
+  retry(): void {
+    this.stop();
+    void this.ensureReady();
+  }
+
+  private showFailure(reason: string): void {
+    this.failure?.remove();
+    const notice = document.createElement("div");
+    notice.className = "settings-error";
+    notice.setAttribute("role", "alert");
+    const message = document.createElement("p");
+    message.textContent = "This pane could not be loaded: " + reason;
+    const retry = document.createElement("button");
+    retry.type = "button";
+    retry.className = "button secondary";
+    retry.textContent = "Retry pane";
+    retry.dataset.action = "live-surface#retry";
+    notice.append(message, retry);
+    this.element.prepend(notice);
+    this.failure = notice;
+  }
+
   ensureReady(): Promise<void> {
     if (this.ready) return Promise.resolve();
     if (this.pending) return this.pending.promise;
@@ -58,6 +81,8 @@ class LiveSurfaceController extends Controller<HTMLElement> {
       : CableTopics.module("surface", this.workspaceValue, { kind: this.kindValue, key: this.keyValue });
     this.subscription = window.KintsugiCable!.subscribe(identifier, {
       onReady: () => {
+        this.failure?.remove();
+        this.failure = undefined;
         this.ready = true;
         this.pending?.resolve();
         this.pending = undefined;
@@ -70,7 +95,9 @@ class LiveSurfaceController extends Controller<HTMLElement> {
         this.pending = undefined;
         this.subscription = undefined;
         this.ready = false;
-        pending?.reject(new Error(reason));
+        this.showFailure(reason);
+        // A rejected pane must not reject workspace selection or sibling preparation.
+        pending?.resolve();
         subscription?.unsubscribe();
       },
     });

@@ -212,3 +212,18 @@ test("the theme is a server setting pushed to every open page", async () => {
     subscription.unsubscribe();
   });
 });
+
+test("a failed work-view loader does not reject the workspace channel or its agent", async()=>{
+  let attempts=0;let fail=true;
+  const module:WorkspaceModule={id:"faulting-preview",workViews:[{type:"faulting-preview",parseReference:()=>({type:"faulting-preview"}),identity:()=>"one",render:async()=>{attempts++;if(fail)throw new Error("Workspace ingress origin capacity exhausted in range 41000-41009");return "Recovered preview";}}],attachToWorkspace:()=>({workViews:[{key:"faulting-preview:one",sourceKey:"faulting-preview:one",kind:"resource",label:"Preview",reference:{type:"faulting-preview"},availability:{phase:"live"}}]})};
+  await withTestApp([{id:"agent-one",title:"Agent one"}],async({app,workspaceId,agent})=>{
+    await app.createWorkView(workspaceId,{type:"faulting-preview"});
+    let messages=0;const subscription=await app.subscribeSurface({channel:"module",name:"surface",workspaceId,params:{kind:"workspace",agent:"agent-one",work:"faulting-preview:one"}},()=>{messages++;});
+    expect(attempts).toBe(1);expect(agent.rendered).toContainEqual({workspaceId,agentId:"agent-one"});
+    expect(messages).toBeGreaterThan(0);subscription.unsubscribe();
+    fail=false;
+    expect((await app.fetch(new Request(`http://test.local/workspaces/${workspaceId}?retryPane=1`,{headers:{Accept:"application/json"}}))).status).toBe(200);
+    const recovered=await app.subscribeSurface({channel:"module",name:"surface",workspaceId,params:{kind:"workspace",agent:"agent-one",work:"faulting-preview:one"}},()=>{});expect(attempts).toBe(2);recovered.unsubscribe();
+    const workspace=await app.fetch(new Request(`http://test.local/workspaces/${workspaceId}`,{headers:{Accept:"application/json"}}));expect(workspace.status).toBe(200);
+  },undefined,[module]);
+});
