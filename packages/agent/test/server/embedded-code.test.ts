@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { embeddedBashCommand, formatBashCommandForDisplay } from "../../src/server/embedded-code.ts";
+import { embeddedBashCommand, formatBashCommandForDisplay, formatCodemodeScriptForDisplay } from "../../src/server/embedded-code.ts";
 
 const renderEmbedded = (command: string): string => embeddedBashCommand(command)!.html;
 const renderedText = (html: string): string => html.replace(/<[^>]+>/g, "").replaceAll("&gt;", ">").replaceAll("&lt;", "<").replaceAll("&amp;", "&").replaceAll("&quot;", '"').replaceAll("&#39;", "'");
@@ -273,5 +273,51 @@ rg ready /tmp/status |
 
   test("returns no override for unknown stdin heredocs", () => {
     expect(embeddedBashCommand("sed 's/a/b/' <<'EOF'\na\nEOF")).toBeUndefined();
+  });
+});
+
+describe("code mode scripts", () => {
+  test("format as an async function body, keeping the options line and template literal text", () => {
+    const script = [
+      '// @options: {"timeout_ms": 9000}',
+      "const ids = (await tools.list({})).structuredContent.ids; if (!ids) return 'none'",
+      "const note = `first",
+      "    kept as written ${ids.map(id => `${id}",
+      "  also kept`)}`; return note",
+    ].join("\n");
+    expect(formatCodemodeScriptForDisplay(script)).toBe([
+      '// @options: {"timeout_ms": 9000}',
+      "const ids = (await tools.list({})).structuredContent.ids;",
+      'if (!ids) return "none";',
+      "const note = `first",
+      "    kept as written ${ids.map(",
+      "    (id) => `${id}",
+      "  also kept`,",
+      "  )}`;",
+      "return note;",
+    ].join("\n"));
+  });
+
+  test("keep string and template text exactly, whatever precedes it", async () => {
+    // Each script is an async function body of x, like code mode scripts.
+    const run = (script: string) => new Function("x", `return (async () => {\n${script}\n})();`)(true);
+    const scripts = {
+      // A backtick in a regex is not a template.
+      regex: "const re = /`/;\nif (x) { const t = `a\n    kept`; return [re.source, t] }",
+      escapedNewline: "if (x) { const t = `a\\\n    kept\n    also`; return t }",
+      stringContinuation: "if (x) { const s = \"a\\\n    kept\"; return s }",
+      nestedTemplates: "if (x) { const t = `outer\n    ${[1].map(n => `inner ${n}\n      deep`)}\n  end`; return t }",
+    };
+    for (const [name, script] of Object.entries(scripts)) {
+      const formatted = formatCodemodeScriptForDisplay(script);
+      expect(formatted, name).toBeDefined();
+      expect(await run(formatted!), name).toEqual(await run(script));
+    }
+  });
+
+  test("leave scripts that do not parse or are already formatted alone", () => {
+    expect(formatCodemodeScriptForDisplay("const x = ;")).toBeUndefined();
+    expect(formatCodemodeScriptForDisplay("for (const a of b) {")).toBeUndefined();
+    expect(formatCodemodeScriptForDisplay("return 1;")).toBeUndefined();
   });
 });

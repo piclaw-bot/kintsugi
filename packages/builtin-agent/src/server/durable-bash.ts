@@ -36,6 +36,16 @@ function workspaceBashOperations(workspaceId: string): BashOperations {
   };
 }
 
+/** What code mode scripts get from `tools.bash()`, also for a nonzero exit, as with pi's bash. */
+const bashStructuredOutputSchema = Type.Object({
+  output: Type.String({ description: "Combined stdout and stderr, as the model sees it" }),
+  truncated: Type.Boolean({ description: "Whether output was cut; the full output is in fullOutputPath" }),
+  fullOutputPath: Type.Optional(Type.String()),
+  exitCode: Type.Union([Type.Number(), Type.Null()]),
+  timedOut: Type.Boolean(),
+  aborted: Type.Boolean(),
+});
+
 type BashInput = { request: BashOperationRequest; timeout: number };
 type BashCheckpoint = { phase: "execute" };
 const BashChild = defineDoc<{ id: TaskId<BashOperationReceipt> | null }>({
@@ -77,6 +87,7 @@ export function createDurableBashExtension(workspaceId: string, operations: Bash
     ...bashToolDefinition,
     // Safe means reattach to our receipt, NOT execute an arbitrary command again.
     replay: "safe",
+    structuredOutputSchema: bashStructuredOutputSchema,
     async execute(args, api, context) {
       const child = await api.commit(async (tx) => {
         const binding = await tx.doc(BashChild, api.taskId);
@@ -101,14 +112,19 @@ export function createDurableBashExtension(workspaceId: string, operations: Bash
       if (settled.state.outcome.status !== "completed") throw new Error(`Command operation ${settled.state.outcome.status}`);
       const receipt = settled.state.outcome.result;
       if (receipt.status === "running") throw new Error("Command operation completed without a terminal receipt");
-      if (receipt.status === "uncertain") return { isError: true, output: [{ type: "text", text: receipt.message }] };
+      // The diagnostic is the error text scripts get, since there is no structured output.
+      if (receipt.status === "uncertain") return { isError: true, output: [{ type: "text", text: receipt.message }], diagnostics: [{ severity: "error", code: "uncertain", message: receipt.message }] };
       const formatted = formatBashOutput(receipt.output, receipt.displayAnsi, receipt.fullOutputPath);
       let text = formatted.output || "(no output)";
       if (receipt.aborted) text += "\n\nCommand aborted";
       else if (receipt.timedOut) text += `\n\nCommand timed out after ${input.timeout} seconds`;
       else if (receipt.exitCode !== 0) text += `\n\nCommand exited with code ${receipt.exitCode}`;
+      const structuredOutput: Static<typeof bashStructuredOutputSchema> = { output: formatted.output, truncated: formatted.modelTruncated,
+        exitCode: receipt.exitCode, timedOut: receipt.timedOut, aborted: receipt.aborted };
+      if (formatted.modelTruncated) structuredOutput.fullOutputPath = receipt.fullOutputPath;
       return {
         output: [{ type: "text", text }],
+        structuredOutput,
         details: { workspaceId, exitCode: receipt.exitCode, displayAnsi: formatted.displayAnsi, aborted: receipt.aborted,
           timedOut: receipt.timedOut, fullOutputPath: receipt.fullOutputPath },
       };

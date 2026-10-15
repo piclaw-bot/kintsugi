@@ -3,10 +3,11 @@ import { applyTranscriptContributions } from "@kintsugi/agent/server/transcript-
 import { durableTimingEntry, DurableTurnTiming } from "./durable-timing.ts";
 import { historyNote } from "@kintsugi/legacy-converter/entries";
 import { contentText, type Message } from "@earendil-works/pi-ai";
-import { AgentDoc, CompactionEntry, InboxDoc, LiveDoc, ResetEntry, ToolResultEntry, UsageDoc, type AgentState, type ConversationView, type InboxState, type LiveState, type UsageState } from "@earendil-works/pi-durable";
+import { AgentDoc, CompactionEntry, InboxDoc, LiveDoc, ResetEntry, ToolResultEntry, UsageDoc, type AgentState, type ConversationView, type InboxState, type LiveState, type ToolSlot, type UsageState } from "@earendil-works/pi-durable";
 import { Type } from "typebox";
 import { Value } from "typebox/value";
 import { isJsonObject } from "@kintsugi/core";
+import { codemodeCallEntry, type CallEnd, type CallStart, type CodemodeCallRecord } from "./durable-codemode.ts";
 import { buildTranscript, isFinalAssistantMessage, isToolViewDetails, toolDetailsIndicateError, type SessionImageRef, type ToolView, type TranscriptItem, type TranscriptRecord } from "@kintsugi/agent/server/transcript";
 
 /** The native watch is an exact committed frame, not an AgentSession event stream. */
@@ -25,6 +26,25 @@ export function durableViewState(view: ConversationView) {
 }
 
 const textBlockSchema = Type.Object({ type: Type.Literal("text"), text: Type.String() });
+
+/** What a running tool published: its output and details, shown until its result replaces them. */
+function applySlotProgress(tool: ToolView, slot: Pick<ToolSlot, "output" | "details">) {
+  tool.resultText = slot.output;
+  let details = slot.details;
+  // SDK capability updates are snapshots { content, details }; native bash
+  // publishes direct details. Neither should be appended as repeated output.
+  if (isJsonObject(details) && Array.isArray(details.content)) {
+    tool.resultText = details.content.flatMap(part => Value.Check(textBlockSchema, part) ? [part.text] : []).join("\n");
+    details = details.details;
+  }
+  if (isToolViewDetails(details)) {
+    tool.details = details;
+    if (toolDetailsIndicateError(details)) tool.status = "error";
+    // The receipt operation owns this immutable session on the default
+    // workspace tmux server. Detaching this read-only view never stops it.
+    tool.tmuxSession = details.tmuxSession;
+  }
+}
 
 function images(content: Message["content"], entryId: string, offset = 0): SessionImageRef[] {
   return !Array.isArray(content) ? [] : content.flatMap((part, index) => part.type === "image"
@@ -55,6 +75,17 @@ export function projectDurableTranscript(view: ConversationView): TranscriptItem
   const partialTools = new Set<string>();
   const turnEnds = new Map<string, { timestamp: number; completed: boolean }>();
   const timings = new Map<string, DurableTurnTiming>();
+  // Each code mode call's calls by key, in the order they started. A rerun after a restart records
+  // them again: the first start and the last end count.
+  const codemodeCalls = new Map<string, Map<string, { start?: CallStart; end?: CallEnd }>>();
+  function recordCodemodeCall(record: CodemodeCallRecord) {
+    const calls = codemodeCalls.get(record.callId) ?? new Map();
+    codemodeCalls.set(record.callId, calls);
+    const call = calls.get(record.key) ?? {};
+    calls.set(record.key, call);
+    if (record.phase === "start") call.start ??= record;
+    else call.end = record;
+  }
   let turn: string | undefined;
   let pendingBoundary = true;
 
@@ -90,6 +121,10 @@ export function projectDurableTranscript(view: ConversationView): TranscriptItem
   // ConversationView is already in context order: head marker first, then
   // oldest-to-newest entries. Sorting by ID would misplace compaction summaries.
   for (const entry of view.entries) {
+    if (codemodeCallEntry.is(entry)) {
+      recordCodemodeCall(entry.data);
+      continue;
+    }
     if (durableTimingEntry.is(entry)) {
       if (turn) timings.get(turn)!.add(entry.data);
       continue;
@@ -129,6 +164,34 @@ export function projectDurableTranscript(view: ConversationView): TranscriptItem
   if (partial) appendMessage(partial, partialKey, partialKey, 0, true);
   const items = buildTranscript(records, { openEnded: Boolean(live.run) });
   const slots = new Map(live.tools?.map(slot => [slot.callId, slot]));
+  const nestedSlots = new Map(live.nestedTools?.map(slot => [slot.callId, slot]));
+
+  /** A code mode script's calls, from their records, with live progress while they run. */
+  function attachCodemodeCalls(tool: ToolView) {
+    // Without records, the script's own list of its calls shows.
+    const calls = [...codemodeCalls.get(tool.callId) ?? []].flatMap(([key, { start, end }]) => {
+      if (!start) return [];
+      const nested: ToolView = { callId: `${tool.callId}/${key}`, name: start.name, args: start.arguments, status: "running" };
+      if (end) {
+        let details = isToolViewDetails(end.details) ? end.details : undefined;
+        if (end.cancelled) details = { ...details, aborted: true };
+        nested.status = end.isError || toolDetailsIndicateError(details) ? "error" : "ok";
+        nested.durationMs = end.durationMs;
+        nested.resultText = end.output ?? end.error;
+        nested.details = details;
+      } else if (tool.status === "running") {
+        const slot = nestedSlots.get(nested.callId);
+        if (slot) applySlotProgress(nested, slot);
+      } else {
+        // The script ended, for example by being stopped, before this call returned.
+        nested.status = "error";
+        nested.details = { aborted: true };
+        nested.resultUnavailable = true;
+      }
+      return [nested];
+    });
+    if (calls.length) tool.nested = calls;
+  }
 
   function updateTools(tool: ToolView) {
     // Upstream tool.settle appends the result and finishSlot(done, entry.id) in
@@ -145,28 +208,14 @@ export function projectDurableTranscript(view: ConversationView): TranscriptItem
     }
     tool.status = "running";
     tool.canAbort = slot.taskId !== undefined;
-    tool.resultText = slot.output;
-    let details = slot.details;
-    // SDK capability updates are snapshots { content, details }; native bash
-    // publishes direct details. Neither should be appended as repeated output.
-    if (isJsonObject(details) && Array.isArray(details.content)) {
-      tool.resultText = details.content.flatMap(part => Value.Check(textBlockSchema, part) ? [part.text] : []).join("\n");
-      details = details.details;
-    }
-    if (isToolViewDetails(details)) {
-      tool.details = details;
-      if (toolDetailsIndicateError(details)) tool.status = "error";
-      // The receipt operation owns this immutable session on the default
-      // workspace tmux server. Detaching this read-only view never stops it.
-      tool.tmuxSession = details.tmuxSession;
-    }
+    applySlotProgress(tool, slot);
   }
 
   function visit(list: TranscriptItem[]) {
     for (const item of list) {
       // Tree/rewind actions need native operations, never old SessionManager IDs.
       item.rewindEntryId = undefined;
-      if (item.type === "tool") updateTools(item.tool);
+      if (item.type === "tool") { updateTools(item.tool); attachCodemodeCalls(item.tool); }
       if ((item.type === "text" || item.type === "thinking") && item.key.startsWith(`${partialKey}:`)) item.live = true;
       if (item.type === "working") {
         const measured = timings.get(item.inputEntryIds?.[0] ?? "");

@@ -198,6 +198,10 @@
 .agent-tool-detail .agent-tool-code { margin: 0; padding: 8px; max-height: 330px; overflow: auto; border: 0; border-radius: 0; white-space: pre; color: var(--text-bright); background: color-mix(in srgb, var(--bg) 72%, #000 8%); }
 .agent-tool-detail .agent-tool-region-body { padding: 8px; color: var(--text-bright); background: color-mix(in srgb, var(--bg) 58%, #000 12%); font-family: var(--font-mono); font-size: var(--text-code); }
 .agent-bash-command .agent-tool-code { max-height: none; overflow: visible; white-space: pre-wrap; overflow-wrap: anywhere; }
+.agent-codemode-detail > :is(.agent-tool-region, .agent-detail-fullscreen) + :is(.agent-tool-region, .agent-detail-fullscreen) { border-top: 1px solid color-mix(in srgb, var(--text-bright) 15%, transparent); }
+.agent-codemode-script .agent-tool-code { max-height: none; overflow: visible; white-space: pre-wrap; overflow-wrap: anywhere; }
+.agent-codemode-call-list { padding: 4px 8px; }
+.agent-codemode-call + .agent-codemode-call { margin-top: 2px; }
 .agent-terminal-viewport { overflow: auto; background: color-mix(in srgb, var(--bg) 70%, #000 7%); }
 /* The bash visualizer is display-only: dragging it should scroll the transcript,
    not start a Gespenst text selection (or block touch panning). */

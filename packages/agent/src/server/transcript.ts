@@ -82,6 +82,10 @@ export interface ToolView {
   details?: ToolViewDetails;
   /** Timestamp of the assistant entry that issued this call. */
   issuedAt?: number;
+  /** Calls this tool made to other tools, such as a code mode script's. */
+  nested?: ToolView[];
+  /** A finished call whose result was not kept, so only its arguments and error can show. */
+  resultUnavailable?: boolean;
 }
 
 interface TranscriptItemBase {

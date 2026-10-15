@@ -1,7 +1,7 @@
 import { format as formatJavaScript } from "@wasm-fmt/biome_fmt";
 import { format as formatPython } from "@wasm-fmt/ruff_fmt";
 import { format as formatShell } from "@wasm-fmt/shfmt";
-import { highlightCodeHtmlForPath, languageFromPath } from "@kintsugi/syntax";
+import { highlightCodeHtmlForPath, javascriptLinesStartingInLiterals, languageFromPath } from "@kintsugi/syntax";
 import { escapeHtml } from "@kintsugi/shared";
 
 interface BashHeredoc {
@@ -442,4 +442,29 @@ export function embeddedBashCommand(command: string, formattedCommand?: string, 
   const rendered = embeddedBashContent(formattedCommand, 0);
   if (!rendered) return undefined;
   return { html: `<pre class="${className} language-bash"><code>${rendered.html}</code></pre>`, differs: rendered.differs };
+}
+
+const codemodeOptionsLine = /^\/\/ @options:[^\n]*\n/;
+const javascriptSyntax = new Bun.Transpiler({ loader: "js" });
+/**
+ * A code mode script, readably formatted. Scripts are async function bodies with top-level `await` and `return`, so they
+ * are formatted inside a function and taken out again. Undefined when the script does not parse, for example while
+ * it streams in, or when formatting changes nothing.
+ */
+export function formatCodemodeScriptForDisplay(code: string): string | undefined {
+  const optionsLine = code.match(codemodeOptionsLine)?.[0] ?? "";
+  const body = code.slice(optionsLine.length);
+  const wrapped = `async function codemode() {\n${body}\n}`;
+  try {
+    javascriptSyntax.transformSync(wrapped);
+  } catch {
+    return undefined;
+  }
+  const formatted = formatJavaScript(wrapped, "codemode.js", { indentStyle: "space", indentWidth: 2 }).trimEnd();
+  const lines = formatted.split("\n");
+  // Taking the body out of the function un-indents it, except for string and template text.
+  const inLiteral = javascriptLinesStartingInLiterals(formatted);
+  const inner = lines.slice(1, -1).map((line, index) => inLiteral[index + 1] ? line : line.replace(/^ {2}/, "")).join("\n");
+  const result = `${optionsLine}${inner}`;
+  return result === code.trimEnd() ? undefined : result;
 }

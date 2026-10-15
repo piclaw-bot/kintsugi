@@ -26,6 +26,7 @@
     "@kintsugi/llm": "workspace:*",
     "@kintsugi/prompt": "workspace:*",
     "@earendil-works/pi-durable": "catalog:",
+    "@earendil-works/pi-codemode": "catalog:",
     "@earendil-works/chord": "catalog:",
     "proper-lockfile": "4.1.2",
     "@kintsugi/legacy-converter": "workspace:*",

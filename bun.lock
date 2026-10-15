@@ -102,6 +102,7 @@
       "dependencies": {
         "@earendil-works/chord": "catalog:",
         "@earendil-works/pi-ai": "catalog:",
+        "@earendil-works/pi-codemode": "catalog:",
         "@earendil-works/pi-coding-agent": "catalog:",
         "@earendil-works/pi-durable": "catalog:",
         "@kintsugi/agent": "workspace:*",
@@ -534,6 +535,7 @@
   "catalog": {
     "@earendil-works/chord": "1.2.0",
     "@earendil-works/pi-ai": "1.2.0",
+    "@earendil-works/pi-codemode": "1.2.0",
     "@earendil-works/pi-coding-agent": "1.2.0",
     "@earendil-works/pi-durable": "1.2.0",
     "@gespenst/core": "0.1.1",

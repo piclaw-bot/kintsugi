@@ -27,7 +27,7 @@ const resources = {
   thinking: async () => ({ levels: ["off" as const, "medium" as const, "high" as const], selected: "medium" as const }),
 };
 
-test("native registry includes registered controls and receipt tasks, but no live delegation", () => {
+test("native registry includes registered controls, code mode, and receipt tasks, but no live delegation", () => {
   const unregister = registerWorkspaceAgentTool("assembly-control", () => defineWorkspaceTool({
     name: "assembly-control", label: "Control", description: "Test control", parameters: Type.Object({}),
     async execute() { return { content: [{ type: "text", text: "done" }], details: undefined }; },
@@ -36,7 +36,7 @@ test("native registry includes registered controls and receipt tasks, but no liv
     const registry = createDurableWorkspaceRegistry("assembly-workspace", createModels());
     const tools = registry.snapshot().tools().map(({ tool }) => tool);
     const names = tools.map((tool) => tool.name);
-    expect(names).toEqual(expect.arrayContaining(["assembly-control", "bash", "edit", "read", "write"]));
+    expect(names).toEqual(expect.arrayContaining(["assembly-control", "bash", "edit", "read", "write", "codemode", "pi.codemode.models.classify", "pi.codemode.models.generateImages"]));
     for (const delegation of ["spawn_agent", "send_message", "followup_task", "list_agents", "wait_agent", "interrupt_agent"]) expect(names).not.toContain(delegation);
     expect(tools.find((tool) => tool.name === "read")?.replay).toBe("safe");
     expect(tools.find((tool) => tool.name === "assembly-control")?.replay).toBe("unsafe");

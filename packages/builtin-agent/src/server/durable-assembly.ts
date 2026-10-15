@@ -3,11 +3,13 @@ import { durableTiming, type WriteDurableTiming } from "./durable-timing.ts";
 import { durableSubscriptionActivity } from "./durable-accounting.ts";
 import type { Models } from "@earendil-works/pi-ai";
 import { createRegistry, defineExtension, type AgentChange, type Harness, type HarnessOptions } from "@earendil-works/pi-durable";
+import { CodemodeSandbox } from "@earendil-works/pi-codemode";
 import { formatSkillsForPrompt } from "@earendil-works/pi-coding-agent";
 import { createPiModelRuntime } from "@kintsugi/llm/server";
 import { workspaceRoot } from "@kintsugi/workspace";
 import { createDurableWorkspaceTools } from "./durable-tools.ts";
 import { createDurableBashExtension } from "./durable-bash.ts";
+import { createWorkspaceCodemodeExtension } from "./durable-codemode.ts";
 import { durableJournalInstructions } from "./durable-storage.ts";
 import { formatProjectInstructions, loadWorkspaceAgentsFiles } from "@kintsugi/agent/server/workspace-agents-files";
 import { loadWorkspaceSkills } from "@kintsugi/agent/server/skills";
@@ -15,11 +17,16 @@ import { kintsugiSystemPrompt, prepareAppendedKintsugiInstructions } from "@kint
 import { launchComposerThinkingSettings, resolveNewWorkspaceAgentModel } from "@kintsugi/agent/server/model-state";
 import type { WorkspaceAgentToolOptions } from "@kintsugi/agent/server/tools";
 
-/** Workspace-scoped code, including the task definitions needed to recover bash. */
+// Each script runs in its own worker, so one sandbox serves every conversation.
+// The VM shares the server process; the limit keeps a runaway script from taking it down.
+const codemodeSandbox = new CodemodeSandbox({ memoryLimitBytes: 256 * 1024 * 1024 });
+
+/** Workspace-scoped code, including the task definitions needed to recover bash and code mode scripts. */
 export function createDurableWorkspaceRegistry(workspaceId: string, models: Pick<Models, "getModel">, options: WorkspaceAgentToolOptions = {}) {
   const registry = createRegistry();
   registry.install(defineExtension({ name: "kintsugi.workspace-tools", tools: createDurableWorkspaceTools(workspaceId, models, options) }));
   registry.install(createDurableBashExtension(workspaceId));
+  registry.install(createWorkspaceCodemodeExtension(workspaceId, codemodeSandbox));
   return registry;
 }
 

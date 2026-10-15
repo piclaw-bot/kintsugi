@@ -12,6 +12,10 @@ import { subscribeWorkspaceAgentBusy } from "@kintsugi/agent/server";
 import { currentNotificationTurn } from "../../src/server/turn-notifications.ts";
 import { openDurableAgentRuntime, type DurableAgentRuntime } from "../../src/server/durable-runtime.ts";
 import { durableEntryContent } from "../../src/server/durable-images.ts";
+import { CodemodeSandbox } from "@earendil-works/pi-codemode";
+import { createWorkspaceCodemodeExtension } from "../../src/server/durable-codemode.ts";
+import { projectDurableTranscript } from "../../src/server/durable-transcript.ts";
+import type { ToolView, TranscriptItem } from "@agents-in-the-cloud/agent/server/transcript";
 
 const context = BACKGROUND_CONTEXT;
 const paths: string[] = [];
@@ -789,6 +793,63 @@ test("Stop does not signal another root's active tool", async () => {
   expect((await second.wait(context)).status).toBe("done");
 });
 
+
+/** Code mode with an `echo` tool, and a `hold` tool that runs until it is cancelled, whose start `held` reports. */
+function installCodemode(registry: ReturnType<typeof createRegistry>) {
+  const held = Promise.withResolvers<void>();
+  registry.install(createWorkspaceCodemodeExtension("native-workspace", new CodemodeSandbox()));
+  registry.install(defineExtension({ name: "codemode-test-tools", tools: [
+    defineTool({
+      name: "echo", description: "Echo text", parameters: Type.Object({ text: Type.String() }),
+      async execute(args) { return { output: [{ type: "text", text: args.text }] }; },
+    }),
+    defineTool({
+      name: "hold", description: "Hold until cancelled", parameters: Type.Object({}),
+      async execute(_args, _api, invocation) {
+        held.resolve();
+        return await new Promise<never>((_resolve, reject) => invocation.abortSignal!.addEventListener("abort", () => reject(invocation.abortSignal!.reason), { once: true }));
+      },
+    }),
+  ] }));
+  return held;
+}
+
+async function codemodeCalls(agent: Awaited<ReturnType<DurableAgentRuntime["agent"]>>): Promise<ToolView[] | undefined> {
+  const watch = await agent.watch(context);
+  const find = (items: TranscriptItem[]): ToolView | undefined => items.flatMap(item => item.type === "tool" && item.tool.name === "codemode" ? [item.tool]
+    : item.type === "working" ? [find(item.items)].filter(tool => tool !== undefined) : [])[0];
+  const tool = find(projectDurableTranscript(watch.value));
+  await watch.stop();
+  return tool?.nested;
+}
+
+test("code mode records each call a script makes, with its arguments and result", async () => {
+  const { runtime, faux, registry } = await setup();
+  installCodemode(registry);
+  faux.setResponses([
+    fauxAssistantMessage([fauxToolCall("codemode", { code: "return await tools.echo({ text: 'echoed' });" })], { stopReason: "toolUse" }),
+    fauxAssistantMessage("Done"),
+  ]);
+  const agent = await runtime.agent(record);
+  expect((await (await agent.submit({ requestId: "script", text: "Run it" })).wait(context)).status).toBe("done");
+  const [echo] = (await codemodeCalls(agent))!;
+  expect(echo).toMatchObject({ name: "echo", args: { text: "echoed" }, status: "ok", resultText: "echoed" });
+});
+
+test("a stopped script keeps the calls it made, and shows the one it was waiting for as cancelled", async () => {
+  const { runtime, faux, registry } = await setup();
+  const held = installCodemode(registry);
+  faux.setResponses([
+    fauxAssistantMessage([fauxToolCall("codemode", { code: "await tools.echo({ text: 'before the stop' }); await tools.hold({});" })], { stopReason: "toolUse" }),
+  ]);
+  const agent = await runtime.agent(record);
+  await agent.submit({ requestId: "script", text: "Run it" });
+  await held.promise;
+  await agent.stop();
+  const [echo, hold] = (await codemodeCalls(agent))!;
+  expect(echo).toMatchObject({ name: "echo", status: "ok", resultText: "before the stop" });
+  expect(hold).toMatchObject({ name: "hold", status: "error", details: { aborted: true } });
+});
 
 test("execution owner publishes busy and finished turns without a presentation mount", async () => {
   const events = createKintsugiEventBus();
