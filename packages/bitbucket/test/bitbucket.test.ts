@@ -70,6 +70,20 @@ describe("Bitbucket repository search", () => {
     expect(requests.filter((url) => url.pathname === "/2.0/user/workspaces")).toHaveLength(2);
   });
 
+  test.each(["https://attacker.example/2.0/user/workspaces", "http://api.bitbucket.org/2.0/user/workspaces", "https://api.bitbucket.org:8443/2.0/user/workspaces", "https://attacker@api.bitbucket.org/2.0/user/workspaces", "https://api.bitbucket.org/not-api"])("rejects untrusted pagination URLs before sending credentials: %s", async (next) => {
+    const requests = stubFetch(() => Response.json({ values: [], next }));
+    await expect(searchBitbucketRepositories("pagination", { ...credential, token: `pagination-${next}` })).rejects.toThrow("Invalid Bitbucket API URL");
+    expect(requests.map(url => url.href)).toEqual(["https://api.bitbucket.org/2.0/user/workspaces?pagelen=100"]);
+  });
+
+  test("authenticated API calls refuse redirects", async () => {
+    globalThis.fetch = Object.assign(async (_input: Parameters<typeof fetch>[0], init?: RequestInit) => {
+      expect(init?.redirect).toBe("error");
+      return Response.json({ values: [] });
+    }, { preconnect: originalFetch.preconnect });
+    expect((await searchBitbucketRepositories("redirects", { ...credential, token: "redirect-policy" })).repositories).toEqual([]);
+  });
+
   test("explains when the connection cannot search", async () => {
     stubFetch(() => new Response("", { status: 403 }));
     expect((await searchBitbucketRepositories("widget", { ...credential, token: "forbidden-token" })).notice).toContain("Check your Bitbucket connection");

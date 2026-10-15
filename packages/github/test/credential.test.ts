@@ -3,6 +3,7 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { gitHubProvider } from "../src/index.ts";
+import { discoverGitHubToken, setGitHubToken } from "@kintsugi/core";
 
 let previousDataDir: string | undefined;
 let previousGitHubToken: string | undefined;
@@ -42,6 +43,17 @@ describe("GitHub credential", () => {
     await writeFile(tokenPath, "legacy-token\n");
 
     expect(token()).toBe("legacy-token");
+  });
+
+  test("shares credentials and disconnect state with the release-notes reader and older installations", () => {
+    process.env.GH_TOKEN = "inherited-token";
+    setGitHubToken("previously-saved-token");
+    expect(token()).toBe("previously-saved-token");
+    gitHubProvider.saveCredential({ token: "provider-token" });
+    expect(discoverGitHubToken()).toBe("provider-token");
+    gitHubProvider.clearCredential();
+    expect(discoverGitHubToken()).toBeUndefined();
+    expect(token()).toBeUndefined();
   });
 
   test("falls back to GH_TOKEN when no token is stored", () => {

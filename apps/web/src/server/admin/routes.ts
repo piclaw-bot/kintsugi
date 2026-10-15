@@ -55,7 +55,7 @@ route("GET", "/update/status", ["security"], "Read app update status");
 for (const suffix of ["check-now", "start", "restart", "rollback"]) route("POST", `/update/${suffix}`, ["security"], "Control the configured app update");
 
 export function matchAdminRoute(method: string, pathname: string): AdminRoute | undefined {
-  if (["/workspaces/new", "/workspace-templates/new", "/workspace-templates/github-search"].includes(pathname)) return undefined;
+  if (["/workspaces/new", "/workspace-templates/new", "/workspace-templates/github-search", "/workspace-templates/repository-search"].includes(pathname)) return undefined;
   const segments = pathname.split("/");
   return adminRoutes.find(route => {
     const pattern = route.path.split("/");

@@ -39,7 +39,7 @@ export async function validateBitbucketCredential(credential: GitHostingCredenti
 
   let response: Response;
   try {
-    response = await fetch(`${apiBase}/user`, { headers: headers({ token, account: email }) });
+    response = await fetch(`${apiBase}/user`, { headers: headers({ token, account: email }), redirect: "error" });
   } catch {
     return { ok: false, message: "Could not reach Bitbucket. Check your network and try again." };
   }
@@ -57,7 +57,10 @@ export async function validateBitbucketCredential(credential: GitHostingCredenti
 class BitbucketAccessError extends Error {}
 
 async function fetchBitbucket(url: URL | string, credential: GitHostingCredential): Promise<Response> {
-  const response = await fetch(url, { headers: headers(credential) });
+  const target = new URL(url);
+  // Pagination URLs come from an external response; never send credentials to another origin.
+  if (target.origin !== "https://api.bitbucket.org" || target.username || target.password || !target.pathname.startsWith("/2.0/")) throw new Error("Invalid Bitbucket API URL");
+  const response = await fetch(target, { headers: headers(credential), redirect: "error" });
   if (response.status === 429) throw new GitHostingRateLimitError(`Bitbucket request failed: ${response.status}`, response);
   if (response.status === 401 || response.status === 403) throw new BitbucketAccessError(`Bitbucket request failed: ${response.status}`);
   if (!response.ok) throw new Error(`Bitbucket request failed: ${response.status} ${await response.text()}`);
