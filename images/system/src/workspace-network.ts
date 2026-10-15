@@ -5,7 +5,7 @@ import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { isNotFoundError, writeJsonAtomic, createKeyedOperationQueue } from "../../../packages/core/src/index.ts";
 import { command } from "./process.ts";
-import { installWorkspaceFirewall, resolverAddresses } from "./firewall.ts";
+import { installWorkspaceFirewall, resolverAddresses, tailscaleResolvers } from "./firewall.ts";
 import { addressInCidrs, canonicalNetworkCidr, parseNetworkConfiguration, parseNetworkPolicy, privateNetworkCidrs, offNetworkPolicy, type WorkspaceNetworkPolicy, type WorkspaceNetworkMode, type NetworkConfiguration } from "../../../packages/shared/src/network-policy.ts";
 
 export function workspaceNetworkBridge(id: string): string {
@@ -40,7 +40,7 @@ export async function createWorkspaceNetworkControl(buildClientsCgroup: string, 
   const install = async (next: WorkspacePolicies) => {
     const denied = await controlAddresses();
     const networks = Object.entries(next).map(([id, policy]) => ({ bridge: workspaceNetworkBridge(id), policy: { ...policy, denied } }));
-    await (backend.install ?? installWorkspaceFirewall)(buildClientsCgroup, resolverAddresses(await readFile("/etc/resolv.conf", "utf8")), networks);
+    await (backend.install ?? installWorkspaceFirewall)(buildClientsCgroup, [...resolverAddresses(await readFile("/etc/resolv.conf", "utf8")), ...tailscaleResolvers], networks);
     // Never bind DNS before its bridge/port ACL has been installed.
     await updateResolvers(next);
   };

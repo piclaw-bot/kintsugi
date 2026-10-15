@@ -82,6 +82,9 @@ ${dnsRules.filter(rule => rule.startsWith(`    ${family} `)).join("\n")}
 `).join("")}`;
 }
 
+/** Tailscale may rewrite System resolv.conf after the build-client firewall is installed. */
+export const tailscaleResolvers = ["100.100.100.100", "fd7a:115c:a1e0::53"];
+
 /** Private DNS is allowed only at configured resolvers on TCP/UDP port 53. */
 export function resolverAddresses(resolvConf: string): string[] {
   return resolvConf.split("\n").flatMap(line => {

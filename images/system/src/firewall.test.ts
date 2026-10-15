@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { resolverAddresses, workspaceFirewallRules } from "./firewall.ts";
+import { resolverAddresses, tailscaleResolvers, workspaceFirewallRules } from "./firewall.ts";
 
 test("all bridge kinds share the input and forwarding boundary, independent of names", () => {
   const rules = workspaceFirewallRules("/system/workloads/build-clients", ["127.0.0.53"]);
@@ -50,6 +50,16 @@ test("DNS exceptions are limited to build clients, not forwarded workloads", () 
   const forward = rules.slice(rules.indexOf("  chain forward"));
   expect(forward).toContain('meta iifkind "bridge" jump public_destinations');
   expect(forward).not.toContain("jump public_egress");
+});
+
+test("build clients can reach Tailscale's resolvers despite the tailnet drop", () => {
+  const rules = workspaceFirewallRules("/system/workloads/build-clients", tailscaleResolvers);
+  for (const [family, resolver] of [["ip", "100.100.100.100"], ["ip6", "fd7a:115c:a1e0::53"]]) {
+    const rule = `${family} daddr ${resolver} meta l4proto { tcp, udp } th dport 53 counter accept`;
+    const egress = rules.slice(rules.indexOf("  chain public_egress"));
+    expect(egress.indexOf(rule)).toBeGreaterThan(-1);
+    expect(egress.indexOf(rule)).toBeLessThan(egress.indexOf("jump public_destinations"));
+  }
 });
 
 test("family-specific FIB rules avoid the optional inet FIB implementation", () => {
