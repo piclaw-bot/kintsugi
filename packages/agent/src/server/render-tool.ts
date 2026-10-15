@@ -14,7 +14,7 @@ import { parseDiffFromFile, processPatch, type FileDiffMetadata } from "@pierre/
 import { diffStats, type DiffOperation } from "./diff.ts";
 import { embeddedBashCommand, formatBashCommandForDisplay, formatCodemodeScriptForDisplay, highlightedBashCommandHtml } from "./embedded-code.ts";
 import { domId, escapeHtml } from "@kintsugi/shared";
-import { isBashTool, formatDuration, type ToolView } from "./transcript.ts";
+import { isBashTool, formatDuration, toolOutcomeLabel, type ToolView } from "./transcript.ts";
 import { agentPath, ids, sessionImageUrl, transcriptItemPath, type AgentRenderContext } from "./render-context.ts";
 import { codeBlockHtml, detailFullscreen, fullscreenAttributes, transcriptRowContent } from "./render-markup.ts";
 
@@ -41,8 +41,7 @@ function bashSummary(tool: ToolView): string {
   const timeout = numberArg(toolArgs(tool), "timeout") ?? 600;
   const elapsed = tool.status === "running" && tool.issuedAt !== undefined ? Date.now() - tool.issuedAt : tool.durationMs;
   const duration = elapsed === undefined ? "" : `${formatDuration(elapsed)} / ${formatDuration(timeout * 1000)}`;
-  const outcome = details?.timedOut === true ? "timed out" : details?.aborted === true ? "aborted" : details?.exitCode !== undefined && details.exitCode !== 0 ? `exitcode ${details.exitCode}` : "";
-  return summaryHtml([duration, outcome]);
+  return summaryHtml([duration, toolOutcomeLabel(details, false)]);
 }
 
 function toolSummaryHtml(tool: ToolView): string {
@@ -314,11 +313,8 @@ function codemodeSummary(tool: ToolView): string {
 function nestedCallSummary(call: ToolView): string {
   const args = Value.Check(modelCallArgumentsSchema, call.args) ? call.args.model.id
     : isJsonObject(call.args) ? genericToolSummary(call) : Value.Check(toolStringArgumentSchema, call.args) ? truncateOneLine(call.args, 120) : "";
-  const details = call.details;
-  const outcome = details?.timedOut === true ? "timed out" : details?.aborted === true ? "cancelled"
-    : details?.exitCode !== undefined && details.exitCode !== 0 ? `exitcode ${details.exitCode}` : call.status === "error" ? "failed" : "";
   // Duration and outcome come before the arguments, which are often long enough to be cut off.
-  return summaryHtml([codemodeCallName(call.name), call.durationMs === undefined ? "" : formatDuration(call.durationMs), outcome, args]);
+  return summaryHtml([codemodeCallName(call.name), call.durationMs === undefined ? "" : formatDuration(call.durationMs), toolOutcomeLabel(call.details, call.status === "error"), args]);
 }
 
 /** A finished call whose result was not recorded: its arguments and error. */

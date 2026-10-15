@@ -1,6 +1,6 @@
 import { WorkspaceAgents, type DurableAgentRecord } from "./durable-workspace.ts";
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
-import { defineDoc, InboxDoc, LiveDoc, type ConversationId, type Cursor, type Harness, type TaskId, type Tx } from "@earendil-works/pi-durable";
+import { defineDoc, defineEntry, InboxDoc, LiveDoc, type ConversationId, type Cursor, type Harness, type TaskId, type Tx } from "@earendil-works/pi-durable";
 
 /** Separate from the identity catalog: existing journals start with open admission. */
 export const WorkspaceAdmission = defineDoc<{
@@ -24,6 +24,13 @@ export const DurableTaskAdmissions = defineDoc<{ requests: Record<string, { conv
   kind: "kintsugi.task-admissions", version: 1, scope: "session", initial: () => ({ requests: {} }),
 });
 
+/**
+ * Where Stop ended a running turn. Entries alone cannot tell a stopped turn from one a steering
+ * message joins: both are a tool result followed by a user message. A bookkeeping entry without
+ * model payload, like the timing entries.
+ */
+export const durableStopEntry = defineEntry<{ at: number }>("kintsugi.stop");
+
 /** The same scope is used to offer Stop and to commit it. Child Stop is local. */
 export function durableStopScope(records: readonly DurableAgentRecord[], conversationId: ConversationId, tree: boolean) {
   const root = records.find(record => record.durableId === conversationId);
@@ -36,6 +43,7 @@ export async function commitDurableStop(tx: Tx, conversationId: ConversationId, 
   const scopes = [];
   for (const id of scope) scopes.push({ id, tasks: await stoppedTasks(tx, id), inbox: await tx.doc(InboxDoc, id) });
   for (const { id, tasks, inbox } of scopes) {
+    if ((await tx.doc(LiveDoc, id)).run) await tx.appendEntry(durableStopEntry, id, { data: { at: Date.now() } });
     for (const item of inbox.items) tx.settleSubmission(item.id, { status: "unanswered", reason: "aborted" });
     inbox.items = [];
     (await tx.doc(WorkspaceStops)).tasks[String(id)] = tasks;

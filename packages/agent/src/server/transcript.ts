@@ -61,7 +61,7 @@ const toolViewDetailsSchema = Type.Object({
 
 const toolViewDetailsValidator = Compile(toolViewDetailsSchema);
 
-type ToolViewDetails = Static<typeof toolViewDetailsSchema> & { [key: string]: JsonValue | undefined };
+export type ToolViewDetails = Static<typeof toolViewDetailsSchema> & { [key: string]: JsonValue | undefined };
 
 export function isToolViewDetails(value: unknown): value is ToolViewDetails {
   if (!toolViewDetailsValidator.Check(value)) return false;
@@ -306,6 +306,14 @@ export function buildTranscript(records: TranscriptRecord[], options: { openEnde
   }
   if (!options.openEnded) stopWorking(lastTimestamp);
   return items;
+}
+
+/** How a finished tool call ended, in a word or two, or "" when it succeeded. */
+export function toolOutcomeLabel(details: ToolViewDetails | undefined, isError: boolean): string {
+  if (details?.timedOut === true) return "timed out";
+  if (details?.aborted === true) return "aborted";
+  if (details?.exitCode !== undefined && details.exitCode !== 0) return `exitcode ${details.exitCode}`;
+  return isError ? "failed" : "";
 }
 
 export function toolDetailsIndicateError(details: ToolViewDetails | undefined): boolean {

@@ -14,7 +14,7 @@ import { openDurableAgentRuntime, type DurableAgentRuntime } from "../../src/ser
 import { durableEntryContent } from "../../src/server/durable-images.ts";
 import { CodemodeSandbox } from "@earendil-works/pi-codemode";
 import { createWorkspaceCodemodeExtension } from "../../src/server/durable-codemode.ts";
-import { projectDurableTranscript } from "../../src/server/durable-transcript.ts";
+import { durableViewState, projectDurableTranscript } from "../../src/server/durable-transcript.ts";
 import type { ToolView, TranscriptItem } from "@agents-in-the-cloud/agent/server/transcript";
 
 const context = BACKGROUND_CONTEXT;
@@ -814,13 +814,24 @@ function installCodemode(registry: ReturnType<typeof createRegistry>) {
   return held;
 }
 
-async function codemodeCalls(agent: Awaited<ReturnType<DurableAgentRuntime["agent"]>>): Promise<ToolView[] | undefined> {
+async function codemodeTool(agent: Awaited<ReturnType<DurableAgentRuntime["agent"]>>): Promise<ToolView | undefined> {
   const watch = await agent.watch(context);
   const find = (items: TranscriptItem[]): ToolView | undefined => items.flatMap(item => item.type === "tool" && item.tool.name === "codemode" ? [item.tool]
     : item.type === "working" ? [find(item.items)].filter(tool => tool !== undefined) : [])[0];
   const tool = find(projectDurableTranscript(watch.value));
   await watch.stop();
-  return tool?.nested;
+  return tool;
+}
+
+/** Wait until the running tool's committed output, which a stop keeps, contains `text`. */
+async function committedOutput(agent: Awaited<ReturnType<DurableAgentRuntime["agent"]>>, text: string) {
+  for (;;) {
+    const watch = await agent.watch(context);
+    const output = durableViewState(watch.value).live.tools?.[0]?.output;
+    await watch.stop();
+    if (output?.includes(text)) return;
+    await Bun.sleep(20);
+  }
 }
 
 test("code mode records each call a script makes, with its arguments and result", async () => {
@@ -832,11 +843,11 @@ test("code mode records each call a script makes, with its arguments and result"
   ]);
   const agent = await runtime.agent(record);
   expect((await (await agent.submit({ requestId: "script", text: "Run it" })).wait(context)).status).toBe("done");
-  const [echo] = (await codemodeCalls(agent))!;
+  const [echo] = (await codemodeTool(agent))!.nested!;
   expect(echo).toMatchObject({ name: "echo", args: { text: "echoed" }, status: "ok", resultText: "echoed" });
 });
 
-test("a stopped script keeps the calls it made, and shows the one it was waiting for as cancelled", async () => {
+test("a stopped script keeps the calls it made, for the transcript and the model", async () => {
   const { runtime, faux, registry } = await setup();
   const held = installCodemode(registry);
   faux.setResponses([
@@ -845,10 +856,36 @@ test("a stopped script keeps the calls it made, and shows the one it was waiting
   const agent = await runtime.agent(record);
   await agent.submit({ requestId: "script", text: "Run it" });
   await held.promise;
+  await committedOutput(agent, "started c2");
   await agent.stop();
-  const [echo, hold] = (await codemodeCalls(agent))!;
+  const tool = (await codemodeTool(agent))!;
+  const [echo, hold] = tool.nested!;
   expect(echo).toMatchObject({ name: "echo", status: "ok", resultText: "before the stop" });
   expect(hold).toMatchObject({ name: "hold", status: "error", details: { aborted: true } });
+  // What the model gets for the stopped script: which calls ran, and which one the stop cut off.
+  expect(tool.resultText).toContain('started c1: echo {"text":"before the stop"}\nfinished c1: ok\nstarted c2: hold {}');
+  expect(tool.resultText).not.toContain("finished c2");
+});
+
+test("a message after Stop starts its own turn instead of steering the stopped one", async () => {
+  const { runtime, faux, registry } = await setup();
+  const held = installCodemode(registry);
+  faux.setResponses([
+    fauxAssistantMessage([fauxToolCall("hold", {})], { stopReason: "toolUse" }),
+    fauxAssistantMessage("Second answer"),
+  ]);
+  const agent = await runtime.agent(record);
+  await agent.submit({ requestId: "first", text: "First" });
+  await held.promise;
+  await agent.stop();
+  expect((await (await agent.submit({ requestId: "second", text: "Second" })).wait(context)).status).toBe("done");
+  const watch = await agent.watch(context);
+  const items = projectDurableTranscript(watch.value);
+  await watch.stop();
+  const turns = items.filter(item => item.type === "working");
+  expect(turns).toHaveLength(2);
+  expect(turns[0]).toMatchObject({ stoppedAt: expect.any(Number), durationUnavailable: false, timing: { elapsedMs: expect.any(Number) } });
+  expect(items.some(item => item.type === "user" && item.steering)).toBe(false);
 });
 
 test("execution owner publishes busy and finished turns without a presentation mount", async () => {

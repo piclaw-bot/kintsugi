@@ -1,13 +1,14 @@
 import { agentDelegation } from "./delegation.ts";
 import { applyTranscriptContributions } from "@kintsugi/agent/server/transcript-contributions";
 import { durableTimingEntry, DurableTurnTiming } from "./durable-timing.ts";
+import { durableStopEntry } from "./durable-lifecycle.ts";
 import { historyNote } from "@kintsugi/legacy-converter/entries";
 import { contentText, type Message } from "@earendil-works/pi-ai";
 import { AgentDoc, CompactionEntry, InboxDoc, LiveDoc, ResetEntry, ToolResultEntry, UsageDoc, type AgentState, type ConversationView, type InboxState, type LiveState, type ToolSlot, type UsageState } from "@earendil-works/pi-durable";
 import { Type } from "typebox";
 import { Value } from "typebox/value";
 import { isJsonObject } from "@kintsugi/core";
-import { codemodeCallEntry, type CallEnd, type CallStart, type CodemodeCallRecord } from "./durable-codemode.ts";
+import { callEndDetails, codemodeCallEntry, type CallEnd, type CallStart, type CodemodeCallRecord } from "./durable-codemode.ts";
 import { buildTranscript, isFinalAssistantMessage, isToolViewDetails, toolDetailsIndicateError, type SessionImageRef, type ToolView, type TranscriptItem, type TranscriptRecord } from "@kintsugi/agent/server/transcript";
 
 /** The native watch is an exact committed frame, not an AgentSession event stream. */
@@ -125,6 +126,15 @@ export function projectDurableTranscript(view: ConversationView): TranscriptItem
       recordCodemodeCall(entry.data);
       continue;
     }
+    if (durableStopEntry.is(entry)) {
+      // The aborted tool results that follow still belong to this turn; the next input starts another.
+      if (turn) {
+        turnEnds.set(turn, { timestamp: entry.data.at, completed: false });
+        timings.get(turn)!.stop(entry.data.at);
+      }
+      pendingBoundary = true;
+      continue;
+    }
     if (durableTimingEntry.is(entry)) {
       if (turn) timings.get(turn)!.add(entry.data);
       continue;
@@ -173,8 +183,7 @@ export function projectDurableTranscript(view: ConversationView): TranscriptItem
       if (!start) return [];
       const nested: ToolView = { callId: `${tool.callId}/${key}`, name: start.name, args: start.arguments, status: "running" };
       if (end) {
-        let details = isToolViewDetails(end.details) ? end.details : undefined;
-        if (end.cancelled) details = { ...details, aborted: true };
+        const details = callEndDetails(end);
         nested.status = end.isError || toolDetailsIndicateError(details) ? "error" : "ok";
         nested.durationMs = end.durationMs;
         nested.resultText = end.output ?? end.error;

@@ -62,6 +62,19 @@ export class DurableTurnTiming {
     }
   }
 
+  /** Stop ends the turn at `at`, closing a request or tool round it cut off. */
+  stop(at: number) {
+    if (this.inferenceStart !== undefined) {
+      this.inferenceMs += Math.max(0, at - this.inferenceStart);
+      this.usageComplete = false;
+    }
+    if (this.toolsStart !== undefined) this.toolMs += Math.max(0, at - this.toolsStart);
+    this.inferenceStart = undefined;
+    this.toolsStart = undefined;
+    this.startedAt ??= at;
+    this.endedAt = at;
+  }
+
   summary(): TurnTimingSummary | undefined {
     if (this.startedAt === undefined || this.endedAt === undefined || this.inferenceStart !== undefined || this.toolsStart !== undefined) return;
     return { elapsedMs: Math.max(0, this.endedAt - this.startedAt), inferenceMs: this.inferenceMs, toolMs: this.toolMs, outputTokens: this.outputTokens, usageComplete: this.usageComplete };

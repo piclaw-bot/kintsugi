@@ -6,6 +6,7 @@ import type { CodemodeSandbox } from "@earendil-works/pi-codemode";
 import { Type } from "typebox";
 import { Value } from "typebox/value";
 import { isJsonObject } from "@kintsugi/core";
+import { isToolViewDetails, toolOutcomeLabel, type ToolViewDetails } from "@kintsugi/agent/server/transcript";
 import { execWorkspaceCommand } from "@kintsugi/workspace";
 
 const textSchema = Type.String();
@@ -43,9 +44,8 @@ function outputText(structuredOutput: NestedToolExecutionResult["structuredOutpu
   return displayJson(structuredOutput, 2);
 }
 
-function callStart(name: string, args: JsonObject): CallStart {
-  const json = displayJson(args);
-  return json.length <= maxRecordedArgumentsChars ? { phase: "start", name, arguments: JSON.parse(json) } : { phase: "start", name };
+function callStart(name: string, argumentsJson: string): CallStart {
+  return argumentsJson.length <= maxRecordedArgumentsChars ? { phase: "start", name, arguments: JSON.parse(argumentsJson) } : { phase: "start", name };
 }
 
 function callEnd(result: NestedToolExecutionResult): CallEnd {
@@ -57,6 +57,18 @@ function callEnd(result: NestedToolExecutionResult): CallEnd {
   if (error) end.error = error;
   if (isJsonObject(result.details)) end.details = result.details;
   return end;
+}
+
+/** A finished call's details as the transcript shows them; a cancelled call counts as aborted. */
+export function callEndDetails(end: CallEnd): ToolViewDetails | undefined {
+  const details = isToolViewDetails(end.details) ? end.details : undefined;
+  return end.cancelled ? { ...details, aborted: true } : details;
+}
+
+/** How a call ended, for the model, in the words its row in the transcript uses. */
+function endSummary(end: CallEnd): string {
+  const outcome = toolOutcomeLabel(callEndDetails(end), end.isError);
+  return outcome === "failed" ? `failed: ${(end.error ?? end.output ?? "").split("\n")[0]!.slice(0, 200)}` : outcome || "ok";
 }
 
 /**
@@ -77,7 +89,11 @@ function workspaceOutputFiles(workspaceId: string): Pick<ExecutionEnv, "createTe
   };
 }
 
-/** The code mode extension, with its tool saving script output files in the workspace and recording each call its scripts make. */
+/**
+ * The code mode extension, with its tool saving script output files in the workspace and recording
+ * each call its scripts make. Each call also gets a line of running output, which a stopped
+ * script's result keeps: the model then knows which calls ran, since their effects stay.
+ */
 export function createWorkspaceCodemodeExtension(workspaceId: string, sandbox: CodemodeSandbox): Extension {
   const extension = createCodemodeExtension({ sandbox });
   // SAFETY: code mode uses only createTempDir and writeFile of its environment.
@@ -93,9 +109,13 @@ export function createWorkspaceCodemodeExtension(workspaceId: string, sandbox: C
         const record = (data: CallStart | CallEnd) => api.commit(async tx => {
           await tx.appendEntry(codemodeCallEntry, api.conversationId, { data: { callId: api.callId, key, ...data } });
         }, callContext);
-        await record(callStart(name, toolArgs));
+        const argumentsJson = displayJson(toolArgs);
+        await record(callStart(name, argumentsJson));
+        api.output(`started ${key}: ${name} ${argumentsJson.slice(0, 200)}\n`);
         const result = await api.executeTool(name, toolArgs, callContext, options);
-        await record(callEnd(result));
+        const end = callEnd(result);
+        await record(end);
+        api.output(`finished ${key}: ${endSummary(end)}\n`);
         return result;
       },
     }, context),

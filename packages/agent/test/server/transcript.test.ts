@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { buildTranscript, finalAssistantText, findTranscriptItem, formatDuration, formatTokens, isFinalAssistantMessage, isToolViewDetails, toolDetailsIndicateError, type TranscriptRecord } from "../../src/server/transcript.ts";
+import { buildTranscript, finalAssistantText, findTranscriptItem, formatDuration, formatTokens, isFinalAssistantMessage, isToolViewDetails, toolDetailsIndicateError, toolOutcomeLabel, type TranscriptRecord } from "../../src/server/transcript.ts";
 
 describe("transcript", () => {
   test("preserves record order, joins tool results, and ends Working when the final answer completes", () => {
@@ -270,4 +270,13 @@ test("a new persisted run after an interrupted run is not mistaken for steering"
   const blocks = items.filter((item) => item.type === "working");
   expect(blocks[0]).toMatchObject({ key: "old:working", inputEntryIds: ["old", "steer"], stoppedAt: 5000 });
   expect(blocks[1]).toMatchObject({ key: "new:working", inputEntryIds: ["new"], completedAt: 6001 });
+});
+
+test("a finished tool call's outcome reads the same for every tool row", () => {
+  expect(toolOutcomeLabel({ exitCode: 0 }, false)).toBe("");
+  expect(toolOutcomeLabel({ exitCode: 2 }, false)).toBe("exitcode 2");
+  // A timed-out or stopped command is not an error result, but it did not succeed.
+  expect(toolOutcomeLabel({ timedOut: true, exitCode: 0 }, false)).toBe("timed out");
+  expect(toolOutcomeLabel({ aborted: true }, true)).toBe("aborted");
+  expect(toolOutcomeLabel(undefined, true)).toBe("failed");
 });
