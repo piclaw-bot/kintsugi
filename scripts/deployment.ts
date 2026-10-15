@@ -35,7 +35,7 @@ async function command(args: string[]) {
 export async function deploymentPreflight(storage: string, mode: string, origin?: string, images: string[] = []) {
   if (!["erofs", "overlayfs"].includes(storage) || !["localhost", "proxy", "tailscale"].includes(mode)) throw new Error("Specify storage and access intent");
   if (mode === "proxy" && !origin) throw new Error("Proxy access requires --origin");
-  if (origin) validateProxyAccess({ origin, previewPorts: { start: 41000, end: 41009 } });
+  if (origin) validateProxyAccess({ origin, previewPorts: { start: 41000, end: 41999 } });
   const kernel = await command(["uname", "-smr"]);
   const filesystems = await readFile("/proc/filesystems", "utf8");
   const docker = await command(["docker", "info", "--format", "{{json .DriverStatus}}"]);
@@ -53,7 +53,7 @@ export async function deploymentPreflight(storage: string, mode: string, origin?
   return { readOnly: true, kernel: kernel.output, architecture: process.arch, storageDriver: storage, accessMode: mode, uiOrigin: origin, kernelSupport: { overlayfs: /\boverlay\b/.test(filesystems), erofs: /\berofs\b/.test(filesystems) }, docker, containers, disk, listeners, interfaces, services, imageChecks, pendingActions: ["Read the README at the selected release; install the release, do not clone a stale development checkout", "Preserve unrelated services, containers and volumes; do not upgrade the kernel before considering supported storage", "Verify image architecture, storage/deployment capabilities and immutable pins before replacement", "Record UI/API reachability intent, trusted interfaces, port conflicts and available backing storage", "Reserve DHCP addresses; restrict Avahi to the intended interface; verify IPv4/IPv6 and client CA trust", "Probe from a second physical LAN client; host-local checks do not prove remote reachability"] };
 }
 if (import.meta.main) {
-  const { values, positionals } = parseArgs({ allowPositionals: true, options: { origin: { type: "string" }, upstream: { type: "string", default: "127.0.0.1:3000" }, "preview-ports": { type: "string", default: "41000:41009" }, bind: { type: "string" }, "admin-origin": { type: "string" }, "admin-upstream": { type: "string" }, storage: { type: "string", default: "erofs" }, mode: { type: "string" }, image: { type: "string", multiple: true } } });
+  const { values, positionals } = parseArgs({ allowPositionals: true, options: { origin: { type: "string" }, upstream: { type: "string", default: "127.0.0.1:3000" }, "preview-ports": { type: "string", default: "41000:41999" }, bind: { type: "string" }, "admin-origin": { type: "string" }, "admin-upstream": { type: "string" }, storage: { type: "string", default: "erofs" }, mode: { type: "string" }, image: { type: "string", multiple: true } } });
   if (positionals[0] === "caddyfile") {
     if (!values.origin || !values.bind) throw new Error("caddyfile requires --origin and --bind");
     console.log(caddyRecipe(values.origin, values.upstream!, values["preview-ports"]!, values.bind, values["admin-origin"], values["admin-upstream"]));

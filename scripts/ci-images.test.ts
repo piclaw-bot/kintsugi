@@ -211,3 +211,9 @@ test("every native image workflow takes source attribution from publishing confi
     expect(step.with.labels).toContain("needs.prepare.outputs.image_source");
   }
 });
+
+test("default Caddy generation covers the full retained preview pool", async()=>{
+  const child=Bun.spawn([process.execPath,"scripts/deployment.ts","caddyfile","--origin","https://host.local","--bind","192.0.2.10"],{stdout:"pipe",stderr:"pipe",env:{...process.env}});
+  const [code,out,err]=await Promise.all([child.exited,new Response(child.stdout).text(),new Response(child.stderr).text()]);
+  expect(code).toBe(0);expect(err).toBe("");expect(out).toContain("https://host.local:41000");expect(out).toContain("https://host.local:41009");expect(out).toContain("https://host.local:41999");expect(out).not.toContain("https://host.local:42000");
+});

@@ -43,7 +43,7 @@ function store(read: () => Promise<State>, write: (state: State) => Promise<void
         await write(state);
         return { port, fresh: true };
       }
-      throw new Error(`Workspace ingress origin capacity exhausted in range ${range.start}-${range.end}`);
+      throw new Error(`Workspace ingress origin capacity exhausted in range ${range.start}-${range.end}. Expand the preview range in Kintsugi and Caddy. Retained and retired browser identities are not recycled; do not reset origin-identities.json.`);
     }); },
     rejectFreshPort(app, port) { return lock(async () => {
       const state = await read();

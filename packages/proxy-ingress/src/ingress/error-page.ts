@@ -75,7 +75,7 @@ export async function ingressErrorPage(error: Error, workspaceName: string): Pro
     status = 507;
     title = "Kintsugi can’t open another preview right now";
     explanation = `Kintsugi has no preview capacity available to open this app in ${workspace}.`;
-    guidance = "Retry later or ask your Kintsugi administrator to check preview capacity. This is not a problem with your app’s code.";
+    guidance = "Ask your administrator to expand the preview-port range in Kintsugi and Caddy. Closing previews does not free retained or retired browser identities. Do not reset the origin identity file.";
   } else if (category === "unsupported_target") {
     status = 422;
     title = "This preview doesn’t support this connection";

@@ -26,7 +26,8 @@ confirm_delete=0
 install_docker=0
 lan_trust=0
 public_origin=""
-preview_ports="41000:41009"
+preview_ports="41000:41999"
+preview_override=""
 ui_publish=""
 admin_proxy_publish=""
 admin_proxy_port="3443"
@@ -165,7 +166,7 @@ Update also installs the newest Kintsugi app on the installation's selected chan
   --confirm-delete    Confirm permanent deletion for unattended uninstall
   --install-docker    Allow unattended Docker package installation
   --public-origin URL  Advertised UI origin for proxy mode (no path)
-  --preview-ports FIRST:LAST  Proxy preview ports (default 41000:41009)
+  --preview-ports FIRST:LAST  Proxy preview ports (default 41000:41999; legacy ten-port pools expand on update)
   --ui-publish 127.IP:HOST_PORT:3081  Loopback UI upstream for external proxy
   --admin-proxy-publish 127.IP:HOST_PORT:3082  Loopback upstream to loopback HTTP API
   --admin-proxy-port PORT  Inner HTTP admin listener (default 3443)
@@ -201,7 +202,7 @@ while [ "$#" -gt 0 ]; do
         --action) action="$2" ;;
         --access-mode) access_mode="$2" ;;
         --public-origin) public_origin="$2" ;;
-        --preview-ports) preview_ports="$2" ;;
+        --preview-ports) preview_ports="$2"; preview_override="$2" ;;
         --ui-publish) ui_publish="$2" ;;
         --admin-proxy-publish) admin_proxy_publish="$2" ;;
         --admin-proxy-port) admin_proxy_port="$2" ;;
@@ -274,6 +275,9 @@ validate_proxy_publish() {
 }
 if [ -n "$ui_publish" ]; then validate_proxy_publish "$ui_publish" 3081; fi
 if [ -n "$admin_proxy_publish" ]; then validate_proxy_publish "$admin_proxy_publish" 3082; fi
+if [ -n "$preview_override" ]; then
+  [[ "$preview_override" =~ ^41[0-9]{3}:41[0-9]{3}$ ]] && [ "${preview_override%:*}" -le "${preview_override#*:}" ] || fail "Preview ports must be FIRST:LAST within 41000–41999"
+fi
 if [ -n "$public_origin" ]; then
   [ "$lan_trust" -eq 1 ] || fail "Proxy UI access trusts every reachable client; requires --acknowledge-lan-trust"
   [[ "$public_origin" =~ ^https?://[a-z0-9]([a-z0-9.-]*[a-z0-9])?(:[0-9]+)?$ ]] || fail "Use a canonical HTTP(S) public origin without a path or credentials"
@@ -678,7 +682,7 @@ if [ -n "$storage_override" ]; then
   case "$action" in install|update|rollback) ;; *) fail "--storage-driver requires install, update or rollback" ;; esac
 fi
 
-if [ -n "$proxy_config$ui_publish$admin_proxy_publish$admin_bootstrap" ]; then
+if [ -n "$proxy_config$preview_override$ui_publish$admin_proxy_publish$admin_bootstrap" ]; then
   case "$action" in install|update) ;; *) fail "Proxy/bootstrap options require install or update" ;; esac
 fi
 if [ "${#admin_publish[@]}" -gt 0 ] || [ "$admin_publish_disabled" -eq 1 ] || [ "$admin_allow_all" -eq 1 ]; then
@@ -687,7 +691,7 @@ fi
 
 # This portable Bun helper also runs in older System images, without app/module dependencies.
 release_config_script="$(cat <<'INSTALLER_CONFIG_JS'
-const [operation, sourceOverride, appOverride, systemOverride, hostnameOverride, systemId, preparedApp, credentialFile, previousSystemId, storageOverride, proxyOverride, accessOverride] = process.argv.slice(1);
+const [operation, sourceOverride, appOverride, systemOverride, hostnameOverride, systemId, preparedApp, credentialFile, previousSystemId, storageOverride, proxyOverride, accessOverride, previewOverride] = process.argv.slice(1);
 const fs = await import('node:fs/promises');
 const repositoryPattern = /^(?:ghcr\.io|docker\.io)\/[a-z0-9]+(?:[._-][a-z0-9]+)*\/[a-z0-9]+(?:[._/-][a-z0-9]+)*$/;
 const versionPattern = /^(?:[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}|sha256:[a-f0-9]{64})$/;
@@ -700,7 +704,18 @@ async function read(path) {
 let settings = await read('/data/app/update.json');
 const state = await read('/data/supervisor/state.json');
 const history = await read('/data/supervisor/installer.json');
+const previousProxy = state.proxy;
 if (proxyOverride) state.proxy = JSON.parse(proxyOverride);
+const rangeOverride = previewOverride && !['preserve-selection','normal-selection'].includes(previewOverride) ? previewOverride : '';
+if (rangeOverride) {
+  if (!state.proxy) throw Error('Preview port changes require saved proxy configuration or --public-origin');
+  if (!/^41[0-9]{3}:41[0-9]{3}$/.test(rangeOverride)) throw Error('Invalid preview port range');
+  const [start,end]=rangeOverride.split(':').map(Number);
+  state.proxy={...state.proxy,previewPorts:{start,end}};
+} else if (!proxyOverride && !operation.startsWith('rollback') && state.proxy?.previewPorts?.start===41000 && state.proxy.previewPorts.end===41009) {
+  state.proxy={...state.proxy,previewPorts:{start:41000,end:41999}};
+}
+if (previousProxy && state.proxy && (state.proxy.previewPorts.start>previousProxy.previewPorts.start || state.proxy.previewPorts.end<previousProxy.previewPorts.end)) throw Error('Preview ranges can only expand; retained and retired origins must be preserved');
 if (state.proxy) {
   const p=state.proxy; const url=new URL(p.origin);
   if (!['http:','https:'].includes(url.protocol) || url.origin !== p.origin || url.username || url.password || url.hostname.startsWith('[') || !p.previewPorts || !Number.isInteger(p.previewPorts.start) || !Number.isInteger(p.previewPorts.end) || p.previewPorts.start < 41000 || p.previewPorts.end > 41999 || p.previewPorts.end < p.previewPorts.start || Number(url.port)>=41000 && Number(url.port)<=41999 || Object.keys(p).some(k=>!['origin','previewPorts','adminPort'].includes(k))) throw Error('Invalid proxy configuration');
@@ -817,9 +832,9 @@ INSTALLER_CONFIG_JS
 )"
 release_plan() {
   if [ -n "$registry_directory" ]; then
-    docker run --rm -i --network none --entrypoint bun --mount "source=$system_name,target=/data,readonly" "$1" -e "$release_config_script" "${2:-plan}" "$source_repository" "$app_image_override" "$system_image_override" "$tailscale_hostname" "" "" - "" "$storage_driver" "$proxy_config" "$access_mode" "$([ "$preserve_release_selection" -eq 1 ] && echo preserve-selection || echo normal-selection)" < "$registry_directory/config.json"
+    docker run --rm -i --network none --entrypoint bun --mount "source=$system_name,target=/data,readonly" "$1" -e "$release_config_script" "${2:-plan}" "$source_repository" "$app_image_override" "$system_image_override" "$tailscale_hostname" "" "" - "" "$storage_driver" "$proxy_config" "$access_mode" "$preview_override" "$([ "$preserve_release_selection" -eq 1 ] && echo preserve-selection || echo normal-selection)" < "$registry_directory/config.json"
   else
-    docker run --rm --network none --entrypoint bun --mount "source=$system_name,target=/data,readonly" "$1" -e "$release_config_script" "${2:-plan}" "$source_repository" "$app_image_override" "$system_image_override" "$tailscale_hostname" "" "" "" "" "$storage_driver" "$proxy_config" "$access_mode" "$([ "$preserve_release_selection" -eq 1 ] && echo preserve-selection || echo normal-selection)"
+    docker run --rm --network none --entrypoint bun --mount "source=$system_name,target=/data,readonly" "$1" -e "$release_config_script" "${2:-plan}" "$source_repository" "$app_image_override" "$system_image_override" "$tailscale_hostname" "" "" "" "" "$storage_driver" "$proxy_config" "$access_mode" "$preview_override" "$([ "$preserve_release_selection" -eq 1 ] && echo preserve-selection || echo normal-selection)"
   fi
 }
 host_pull() {
@@ -1011,7 +1026,7 @@ case "$action" in
         run_quiet "Starting System to prepare the selected app" docker start "$system_name"
       fi
       if [ -n "$registry_directory" ]; then
-        run_quiet "Preparing private registry access" docker run --rm -i --network none --entrypoint bun --mount "source=$system_name,target=/data" "$system_image" -e "$release_config_script" credentials "$source_repository" "$app_image_override" "$system_image_override" "$tailscale_hostname" "" "" - "" "$storage_driver" "$proxy_config" "$access_mode" "$([ "$preserve_release_selection" -eq 1 ] && echo preserve-selection || echo normal-selection)" < "$registry_directory/config.json"
+        run_quiet "Preparing private registry access" docker run --rm -i --network none --entrypoint bun --mount "source=$system_name,target=/data" "$system_image" -e "$release_config_script" credentials "$source_repository" "$app_image_override" "$system_image_override" "$tailscale_hostname" "" "" - "" "$storage_driver" "$proxy_config" "$access_mode" "$preview_override" "$([ "$preserve_release_selection" -eq 1 ] && echo preserve-selection || echo normal-selection)" < "$registry_directory/config.json"
       fi
       if [ "$action" = rollback ]; then
         pinned_app="$app_image"
@@ -1047,9 +1062,9 @@ case "$action" in
     fi
     apply_operation=apply; if [ "$action" = rollback ]; then apply_operation=rollback-apply; fi
     if [ -n "$registry_directory" ]; then
-      run_quiet "Saving installation source and hostname" docker run --rm -i --network none --entrypoint bun --mount "source=$system_name,target=/data" "$system_image" -e "$release_config_script" "$apply_operation" "$source_repository" "$app_image_override" "$system_image_override" "$tailscale_hostname" "$system_image" "$pinned_app" - "$old_system_image" "$storage_driver" "$proxy_config" "$access_mode" "$([ "$preserve_release_selection" -eq 1 ] && echo preserve-selection || echo normal-selection)" < "$registry_directory/config.json"
+      run_quiet "Saving installation source and hostname" docker run --rm -i --network none --entrypoint bun --mount "source=$system_name,target=/data" "$system_image" -e "$release_config_script" "$apply_operation" "$source_repository" "$app_image_override" "$system_image_override" "$tailscale_hostname" "$system_image" "$pinned_app" - "$old_system_image" "$storage_driver" "$proxy_config" "$access_mode" "$preview_override" "$([ "$preserve_release_selection" -eq 1 ] && echo preserve-selection || echo normal-selection)" < "$registry_directory/config.json"
     else
-      run_quiet "Saving installation source and hostname" docker run --rm --network none --entrypoint bun --mount "source=$system_name,target=/data" "$system_image" -e "$release_config_script" "$apply_operation" "$source_repository" "$app_image_override" "$system_image_override" "$tailscale_hostname" "$system_image" "$pinned_app" "" "$old_system_image" "$storage_driver" "$proxy_config" "$access_mode" "$([ "$preserve_release_selection" -eq 1 ] && echo preserve-selection || echo normal-selection)"
+      run_quiet "Saving installation source and hostname" docker run --rm --network none --entrypoint bun --mount "source=$system_name,target=/data" "$system_image" -e "$release_config_script" "$apply_operation" "$source_repository" "$app_image_override" "$system_image_override" "$tailscale_hostname" "$system_image" "$pinned_app" "" "$old_system_image" "$storage_driver" "$proxy_config" "$access_mode" "$preview_override" "$([ "$preserve_release_selection" -eq 1 ] && echo preserve-selection || echo normal-selection)"
     fi
     stop_on_failure=1
     run_quiet "Starting Kintsugi services" docker run -d --name "$system_name" --label "kintsugi.storage-driver=$storage_driver" --hostname "$tailscale_hostname" --privileged --cgroupns=host --restart unless-stopped \

@@ -126,7 +126,7 @@ test("proxy origin, preview range and selected mode survive update and rollback"
  expect(run("apply",...args).status).toBe(0);
  expect(JSON.parse(await readFile(join(directory,"supervisor/state.json"),"utf8"))).toMatchObject({proxy,accessMode:"proxy"});
  expect(run("apply","","","","",pinned,previous,"","","overlayfs").status).toBe(0);
- expect(JSON.parse(await readFile(join(directory,"supervisor/state.json"),"utf8"))).toMatchObject({proxy,accessMode:"proxy"});
+ expect(JSON.parse(await readFile(join(directory,"supervisor/state.json"),"utf8"))).toMatchObject({proxy:{...proxy,previewPorts:{start:41000,end:41999}},accessMode:"proxy"});
  for(const invalid of [{...proxy,origin:"https://agent-host.local/path"},{...proxy,adminPort:3001},{...proxy,previewPorts:{start:41010,end:41000}}])expect(run("plan",...args.slice(0,9),JSON.stringify(invalid),"proxy").status).not.toBe(0);
 }));
 
@@ -140,4 +140,30 @@ test("the portable installer detects desired and applied listed-host state befor
   expect(run("network-data-version").stdout).toBe("2");
   await writeFile(join(directory, "app/workspaces/one/metadata/network.json"), JSON.stringify({ mode: "off", applied: { mode: "off" } }));
   expect(run("network-data-version").stdout).toBe("0");
+}));
+
+test("upgrades expand the legacy preview default without touching origin identities or image selection", () => fixture(async(directory,run)=>{
+  const proxy={origin:"https://host.local",previewPorts:{start:41000,end:41009},adminPort:3443};
+  await writeFile(join(directory,"supervisor/state.json"),JSON.stringify({proxy,accessMode:"proxy",tailscaleHostname:"saved-host"}));
+  await writeFile(join(directory,"app/update.json"),JSON.stringify({releaseMode:"custom",releaseSource:{appRepository:"ghcr.io/example/app",systemRepository:"ghcr.io/example/system",appVersion:"v2",systemVersion:"v2"}}));
+  await mkdir(join(directory,"app/proxy"));const identity=JSON.stringify({version:2,assignments:[{app:{workspaceId:"a",appKey:"port:3000"},port:41000,protocol:"http"}],retiredPorts:[41001,41009]});await writeFile(join(directory,"app/proxy/origin-identities.json"),identity);
+  expect(run("apply","","","","",pinned,previous,"",pinned).status).toBe(0);
+  expect(JSON.parse(await readFile(join(directory,"supervisor/state.json"),"utf8"))).toMatchObject({proxy:{...proxy,previewPorts:{start:41000,end:41999}},accessMode:"proxy",tailscaleHostname:"saved-host"});
+  expect(await readFile(join(directory,"app/proxy/origin-identities.json"),"utf8")).toBe(identity);
+  expect(releaseReference(await readReleaseSettings(join(directory,"app/update.json")),"app")).toBe("ghcr.io/example/app:v2");
+}));
+test("explicit range expansion preserves saved origin/admin settings and refuses shrinking", () => fixture(async(directory,run)=>{
+  const proxy={origin:"https://host.local",previewPorts:{start:41000,end:41019},adminPort:3443};
+  await writeFile(join(directory,"supervisor/state.json"),JSON.stringify({proxy,accessMode:"proxy",tailscaleHostname:"saved-host"}));
+  const args=["","","","",pinned,previous,"",pinned,"overlayfs","",""];
+  expect(run("apply",...args,"41000:41099").status).toBe(0);
+  const saved=await readFile(join(directory,"supervisor/state.json"),"utf8");expect(JSON.parse(saved).proxy).toEqual({...proxy,previewPorts:{start:41000,end:41099}});
+  expect(run("apply",...args,"41000:41009").status).not.toBe(0);expect(await readFile(join(directory,"supervisor/state.json"),"utf8")).toBe(saved);
+}));
+
+test("non-default preview pools stay explicit on upgrades and rollback never shrinks them", () => fixture(async(directory,run)=>{
+  const proxy={origin:"https://host.local",previewPorts:{start:41020,end:41039}};
+  await writeFile(join(directory,"supervisor/state.json"),JSON.stringify({proxy,tailscaleHostname:"saved-host"}));
+  expect(run("apply","","","","",pinned,previous,"",pinned).status).toBe(0);
+  expect(JSON.parse(await readFile(join(directory,"supervisor/state.json"),"utf8")).proxy).toEqual(proxy);
 }));
