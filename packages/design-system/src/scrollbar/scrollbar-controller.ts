@@ -83,11 +83,13 @@ export class ScrollbarController extends Controller<HTMLElement> {
     const rect = root ? { left: 0, top: 0, right: innerWidth, bottom: innerHeight } : viewport.getBoundingClientRect();
     let left = Math.max(0, rect.left + viewport.clientLeft), top = Math.max(0, rect.top + viewport.clientTop);
     let right = Math.min(innerWidth, rect.right), bottom = Math.min(innerHeight, rect.bottom);
-    // Top-layer tracks must still respect clipping scroll ancestors.
-    for (let parent = viewport.parentElement; parent && parent !== document.body; parent = parent.parentElement) {
+    // Top-layer tracks must still respect clipping scroll ancestors. Ancestors
+    // above a fixed-position element (e.g. a fullscreen pane) don't clip it.
+    for (let parent = viewport.parentElement, escaped = getComputedStyle(viewport).position === "fixed"; parent && parent !== document.body && !escaped; parent = parent.parentElement) {
       const style = getComputedStyle(parent), bounds = parent.getBoundingClientRect();
       if (style.overflowX !== "visible") { left = Math.max(left, bounds.left); right = Math.min(right, bounds.right); }
       if (style.overflowY !== "visible") { top = Math.max(top, bounds.top); bottom = Math.min(bottom, bounds.bottom); }
+      escaped = style.position === "fixed";
     }
     this.tracks.forEach((track, axis) => {
       const { size, total, maximum, position, scrollable } = scrollGeometry(viewport, axis);
