@@ -31,10 +31,14 @@ describe("git credential helper", () => {
   });
 
   test("ignores store and erase requests", async () => {
-    const proc = Bun.spawn(["sh", "-c", gitCredentialHelperShellBody, "kintsugi-git-credential", "store"], { env: { GH_TOKEN: "github-secret" }, stdin: "pipe", stdout: "pipe" });
-    proc.stdin.write("protocol=https\nhost=github.com\n\n");
-    proc.stdin.end();
-    expect(await new Response(proc.stdout).text()).toBe("");
+    // Ignored operations exit before reading stdin; do not race a write against that intentional exit.
+    for (const operation of ["store", "erase"]) {
+      const proc = Bun.spawn(["sh", "-c", gitCredentialHelperShellBody, "kintsugi-git-credential", operation], { env: { GH_TOKEN: "github-secret" }, stdin: "ignore", stdout: "pipe", stderr: "pipe" });
+      const [stdout, stderr, code] = await Promise.all([new Response(proc.stdout).text(), new Response(proc.stderr).text(), proc.exited]);
+      expect(code).toBe(0);
+      expect(stdout).toBe("");
+      expect(stderr).toBe("");
+    }
   });
 });
 
