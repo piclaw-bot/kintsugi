@@ -16,21 +16,24 @@ export class SharedMicrophone {
   constructor(private readonly request: RequestMicrophone = (constraints) => navigator.mediaDevices.getUserMedia(constraints)) {}
 
   async acquire(): Promise<MicrophoneLease> {
-    const stream = await this.liveStream();
+    // Reserve before yielding: another lease can release while this acquire resumes.
     this.leases += 1;
-    for (const track of stream.getAudioTracks()) track.enabled = true;
-    let released = false;
-    return {
-      stream,
-      release: () => {
-        if (released) return;
-        released = true;
-        this.leases -= 1;
-        if (this.leases !== 0) return;
-        for (const track of stream.getTracks()) track.stop();
-        this.stream = undefined;
-      },
-    };
+    try {
+      const stream = await this.liveStream();
+      for (const track of stream.getAudioTracks()) track.enabled = true;
+      let released = false;
+      return {
+        stream,
+        release: () => {
+          if (released) return;
+          released = true;
+          this.leases -= 1;
+          if (this.leases !== 0) return;
+          for (const track of stream.getTracks()) track.stop();
+          this.stream = undefined;
+        },
+      };
+    } catch (error) { this.leases -= 1; throw error; }
   }
 
   private async liveStream(): Promise<MediaStream> {

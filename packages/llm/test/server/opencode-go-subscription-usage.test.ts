@@ -63,3 +63,10 @@ test("Go rejects malformed payloads, invalid dates, percentages and unknown stat
   }
   await expect(fetchOpenCodeGoSubscriptionUsage("key", async () => Response.json({ usage: {} }))).rejects.toThrow("unrecognized usage response");
 });
+
+test("Go reset timestamps reject invalid calendar dates and local-time ambiguity", async () => {
+  for(const resetsAt of ["2026-02-30T00:00:00Z","2026-10-10T02:00:00"]){
+    const data=payload();data.usage.rolling.resetsAt=resetsAt;
+    await expect(fetchOpenCodeGoSubscriptionUsage("key",async()=>Response.json(data))).rejects.toThrow("unrecognized usage response");
+  }
+});

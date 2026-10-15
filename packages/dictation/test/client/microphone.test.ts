@@ -55,3 +55,16 @@ describe("SharedMicrophone", () => {
     expect(track.stop).toHaveBeenCalledTimes(1);
   });
 });
+
+test("an acquisition already in flight keeps the previous lease from closing its stream", async () => {
+  const {stream,track}=fakeStream();
+  const microphone=new SharedMicrophone(async()=>stream);
+  const first=await microphone.acquire();
+  const pending=microphone.acquire();
+  first.release();
+  const second=await pending;
+  expect(track.stop).not.toHaveBeenCalled();
+  expect(second.stream).toBe(stream);
+  second.release();
+  expect(track.stop).toHaveBeenCalledTimes(1);
+});

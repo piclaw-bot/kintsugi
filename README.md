@@ -68,3 +68,5 @@ Internal packages use `@kintsugi/*`. Container accounts are `agent:agent`, with 
 ## Attribution and licence
 
 Kintsugi derives from [AgentsInTheCloud](https://github.com/lucasmeijer/AgentsInTheCloud), originally created by Lucas Meijer. The original copyright and [MIT licence](LICENSE) are retained. Third-party attributions are in [NOTICE](NOTICE).
+
+Classifier-only provider credentials, OpenCode Go usage tracking and microphone lifecycle improvements were adapted from [Larry Hudson’s fork](https://github.com/larryhudson/AgentsInTheCloud). His authorship is retained in the imported commits.

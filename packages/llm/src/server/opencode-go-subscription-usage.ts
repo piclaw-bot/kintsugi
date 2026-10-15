@@ -1,5 +1,5 @@
 import { Type } from "typebox";
-import { requestSubscriptionUsage, readSubscriptionUsageJson, subscriptionUsageMessages, SubscriptionUsageError, type Fetcher, type SubscriptionUsage } from "./subscription-usage.ts";
+import { requestSubscriptionUsage, readSubscriptionUsageJson, parseSubscriptionUsageDate, subscriptionUsageMessages, SubscriptionUsageError, type Fetcher, type SubscriptionUsage } from "./subscription-usage.ts";
 
 const windowSchema = Type.Object({
   status: Type.Union([Type.Literal("ok"), Type.Literal("rate-limited")]),
@@ -23,9 +23,9 @@ export async function fetchOpenCodeGoSubscriptionUsage(apiKey: string, fetcher: 
     ["weekly", "Weekly", 7 * 86400],
   ] as const).map(([key, limitName, durationSeconds]) => {
     const window = usage[key];
-    const reset = new Date(window.resetsAt).getTime();
-    if (!Number.isFinite(reset)) throw new SubscriptionUsageError(messages.unrecognized);
-    return { limitName, meteredFeature: null, kind: key === "rolling" ? "primary" as const : "secondary" as const, usedPercent: window.percent, durationSeconds, resetsAt: new Date(reset).toISOString() };
+    const reset = parseSubscriptionUsageDate(window.resetsAt, messages.unrecognized);
+    if (!reset) throw new SubscriptionUsageError(messages.unrecognized);
+    return { limitName, meteredFeature: null, kind: key === "rolling" ? "primary" as const : "secondary" as const, usedPercent: window.percent, durationSeconds, resetsAt: reset.toISOString() };
   });
   // Monthly still affects availability, but isn't shown without a known period length.
   const limitReached = Object.values(usage).some(window => window.status === "rate-limited");

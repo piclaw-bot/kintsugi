@@ -235,7 +235,7 @@ test("TypeSafe classifiers reach Pi with bridged credentials, without becoming c
   const runtime = await ModelRuntime.create({ modelsPath: null, allowModelNetwork: false, refreshOnCreate: false });
   await runtime.setRuntimeApiKey("typesafe", "typesafe-secret");
   const config = await createPiCliConfiguration(runtime, []);
-  expect(config.auth.typesafe!.key).toContain("agents-in-the-cloud-pi-");
+  expect(config.auth.typesafe!.key).toContain("kintsugi-pi-");
   expect(JSON.stringify(config)).not.toContain("typesafe-secret");
   expect(config.models.providers.typesafe).toBeUndefined();
   expect(config.enabledModels).toEqual([]);
