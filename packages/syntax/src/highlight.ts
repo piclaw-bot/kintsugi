@@ -18,6 +18,7 @@ import jsonc from "@shikijs/langs/jsonc";
 import jsx from "@shikijs/langs/jsx";
 import markdown from "@shikijs/langs/markdown";
 import php from "@shikijs/langs/php";
+import proto from "@shikijs/langs/proto";
 import python from "@shikijs/langs/python";
 import regex from "@shikijs/langs/regex";
 import ruby from "@shikijs/langs/ruby";
@@ -50,13 +51,13 @@ theme.tokenColors?.push(
 const highlighter = createHighlighterCoreSync({
   engine: await createOnigurumaEngine(import("@shikijs/engine-oniguruma/wasm-inlined")),
   themes: [theme],
-  langs: [astro, bash, csharp, css, docker, erb, go, glsl, hcl, hlsl, html, java, javascript, json, jsonc, jsx, markdown, php, python, regex, ruby, rust, scss, sql, svelte, terraform, tsx, typescript, vue, xml, yaml],
+  langs: [astro, bash, csharp, css, docker, erb, go, glsl, hcl, hlsl, html, java, javascript, json, jsonc, jsx, markdown, php, proto, python, regex, ruby, rust, scss, sql, svelte, terraform, tsx, typescript, vue, xml, yaml],
 });
 
 const aliases = new Map(Object.entries({
   ts: "typescript", js: "javascript", mjs: "javascript", cjs: "javascript", htm: "html", yml: "yaml",
   dockerfile: "docker", shell: "bash", sh: "bash", zsh: "bash", cs: "csharp", csx: "csharp", md: "markdown",
-  py: "python", rb: "ruby", rs: "rust", tf: "terraform",
+  py: "python", rb: "ruby", rs: "rust", tf: "terraform", protobuf: "proto",
 }));
 const supported = new Set(highlighter.getLoadedLanguages());
 const colorRole = /^var\(--syntax-(?:token-)?([\w-]+)/;

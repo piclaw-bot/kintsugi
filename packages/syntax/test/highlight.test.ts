@@ -36,6 +36,7 @@ describe("Kintsugi syntax highlighting", () => {
       "main.tf": "terraform",
       "variables.hcl": "hcl",
       "index.php": "php",
+      "api/service.proto": "proto",
     } as const;
 
     for (const [filePath, language] of Object.entries(paths)) {
@@ -55,6 +56,7 @@ describe("Kintsugi syntax highlighting", () => {
       tf: "resource \"aws_s3_bucket\" \"assets\" {}",
       hcl: "service { port = 3000 }",
       php: "<?php echo 'Hello'; ?>",
+      proto: "syntax = \"proto3\";\nmessage User { string name = 1; }",
     } as const;
 
     for (const [language, code] of Object.entries(samples)) {

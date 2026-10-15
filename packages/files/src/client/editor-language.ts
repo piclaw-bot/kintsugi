@@ -17,6 +17,7 @@ export async function languageExtension(path: string): Promise<Extension> {
   const { StreamLanguage } = await import("@codemirror/language");
   if (extension === "rb") return StreamLanguage.define((await import("@codemirror/legacy-modes/mode/ruby")).ruby);
   if (extension === "go") return StreamLanguage.define((await import("@codemirror/legacy-modes/mode/go")).go);
+  if (extension === "proto") return StreamLanguage.define((await import("@codemirror/legacy-modes/mode/protobuf")).protobuf);
   if (["sh", "bash", "zsh"].includes(extension)) return StreamLanguage.define((await import("@codemirror/legacy-modes/mode/shell")).shell);
   return [];
 }
