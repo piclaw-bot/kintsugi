@@ -310,13 +310,13 @@ export async function collectUnchangedPaths(root: Repository, target: string | u
 
 export type UnchangedFile =
   | { kind: "text"; text: string; mode?: string }
-  | { kind: "image" | "video"; contentType: string }
+  | { kind: "image" | "video" | "audio"; contentType: string }
   | { kind: "binary" | "large" };
 
-/** Images and video are recognised by name, like the Files view, and streamed rather than read here. */
+/** Images, video and audio are recognised by name, like the Files view, and streamed rather than read here. */
 export function unchangedMediaType(path: string): string | undefined {
   const contentType = imageMimeByExtension[extensionOf(path)] ?? Bun.file(path).type.split(";")[0]!;
-  return /^(?:image|video)\//.test(contentType) ? contentType : undefined;
+  return /^(?:image|video|audio)\//.test(contentType) ? contentType : undefined;
 }
 
 export async function readUnchangedContents(root: Repository, target: string | undefined, path: string): Promise<{ contents: Buffer; mode?: string }> {
@@ -328,8 +328,8 @@ export async function readUnchangedContents(root: Repository, target: string | u
 export async function readUnchangedFile(root: Repository, target: string | undefined, path: string): Promise<UnchangedFile> {
   const contentType = unchangedMediaType(path);
   if (contentType) {
-    // SAFETY: unchangedMediaType only returns image and video types.
-    const kind = contentType.split("/")[0] as "image" | "video";
+    // SAFETY: unchangedMediaType only returns image, video and audio types.
+    const kind = contentType.split("/")[0] as "image" | "video" | "audio";
     return { kind, contentType };
   }
   const { contents, mode } = await readUnchangedContents(root, target, path);

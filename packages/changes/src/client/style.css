@@ -162,5 +162,6 @@
 .changes-revert-block { display: flex; justify-content: flex-end; padding: 2px 8px; }
 .changes-unchanged-header .content-row__label-text { color: var(--text-muted); }
 .changes-media { padding: 8px 12px; }
-.changes-media video { display: block; max-width: 100%; max-height: 480px; }
+.changes-media :is(video, audio) { display: block; max-width: 100%; }
+.changes-media video { max-height: 480px; }
 .changes-media > .changes-image-canvas { max-width: 640px; }

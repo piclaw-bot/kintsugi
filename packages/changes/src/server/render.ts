@@ -79,13 +79,14 @@ const mediaAnnotation = (path: string) => [{ lineNumber: 1, metadata: { kind: "m
 const mediaItem = (path: string, cacheKey: string, version: number): CodeViewItem<MediaAnnotation> => ({ id: path, type: "file", version, file: { name: path, lang: "text", contents: "", cacheKey }, annotations: mediaAnnotation(path) });
 const mediaTemplate = (path: string, html: string) => `<template data-changes-media="${escapeHtml(path)}"><div class="changes-media">${html}</div></template>`;
 
-/** An unchanged file as the Files view would show it: text, or an image or video preview. */
+/** An unchanged file as the Files view would show it: text, or an image, video or audio preview. */
 export function renderUnchangedFile(workspaceId: string, snapshotId: string, path: string, file: UnchangedFile, editable: boolean): string {
   const cacheKey = `${snapshotId}:${path}`;
-  if (file.kind === "image" || file.kind === "video") {
+  if (file.kind === "image" || file.kind === "video" || file.kind === "audio") {
     const src = escapeHtml(`/workspaces/${encodeURIComponent(workspaceId)}/changes/unchanged-media?${new URLSearchParams({ snapshot: snapshotId, path })}`);
     const media = file.kind === "image" ? `<div class="changes-image-canvas"><img src="${src}" alt="${escapeHtml(path)}" loading="lazy" decoding="async"></div>`
-      : `<video src="${src}" controls playsinline preload="metadata">Your browser can’t play this video.</video>`;
+      : file.kind === "video" ? `<video src="${src}" controls playsinline preload="metadata">Your browser can’t play this video.</video>`
+      : `<audio src="${src}" controls preload="metadata">Your browser can’t play this audio.</audio>`;
     return `<script type="application/json" data-changes-file>${json(mediaItem(path, cacheKey, 1))}</script>${mediaTemplate(path, media)}`;
   }
   const contents = file.kind === "text" ? file.text : file.kind === "large" ? "This file is too large to show here." : "No preview available for this file.";

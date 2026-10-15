@@ -8,7 +8,7 @@ export interface ChangeBlock { index: number; additionLineIndex: number; additio
 export interface LineEdit { range: { start: { line: number; character: number }; end: { line: number; character: number } }; newText: string }
 
 export type RevertAnnotation = { kind: "revert"; path: string; block: number };
-/** Shows an image or video preview in place of a file’s text. */
+/** Shows an image, video or audio preview in place of a file’s text. */
 export type MediaAnnotation = { kind: "media"; path: string };
 export type ChangesAnnotation = CommentAnnotation | RevertAnnotation | MediaAnnotation;
 
