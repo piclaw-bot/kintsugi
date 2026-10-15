@@ -8,15 +8,14 @@ import {
   runCommand,
   createKeyedOperationQueue,
   KintsugiCoreError,
-  discoverGitHubToken,
   dockerHostKintsugiDataPath,
   getKintsugiRuntimeContext,
-  gitHubCredentialHelperCommand,
   invalidArguments,
   shellQuote,
   type KintsugiEventBus,
   type CommandResult,
 } from "@kintsugi/core";
+import { gitCredentialHelperCommand, gitHostingTokenEnvironment } from "@kintsugi/git-hosting";
 import { runHostObservableCommand, tailTerminalText } from "@kintsugi/observable-terminal/server";
 import { Type, type Static } from "typebox";
 import { Value } from "typebox/value";
@@ -105,9 +104,8 @@ async function requireCommand(name: string, args: string[], options: { env?: Rec
 }
 
 async function git(args: string[], options: { errorCode?: string } = {}): Promise<CommandResult> {
-  const token = discoverGitHubToken();
-  return await requireCommand("git", ["-c", `credential.helper=${gitHubCredentialHelperCommand}`, ...args], {
-    env: token ? { GH_TOKEN: token } : undefined,
+  return await requireCommand("git", ["-c", `credential.helper=${gitCredentialHelperCommand}`, ...args], {
+    env: gitHostingTokenEnvironment(),
     errorCode: options.errorCode ?? "git_error",
   });
 }
@@ -128,7 +126,6 @@ async function ensureTemplate(gitUrl: string, branch: string | null, key: string
   await rm(resolvedCommitPath, { force: true });
 
   const branchNotFoundExitCode = 44;
-  const token = discoverGitHubToken();
   const script = `
 set -euo pipefail
 export GIT_TERMINAL_PROMPT=0
@@ -136,7 +133,7 @@ repo_path=${shellQuote(repoPath)}
 tmp_path=${shellQuote(tmpPath)}
 git_url=${shellQuote(gitUrl)}
 branch=${shellQuote(branch ?? "")}
-credential_helper=${shellQuote(gitHubCredentialHelperCommand)}
+credential_helper=${shellQuote(gitCredentialHelperCommand)}
 effective_branch_file=${shellQuote(effectiveBranchPath)}
 resolved_commit_file=${shellQuote(resolvedCommitPath)}
 
@@ -206,8 +203,7 @@ fi
 printf '%s\n' "$effective_branch" > "$effective_branch_file"
 `;
 
-  const env = { ...options.sshEnv };
-  if (token) env.GH_TOKEN = token;
+  const env = { ...options.sshEnv, ...gitHostingTokenEnvironment() };
   const result = await runHostObservableCommand({
     session: `kintsugi-provision-git-${crypto.randomUUID().slice(0, 8)}`,
     cwd: dir,

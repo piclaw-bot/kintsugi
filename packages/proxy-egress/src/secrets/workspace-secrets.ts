@@ -1,13 +1,11 @@
 import { withHostNetworkBoundary } from "../egress/network-boundary.ts";
-import { clearGitHubToken as clearStoredGitHubToken, discoverGitHubToken, hasGitHubToken as hasStoredGitHubToken, setGitHubToken as setStoredGitHubToken } from "@kintsugi/core";
 import { workspaceTemplateIdOfInit, revealEffectiveSecrets, onWorkspaceTemplateStoreChanged, workspaceTemplateSecretPlaceholder, workspaceTemplateSecretHosts, workspaceTemplateSecretAllowsPath } from "@kintsugi/workspace-templates";
 import { getWorkspaceInit, getAppliedWorkspaceNetwork, type WorkspaceInitInstruction } from "@kintsugi/workspace";
+import { connectedGitHostingProviders, onGitHostingCredentialsChanged } from "@kintsugi/git-hosting";
 import { matchHostname } from "./patterns.ts";
 import { privateNetworkDestinationAllowed } from "@kintsugi/shared/network-destinations";
 import { workspaceNetworkAddressAllowed } from "@kintsugi/shared/network-policy";
 import { createHttpHooks, type RequestTransformHttpHooks, type SecretRequestTransform, type SecretDefinition } from "./placeholder-hooks.ts";
-
-export const githubTokenEnvVar = "GH_TOKEN";
 
 export type WorkspaceSecretContext = {
   workspaceId: string;
@@ -52,37 +50,27 @@ function invalidateContexts(): void {
   contexts.clear();
 }
 onWorkspaceTemplateStoreChanged(invalidateContexts);
-
-export { discoverGitHubToken };
-
-export function hasGitHubToken(): boolean {
-  return hasStoredGitHubToken();
-}
-
-export function setGitHubToken(token: string): void {
-  setStoredGitHubToken(token);
-  invalidateContexts();
-}
-
-export function clearGitHubToken(): void {
-  clearStoredGitHubToken();
-  invalidateContexts();
-}
+onGitHostingCredentialsChanged(invalidateContexts);
 
 export async function createWorkspaceSecretContext(workspaceId: string, init?: WorkspaceInitInstruction): Promise<WorkspaceSecretContext> {
   const existing = contexts.get(workspaceId);
   if (existing) return existing;
 
   const generation = configurationGeneration;
-  const token = discoverGitHubToken();
-  const secrets: Record<string, SecretDefinition> = token
-    ? { [githubTokenEnvVar]: { value: token, hosts: githubAllowedHosts(), placeholder: workspaceTemplateSecretPlaceholder(githubTokenEnvVar) } }
-    : {};
-  for (const secret of await revealEffectiveSecrets(workspaceTemplateIdOfInit(init))) {
+  const secrets: Record<string, SecretDefinition> = {};
+  const plainEnv: Record<string, string> = {};
+  for (const { provider, credential } of connectedGitHostingProviders()) {
+    const placeholder = workspaceTemplateSecretPlaceholder(provider.tokenEnvVar);
+    secrets[provider.tokenEnvVar] = { value: credential.token, hosts: provider.tokenHosts, placeholder };
+    Object.assign(plainEnv, provider.workspaceEnv(credential));
+    for (const alias of provider.tokenEnvAliases) plainEnv[alias] = placeholder;
+  }
+  const workspaceTemplateId = workspaceTemplateIdOfInit(init);
+  for (const secret of await revealEffectiveSecrets(workspaceTemplateId)) {
     secrets[secret.envName] = { value: secret.secretValue, allowInPath: workspaceTemplateSecretAllowsPath(secret), hosts: workspaceTemplateSecretHosts(secret.hostPattern), placeholder: secret.placeholder ?? workspaceTemplateSecretPlaceholder(secret.envName) };
   }
   if (generation !== configurationGeneration) return createWorkspaceSecretContext(workspaceId, init);
-  const created = buildContext(workspaceId, { ...secrets, ...subscriptionSecrets });
+  const created = buildContext(workspaceId, { ...secrets, ...subscriptionSecrets }, plainEnv);
   contexts.set(workspaceId, created);
   return created;
 }
@@ -100,7 +88,7 @@ export function forgetWorkspaceSecretContext(workspaceId: string): void {
   contexts.delete(workspaceId);
 }
 
-function buildContext(workspaceId: string, secrets: Record<string, SecretDefinition>): WorkspaceSecretContext {
+function buildContext(workspaceId: string, secrets: Record<string, SecretDefinition>, plainEnv: Record<string, string>): WorkspaceSecretContext {
   const hooks = createHttpHooks({
     allowedHosts: ["*"],
     blockInternalRanges: false,
@@ -121,12 +109,8 @@ function buildContext(workspaceId: string, secrets: Record<string, SecretDefinit
   });
   return {
     workspaceId,
-    env: Object.fromEntries(Object.entries(hooks.env).filter(([name]) => !(name in subscriptionSecrets))),
+    env: { ...plainEnv, ...Object.fromEntries(Object.entries(hooks.env).filter(([name]) => !(name in subscriptionSecrets))) },
     hooks: hooks.httpHooks,
     secrets: hooks.secrets,
   };
-}
-
-function githubAllowedHosts(): string[] {
-  return ["github.com", "api.github.com"];
 }

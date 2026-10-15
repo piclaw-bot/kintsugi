@@ -2,7 +2,7 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { invalidArguments, runCommand, shellQuote, writeFileAtomic } from "@kintsugi/core";
-import { gitHubKnownHosts } from "./github-host-keys.ts";
+import { gitHostingKnownHosts } from "@kintsugi/git-hosting";
 import { findConfigurationRecord, workspaceScopes, workspaceTemplatesFile, readWorkspaceTemplateStore, updateWorkspaceTemplateStore, type ConfigurationScope } from "./workspace-template.ts";
 
 export async function getWorkspaceTemplateSshKnownHosts(scope: ConfigurationScope, file = workspaceTemplatesFile()): Promise<string> {
@@ -38,7 +38,7 @@ export async function prepareWorkspaceSshTrust(directory: string, workspaceTempl
   await mkdir(directory, { recursive: true, mode: 0o700 });
   const path = join(directory, "known_hosts");
   const configuredHosts = await Promise.all(workspaceScopes(workspaceTemplateId).map((scope) => getWorkspaceTemplateSshKnownHosts(scope)));
-  await writeFileAtomic(path, `${gitHubKnownHosts}${configuredHosts.join("")}`, { mode: 0o644 });
+  await writeFileAtomic(path, `${gitHostingKnownHosts}${configuredHosts.join("")}`, { mode: 0o644 });
   return path;
 }
 

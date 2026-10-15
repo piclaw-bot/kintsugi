@@ -52,6 +52,7 @@ export function createHtmlAutocompleteController(Controller: StimulusControllerC
       this.menuTarget.addEventListener("pointerover", this.pointerover);
       for (const type of ["input", "change", "keydown"]) this.menuTarget.addEventListener(type, this.menuEvent);
       this.inputTarget.addEventListener("blur", this.blur);
+      this.menuTarget.addEventListener("focusout", this.menuFocusout);
       this.form?.addEventListener("submit", this.submitted);
       document.addEventListener("selectionchange", this.selectionchange);
     }
@@ -64,6 +65,7 @@ export function createHtmlAutocompleteController(Controller: StimulusControllerC
       this.menuTarget.removeEventListener("pointerover", this.pointerover);
       for (const type of ["input", "change", "keydown"]) this.menuTarget.removeEventListener(type, this.menuEvent);
       this.inputTarget.removeEventListener("blur", this.blur);
+      this.menuTarget.removeEventListener("focusout", this.menuFocusout);
       this.form?.removeEventListener("submit", this.submitted);
       document.removeEventListener("selectionchange", this.selectionchange);
     }
@@ -195,6 +197,13 @@ export function createHtmlAutocompleteController(Controller: StimulusControllerC
       if (!(event instanceof FocusEvent)) throw new Error("Autocomplete blur handler received a non-focus event");
       const relatedTarget = event.relatedTarget;
       if (relatedTarget instanceof Node && this.menuTarget.contains(relatedTarget)) return;
+      this.close();
+    };
+
+    // A focusable menu (tabindex="-1") keeps focus while its text is selected, so it stays open until focus leaves both.
+    private readonly menuFocusout = (event: FocusEvent): void => {
+      const relatedTarget = event.relatedTarget;
+      if (relatedTarget instanceof Node && (relatedTarget === this.inputTarget || this.menuTarget.contains(relatedTarget))) return;
       this.close();
     };
 

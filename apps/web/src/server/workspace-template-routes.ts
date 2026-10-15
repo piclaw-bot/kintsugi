@@ -18,10 +18,10 @@ import {
   updateWorkspaceTemplateEnvironmentVariable, updateWorkspaceTemplateSecret,
   type ConfigurationScope, type WorkspaceTemplateEnvironmentVariable, type WorkspaceTemplateSecretInput, type WorkspaceTemplateSecretSummary, type WorkspaceTemplateSshKeySummary, type WorkspaceTemplateSummary,
 } from "@kintsugi/workspace-templates";
-import { shouldSearchGitHubRepositories, turboStreamResponse } from "@kintsugi/shared";
+import { shouldSearchRepositories, turboStreamResponse } from "@kintsugi/shared";
 import { Type } from "typebox";
 import { Value } from "typebox/value";
-import { GitHubRepositorySearchRateLimitError, renderGitHubRepositorySearchMenu, renderGitHubRepositorySearchRateLimitMenu, searchGitHubRepositories } from "./github-repo-search.ts";
+import { renderRepositorySearchMenu, searchRepositories } from "./repository-search.ts";
 import { jsonResponse, matchRoute, replace, response, textResponse, update, wantsStream } from "@kintsugi/shared/http";
 
 const jsonStringSchema = Type.String();
@@ -46,8 +46,8 @@ export function createWorkspaceTemplateRoutes(deps: {
   function newWorkspaceTemplateEditorBody(): string {
     const cancelButton = buttonHtml({ type: "button", variant: "secondary", content: { kind: "caption", caption: "Cancel" }, attributesHtml: 'data-action="dialog#close"' });
     const addButton = buttonHtml({ type: "submit", variant: "primary", content: { kind: "caption", caption: "Add template" }, attributesHtml: 'data-turbo-submits-with="Adding…"' });
-    const searchButton = buttonHtml({ type: "button", variant: "secondary", content: { kind: "caption", caption: "Search GitHub" }, attributesHtml: 'data-action="workspace-template-github-search#search"' });
-    return `<div class="workspace-template-editor-body"><form class="workspace-template-editor-new-form" aria-label="Add template" method="post" action="/workspace-templates" data-turbo="true" data-action="turbo:submit-end->dialog#submitted"><div><p>Save a remote URL, local path, or search for a GitHub repository.</p><div data-controller="workspace-template-github-search" data-workspace-template-github-search-url-value="/workspace-templates/github-search"><div class="workspace-template-github-search-field"><input class="text-field" name="gitUrl" placeholder="github.com/org/repo, or /path/to/repo#branch" required autofocus data-workspace-template-github-search-target="input" data-action="keydown->workspace-template-github-search#keydown input->workspace-template-github-search#input">${searchButton}</div><div class="floating-surface autocomplete-popover workspace-template-github-results" data-workspace-template-github-search-target="menu" hidden></div></div></div><footer>${cancelButton}${addButton}</footer></form></div>`;
+    const searchButton = buttonHtml({ type: "button", variant: "secondary", content: { kind: "caption", caption: "Search" }, attributesHtml: 'data-action="workspace-template-repository-search#search"' });
+    return `<div class="workspace-template-editor-body"><form class="workspace-template-editor-new-form" aria-label="Add template" method="post" action="/workspace-templates" data-turbo="true" data-action="turbo:submit-end->dialog#submitted"><div><p>Save a remote URL, local path, or search for a repository.</p><div data-controller="workspace-template-repository-search" data-workspace-template-repository-search-url-value="/workspace-templates/repository-search"><div class="workspace-template-repository-search-field"><input class="text-field" name="gitUrl" placeholder="github.com/org/repo, or /path/to/repo#branch" required autofocus data-workspace-template-repository-search-target="input" data-action="keydown->workspace-template-repository-search#keydown input->workspace-template-repository-search#input">${searchButton}</div><div class="floating-surface autocomplete-popover workspace-template-repository-results" tabindex="-1" data-workspace-template-repository-search-target="menu" hidden></div></div></div><footer>${cancelButton}${addButton}</footer></form></div>`;
   }
 
   async function workspaceTemplateEditorHtml(options: WorkspaceTemplateEditorOptions): Promise<string> {
@@ -368,15 +368,10 @@ export function createWorkspaceTemplateRoutes(deps: {
     return wantsStream(request) ? turboStreamResponse(replace(templateSettingsHostId, `<div id="${templateSettingsHostId}"></div>`)) : Response.redirect(new URL("/", request.url).toString(), 303);
   }
 
-  async function githubRepositorySearchEndpoint(url: URL): Promise<Response> {
+  async function repositorySearchEndpoint(url: URL): Promise<Response> {
     const query = url.searchParams.get("q") ?? "";
-    if (!shouldSearchGitHubRepositories(query)) return response("");
-    try {
-      return response(renderGitHubRepositorySearchMenu(await searchGitHubRepositories(query)));
-    } catch (error) {
-      if (error instanceof GitHubRepositorySearchRateLimitError) return response(renderGitHubRepositorySearchRateLimitMenu(error), { status: 429 });
-      throw error;
-    }
+    if (!shouldSearchRepositories(query)) return response("");
+    return response(renderRepositorySearchMenu(await searchRepositories(query)));
   }
 
   async function byReference(reference: string): Promise<WorkspaceTemplateSummary> {
@@ -392,7 +387,7 @@ export function createWorkspaceTemplateRoutes(deps: {
   async function handleRoute(request: Request, url: URL): Promise<Response | undefined> {
     if (url.pathname === "/workspace-templates" && request.method === "GET" && requestAcceptsJson(request)) return jsonResponse(await listWorkspaceTemplates());
     if (url.pathname === "/workspace-templates" && request.method === "POST") return await createWorkspaceTemplateEndpoint(request, url);
-    if (url.pathname === "/workspace-templates/github-search" && request.method === "GET") return await githubRepositorySearchEndpoint(url);
+    if (url.pathname === "/workspace-templates/repository-search" && request.method === "GET") return await repositorySearchEndpoint(url);
     if (url.pathname === globalWorkspaceSettingsPath && request.method === "GET" && requestAcceptsJson(request)) return jsonResponse({ globalWorkspaceSettings: await getConfiguration(globalWorkspaceConfiguration) });
     const configurationResponse = await handleConfigurationRoute(request, url);
     if (configurationResponse) return configurationResponse;

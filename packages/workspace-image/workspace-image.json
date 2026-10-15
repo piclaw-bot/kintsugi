@@ -12,7 +12,6 @@
       "fd-find",
       "file",
       "fuse-overlayfs",
-      "gh",
       "git",
       "git-lfs",
       "iproute2",

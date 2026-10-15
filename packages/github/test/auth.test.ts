@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { validateGitHubToken } from "../src/server/github-auth.ts";
+import { validateGitHubToken } from "../src/auth.ts";
 
 const originalFetch = globalThis.fetch;
 
@@ -34,7 +34,7 @@ describe("GitHub auth", () => {
       throw new Error(`unexpected fetch ${String(url)}`);
     });
 
-    expect(await validateGitHubToken(" gh_cli_token_test ")).toEqual({ ok: true, name: "Mona Lisa", email: "octocat@github.com" });
+    expect(await validateGitHubToken(" gh_cli_token_test ")).toEqual({ ok: true, identity: { name: "Mona Lisa", email: "octocat@github.com" } });
     expect(auth).toBe("Bearer gh_cli_token_test");
   });
 
@@ -45,7 +45,7 @@ describe("GitHub auth", () => {
       throw new Error(`unexpected fetch ${String(url)}`);
     });
 
-    expect(await validateGitHubToken("token")).toEqual({ ok: true, name: "octocat", email: "583231+octocat@users.noreply.github.com" });
+    expect(await validateGitHubToken("token")).toEqual({ ok: true, identity: { name: "octocat", email: "583231+octocat@users.noreply.github.com" } });
   });
 
   test("reports rejected tokens", async () => {

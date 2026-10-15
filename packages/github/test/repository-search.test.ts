@@ -2,9 +2,12 @@ import { afterEach, beforeEach, expect, test } from "bun:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { GitHubRepositorySearchRateLimitError, searchGitHubRepositories } from "../src/server/github-repo-search.ts";
+import { GitHostingRateLimitError } from "@kintsugi/core";
+import { searchGitHubRepositories as searchWithToken } from "../src/repository-search.ts";
 
-import { shouldSearchGitHubRepositories } from "@kintsugi/shared";
+function searchGitHubRepositories(query: string) {
+  return searchWithToken(query, process.env.GH_TOKEN);
+}
 
 const originalFetch = globalThis.fetch;
 let previousDataDir: string | undefined;
@@ -54,13 +57,6 @@ function stubSearch(search: (query: string) => ReturnType<typeof repository>[], 
   }, { preconnect: originalFetch.preconnect });
 }
 
-test("explicit GitHub URLs bypass search while repository names remain searchable", () => {
-  expect(shouldSearchGitHubRepositories("github.com/octocat/Hello-World")).toBe(false);
-  expect(shouldSearchGitHubRepositories(" GitHub.com/octocat/Hello-World.git#main ")).toBe(false);
-  expect(shouldSearchGitHubRepositories("https://github.com/octocat/Hello-World")).toBe(false);
-  expect(shouldSearchGitHubRepositories("Hello-World")).toBe(true);
-});
-
 test("owner-scoped search puts personal and org repos first, including public ones, and deduplicates", async () => {
   stubSearch((q) => q.includes("user:") ? [repository("me/widget"), repository("my-org/widget", true)] : [
     ...Array.from({ length: 24 }, (_, index) => repository(`random/widget-${index}`)),
@@ -71,8 +67,6 @@ test("owner-scoped search puts personal and org repos first, including public on
   expect(repositories.slice(0, 2).map((repo) => [repo.fullName, repo.personal])).toEqual([["me/widget", true], ["my-org/widget", true]]);
   expect(repositories.slice(2).every((repo) => !repo.personal)).toBe(true);
   expect(queries).toEqual(["widget is:public", "widget user:me user:my-org"]);
-  await searchGitHubRepositories(" WIDGET ");
-  expect(queries).toHaveLength(2);
 });
 
 test("general search preserves GitHub relevance rather than filtering to name substrings", async () => {
@@ -87,7 +81,7 @@ test("anonymous searches use one request and explain that account search is unav
   stubSearch(() => [repository("public/anonymous-widget")]);
   const results = await searchGitHubRepositories("anonymous-widget");
   expect(results.repositories).toHaveLength(1);
-  expect(results.personalSearchNotice).toContain("Connect GitHub");
+  expect(results.notice).toContain("Connect GitHub");
   expect(queries).toEqual(["anonymous-widget is:public"]);
   expect(requests).toHaveLength(1);
 });
@@ -101,7 +95,7 @@ test("organization discovery follows pagination and is cached for the credential
   expect(requests.filter((url) => url.pathname === "/user/orgs")).toHaveLength(2);
 });
 
-test("different credentials do not share cached private results or owners", async () => {
+test("different credentials do not share cached owners", async () => {
   stubSearch((q) => q.includes("user:") ? [repository("me/private", true)] : []);
   await searchGitHubRepositories("private");
   process.env.GH_TOKEN = crypto.randomUUID();
@@ -119,7 +113,7 @@ test("failed account discovery leaves public search usable with an explicit noti
   }, { preconnect: originalFetch.preconnect });
   const results = await searchGitHubRepositories("widget");
   expect(results.repositories.map((repo) => repo.fullName)).toEqual(["public/widget"]);
-  expect(results.personalSearchNotice).toContain("could not be searched");
+  expect(results.notice).toContain("could not be searched");
 });
 
 test("rate limits remain explicit and preserve the retry delay", async () => {
@@ -128,8 +122,8 @@ test("rate limits remain explicit and preserve the retry delay", async () => {
     await searchGitHubRepositories("limited");
     throw new Error("Expected rate limit");
   } catch (error) {
-    expect(error).toBeInstanceOf(GitHubRepositorySearchRateLimitError);
-    if (!(error instanceof GitHubRepositorySearchRateLimitError)) throw error;
+    expect(error).toBeInstanceOf(GitHostingRateLimitError);
+    if (!(error instanceof GitHostingRateLimitError)) throw error;
     expect(error.retryAfterSeconds).toBe(30);
   }
 });

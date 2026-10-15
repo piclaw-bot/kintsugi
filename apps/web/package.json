@@ -44,6 +44,7 @@
     "@kintsugi/changes": "workspace:*",
     "@kintsugi/codex-agent": "workspace:*",
     "@kintsugi/drawio": "workspace:*",
-    "@kintsugi/claude-cli-agent": "workspace:*"
+    "@kintsugi/claude-cli-agent": "workspace:*",
+    "@kintsugi/git-hosting": "workspace:*"
   }
 }

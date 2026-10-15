@@ -17,6 +17,7 @@
     "typebox": "^1.0.57",
     "@kintsugi/design-system": "workspace:*",
     "@kintsugi/host": "workspace:*",
-    "@kintsugi/workspace-templates": "workspace:*"
+    "@kintsugi/workspace-templates": "workspace:*",
+    "@kintsugi/git-hosting": "workspace:*"
   }
 }

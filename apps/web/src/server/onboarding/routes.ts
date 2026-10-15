@@ -1,42 +1,87 @@
 import { finishOnboarding, onboardingCompleted } from "./state.ts";
 import { actionLinkHtml } from "@kintsugi/design-system/action-link";
 import { buttonHtml } from "@kintsugi/design-system/button";
+import { contentRowHtml } from "@kintsugi/design-system/content-row";
 import { dialogHtml } from "@kintsugi/design-system/dialog";
-import { kintsugiBrandIconHtml } from "@kintsugi/design-system/icons";
-import { turboStreamResponse } from "@kintsugi/shared";
-import { hasGitHubToken } from "@kintsugi/proxy-egress";
+import { kintsugiBrandIconHtml, Icons } from "@kintsugi/design-system/icons";
+import type { GitHostingProvider } from "@kintsugi/core";
+import { escapeHtml, providerBadgeHtml, turboStreamResponse } from "@kintsugi/shared";
+import { connectedGitHostingProviders, gitHostingProvider, gitHostingProviders } from "@kintsugi/git-hosting";
 import { hasAvailableEnabledModel, renderModelsDialog } from "@kintsugi/llm/server";
-import { renderGitHubConnectButton, renderGitHubConnection } from "../settings/github.ts";
+import { renderGitHostingConnectButton, renderGitHostingConnection } from "../settings/git-hosting.ts";
 import { update } from "@kintsugi/shared/http";
 
-export async function renderOnboardingDialog(options: { includeCompleted?: boolean; resumeAfter?: "github" } = {}): Promise<string> {
-  if (!options.includeCompleted && !options.resumeAfter && await onboardingCompleted()) return "";
-  const githubConnected = hasGitHubToken();
-  const modelsReady = await hasAvailableEnabledModel();
-  if (options.resumeAfter) return renderModelsDialog({ host: "onboarding" });
-  if (!options.includeCompleted && githubConnected) return modelsReady ? "" : renderModelsDialog({ host: "onboarding" });
+function progressHtml(step: number, steps: number): string {
+  const items = Array.from({ length: steps }, (_, index) => `<span class="onboarding-progress-item"${index === step ? ' aria-current="step"' : ""}></span>`).join("");
+  return `<div class="onboarding-progress" aria-label="Onboarding progress">${items}</div>`;
+}
 
-  const needsModelsStep = options.includeCompleted || !modelsReady;
-  const caption = githubConnected ? "Continue" : "Continue without GitHub";
-  const continueAction = needsModelsStep
-    ? actionLinkHtml({ href: "/models?host=onboarding", variant: "secondary", content: { kind: "caption", caption }, attributesHtml: 'data-turbo-stream="true"' })
-    : `<form method="post" action="/onboarding/finish" data-turbo="true">${buttonHtml({ type: "submit", variant: "secondary", content: { kind: "caption", caption } })}</form>`;
+function onboardingDialogHtml(bodyHtml: string, footerHtml?: string): string {
   return dialogHtml({
     element: { id: "onboarding_dialog", attributesHtml: "data-dialog-auto-show" },
     iconHtml: kintsugiBrandIconHtml,
     titleCaption: "Set up Kintsugi",
-    bodyHtml: `<div class="onboarding-progress" aria-label="Onboarding progress"><span class="onboarding-progress-item" aria-current="step"></span>${needsModelsStep ? '<span class="onboarding-progress-item"></span>' : ""}</div>
-      <div class="onboarding-body form-stack"><h2 class="title">Connect GitHub</h2>${renderGitHubConnection("onboarding")}</div>`,
+    bodyHtml,
     bodyLayout: "full-bleed",
-    footerHtml: `${continueAction}${githubConnected ? "" : renderGitHubConnectButton("onboarding")}`,
+    footerHtml,
     omitCancelButton: true,
   });
+}
+
+// Leaving the code step goes to models when they still need setting up, otherwise out of onboarding.
+function skipRowHtml(needsModelsStep: boolean): string {
+  const content = { width: "fill", kind: "multiline", label: { kind: "text", text: "Somewhere else" }, leadingHtml: `<div class="settings-provider-icon onboarding-skip-icon">${Icons.Next}</div>` } as const;
+  return needsModelsStep
+    ? contentRowHtml({ ...content, element: { tag: "a", attributesHtml: 'href="/models?host=onboarding" data-turbo-stream="true"' } })
+    : `<form method="post" action="/onboarding/finish" data-turbo="true">${contentRowHtml({ ...content, element: { tag: "button", attributesHtml: 'type="submit"' } })}</form>`;
+}
+
+function continueButtonHtml(needsModelsStep: boolean): string {
+  const content = { kind: "caption", caption: "Continue" } as const;
+  return needsModelsStep
+    ? actionLinkHtml({ href: "/models?host=onboarding", variant: "secondary", content, attributesHtml: 'data-turbo-stream="true"' })
+    : `<form method="post" action="/onboarding/finish" data-turbo="true">${buttonHtml({ type: "submit", variant: "secondary", content })}</form>`;
+}
+
+function chooseProviderHtml(needsModelsStep: boolean): string {
+  const rows = gitHostingProviders.map((provider) => contentRowHtml({
+    width: "fill",
+    kind: "multiline",
+    label: { kind: "text", text: provider.label },
+    leadingHtml: providerBadgeHtml(provider.id, provider.label, "settings-provider-icon"),
+    trailingHtml: provider.credential() ? "<span>Connected</span>" : undefined,
+    element: { tag: "a", attributesHtml: `href="/onboarding?provider=${provider.id}" data-turbo-stream="true"` },
+  })).join("");
+  return onboardingDialogHtml(`${progressHtml(0, needsModelsStep ? 3 : 2)}
+    <div class="onboarding-body form-stack"><h2 class="title">Where does your code live?</h2>
+    <div class="onboarding-choices">${rows}${skipRowHtml(needsModelsStep)}</div></div>`);
+}
+
+function connectProviderHtml(provider: GitHostingProvider, needsModelsStep: boolean): string {
+  const connected = Boolean(provider.credential());
+  const back = actionLinkHtml({ href: "/onboarding", variant: "secondary", content: { kind: "caption", caption: "Back" }, attributesHtml: 'data-turbo-stream="true"' });
+  return onboardingDialogHtml(
+    `${progressHtml(1, needsModelsStep ? 3 : 2)}
+    <div class="onboarding-body form-stack"><h2 class="title">Connect ${escapeHtml(provider.label)}</h2>${connected ? `<div class="managed-list" data-controller="managed-list">${renderGitHostingConnection("onboarding", provider)}</div>` : renderGitHostingConnection("onboarding", provider)}</div>`,
+    `${back}${connected ? continueButtonHtml(needsModelsStep) : renderGitHostingConnectButton("onboarding", provider)}`,
+  );
+}
+
+export async function renderOnboardingDialog(options: { includeCompleted?: boolean; resumeAfterConnect?: boolean; provider?: GitHostingProvider } = {}): Promise<string> {
+  if (options.resumeAfterConnect) return renderModelsDialog({ host: "onboarding" });
+  if (!options.includeCompleted && await onboardingCompleted()) return "";
+  const modelsReady = await hasAvailableEnabledModel();
+  if (!options.includeCompleted && connectedGitHostingProviders().length > 0) return modelsReady ? "" : renderModelsDialog({ host: "onboarding" });
+
+  const needsModelsStep = options.includeCompleted || !modelsReady;
+  return options.provider ? connectProviderHtml(options.provider, needsModelsStep) : chooseProviderHtml(needsModelsStep);
 }
 
 export async function handleOnboardingRequest(request: Request, url: URL): Promise<Response | undefined> {
   if (url.pathname === "/onboarding/finish" && request.method === "POST") return finishOnboarding();
   if (url.pathname === "/onboarding" && request.method === "GET") {
-    const html = await renderOnboardingDialog({ includeCompleted: true });
+    const providerId = url.searchParams.get("provider");
+    const html = await renderOnboardingDialog({ includeCompleted: true, provider: providerId ? gitHostingProvider(providerId) : undefined });
     const acceptsStream = request.headers.get("accept")?.includes("text/vnd.turbo-stream.html") ?? false;
     if (acceptsStream) return turboStreamResponse(update("onboarding_modal_host", html));
     // Onboarding is a modal flow, not a standalone page.

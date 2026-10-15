@@ -10,7 +10,7 @@ import { Icons } from "@kintsugi/design-system/icons";
 import { createPiModelRuntime, modelsDialogId, popularProviderIds, setEnabledModels } from "@kintsugi/llm/server";
 import { invalidArguments } from "@kintsugi/core";
 import { errorMessage, escapeHtml, providerBadgeHtml } from "@kintsugi/shared";
-import { clearGitHubToken } from "@kintsugi/proxy-egress";
+import { clearGitHostingCredential, gitHostingProviders } from "@kintsugi/git-hosting";
 import { kintsugiUrl } from "@kintsugi/proxy-ingress";
 import { clearCommitIdentity, getStoredCommitIdentity, setCommitIdentity } from "@kintsugi/workspace-templates";
 import { kintsugiUrlHtml } from "../kintsugi-url.ts";
@@ -78,7 +78,7 @@ function renderResetSettings(): string {
   return `<div class="developer-tools-action">
     <div class="developer-tools-copy">
       <div>Stored settings</div>
-      <p>Delete the Commit identity, GitHub token, and model provider credentials stored by Kintsugi.</p>
+      <p>Delete the Commit identity, git hosting tokens, and model provider credentials stored by Kintsugi.</p>
     </div>
     <div class="developer-tools-control"><form method="post" action="/settings/reset" data-turbo="true">${confirmation}</form></div>
   </div>`;
@@ -131,7 +131,7 @@ export async function renderSettingsFrame(request: Request, sectionId?: string):
     bodyHtml: `<turbo-frame class="app-settings-section-frame" id="${sectionFrameId(id)}" src="/settings/sections/${id}" loading="lazy"><span role="status">Loading…</span></turbo-frame>`,
   });
   const content = `<div class="app-settings-overview">
-    ${take("theme", "dictation", "commit-identity", "github", "update-channel", "update", "access")}
+    ${take("theme", "dictation", "commit-identity", "git-hosting", "update-channel", "update", "access")}
     ${connectionModeManaged() ? "" : `<section class="settings-sec settings-sec-url" id="settings-sec-url"><h2>Kintsugi URL</h2>${kintsugiUrlHtml(kintsugiUrl(request), "settings_kintsugi_url_qr")}</section>`}
     ${take(...inline.keys())}
     <div class="app-settings-disclosures">${disclosure("network", "Network")}${disclosure("models", "Models")}${disclosure(globalWorkspaceSettingsSectionId, "Global workspace settings that apply to all new workspaces")}${disclosure("host", "Host")}${disclosure("developer-tools", "Developer tools")}</div>
@@ -150,7 +150,7 @@ export async function renderDeveloperToolsSettings(request: Request): Promise<st
 
 async function deleteAllStoredSettings(): Promise<void> {
   await resetOnboarding();
-  clearGitHubToken();
+  for (const provider of gitHostingProviders) clearGitHostingCredential(provider);
   await clearCommitIdentity();
   await setEnabledModels([]);
   const runtime = await createPiModelRuntime();

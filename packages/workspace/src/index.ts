@@ -4,10 +4,11 @@ import { workspaceImagePreloader } from "./preload.ts";
 import type { WorkspaceImageConfigureEvent } from "./events.ts";
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
-import { assertStorageSupport, readStorageDriver, KintsugiCoreError, kintsugiDataPath, createProcessFileLock, dockerHostKintsugiDataPath, getKintsugiRuntimeContext, gitHubCredentialHelperShellBody, invalidArguments, isJsonObject, readTextIfExists, requireDocker, runDocker, runDockerBuffer, withManagedDockerCommand, withCommandSignal, waitForCommand, shellQuote, writeJsonAtomic, type KintsugiEventBus, type CommandInput, type JsonObject } from "@kintsugi/core";
+import { assertStorageSupport, readStorageDriver, KintsugiCoreError, kintsugiDataPath, createProcessFileLock, dockerHostKintsugiDataPath, getKintsugiRuntimeContext, invalidArguments, isJsonObject, readTextIfExists, requireDocker, runDocker, runDockerBuffer, withManagedDockerCommand, withCommandSignal, waitForCommand, shellQuote, writeJsonAtomic, type KintsugiEventBus, type CommandInput, type JsonObject } from "@kintsugi/core";
 import { runHostObservableCommand, stripTerminalControls, tailTerminalText } from "@kintsugi/observable-terminal/server";
 import { errorMessage, isWorkspaceAppPort, workspaceGatewayPort, type WorkspaceGateway, type WorkspaceHttpAppBackend, type WorkspaceServerProvisioningHook } from "@kintsugi/shared";
 import { inspectWorkspaceImage, resolveWorkspaceImage } from "@kintsugi/workspace-image";
+import { gitCredentialHelperShellBody } from "@kintsugi/git-hosting";
 import { prepareWorkspaceSystemd } from "./systemd.ts";
 import { createWorkspaceContainerLifecycle, workspaceConfigurationLabel } from "./container-lifecycle.ts";
 import { Type } from "typebox";
@@ -339,7 +340,7 @@ function workspaceCreateDockerArgs(container: string, image: string, plan: Works
 function workspaceGitCredentialInitScript(): string {
   return `cat > /usr/local/bin/kintsugi-git-credential <<'EOF'
 #!/bin/sh
-${gitHubCredentialHelperShellBody}
+${gitCredentialHelperShellBody}
 EOF
 chmod 755 /usr/local/bin/kintsugi-git-credential
 git config --system credential.helper '!/usr/local/bin/kintsugi-git-credential'`;

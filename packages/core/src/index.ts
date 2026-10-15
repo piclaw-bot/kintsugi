@@ -48,13 +48,22 @@ export {
 } from "./runtime-context.ts";
 
 export {
-  clearGitHubToken,
-  discoverGitHubToken,
-  gitHubCredentialHelperCommand,
-  gitHubCredentialHelperShellBody,
-  hasGitHubToken,
-  setGitHubToken,
-} from "./github-token.ts";
+  GitHostingRateLimitError,
+  createGitHostingCache,
+  gitCredentialHelperShellBody,
+  gitHostingCredentialPath,
+  parseGitHostingResponse,
+  readGitHostingCredentialFile,
+  removeGitHostingCredentialFile,
+  writeGitHostingCredentialFile,
+  type GitHostingConnectForm,
+  type GitHostingCredential,
+  type GitHostingIdentity,
+  type GitHostingProvider,
+  type GitHostingRepository,
+  type GitHostingRepositorySearch,
+  type GitHostingValidation,
+} from "./git-hosting.ts";
 
 export { createKeyedOperationQueue } from "./keyed-operation-queue.ts";
 export { workloadCgroupArgs, workloadCommand } from "./workload-resources.ts";
@@ -64,3 +73,12 @@ export { commandSignal, withCommandSignal, waitForCommand, runCommand, killComma
 export { readStorageDriver, storageContainerdConfig, assertStorageSupport, storageDriversLabel, type StorageDriver } from "./storage-driver.ts";
 
 export { collectUnpushedCommits, type UnpushedCommit } from "./git-delete-safety.ts";
+
+export {
+  clearGitHubToken,
+  discoverGitHubToken,
+  gitHubCredentialHelperCommand,
+  gitHubCredentialHelperShellBody,
+  hasGitHubToken,
+  setGitHubToken,
+} from "./github-token.ts";

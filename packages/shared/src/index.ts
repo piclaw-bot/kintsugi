@@ -51,7 +51,7 @@ export function looksLikeWorkspaceTemplateSpec(value: string): boolean {
   return /^(https?:\/\/|git@|ssh:\/\/|\/|\.\/|\.\.\/|[A-Za-z]:\\|github\.com\/)/i.test(value.trim());
 }
 
-export function shouldSearchGitHubRepositories(query: string): boolean {
+export function shouldSearchRepositories(query: string): boolean {
   const trimmed = query.trim();
   return trimmed.length >= 2 && !looksLikeWorkspaceTemplateSpec(trimmed);
 }

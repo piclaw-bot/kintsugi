@@ -2,7 +2,7 @@ import { Controller } from "@hotwired/stimulus";
 import { createHtmlAutocompleteController, PromptHistoryNavigator } from "@kintsugi/agent/client";
 import { composerViewportHeight, focusComposerText, revealComposerCaret, sizeComposer } from "@kintsugi/prompt/client";
 import { autocompleteHtml } from "@kintsugi/design-system/autocomplete";
-import { changeLayout, composerSubmitKey, focusLikelyOpensSoftwareKeyboard, isWorkspacePaneVisible, shouldSearchGitHubRepositories, softwareKeyboardArranged } from "@kintsugi/shared";
+import { changeLayout, composerSubmitKey, focusLikelyOpensSoftwareKeyboard, isWorkspacePaneVisible, shouldSearchRepositories, softwareKeyboardArranged } from "@kintsugi/shared";
 import { Type } from "typebox";
 import { Value } from "typebox/value";
 import { submitFormWithFirstButton } from "./form-submission.ts";
@@ -194,13 +194,13 @@ class ScrollIntoViewController extends Controller<HTMLElement> {
   }
 }
 
-const WorkspaceTemplateGithubSearchController = createHtmlAutocompleteController(Controller, {
+const WorkspaceTemplateRepositorySearchController = createHtmlAutocompleteController(Controller, {
   optionSelector: "[role=\"option\"]",
-  loadingHtml: autocompleteHtml({ kind: "message", role: "status", content: { kind: "html", html: '<span class="agent-completion-spinner" aria-hidden="true"></span>Searching GitHub…' } }),
+  loadingHtml: autocompleteHtml({ kind: "message", role: "status", content: { kind: "html", html: '<span class="agent-completion-spinner" aria-hidden="true"></span>Searching repositories…' } }),
   explicitSearch: true,
   request(input) {
     const query = input.value.trim();
-    return shouldSearchGitHubRepositories(query) ? { query } : undefined;
+    return shouldSearchRepositories(query) ? { query } : undefined;
   },
   select(option, input) {
     const gitUrl = option.dataset.gitUrl!;
@@ -214,7 +214,7 @@ export function registerWorkspaceDialogControllers(): void {
     "submit-shortcut": SubmitShortcutController,
     "workspace-ssh-trust": WorkspaceSshTrustController,
     "launch-composer-dialog": LaunchComposerDialogController,
-    "workspace-template-github-search": WorkspaceTemplateGithubSearchController,
+    "workspace-template-repository-search": WorkspaceTemplateRepositorySearchController,
     "auto-scroll": AutoScrollController,
     "scroll-into-view": ScrollIntoViewController,
   });

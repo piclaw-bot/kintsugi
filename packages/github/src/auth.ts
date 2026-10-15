@@ -1,18 +1,5 @@
-import { Type, type Static, type TSchema } from "typebox";
-import { Value } from "typebox/value";
-
-export interface GitHubTokenValidationSuccess {
-  ok: true;
-  name: string;
-  email: string;
-}
-
-export interface GitHubTokenValidationFailure {
-  ok: false;
-  message: string;
-}
-
-export type GitHubTokenValidation = GitHubTokenValidationSuccess | GitHubTokenValidationFailure;
+import { parseGitHostingResponse, type GitHostingValidation } from "@kintsugi/core";
+import { Type } from "typebox";
 
 const githubUserResponseSchema = Type.Object({
   id: Type.Integer(),
@@ -31,29 +18,21 @@ function optionalTrimmed(value: string | null | undefined): string | undefined {
   return value?.trim() || undefined;
 }
 
-async function decodeJsonResponse<Schema extends TSchema>(response: Response, schema: Schema): Promise<Static<Schema> | undefined> {
-  try {
-    const encoded: unknown = await response.json();
-    return Value.Parse(schema, encoded);
-  } catch {
-    return undefined;
-  }
-}
-
-function githubHeaders(token: string): HeadersInit {
-  return {
+export function githubHeaders(token: string | undefined): Headers {
+  const headers = new Headers({
     accept: "application/vnd.github+json",
-    authorization: `Bearer ${token}`,
     "user-agent": "kintsugi",
     "x-github-api-version": "2022-11-28",
-  };
+  });
+  if (token) headers.set("authorization", `Bearer ${token}`);
+  return headers;
 }
 
 async function fetchPrimaryGitHubEmail(token: string): Promise<string | undefined> {
   try {
     const response = await fetch("https://api.github.com/user/emails", { headers: githubHeaders(token) });
     if (!response.ok) return undefined;
-    const emails = await decodeJsonResponse(response, githubEmailResponseSchema);
+    const emails = await parseGitHostingResponse(response, githubEmailResponseSchema);
     if (!emails) return undefined;
     for (const email of emails) {
       if (email.primary && email.verified) return email.email.trim();
@@ -64,7 +43,7 @@ async function fetchPrimaryGitHubEmail(token: string): Promise<string | undefine
   }
 }
 
-export async function validateGitHubToken(token: string): Promise<GitHubTokenValidation> {
+export async function validateGitHubToken(token: string): Promise<GitHostingValidation> {
   const trimmed = token.trim();
   if (!trimmed) return { ok: false, message: "Enter a GitHub token." };
 
@@ -78,10 +57,10 @@ export async function validateGitHubToken(token: string): Promise<GitHubTokenVal
   if (response.status === 401 || response.status === 403) return { ok: false, message: "GitHub rejected that token. Check that it is active and has repository read access." };
   if (!response.ok) return { ok: false, message: `GitHub token validation failed (${response.status}). Try again.` };
 
-  const body = await decodeJsonResponse(response, githubUserResponseSchema);
+  const body = await parseGitHostingResponse(response, githubUserResponseSchema);
   if (!body) return { ok: false, message: "GitHub returned an invalid user response. Try again." };
   const login = body.login.trim();
   const name = optionalTrimmed(body.name) ?? login;
   const email = optionalTrimmed(body.email) ?? await fetchPrimaryGitHubEmail(trimmed) ?? `${body.id}+${login}@users.noreply.github.com`;
-  return { ok: true, name, email };
+  return { ok: true, identity: { name, email } };
 }

@@ -3,7 +3,12 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { addWorkspaceTemplate, createWorkspaceTemplateSecret, updateWorkspaceTemplateSecret, deleteWorkspaceTemplateSecret, type GitWorkspaceTemplateInitInstruction } from "@kintsugi/workspace-templates";
-import { createWorkspaceSecretContext, registerWorkspaceRequestTransform, clearGitHubToken, forgetWorkspaceSecretContext, getWorkspaceSecretContext, setGitHubToken } from "../../src/secrets/workspace-secrets.ts";
+import { clearGitHostingCredential, gitHostingProvider, gitHostingProviders, saveGitHostingCredential } from "@kintsugi/git-hosting";
+import { createWorkspaceSecretContext, registerWorkspaceRequestTransform, forgetWorkspaceSecretContext, getWorkspaceSecretContext } from "../../src/secrets/workspace-secrets.ts";
+
+function setGitHubToken(token: string): void {
+  saveGitHostingCredential(gitHostingProvider("github"), { token });
+}
 
 function workspaceTemplateInit(workspaceTemplateId: string): GitWorkspaceTemplateInitInstruction {
   return { type: "project.git", projectId: workspaceTemplateId, name: "Project", gitUrl: "https://github.com/org/repo.git", branch: null, sessionShareKey: "Project" };
@@ -23,7 +28,7 @@ describe("workspace secrets", () => {
   });
 
   afterEach(async () => {
-    clearGitHubToken();
+    for (const provider of gitHostingProviders) clearGitHostingCredential(provider);
     forgetWorkspaceSecretContext("test-workspace");
     if (previousDataDir === undefined) delete process.env.ATELIER_DATA_DIR;
     else process.env.ATELIER_DATA_DIR = previousDataDir;
@@ -42,6 +47,12 @@ describe("workspace secrets", () => {
       placeholder: "KINTSUGI_PROXY_READY_GH_TOKEN",
       hosts: ["github.com", "api.github.com"],
     });
+  });
+
+  test("connecting a provider refreshes cached workspace contexts", async () => {
+    expect((await getWorkspaceSecretContext("test-workspace", async () => undefined)).env.GH_TOKEN).toBeUndefined();
+    setGitHubToken("github-secret");
+    expect((await getWorkspaceSecretContext("test-workspace", async () => undefined)).env.GH_TOKEN).toBe("KINTSUGI_PROXY_READY_GH_TOKEN");
   });
 
   test("includes encrypted Workspace template secrets with default and custom placeholders", async () => {

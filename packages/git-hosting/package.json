@@ -1,0 +1,12 @@
+{
+  "name": "@kintsugi/git-hosting",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@kintsugi/core": "workspace:*",
+    "@kintsugi/github": "workspace:*"
+  }
+}

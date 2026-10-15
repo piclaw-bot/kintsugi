@@ -1,5 +1,5 @@
 import { handleConnectionModeSettings } from "./connection-mode.ts";
-import { handleGitHubSettingsRequest } from "./github.ts";
+import { handleGitHostingSettingsRequest } from "./git-hosting.ts";
 import { handleModelsRequest } from "@kintsugi/llm/server";
 import { finishOnboarding } from "../onboarding/state.ts";
 import { handleSettingsPageRequest, type WorkspaceCleanupResult } from "./page.ts";
@@ -14,7 +14,7 @@ export async function handleSettingsRequest(
   const response = await handleConnectionModeSettings(request, url)
     ?? await handleThemeSettingsRequest(request, url, options.themeChanged)
     ?? await handleSettingsPageRequest(request, url, options)
-    ?? await handleGitHubSettingsRequest(request, url)
+    ?? await handleGitHostingSettingsRequest(request, url)
     ?? await handleModelsRequest(request, url, options.renderModelPickerUpdates, finishOnboarding);
   if (response) return response;
 
