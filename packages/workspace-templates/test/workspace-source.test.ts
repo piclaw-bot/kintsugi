@@ -215,11 +215,12 @@ describe("workspace source preparation", () => {
     tempRoots.push(fakeBin);
     const tokenLog = join(fakeBin, "tokens.log");
     const fakeGit = join(fakeBin, "git");
-    await writeFile(fakeGit, `#!/bin/sh\nprintf '%s\\n' "\${GH_TOKEN-} \${BITBUCKET_API_TOKEN-}" >> ${JSON.stringify(tokenLog)}\nexec ${JSON.stringify(realGit)} "$@"\n`);
+    await writeFile(fakeGit, `#!/bin/sh\nprintf '%s\\n' "\${GH_TOKEN-} \${GITLAB_TOKEN-} \${BITBUCKET_API_TOKEN-}" >> ${JSON.stringify(tokenLog)}\nexec ${JSON.stringify(realGit)} "$@"\n`);
     await chmod(fakeGit, 0o755);
     const previousPath = process.env.PATH;
     process.env.PATH = `${fakeBin}:${previousPath ?? ""}`;
     saveGitHostingCredential(gitHostingProvider("github"), { token: "github-token" });
+    saveGitHostingCredential(gitHostingProvider("gitlab"), { token: "gitlab-token" });
     saveGitHostingCredential(gitHostingProvider("bitbucket"), { token: "bitbucket-token", account: "me@example.com" });
     try {
       await prepareWorkspaceSource({ workspaceId: "ws-token", gitUrl: fixture.remote, branch: "main" });
@@ -230,7 +231,7 @@ describe("workspace source preparation", () => {
 
     const tokens = (await Bun.file(tokenLog).text()).trim().split("\n");
     expect(tokens.length).toBeGreaterThan(0);
-    expect(tokens.every((token) => token === "github-token bitbucket-token")).toBe(true);
+    expect(tokens.every((token) => token === "github-token gitlab-token bitbucket-token")).toBe(true);
   });
 
   test("initializes nested submodules recursively in the reusable template and workspace", async () => {

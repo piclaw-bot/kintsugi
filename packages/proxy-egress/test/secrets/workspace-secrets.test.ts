@@ -49,28 +49,32 @@ describe("workspace secrets", () => {
     });
   });
 
-  test("exposes the Bitbucket token as a placeholder that only Bitbucket receives", async () => {
+  test("exposes GitLab and Bitbucket tokens as placeholders that only their hosts receive", async () => {
+    saveGitHostingCredential(gitHostingProvider("gitlab"), { token: "gitlab-secret" });
     saveGitHostingCredential(gitHostingProvider("bitbucket"), { token: "bitbucket-secret", account: "me@example.com" });
     const context = await createWorkspaceSecretContext("test-workspace");
 
     expect(context.env.GH_TOKEN).toBeUndefined();
+    expect(context.env.GITLAB_TOKEN).toBe("KINTSUGI_PROXY_READY_GITLAB_TOKEN");
     expect(context.env.BITBUCKET_API_TOKEN).toBe("KINTSUGI_PROXY_READY_BITBUCKET_API_TOKEN");
     expect(context.env.BITBUCKET_EMAIL).toBe("me@example.com");
     // bkt reads its own variable names; the token stays a placeholder there too.
     expect(context.env.BKT_TOKEN).toBe(context.env.BITBUCKET_API_TOKEN);
     expect(context.env.BKT_USERNAME).toBe("me@example.com");
 
+    const gitlab = await context.hooks.onRequest(new Request("https://gitlab.com/api/v4/user", { headers: { "private-token": context.env.GITLAB_TOKEN! } }));
+    expect(gitlab.headers.get("private-token")).toBe("gitlab-secret");
     // Git sends the credential helper's username and password as Basic auth.
     const basic = (password: string) => `Basic ${btoa(`x-bitbucket-api-token-auth:${password}`)}`;
     const bitbucket = await context.hooks.onRequest(new Request("https://bitbucket.org/team/repo.git/info/refs", { headers: { authorization: basic(context.env.BITBUCKET_API_TOKEN!) } }));
     expect(bitbucket.headers.get("authorization")).toBe(basic("bitbucket-secret"));
-    await expect(context.hooks.onRequest(new Request("https://example.com/", { headers: { authorization: `Bearer ${context.env.BITBUCKET_API_TOKEN}` } }))).rejects.toThrow("secret BITBUCKET_API_TOKEN not allowed for host: example.com");
+    await expect(context.hooks.onRequest(new Request("https://example.com/", { headers: { authorization: `Bearer ${context.env.GITLAB_TOKEN}` } }))).rejects.toThrow("secret GITLAB_TOKEN not allowed for host: example.com");
   });
 
   test("connecting a provider refreshes cached workspace contexts", async () => {
-    expect((await getWorkspaceSecretContext("test-workspace", async () => undefined)).env.GH_TOKEN).toBeUndefined();
-    setGitHubToken("github-secret");
-    expect((await getWorkspaceSecretContext("test-workspace", async () => undefined)).env.GH_TOKEN).toBe("KINTSUGI_PROXY_READY_GH_TOKEN");
+    expect((await getWorkspaceSecretContext("test-workspace", async () => undefined)).env.GITLAB_TOKEN).toBeUndefined();
+    saveGitHostingCredential(gitHostingProvider("gitlab"), { token: "gitlab-secret" });
+    expect((await getWorkspaceSecretContext("test-workspace", async () => undefined)).env.GITLAB_TOKEN).toBe("KINTSUGI_PROXY_READY_GITLAB_TOKEN");
   });
 
   test("includes encrypted Workspace template secrets with default and custom placeholders", async () => {

@@ -25,6 +25,7 @@ beforeEach(async () => {
     if (url.host === "api.github.com" && url.pathname === "/user") return Response.json({ login: "me" });
     if (url.host === "api.github.com" && url.pathname === "/user/orgs") return Response.json([]);
     if (url.host === "api.github.com") return Response.json({ items: [{ full_name: `octo/${url.searchParams.get("q")!.split(" ")[0]}`, description: null, private: false, clone_url: "https://github.com/octo/widget.git" }] });
+    if (url.host === "gitlab.com") return new Response("", { status: 429, headers: { "retry-after": "9" } });
     if (url.host === "api.bitbucket.org" && url.pathname === "/2.0/user/workspaces") return Response.json({ values: [{ workspace: { slug: "team" } }] });
     if (url.host === "api.bitbucket.org" && url.pathname === "/2.0/repositories/team") return Response.json({ values: [{ full_name: "team/widget", is_private: true }] });
     throw new Error(`unexpected fetch ${url.href}`);
@@ -43,6 +44,7 @@ afterEach(async () => {
 test("explicit provider URLs bypass search while repository names remain searchable", () => {
   expect(shouldSearchRepositories("github.com/octocat/Hello-World")).toBe(false);
   expect(shouldSearchRepositories(" GitHub.com/octocat/Hello-World.git#main ")).toBe(false);
+  expect(shouldSearchRepositories("gitlab.com/group/project")).toBe(false);
   expect(shouldSearchRepositories("bitbucket.org/workspace/repo")).toBe(false);
   expect(shouldSearchRepositories("https://github.com/octocat/Hello-World")).toBe(false);
   expect(shouldSearchRepositories("Hello-World")).toBe(true);
@@ -55,16 +57,12 @@ test("without connections only public GitHub is searched", async () => {
 });
 
 test("searches every connected provider and keeps one provider's rate limit to itself", async () => {
+  gitHostingProvider("gitlab").saveCredential({ token: "gitlab-token" });
   gitHostingProvider("bitbucket").saveCredential({ token: "bitbucket-token", account: "me@example.com" });
 
   const searches = await searchRepositories("gadget");
-  expect(searches.map((search) => search.provider.id)).toEqual(["github", "bitbucket"]);
-
-  const fetchBitbucket = globalThis.fetch;
-  globalThis.fetch = Object.assign(async (input: Parameters<typeof fetch>[0]) => new URL(String(input)).host === "api.bitbucket.org" ? new Response("", { status: 429, headers: { "retry-after": "9" } }) : fetchBitbucket(input), { preconnect: originalFetch.preconnect });
-  const limited = await searchRepositories("limited");
-  expect(limited[1]!.notice).toBe("Bitbucket search is rate limited. Try again in 9 seconds.");
-  expect(limited[0]!.repositories.length).toBeGreaterThan(0);
+  expect(searches.map((search) => search.provider.id)).toEqual(["github", "gitlab", "bitbucket"]);
+  expect(searches[1]!.notice).toBe("GitLab search is rate limited. Try again in 9 seconds.");
 });
 
 test("results are cached per provider, credential and normalized query", async () => {

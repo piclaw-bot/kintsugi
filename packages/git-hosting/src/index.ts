@@ -1,8 +1,9 @@
 import { gitCredentialHelperShellBody as credentialHelperShellBody, invalidArguments, type GitHostingCredential, type GitHostingProvider } from "@kintsugi/core";
 import { bitbucketProvider } from "@kintsugi/bitbucket";
 import { gitHubProvider } from "@kintsugi/github";
+import { gitLabProvider } from "@kintsugi/gitlab";
 
-export const gitHostingProviders: readonly GitHostingProvider[] = [gitHubProvider, bitbucketProvider];
+export const gitHostingProviders: readonly GitHostingProvider[] = [gitHubProvider, gitLabProvider, bitbucketProvider];
 
 export function gitHostingProvider(id: string): GitHostingProvider {
   const provider = gitHostingProviders.find((candidate) => candidate.id === id);

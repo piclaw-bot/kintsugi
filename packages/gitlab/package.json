@@ -1,0 +1,12 @@
+{
+  "name": "@kintsugi/gitlab",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@kintsugi/core": "workspace:*",
+    "typebox": "^1.0.57"
+  }
+}
