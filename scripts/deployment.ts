@@ -18,7 +18,12 @@ export function caddyRecipe(origin: string, upstream: string, previewPorts: stri
   const url = new URL(config.origin);
   const origins = [config.origin];
   for (let port = start!; port <= end!; port++) { const preview = new URL(url); preview.port = String(port); origins.push(preview.origin); }
-  let result = "# UI is trusted-LAN access, not a token-authenticated API. No Host/Origin rewriting.\n" + block(origins, upstream);
+  // Tailscale owns UDP 41641. Keep this preview's TCP origin without opening a QUIC listener.
+  const tailscalePort = 41641;
+  const tcpOnly = url.protocol === "https:" && start! <= tailscalePort && end! >= tailscalePort
+    ? `{\n${bindings.map(address => `    servers ${isIP(address) === 6 ? `[${address}]` : address}:${tailscalePort} {\n        protocols h1 h2\n    }`).join("\n")}\n}\n\n`
+    : "";
+  let result = "# Merge generated servers options into your existing global block, if present.\n" + tcpOnly + "# UI is trusted-LAN access, not a token-authenticated API. No Host/Origin rewriting.\n" + block(origins, upstream);
   if (adminOrigin) {
     const admin = new URL(adminOrigin);
     if (admin.protocol !== "https:" || admin.origin !== adminOrigin || admin.username || admin.password || admin.hostname !== url.hostname || origins.includes(adminOrigin) || !adminUpstream) throw new Error("Admin origin requires a distinct HTTPS port on the UI hostname and --admin-upstream");

@@ -212,6 +212,18 @@ test("every native image workflow takes source attribution from publishing confi
   }
 });
 
+test("Caddy avoids Tailscale UDP 41641 with an exact listener override and retains its TCP preview", async () => {
+  const { caddyRecipe } = await import("./deployment.ts");
+  const recipe = caddyRecipe("https://host.local", "127.0.0.1:3000", "41000:41999", "192.0.2.10,2001:db8::10");
+  expect(recipe).toContain("servers 192.0.2.10:41641 {\n        protocols h1 h2");
+  expect(recipe).toContain("servers [2001:db8::10]:41641 {\n        protocols h1 h2");
+  expect(recipe).toContain("https://host.local:41641");
+  expect(recipe).not.toContain("servers {");
+  for (const [origin, range] of [["https://host.local", "41000:41009"], ["http://host.local", "41000:41999"]]) {
+    expect(caddyRecipe(origin!, "127.0.0.1:3000", range!, "192.0.2.10")).not.toContain("protocols h1 h2");
+  }
+});
+
 test("default Caddy generation covers the full retained preview pool", async()=>{
   const child=Bun.spawn([process.execPath,"scripts/deployment.ts","caddyfile","--origin","https://host.local","--bind","192.0.2.10"],{stdout:"pipe",stderr:"pipe",env:{...process.env}});
   const [code,out,err]=await Promise.all([child.exited,new Response(child.stdout).text(),new Response(child.stderr).text()]);
