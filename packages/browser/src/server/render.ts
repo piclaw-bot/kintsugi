@@ -71,16 +71,18 @@ export function renderBrowserFrame(workspaceId: string, view: WorkspaceBrowserVi
     content: { kind: "icon-only", iconHtml: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6v5h-5M4 18v-5h5M6.1 9a7 7 0 0 1 11.5-2.6L20 9M4 15l2.4 2.6A7 7 0 0 0 17.9 15"/></svg>', label: "Reload" },
     attributesHtml: 'data-action="browser-address#reload"',
   });
+  // Morphs never remove permanent elements, so the per-navigation identity lives on
+  // their non-permanent parents: a navigation swaps those out, permanent children included.
   return `<turbo-frame id="${browserFrameId(workspaceId, browserId)}" class="browser-frame">
     <div class="browser-shell">
-      <form class="browser-toolbar work-view-toolbar" method="post" action="/workspaces/${encodeURIComponent(workspaceId)}/browser/${encodeURIComponent(browserId)}/navigate" data-turbo-frame="${browserFrameId(workspaceId, browserId)}" data-controller="browser-address" data-action="submit->browser-address#submit">
+      <form id="${navigationKey}_toolbar" class="browser-toolbar work-view-toolbar" method="post" action="/workspaces/${encodeURIComponent(workspaceId)}/browser/${encodeURIComponent(browserId)}/navigate" data-turbo-frame="${browserFrameId(workspaceId, browserId)}" data-controller="browser-address" data-action="submit->browser-address#submit">
         ${reloadButton}
         <input id="${navigationKey}_address" data-turbo-permanent class="browser-address-input text-field" name="url" value="${escapeHtml(view.targetUrl)}" placeholder="http://localhost:3000" spellcheck="false" autocomplete="off" aria-label="Browser URL" data-action="click->browser-address#initializeAddress">
         ${externalLink}
         ${qrButton}
       </form>
       ${qrDialog}
-      <div class="browser-viewport">
+      <div id="${navigationKey}_viewport_slot" class="browser-viewport">
         <iframe id="${navigationKey}_viewport" data-turbo-permanent${frameControllerAttributes} title="Browser view" loading="lazy" referrerpolicy="no-referrer"></iframe>
       </div>
     </div>
