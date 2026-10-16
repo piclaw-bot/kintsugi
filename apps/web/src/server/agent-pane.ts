@@ -6,12 +6,13 @@ import { Icons } from "@kintsugi/design-system/icons";
 import { panelHtml } from "@kintsugi/design-system/panel";
 import { popupHtml } from "@kintsugi/design-system/popup";
 import { tabHtml, tabStripHtml } from "@kintsugi/design-system/tab-strip";
-import { domId, escapeHtml } from "@kintsugi/shared";
+import { domId, escapeHtml, type WorkspaceAgentPane } from "@kintsugi/shared";
 import type { WorkspacePresentation } from "./workspace-presentation.ts";
 import { barButton, behaviorTurboStream, fullscreenViewAttributes, selectorCloseForm, type ViewCloseAction } from "./workspace-view-markup.ts";
 
 export interface AgentPaneContribution {
-  bodyHtml?: string;
+  /** The selected Agent's pane, published as a child of the workspace surface. */
+  pane?: WorkspaceAgentPane;
   busy?: boolean;
   requestingAttention?: boolean;
   attentionSequence?: number;
@@ -106,7 +107,7 @@ function renderAgentEmpty(presentation: WorkspacePresentation): string {
 }
 
 function renderAgentPaneSlot(workspaceId: string, agent: AgentPaneContribution, active: boolean): string {
-  return `<section id="${agentPaneSlotDomId(workspaceId, agent.id)}" class="fixed-shell-surface${active ? " is-active" : ""}" data-workspace-pane-role="agent" data-workspace-pane-id="${escapeHtml(agent.id)}" data-kintsugi-fullscreen-view-key="${escapeHtml(agent.id)}" data-workspace-logically-visible="false" tabindex="-1"><div class="fixed-shell-live-body" id="${agentContentId(workspaceId, agent.id)}" data-turbo-permanent>${agent.bodyHtml ?? ""}</div></section>`;
+  return `<section id="${agentPaneSlotDomId(workspaceId, agent.id)}" class="fixed-shell-surface${active ? " is-active" : ""}" data-workspace-pane-role="agent" data-workspace-pane-id="${escapeHtml(agent.id)}" data-kintsugi-fullscreen-view-key="${escapeHtml(agent.id)}" data-workspace-logically-visible="false" tabindex="-1"><div class="fixed-shell-live-body" id="${agentContentId(workspaceId, agent.id)}" data-turbo-permanent></div></section>`;
 }
 
 function renderAgentActions(presentation: WorkspacePresentation): string {

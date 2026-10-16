@@ -1,4 +1,4 @@
-import { createLivePresentation, createPublishedRefresh, type LiveRegion } from "@kintsugi/shared";
+import { createLivePresentation, createPublishedRefresh, type LiveRegion, type LiveRegionDigests } from "@kintsugi/shared";
 
 /** I/O publishes a committed value shared by HTTP rendering and Cable snapshots. */
 export function createLiveResource<T>(load: () => Promise<T>, render: (state: T) => readonly LiveRegion[], onError: (error: Error) => void) {
@@ -19,11 +19,13 @@ export function createLiveResource<T>(load: () => Promise<T>, render: (state: T)
   }
   return {
     read,
-    async subscribe(listener: (html: string) => void) {
+    /** What a page shows for `state`; see `placeLiveRegions`. */
+    regions: render,
+    async subscribe(listener: (html: string) => void, shown?: LiveRegionDigests) {
       subscribers++;
       try {
         await read();
-        const subscription = presentation.subscribe(listener);
+        const subscription = presentation.subscribe(listener, shown);
         let active = true;
         return { unsubscribe() {
           if (!active) return;

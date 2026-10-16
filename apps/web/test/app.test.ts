@@ -47,7 +47,7 @@ function createTestAgentModule(initial: TestConversation[], created: TestConvers
       const conversation = conversations.find((candidate) => candidate.id === context.agentId);
       if (!conversation) throw new KintsugiCoreError("agent_not_found", `Agent not found: ${context.agentId}`);
       rendered.push(context);
-      return `<article data-rendered-conversation="${conversation.id}">${conversation.title} body</article>`;
+      return { html: `<article data-rendered-conversation="${conversation.id}">${conversation.title} body</article>` };
     },
     async close(context) {
       const index = conversations.findIndex((candidate) => candidate.id === context.agentId);

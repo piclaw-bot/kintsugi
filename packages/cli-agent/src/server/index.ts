@@ -81,7 +81,7 @@ export function createCliAgentModule(adapter: CliAgentAdapter): WorkspaceModule 
               <div id="${cliCompletionCatalogId(workspaceId, agentId)}" data-agent-completions-target="catalog" hidden>${await renderWorkspaceCompletionCatalog(workspaceId, "cli")}</div>
             </div>
           </div>` : "";
-          return `<section id="${domId("cli_agent", workspaceId, agentId)}" data-turbo-permanent class="cli-agent-body agent-composer-pane" data-controller="cli-terminal agent-composer composer-focus${composer ? " agent-attachments" : ""}" data-agent-composer-open-on-select-value="false" data-cli-terminal-url-value="${escapeHtml(url)}" data-cli-terminal-workspace-id-value="${escapeHtml(workspaceId)}" ${cliTranscriptAttributes(adapter, agentId)} ${composerAttachmentAttributes(draftId, rowId, `kintsugi:workspace-pane-visible@window->cli-terminal#refresh kintsugi:workspace-agent-focus->cli-terminal#focus kintsugi:theme-change@document->cli-terminal#theme ${agentComposerActions}`)}>
+          return { html: `<section id="${domId("cli_agent", workspaceId, agentId)}" data-turbo-permanent class="cli-agent-body agent-composer-pane" data-controller="cli-terminal agent-composer composer-focus${composer ? " agent-attachments" : ""}" data-agent-composer-open-on-select-value="false" data-cli-terminal-url-value="${escapeHtml(url)}" data-cli-terminal-workspace-id-value="${escapeHtml(workspaceId)}" ${cliTranscriptAttributes(adapter, agentId)} ${composerAttachmentAttributes(draftId, rowId, `kintsugi:workspace-pane-visible@window->cli-terminal#refresh kintsugi:workspace-agent-focus->cli-terminal#focus kintsugi:theme-change@document->cli-terminal#theme ${agentComposerActions}`)}>
             <div class="cli-terminal-status" role="status">${session.error ? failureStatus(session.error) : terminalStatus(terminal)}</div>
             <div class="cli-agent-stage">
               ${terminal.exists ? renderTerminalConnectionStatus("cli-terminal") : ""}
@@ -91,7 +91,7 @@ export function createCliAgentModule(adapter: CliAgentAdapter): WorkspaceModule 
             </div>
             ${terminal.exists ? renderTerminalKeyBar("cli-terminal") : ""}
             ${composer}
-          </section>`;
+          </section>` };
         },
         close: ({ workspaceId, agentId }) => agents.close(workspaceId, agentId),
       },

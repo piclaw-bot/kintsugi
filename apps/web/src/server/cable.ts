@@ -7,6 +7,7 @@ import {
   type CableClientMessage,
   type CableIdentifier,
   type CableServerMessage,
+  type LiveRegionDigests,
 } from "@kintsugi/shared";
 import type { WorkspaceRegistry } from "./workspace-registry.ts";
 
@@ -27,6 +28,7 @@ type SocketSubscriptionAttempt = {
   key: string;
   subscriptionId: string;
   confirmed: boolean;
+  shown?: LiveRegionDigests;
   unsubscribe?: () => void;
 };
 
@@ -127,7 +129,7 @@ export function createCableServer(options: CableServerOptions): CableServer {
         if (!attemptIsCurrent(attempt)) return;
         if (!attempt.confirmed) confirm(attempt, html);
         else if (html) send(attempt.ws, { type: "turbo_stream", identifier, subscriptionId: attempt.subscriptionId, html });
-      }, options.events);
+      }, options.events, attempt.shown);
       if (!attemptIsCurrent(attempt)) { subscription.unsubscribe(); return; }
       attempt.unsubscribe = () => subscription.unsubscribe();
     } catch (error) {
@@ -135,13 +137,13 @@ export function createCableServer(options: CableServerOptions): CableServer {
     }
   }
 
-  function subscribe(ws: CableSocket, identifier: CableIdentifier, subscriptionId: string): void {
+  function subscribe(ws: CableSocket, identifier: CableIdentifier, subscriptionId: string, shown?: LiveRegionDigests): void {
     const socketAttempts = connections.get(ws)?.attempts;
     if (!socketAttempts) return;
     const key = serializeCableIdentifier(identifier);
     const previous = socketAttempts.get(key);
     if (previous) releaseAttempt(previous);
-    const attempt: SocketSubscriptionAttempt = { ws, identifier, key, subscriptionId, confirmed: false };
+    const attempt: SocketSubscriptionAttempt = { ws, identifier, key, subscriptionId, confirmed: false, shown };
     socketAttempts.set(key, attempt);
 
     if (identifier.channel !== "agent" && identifier.channel !== "agent-turn") {
@@ -173,7 +175,7 @@ export function createCableServer(options: CableServerOptions): CableServer {
     try {
       const message: CableClientMessage = decodeCableClientMessage(textMessage(raw));
       if (message.command === "visibility") options.registry.setVisibility(connections.get(ws)!.id, message.visibility);
-      else if (message.command === "subscribe") subscribe(ws, message.identifier, message.subscriptionId);
+      else if (message.command === "subscribe") subscribe(ws, message.identifier, message.subscriptionId, message.shown);
       else if (message.command === "unsubscribe") unsubscribe(ws, message.identifier, message.subscriptionId);
     } catch (error) {
       if (!connections.has(ws)) return;

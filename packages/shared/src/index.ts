@@ -86,10 +86,17 @@ export interface WorkspaceAgentTabSummary {
   untitled?: boolean;
 }
 
+/** An Agent's pane. The workspace publishes only its shell; the Agent's own live
+ * presentation publishes the content, which a page places into the shell's mounts. */
+export interface WorkspaceAgentPane {
+  html: string;
+  live?: { regions: readonly import("./live-presentation.ts").LiveRegion[]; subscriberId: string };
+}
+
 /** Durable Agent-tab seam: cheap shell metadata plus on-demand body rendering. */
 export interface WorkspaceAgentTabProvider {
   list(context: { workspaceId: string }): Promise<readonly WorkspaceAgentTabSummary[]>;
-  render(context: { workspaceId: string; agentId: string }): Promise<string>;
+  render(context: { workspaceId: string; agentId: string }): Promise<WorkspaceAgentPane>;
   close(context: { workspaceId: string; agentId: string }): Promise<void>;
 }
 
@@ -546,6 +553,6 @@ export interface WorkspaceAgentType {
   launch: WorkspaceAgentLaunch;
 }
 
-export { createLivePresentation, createPublishedRefresh, liveCollection, type LiveRegion, type LiveSubscription } from "./live-presentation.ts";
+export { createLivePresentation, createPublishedRefresh, liveCollection, liveRegionDigestsSchema, liveShownAttribute, placeLiveRegions, type LiveRegion, type LiveRegionDigests, type LiveSubscription } from "./live-presentation.ts";
 
 export * from "./proxy-access.ts";

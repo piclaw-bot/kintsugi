@@ -272,9 +272,8 @@ export function workContentId(workspaceId: string, key: string): string {
 }
 
 function renderWorkViewPane(workspaceId: string, view: WorkPaneContribution, active: boolean): string {
-  const body = view.bodyHtml ?? "";
   const source = view.sourceKey ? ` data-source-work-view-key="${escapeHtml(view.sourceKey)}"` : "";
-  return `<section id="${workViewPaneDomId(workspaceId, view.key)}" class="fixed-shell-surface${active ? " is-active" : ""}" data-workspace-pane-role="work" data-workspace-pane-id="${escapeHtml(view.key)}" data-kintsugi-fullscreen-view-key="${escapeHtml(view.sourceKey ?? view.key)}" data-workspace-logically-visible="false"${source} tabindex="-1"><div id="${workViewAvailabilityDomId(workspaceId, view.key)}">${renderAvailability(view)}</div><div id="${workViewActionsDomId(workspaceId, view.key)}" class="fixed-shell-work-actions">${view.actionsHtml ?? ""}</div><div class="fixed-shell-live-body" id="${workContentId(workspaceId, view.key)}" data-turbo-permanent>${body}</div></section>`;
+  return `<section id="${workViewPaneDomId(workspaceId, view.key)}" class="fixed-shell-surface${active ? " is-active" : ""}" data-workspace-pane-role="work" data-workspace-pane-id="${escapeHtml(view.key)}" data-kintsugi-fullscreen-view-key="${escapeHtml(view.sourceKey ?? view.key)}" data-workspace-logically-visible="false"${source} tabindex="-1"><div id="${workViewAvailabilityDomId(workspaceId, view.key)}">${renderAvailability(view)}</div><div id="${workViewActionsDomId(workspaceId, view.key)}" class="fixed-shell-work-actions">${view.actionsHtml ?? ""}</div><div class="fixed-shell-live-body" id="${workContentId(workspaceId, view.key)}" data-turbo-permanent></div></section>`;
 }
 
 

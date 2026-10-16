@@ -38,8 +38,7 @@ export function createNativeAgentRendering<Runtime extends NativeAgentRuntime>(o
   }
   async function paneHtml(runtime: Runtime) {
     await runtime.refreshCompletionCatalog();
-    const ctx = renderContext(runtime);
-    return renderAgentPane(ctx, { agentId: runtime.agentId }, { transcriptHtml: transcriptHtml(runtime), busy: runtime.isBusy, stats: options.stats(runtime) }, runtime.completionCatalog, { moduleChannel: options.channelName, notifications: false, subagents: false, initialPromptDraft: false });
+    return renderAgentPane(renderContext(runtime), { agentId: runtime.agentId }, { regions: liveRegions(runtime) }, { moduleChannel: options.channelName, notifications: false, subagents: false, initialPromptDraft: false });
   }
   return { channelName: options.channelName, routeSegment: options.routeSegment, renderContext, transcriptItems, liveRegions, paneHtml };
 }

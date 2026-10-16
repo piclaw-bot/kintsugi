@@ -240,7 +240,7 @@ test("real app JSON template, environment, secret and security operations", () =
   const registry = createWorkspaceRegistry();
   const modules = workspaceModules.splice(0, workspaceModules.length);
   await writeFile(join(directory, "default-agent-type.json"), JSON.stringify("admin-fixture"));
-  workspaceModules.push({ id: "admin-fixture", agentType: { id: "admin-fixture", label: "Fixture", iconHtml: "", tabs: { list: async () => [], render: async () => "", close: async () => {} }, create: async () => "fixture-agent", launch: { renderFooter: async () => "", prepare: async () => undefined, submit: async () => { throw new Error("not used"); }, prepareWorkspace: async () => {} } } });
+  workspaceModules.push({ id: "admin-fixture", agentType: { id: "admin-fixture", label: "Fixture", iconHtml: "", tabs: { list: async () => [], render: async () => ({html: ""}), close: async () => {} }, create: async () => "fixture-agent", launch: { renderFooter: async () => "", prepare: async () => undefined, submit: async () => { throw new Error("not used"); }, prepareWorkspace: async () => {} } } });
   try {
     const app = createWebApp({ registry, events: createKintsugiEventBus(), provisionWorkspace: async () => {}, persistWorkspaceParked: async () => {}, destroyWorkspace: async () => {}, deletionReview: { inspect: async () => ({ status: "clear" }), renderEvidence: () => "" }, logError: () => {} });
     const handler = createAdminHandler({ store, auditPath, app });

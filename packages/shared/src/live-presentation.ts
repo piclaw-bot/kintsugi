@@ -1,3 +1,4 @@
+import { Type, type Static } from "typebox";
 import { escapeHtml, turboStream } from "./index.ts";
 
 /** A region owns its markup; nested independently-owned islands use data-turbo-permanent. */
@@ -16,17 +17,67 @@ export interface LiveSubscription {
   unsubscribe(): void;
 }
 
-function regionStreams(regions: readonly LiveRegion[], previous: Map<string, string>, snapshot: boolean): string {
+/** Digests of the regions a server-rendered page shows, by target. */
+export const liveRegionDigestsSchema = Type.Record(Type.String(), Type.String());
+export type LiveRegionDigests = Readonly<Static<typeof liveRegionDigestsSchema>>;
+
+/** Carries a page's shown regions on the element whose controller subscribes; the Cable client sends them until a snapshot is applied. */
+export const liveShownAttribute = "data-live-shown";
+
+function liveRegionDigest(html: string): string {
+  return Bun.hash(html).toString(36);
+}
+
+/** Markup for a region's target exactly as applying its snapshot leaves it: the target's
+ * content, or for `replace` the element itself, with every child region placed. */
+function liveRegionHtml(region: LiveRegion): string {
+  return region.children?.length ? fill(region.html, region.children) : region.html;
+}
+
+/** Places regions into the elements of `html` they target. */
+function fill(html: string, regions: readonly LiveRegion[], subscriber?: { id: string; shown: LiveRegionDigests }): string {
+  const byTarget = new Map(regions.map(region => [region.target, region]));
+  return new HTMLRewriter().on("[id]", { element(element) {
+    const id = element.getAttribute("id")!;
+    if (id === subscriber?.id) element.setAttribute(liveShownAttribute, JSON.stringify(subscriber.shown));
+    const region = byTarget.get(id);
+    if (!region) return;
+    const content = liveRegionHtml(region);
+    if (region.action === "replace") element.replace(content, { html: true });
+    else element.setInnerContent(content, { html: true });
+  } }).transform(html);
+}
+
+/** A shell whose live content another presentation owns, as a page shows it: the regions
+ * it has mounts for placed, and its subscriber marked with exactly those. */
+export function placeLiveRegions(shell: string, regions: readonly LiveRegion[], subscriberId: string): string {
+  const mounts = new Set<string>();
+  new HTMLRewriter().on("[id]", { element(element) { mounts.add(element.getAttribute("id")!); } }).transform(shell);
+  const placed = regions.filter(region => mounts.has(region.target));
+  return fill(shell, placed, { id: subscriberId, shown: liveRegionDigests(placed) });
+}
+
+/** What a page that placed these regions shows. A subscription's first snapshot omits those still current. */
+export function liveRegionDigests(regions: readonly LiveRegion[], digests: Record<string, string> = {}): LiveRegionDigests {
+  for (const region of regions) {
+    digests[region.target] = liveRegionDigest(region.html);
+    if (region.children) liveRegionDigests(region.children, digests);
+  }
+  return digests;
+}
+
+function regionStreams(regions: readonly LiveRegion[], previous: Map<string, string>, snapshot: boolean, shown: LiveRegionDigests = {}): string {
   let html = "";
   for (const region of regions) {
     const before = previous.get(region.target);
     const changed = snapshot || before !== region.html;
-    if (changed) {
+    if (snapshot && shown[region.target] === liveRegionDigest(region.html)) previous.set(region.target, region.html);
+    else if (changed) {
       const append = !snapshot && region.appendOnly && before !== undefined && region.html.startsWith(before);
       html += turboStream(append ? "append" : region.action ?? "update", region.target, append ? region.html.slice(before.length) : region.html, append || region.morph === false ? {} : { method: "morph" });
       previous.set(region.target, region.html);
     }
-    if (region.children) html += regionStreams(region.children, previous, changed);
+    if (region.children) html += regionStreams(region.children, previous, changed, shown);
   }
   return html;
 }
@@ -59,12 +110,13 @@ export function createLivePresentation(render: () => readonly LiveRegion[], inte
       if (!disposed && listeners.size && timer === undefined) timer = setTimeout(flush, intervalMs);
     },
     flush,
-    subscribe(listener: (html: string) => void): LiveSubscription {
+    /** `shown` comes from the subscriber's server-rendered page; its snapshot omits regions still current. */
+    subscribe(listener: (html: string) => void, shown?: LiveRegionDigests): LiveSubscription {
       if (disposed) throw new Error("Live presentation is disposed");
       // Bring existing clients to the same published state before the new mount joins.
       flush();
       const regions = render();
-      const html = regionStreams(regions, previous, true);
+      const html = regionStreams(regions, previous, true, shown);
       listeners.add(listener);
       try { listener(html); } catch (error) { listeners.delete(listener); throw error; }
       return { unsubscribe() {

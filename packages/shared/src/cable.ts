@@ -1,6 +1,7 @@
 import type { JsonValue } from "@kintsugi/core";
 import { Type, type Static } from "typebox";
 import { Value } from "typebox/value";
+import { liveRegionDigestsSchema, type LiveRegionDigests } from "./live-presentation.ts";
 
 export interface CableSubscriptionOptions {
   /** Runs after the server's authoritative initial update has been applied to the DOM. */
@@ -8,6 +9,8 @@ export interface CableSubscriptionOptions {
   /** Runs when a previously ready subscription loses its Cable connection. */
   onDisconnected?: () => void;
   onRejected?: (reason: string) => void;
+  /** The server-rendered element this subscription continues. Its shown regions go with each subscribe until a snapshot is applied; a reconnect then gets a full snapshot. */
+  shownIn?: Element;
 }
 
 const cableIdentifierSchema = Type.Union([
@@ -24,7 +27,7 @@ export type WorkspaceVisibilityReport = Static<typeof workspaceVisibilitySchema>
 
 const cableClientMessageSchema = Type.Union([
   Type.Object({ command: Type.Literal("visibility"), visibility: workspaceVisibilitySchema }),
-  Type.Object({ command: Type.Literal("subscribe"), identifier: cableIdentifierSchema, subscriptionId: subscriptionIdSchema }),
+  Type.Object({ command: Type.Literal("subscribe"), identifier: cableIdentifierSchema, subscriptionId: subscriptionIdSchema, shown: Type.Optional(liveRegionDigestsSchema) }),
   Type.Object({ command: Type.Literal("unsubscribe"), identifier: cableIdentifierSchema, subscriptionId: subscriptionIdSchema }),
   Type.Object({ command: Type.Literal("pong"), time: Type.Optional(Type.Number()) }),
 ]);
@@ -137,5 +140,5 @@ export interface CableChannelSubscription {
  * Cable owns confirmation, cancellation races, incremental delivery and error reporting. */
 export interface CableChannelAdapter {
   name: string;
-  subscribe(identifier: CableIdentifier, listener: (html: string) => void, events: import("@kintsugi/core").KintsugiEventBus): CableChannelSubscription | Promise<CableChannelSubscription>;
+  subscribe(identifier: CableIdentifier, listener: (html: string) => void, events: import("@kintsugi/core").KintsugiEventBus, shown?: LiveRegionDigests): CableChannelSubscription | Promise<CableChannelSubscription>;
 }

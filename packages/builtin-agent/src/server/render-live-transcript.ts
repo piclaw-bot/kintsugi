@@ -7,19 +7,19 @@ export class LiveTranscriptRenderer {
   private readonly cache = new Map<string, { fingerprint: string; html: string }>();
   clear(): void { this.cache.clear(); }
 
-  private rows(ctx: AgentRenderContext, items: readonly TranscriptItem[], initial = false) {
+  private rows(ctx: AgentRenderContext, items: readonly TranscriptItem[]) {
     return items.map(item => {
       const children: LiveRegion[] = [];
       let commentaryIslands: string | undefined;
-      if (item.type === "working" && !initial) {
+      if (item.type === "working") {
         const commentary = commentaryContext(ctx);
         const collection = liveCollection(ids.workingItems(commentary, item.key), this.rows(commentary, workingCommentaryItems(item)));
         commentaryIslands = collection.html;
         children.push(collection);
       }
-      const rendering = !initial && item.type === "text" && item.live ? ctx.streamingText!(item.key, item.text) : undefined;
+      const rendering = item.type === "text" && item.live ? ctx.streamingText!(item.key, item.text) : undefined;
       const key = ids.item(ctx, item.key);
-      const fingerprint = initial || item.type === "working" || item.type === "extension" ? undefined : JSON.stringify(rendering ? { ...item, text: "" } : item);
+      const fingerprint = item.type === "working" || item.type === "extension" ? undefined : JSON.stringify(rendering ? { ...item, text: "" } : item);
       const cached = this.cache.get(key);
       const html = fingerprint !== undefined && cached?.fingerprint === fingerprint ? cached.html
         : item.type === "working" && commentaryIslands !== undefined ? renderWorkingSection(ctx, item, commentaryIslands)
@@ -33,21 +33,8 @@ export class LiveTranscriptRenderer {
     });
   }
 
-  private transcriptRows(ctx: AgentRenderContext, items: TranscriptItem[], modelContext: AgentModelContextView, initial: boolean, statuses: readonly string[]) {
-    return [
-      { id: `${ids.transcript(ctx)}_context`, html: renderModelContextEntries(ctx, modelContext) },
-      ...this.rows(ctx, items, initial),
-      { id: `${ids.transcript(ctx)}_status`, html: statuses.map(status => `<div class="agent-noticeline info"><span role="status">${escapeHtml(status)}</span></div>`).join("") },
-    ];
-  }
-
-  renderInitialTranscript(ctx: AgentRenderContext, items: TranscriptItem[], modelContext: AgentModelContextView, statuses: readonly string[] = []): string {
-    return this.transcriptRows(ctx, items, modelContext, true, statuses)
-      .map(row => `<div id="${escapeHtml(row.id)}" data-turbo-permanent>${row.html}</div>`).join("") + this.noticesMount(ctx);
-  }
-
-  renderTranscript(ctx: AgentRenderContext, items: TranscriptItem[], modelContext: AgentModelContextView, statuses: readonly string[] = []): LiveRegion {
-    const region = liveCollection(ids.transcript(ctx), this.transcriptRows(ctx, items, modelContext, false, statuses));
+  renderTranscript(ctx: AgentRenderContext, items: TranscriptItem[], modelContext: AgentModelContextView): LiveRegion {
+    const region = liveCollection(ids.transcript(ctx), [{ id: `${ids.transcript(ctx)}_context`, html: renderModelContextEntries(ctx, modelContext) }, ...this.rows(ctx, items)]);
     // Notices are browser-owned ephemeral messages, never snapshot state.
     region.html += this.noticesMount(ctx);
     return region;

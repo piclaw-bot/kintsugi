@@ -34,9 +34,9 @@ export function createNativeAgentModule<Runtime extends NativeAgentRuntime>(opti
     },
     cableChannels: [{
       name: channelName,
-      async subscribe(identifier, listener) {
+      async subscribe(identifier, listener, _events, shown) {
         if (identifier.channel !== "module" || identifier.name !== channelName || !identifier.params.agentId) throw new Error(`Invalid ${options.label} channel`);
-        return (await agents.ready(identifier.workspaceId, identifier.params.agentId)).presentation.subscribe(listener);
+        return (await agents.ready(identifier.workspaceId, identifier.params.agentId)).presentation.subscribe(listener, shown);
       },
     }],
     routes: [{ handle: options.routes(agents) }],

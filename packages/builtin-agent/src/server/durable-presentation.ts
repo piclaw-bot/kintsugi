@@ -2,7 +2,7 @@ import type { Context } from "@earendil-works/chord";
 import { getCurrentSystemPrompt, getCurrentTools } from "@earendil-works/pi-ai/utils/transcript";
 import { type Conversation, type ConversationView, type WatchHandle } from "@earendil-works/pi-durable";
 import { StreamingMarkdownRenderer } from "@kintsugi/markdown";
-import { createLivePresentation } from "@kintsugi/shared";
+import { createLivePresentation, type LiveRegion, type LiveRegionDigests } from "@kintsugi/shared";
 import type { AgentRenderContext } from "@kintsugi/agent/server/render-context";
 import { LiveTranscriptRenderer } from "./render-live-transcript.ts";
 import { renderModelContextDetailFrame, renderTranscriptItemDetailFrame, type AgentModelContextView } from "@kintsugi/agent/server/render-transcript";
@@ -20,7 +20,7 @@ export class DurableAgentPresentation {
   private readonly renderer = new LiveTranscriptRenderer();
   private readonly markdown = new Map<string, { source: string; renderer: StreamingMarkdownRenderer; stableHtml: string; tailHtml: string }>();
   private readonly turns = new Map<string, { presentation: ReturnType<typeof createLivePresentation>; subscriptions: Set<AgentLivePresentationSubscription> }>();
-  private readonly presentation = createLivePresentation(() => [this.renderer.renderTranscript(this.ctx, this.items, this.modelContext)], 50);
+  private readonly presentation = createLivePresentation(() => [this.transcriptRegion()], 50);
   private items: TranscriptItem[];
   private modelContext: AgentModelContextView = { systemPrompt: "", tools: [] };
   private frame: ConversationView;
@@ -102,14 +102,14 @@ export class DurableAgentPresentation {
 
   private assertOpen() { if (this.disposed) throw new Error("Durable presentation is detached"); }
 
-  transcriptHtml(): string {
+  transcriptRegion(): LiveRegion {
     this.assertOpen();
-    return this.renderer.renderInitialTranscript(this.ctx, this.items, this.modelContext);
+    return this.renderer.renderTranscript(this.ctx, this.items, this.modelContext);
   }
 
-  subscribeLivePresentation(listener: AgentLivePresentationListener): AgentLivePresentationSubscription {
+  subscribeLivePresentation(listener: AgentLivePresentationListener, shown?: LiveRegionDigests): AgentLivePresentationSubscription {
     this.assertOpen();
-    return this.presentation.subscribe(listener);
+    return this.presentation.subscribe(listener, shown);
   }
 
   subscribeTurnPresentation(turnId: string, branchId: string, listener: AgentLivePresentationListener): AgentLivePresentationSubscription {

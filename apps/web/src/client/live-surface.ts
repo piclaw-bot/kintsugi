@@ -95,6 +95,7 @@ class LiveSurfaceController extends Controller<HTMLElement> {
       ? CableTopics.module("surface", this.workspaceValue, { kind: this.kindValue, key: this.keyValue, agent: this.agentValue, work: this.workValue })
       : CableTopics.module("surface", this.workspaceValue, { kind: this.kindValue, key: this.keyValue });
     this.subscription = window.KintsugiCable!.subscribe(identifier, {
+      shownIn: this.element,
       onReady: () => {
         this.failure?.remove();
         this.failure = undefined;

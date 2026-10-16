@@ -115,3 +115,19 @@ test("large live snapshots use negotiated WebSocket compression", async () => {
   expect(ws.compressed).toEqual([false, true]);
   cable.close(ws);
 });
+
+test("a subscription hands the regions its page shows to the channel", async () => {
+  const received: unknown[] = [];
+  const cable = server([{ name: "agent", subscribe(_identifier, listener, _events, shown) {
+    received.push(shown);
+    listener("");
+    return { ready: Promise.resolve(), unsubscribe() {} };
+  } }]);
+  const ws = socket();
+  cable.open(ws, { kind: "cable", connectionId: "connection" });
+  cable.message(ws, JSON.stringify({ command: "subscribe", identifier, subscriptionId: "page", shown: { transcript: "digest" } }));
+  cable.message(ws, JSON.stringify({ command: "subscribe", identifier, subscriptionId: "reconnect" }));
+  await Bun.sleep(0);
+  expect(received).toEqual([{ transcript: "digest" }, undefined]);
+  cable.close(ws);
+});

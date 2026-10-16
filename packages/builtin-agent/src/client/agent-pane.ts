@@ -45,6 +45,7 @@ export function createAgentPaneController(Controller: StimulusControllerConstruc
     declare readonly inputTarget: HTMLTextAreaElement;
     declare readonly formTarget: HTMLFormElement;
     declare readonly sendStopTarget: HTMLButtonElement;
+    declare readonly hasSendStopTarget: boolean;
 
     private navigation!: TranscriptNavigation;
     private logicallyVisible = false;
@@ -87,7 +88,7 @@ export function createAgentPaneController(Controller: StimulusControllerConstruc
         this.startAgentTerminals();
       }
       this.element.dispatchEvent(new CustomEvent("live:ready", { bubbles: true }));
-      this.navigation.snapshotReady(this.sendStopTarget.dataset.agentBusy === "true");
+      this.navigation.snapshotReady(this.busy);
     };
     private readonly cableDisconnected = (): void => {
       this.element.dataset.agentPresentationReady = "false";
@@ -106,7 +107,7 @@ export function createAgentPaneController(Controller: StimulusControllerConstruc
     };
     connect(): void {
       this.navigation = new TranscriptNavigation(this.transcriptTarget, this.transcriptContentTarget, this.transcriptEndTarget);
-      this.navigation.setStreaming(this.sendStopTarget.dataset.agentBusy === "true");
+      this.navigation.setStreaming(this.busy);
       this.element.dataset.agentConnectionActive = "false";
       this.element.addEventListener("agent:turn-reveal", this.turnRevealed);
       document.addEventListener("visibilitychange", this.onVisibilityChange);
@@ -152,7 +153,7 @@ export function createAgentPaneController(Controller: StimulusControllerConstruc
       this.logicallyVisible = true;
       this.navigation.setVisible(true);
       this.reconcileConnection();
-      this.navigation.select(this.sendStopTarget.dataset.agentBusy === "true");
+      this.navigation.select(this.busy);
     }
 
     noLongerVisible(): void {
@@ -207,7 +208,7 @@ export function createAgentPaneController(Controller: StimulusControllerConstruc
         this.moduleChannelValue
           ? CableTopics.module(this.moduleChannelValue, this.workspaceIdValue, { agentId: this.agentIdValue })
           : CableTopics.agent(this.workspaceIdValue, this.agentIdValue),
-        { onReady: this.cableReady, onDisconnected: this.cableDisconnected },
+        { onReady: this.cableReady, onDisconnected: this.cableDisconnected, shownIn: this.element },
       );
     }
 
@@ -283,7 +284,13 @@ export function createAgentPaneController(Controller: StimulusControllerConstruc
       this.updateSendStopButton();
     }
 
+    /** The pane's live content, including its actions, can arrive after it connects. */
+    private get busy(): boolean {
+      return this.hasSendStopTarget && this.sendStopTarget.dataset.agentBusy === "true";
+    }
+
     updateSendStopButton(): void {
+      if (!this.hasSendStopTarget) return;
       const button = this.sendStopTarget;
       const busy = button.dataset.agentBusy === "true";
       if (this.connected) this.navigation.setStreaming(busy);

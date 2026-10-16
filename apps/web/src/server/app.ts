@@ -32,10 +32,12 @@ import {
   turboStreamResponse,
   workspaceModuleModalFrameId,
   launchComposerCommand,
+  placeLiveRegions,
   type CableIdentifier,
   type DeleteCurrentWorkspaceResult,
   type GlobalSidebarContributionRegistry,
   type LiveRegion,
+  type LiveRegionDigests,
   type WorkspaceAttachment,
   type WorkspaceCommandContribution,
   type WorkspaceDeletionReview,
@@ -97,7 +99,7 @@ export interface WebApp {
   fetch(request: Request): Promise<Response>;
   invalidateWorkspace(workspaceId: string): void;
   subscribeShell(listener: (html: string) => void): Promise<import("@kintsugi/shared").CableChannelSubscription>;
-  subscribeSurface(identifier: CableIdentifier, listener: (html: string) => void): Promise<import("@kintsugi/shared").CableChannelSubscription>;
+  subscribeSurface(identifier: CableIdentifier, listener: (html: string) => void, shown?: LiveRegionDigests): Promise<import("@kintsugi/shared").CableChannelSubscription>;
   deleteCurrentWorkspaceFromAgent(workspaceId: string, force: boolean): Promise<DeleteCurrentWorkspaceResult>;
   resumeWorkspaceDeletions(): void;
   provisioning: WorkspaceProvisioning;
@@ -197,8 +199,8 @@ export function createWebApp(deps: WebAppDeps): WebApp {
     return surface.resource;
   }
 
-  async function subscribeSurface(identifier: CableIdentifier, listener: (html: string) => void) {
-    return surfaceFor(identifier).subscribe(listener);
+  async function subscribeSurface(identifier: CableIdentifier, listener: (html: string) => void, shown?: LiveRegionDigests) {
+    return surfaceFor(identifier).subscribe(listener, shown);
   }
 
   deps.events?.on("agent_type_default_changed", invalidatePresentation);
@@ -481,16 +483,14 @@ export function createWebApp(deps: WebAppDeps): WebApp {
     return requestAcceptsJson(request) ? jsonResponse({ dismissed: true }) : turboStreamResponse("");
   }
 
+  /** An Agent pane is published as its shell; the Agent's own channel publishes its content. */
   function workspaceRegions(presentation: FixedWorkspacePresentation): readonly LiveRegion[] {
     const workspaceId = presentation.workspace.id;
     return [{
       target: workspaceResidentId(workspaceId),
-      html: renderWorkspacePresentation({ ...presentation,
-        agents: presentation.agents.map(agent => ({ ...agent, bodyHtml: undefined })),
-        workViews: presentation.workViews.map(view => ({ ...view, bodyHtml: undefined })),
-      }),
+      html: renderWorkspacePresentation(presentation),
       children: [
-        ...presentation.agents.flatMap(agent => agent.bodyHtml === undefined ? [] : [{ target: agentContentId(workspaceId, agent.id), html: agent.bodyHtml }]),
+        ...presentation.agents.flatMap(agent => agent.pane === undefined ? [] : [{ target: agentContentId(workspaceId, agent.id), html: agent.pane.html }]),
         ...presentation.workViews.flatMap(view => view.bodyHtml === undefined ? [] : [{ target: workContentId(workspaceId, view.key), html: view.bodyHtml }]),
       ],
     }];
@@ -502,21 +502,21 @@ export function createWebApp(deps: WebAppDeps): WebApp {
       agent: presentation.agents.find(agent => agent.id === selection.agent)?.id ?? presentation.agents[0]?.id,
       workView: presentation.workViews.find(view => view.key === selection.workView)?.key,
     };
-    async function loadPane(label: string, render: () => string | Promise<string>): Promise<string> {
+    async function loadPane<T>(label: string, render: () => T | Promise<T>, failed: (html: string) => T): Promise<T> {
       try { return await render(); }
       catch (error) {
         const message = errorMessage(error);
         logError(`Could not load ${label} in workspace ${id}: ${message}`);
         const retry = new URLSearchParams({ retryPane: "1", agent: presentation.initialSelection?.agent ?? "", workView: presentation.initialSelection?.workView ?? "" });
-        return warningBannerHtml({ title: "This pane could not be loaded", message, role: "alert", actionsHtml: actionLinkHtml({ href: `/workspaces/${encodeURIComponent(id)}?${retry}`, variant: "secondary", content: { kind: "caption", caption: "Retry pane" } }) });
+        return failed(warningBannerHtml({ title: "This pane could not be loaded", message, role: "alert", actionsHtml: actionLinkHtml({ href: `/workspaces/${encodeURIComponent(id)}?${retry}`, variant: "secondary", content: { kind: "caption", caption: "Retry pane" } }) }));
       }
     }
     await Promise.all([
-      ...presentation.agents.filter(agent => agent.id === presentation.initialSelection!.agent).map(async agent => { agent.bodyHtml = await loadPane("Agent " + agent.id, () => agentTabs.render({ workspaceId: id, agentId: agent.id })); }),
+      ...presentation.agents.filter(agent => agent.id === presentation.initialSelection!.agent).map(async agent => { agent.pane = await loadPane("Agent " + agent.id, () => agentTabs.render({ workspaceId: id, agentId: agent.id }), html => ({ html })); }),
       ...presentation.workViews.filter(view => view.key === presentation.initialSelection!.workView).map(async view => {
         if (view.availability.phase === "unavailable") return;
         const reference = storedWorkViews.find(stored => workViewKey(stored.reference) === view.key)!.reference;
-        view.bodyHtml = await loadPane("Work view " + view.key, () => workViewAdapterByType.get(reference.type)!.render({ workspaceId: id, reference }));
+        view.bodyHtml = await loadPane("Work view " + view.key, () => workViewAdapterByType.get(reference.type)!.render({ workspaceId: id, reference }), html => html);
       }),
     ]);
     return presentation;
@@ -561,10 +561,10 @@ export function createWebApp(deps: WebAppDeps): WebApp {
     </section>`;
   }
 
-  function workspaceMounts(selectedId?: string, selectedHtml = "", selection?: FixedWorkspacePresentation["initialSelection"]): string {
+  function workspaceMounts(selectedId?: string, selection?: FixedWorkspacePresentation["initialSelection"]): string {
     // Residents are invisible siblings, not the sorted workspace list. Keep their DOM order stable
     // when attention clears and the list reorders; moving a permanent mount disconnects it.
-    return registry.list().filter(entry => !entry.parked).sort((a, b) => a.id.localeCompare(b.id)).map(entry => `<div id="${workspaceResidentId(entry.id)}" class="workspace-detail-resident${entry.id === selectedId ? " visible" : ""}" data-turbo-permanent data-workspace-residency-target="resident" data-workspace-id="${escapeHtml(entry.id)}" data-controller="live-surface" data-live-surface-workspace-value="${escapeHtml(entry.id)}" data-live-surface-kind-value="workspace" data-live-surface-eager-value="${entry.id === selectedId}" data-live-surface-agent-value="${entry.id === selectedId ? escapeHtml(selection?.agent ?? "") : ""}" data-live-surface-work-value="${entry.id === selectedId ? escapeHtml(selection?.workView ?? "") : ""}">${entry.id === selectedId ? selectedHtml : ""}</div>`).join("");
+    return registry.list().filter(entry => !entry.parked).sort((a, b) => a.id.localeCompare(b.id)).map(entry => `<div id="${workspaceResidentId(entry.id)}" class="workspace-detail-resident${entry.id === selectedId ? " visible" : ""}" data-turbo-permanent data-workspace-residency-target="resident" data-workspace-id="${escapeHtml(entry.id)}" data-controller="live-surface" data-live-surface-workspace-value="${escapeHtml(entry.id)}" data-live-surface-kind-value="workspace" data-live-surface-eager-value="${entry.id === selectedId}" data-live-surface-agent-value="${entry.id === selectedId ? escapeHtml(selection?.agent ?? "") : ""}" data-live-surface-work-value="${entry.id === selectedId ? escapeHtml(selection?.workView ?? "") : ""}""></div>`).join("");
   }
 
   function workspaceUnavailableHtml(entry: WorkspaceEntry, message?: string): string {
@@ -584,7 +584,7 @@ export function createWebApp(deps: WebAppDeps): WebApp {
     return `<div id="workspace_detail" class="workspace-detail-host" data-controller="workspace-residency" data-workspace-residency-max-resident-value="5">
       <div class="workspace-detail-empty" data-workspace-residency-target="empty"${selectedId ? " hidden" : ""}>${emptyWorkspaceArtworkHtml(pane)}</div>
       <div class="workspace-detail-loading" data-workspace-residency-target="loading" hidden><div class="workspace-detail-loading-status" role="status"><span class="status-spinner" aria-hidden="true"></span> Loading workspace…</div></div>
-      <div id="workspace_residents" style="display:contents">${workspaceMounts(selectedId, selectedHtml, initialSelection)}</div>
+      <div id="workspace_residents" style="display:contents">${entry ? placeLiveRegions(workspaceMounts(selectedId, initialSelection), [{target: workspaceResidentId(entry.id), html: selectedHtml}], workspaceResidentId(entry.id)) : workspaceMounts(selectedId, initialSelection)}</div>
     </div>`;
   }
 

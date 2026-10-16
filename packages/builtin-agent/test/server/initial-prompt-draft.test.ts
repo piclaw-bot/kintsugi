@@ -9,6 +9,7 @@ import {
   stageInitialPrompt,
 } from "../../src/server/initial-prompt-draft.ts";
 import { renderAgentPane } from "../../src/server/render-composer.ts";
+import { ids, type AgentRenderContext } from "@kintsugi/agent/server/render-context";
 
 let temporaryDataDir: string | undefined;
 
@@ -23,11 +24,7 @@ async function useTemporaryDataDir(): Promise<void> {
   process.env.ATELIER_DATA_DIR = temporaryDataDir;
 }
 
-const emptyPaneState = {
-  transcriptHtml: "",
-  busy: false,
-  stats: { contextPercent: null, compactAvailable: false, inputTokens: 0, outputTokens: 0, cost: 0, modelName: undefined, thinkingLevel: "off", thinkingLevels: [], models: [] },
-};
+const emptyPaneState = (ctx: AgentRenderContext) => ({ regions: [ids.transcript(ctx), ids.actions(ctx), ids.stats(ctx), ids.completionCatalog(ctx)].map(target => ({ target, html: "" })) });
 
 describe("initial Agent prompt drafts", () => {
   test("belong to one immutable conversation and survive body reconstruction", async () => {
@@ -42,9 +39,9 @@ describe("initial Agent prompt drafts", () => {
 
     const firstAgent = { workspaceId, agentId: firstId, label: "Agent 1", title: "First", path: "/tmp/first.jsonl" };
     const secondAgent = { workspaceId, agentId: secondId, label: "Agent 2", title: "Second", path: "/tmp/second.jsonl" };
-    const firstRender = await renderAgentPane({ workspaceId, agentId: firstId }, firstAgent, emptyPaneState);
-    const reconstructed = await renderAgentPane({ workspaceId, agentId: firstId }, firstAgent, emptyPaneState);
-    const secondRender = await renderAgentPane({ workspaceId, agentId: secondId }, secondAgent, emptyPaneState);
+    const { html: firstRender } = await renderAgentPane({ workspaceId, agentId: firstId }, firstAgent, emptyPaneState({ workspaceId, agentId: firstId }));
+    const { html: reconstructed } = await renderAgentPane({ workspaceId, agentId: firstId }, firstAgent, emptyPaneState({ workspaceId, agentId: firstId }));
+    const { html: secondRender } = await renderAgentPane({ workspaceId, agentId: secondId }, secondAgent, emptyPaneState({ workspaceId, agentId: secondId }));
     expect(firstRender).toContain(">Wait for a model</textarea>");
     expect(reconstructed).toContain(">Wait for a model</textarea>");
     expect(secondRender).not.toContain("Wait for a model");

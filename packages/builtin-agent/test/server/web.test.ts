@@ -81,7 +81,7 @@ describe("Workspace Agent-tab provider", () => {
       list: async () => conversations,
       render: async (conversation) => {
         rendered.push(conversation.agentId);
-        return `<article>${conversation.title}</article>`;
+        return { html: `<article>${conversation.title}</article>` };
       },
       dispose: async () => {},
       restore: () => {},
@@ -93,7 +93,7 @@ describe("Workspace Agent-tab provider", () => {
       { id: conversations[1]!.agentId, title: "Second", untitled: false },
     ]);
     expect(rendered).toEqual([]);
-    expect(await provider.render({ workspaceId: "workspace-1", agentId: conversations[1]!.agentId })).toBe("<article>Second</article>");
+    expect(await provider.render({ workspaceId: "workspace-1", agentId: conversations[1]!.agentId })).toEqual({ html: "<article>Second</article>" });
     expect(rendered).toEqual([conversations[1]!.agentId]);
     expect(provider.render({ workspaceId: "workspace-1", agentId: conversations[1]!.label })).rejects.toMatchObject({ code: "agent_not_found" });
   });
@@ -125,7 +125,7 @@ describe("Workspace Agent-tab provider", () => {
       list: async () => conversations,
       render: async (conversation) => {
         if (blocked.has(conversation.agentId)) throw new Error("conversation tombstoned");
-        return conversation.title;
+        return { html: conversation.title };
       },
       dispose: async (_workspaceId, agentId) => { blocked.add(agentId); },
       restore: (_workspaceId, agentId) => { blocked.delete(agentId); },
@@ -134,7 +134,7 @@ describe("Workspace Agent-tab provider", () => {
 
     await expect(provider.close({ workspaceId: "workspace-1", agentId: conversations[0]!.agentId })).rejects.toThrow("closed Agent removal failed");
 
-    expect(await provider.render({ workspaceId: "workspace-1", agentId: conversations[0]!.agentId })).toBe("First");
+    expect(await provider.render({ workspaceId: "workspace-1", agentId: conversations[0]!.agentId })).toEqual({ html: "First" });
   });
 
   test("close waits for runtime disposal before removing the closed Agent", async () => {
@@ -146,7 +146,7 @@ describe("Workspace Agent-tab provider", () => {
     const lifecycle: string[] = [];
     const provider = createWorkspaceAgentTabProvider({
       list: async () => conversations,
-      render: async (conversation) => conversation.title,
+      render: async (conversation) => ({ html: conversation.title }),
       async dispose() {
         lifecycle.push("dispose:start");
         await disposal.promise;

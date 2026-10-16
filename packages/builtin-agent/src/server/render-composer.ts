@@ -3,7 +3,7 @@ import { buttonHtml } from "@kintsugi/design-system/button";
 import { createPiModelRuntime, hasConnectedModelProvider, modelRefValue, parseModelRef, renderLaunchModelSettings, renderSharedComposerSelections, type ComposerModelOption } from "@kintsugi/llm/server";
 import { agentAttachmentDraftId, listStagedAttachments, renderComposerBody, renderFloatingStack, renderFollowLatestButton, renderOpenComposerButton, agentComposerActions, composerAttachmentAttributes, type StagedAttachment } from "@kintsugi/prompt/server";
 import { dictationComposerController } from "@kintsugi/dictation/server";
-import { domId, escapeHtml } from "@kintsugi/shared";
+import { domId, escapeHtml, type LiveRegion, type WorkspaceAgentPane } from "@kintsugi/shared";
 import { readInitialPromptDraft } from "./initial-prompt-draft.ts";
 import { enabledModelOptionViews, launchComposerThinkingSettings, selectAvailableEnabledModel } from "@kintsugi/agent/server/model-state";
 import { agentKey, agentPath, ids, type AgentRenderContext } from "@kintsugi/agent/server/render-context";
@@ -30,20 +30,20 @@ export interface AgentStatsView {
 
 interface AgentPaneState {
   readOnly?: boolean;
-  transcriptHtml: string;
-  busy: boolean;
-  hasStoppableWork?: boolean;
-  stats: AgentStatsView;
+  /** What the pane's live presentation publishes. The shell has mounts for its transcript
+   * and, unless read-only, the composer's actions, footer and slash-command catalog. */
+  regions: readonly LiveRegion[];
 }
 
-export async function renderAgentPane(ctx: AgentRenderContext, agent: Pick<WorkspaceAgentInfo, "agentId">, state: AgentPaneState, completionCatalogHtml = "", presentation: { moduleChannel?: string; notifications?: boolean; subagents?: boolean; initialPromptDraft?: boolean } = {}): Promise<string> {
+/** The pane's shell; its controller's channel owns the content placed into the mounts. */
+export async function renderAgentPane(ctx: AgentRenderContext, agent: Pick<WorkspaceAgentInfo, "agentId">, state: AgentPaneState, presentation: { moduleChannel?: string; notifications?: boolean; subagents?: boolean; initialPromptDraft?: boolean } = {}): Promise<WorkspaceAgentPane> {
   const key = agentKey(agent.agentId);
   const draftId = agentAttachmentDraftId(ctx.workspaceId, ctx.agentId);
   const attachments = state.readOnly ? [] : await listStagedAttachments(draftId);
   const initialPromptDraft = state.readOnly || presentation.initialPromptDraft === false ? undefined : await readInitialPromptDraft(ctx.workspaceId, ctx.agentId);
   const initialText = initialPromptDraft?.prompt;
   const attachRowId = ids.attachRow(ctx);
-  return `<section id="${domId("agent_pane", ctx.workspaceId, agent.agentId)}" data-turbo-permanent class="agent-pane builtin-agent-shell" data-agent-source="${escapeHtml(key)}">
+  const html = `<section id="${domId("agent_pane", ctx.workspaceId, agent.agentId)}" data-turbo-permanent class="agent-pane builtin-agent-shell" data-agent-source="${escapeHtml(key)}">
     <div class="agent-pane agent-composer-pane" id="${ids.pane(ctx)}"
       ${state.readOnly ? "" : `data-controller="agent-pane agent-attachments agent-composer composer-focus"
       data-agent-composer-open-on-create-value="true"
@@ -55,7 +55,7 @@ export async function renderAgentPane(ctx: AgentRenderContext, agent: Pick<Works
       <div class="agent-transcript-region">
         ${presentation.subagents === false ? "" : await agentDelegation?.renderControl(ctx.workspaceId, ctx.agentId) ?? ""}
         <div class="agent-transcript" tabindex="0" role="region" aria-label="Agent transcript" data-agent-pane-target="transcript">
-          <div class="agent-transcript-surface"><div class="agent-transcript-content" id="${ids.transcript(ctx)}" data-agent-pane-target="transcriptContent">${state.transcriptHtml}</div></div>
+          <div class="agent-transcript-surface"><div class="agent-transcript-content" id="${ids.transcript(ctx)}" data-agent-pane-target="transcriptContent"></div></div>
         </div>
         ${state.readOnly ? "" : renderFloatingStack({ openComposer: renderOpenComposerButton(), followLatest: renderFollowLatestButton('data-agent-pane-target="transcriptEnd" data-action="agent-pane#scrollToTranscriptEnd"') })}
       </div>
@@ -65,13 +65,10 @@ export async function renderAgentPane(ctx: AgentRenderContext, agent: Pick<Works
         draftId,
         attachments,
         initialText,
-        busy: state.busy,
-        hasStoppableWork: state.hasStoppableWork,
-        stats: state.stats,
-        completionCatalogHtml,
       })}
     </div>
   </section>`;
+  return { html, live: { regions: state.regions, subscriberId: ids.pane(ctx) } };
 }
 
 function renderAgentPanePromptInput(ctx: AgentRenderContext, initialText = ""): string {
@@ -85,20 +82,12 @@ interface AgentComposerRenderOptions {
   draftId: string;
   attachments: readonly StagedAttachment[];
   initialText?: string;
-  busy: boolean;
-  hasStoppableWork?: boolean;
-  stats: AgentStatsView;
-  completionCatalogHtml: string;
-}
-
-function renderAgentCompletionCatalog(ctx: AgentRenderContext, catalog: string): string {
-  return `<div id="${ids.completionCatalog(ctx)}" data-agent-completions-target="catalog" hidden>${catalog}</div>`;
 }
 
 function renderAgentPaneComposer(options: AgentComposerRenderOptions): string {
-  const { ctx, draftId, stats } = options;
+  const { ctx, draftId } = options;
   const formId = `agent_pane_composer_${draftId}`;
-  const actions = `<span class="composer-primary-action" id="${ids.actions(ctx)}">${renderPromptActions(ctx, options.busy, options.hasStoppableWork)}</span>`;
+  const actions = `<span class="composer-primary-action" id="${ids.actions(ctx)}"></span>`;
   return `<div class="composer agent-pane-composer" data-controller="agent-model-setup agent-completions ${dictationComposerController}" data-action="agent-composer:send-prompt->agent-pane#sendPrompt" data-agent-completions-url-value="${escapeHtml(agentPath(ctx, "/completions"))}" data-dictation-composer-workspace-id-value="${escapeHtml(ctx.workspaceId)}">
     <div class="composer-surface">
       <form id="${escapeHtml(formId)}" method="post" action="${escapeHtml(options.action)}" data-agent-pane-target="form" data-action="submit->agent-model-setup#guard keydown->agent-completions#keydown keydown->agent-pane#inputKeydown submit->dictation-composer#submit turbo:submit-start->agent-pane#submitStarted turbo:submit-end->agent-pane#submitted">
@@ -111,9 +100,9 @@ function renderAgentPaneComposer(options: AgentComposerRenderOptions): string {
         })}
       </form>
       <div class="agent-completion-menu-host" data-agent-completions-target="menu" hidden></div>
-      ${renderAgentCompletionCatalog(ctx, options.completionCatalogHtml)}
+      <div id="${ids.completionCatalog(ctx)}" data-agent-completions-target="catalog" hidden></div>
       <form id="${ids.abortForm(ctx)}" method="post" action="${escapeHtml(agentPath(ctx, "/abort"))}" hidden></form>
-      <div class="composer-footer" data-controller="agent-footer" id="${ids.stats(ctx)}">${renderAgentPaneComposerFooter(ctx, stats)}</div>
+      <div class="composer-footer" data-controller="agent-footer" id="${ids.stats(ctx)}"></div>
     </div>
   </div>`;
 }

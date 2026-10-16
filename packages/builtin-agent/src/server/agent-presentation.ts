@@ -3,7 +3,7 @@ import { durableContextTokens } from "./durable-accounting.ts";
 import { renderDurableTree } from "./durable-tree.ts";
 import type { TreeFilterMode } from "./session-tree.ts";
 import { createPiModelRuntime, type ModelRef } from "@kintsugi/llm/server";
-import { createLivePresentation } from "@kintsugi/shared";
+import { createLivePresentation, type LiveRegion, type LiveRegionDigests } from "@kintsugi/shared";
 import { getSupportedThinkingLevels } from "@earendil-works/pi-ai";
 import type { DurableAgentController } from "./durable-runtime.ts";
 import { DurableAgentPresentation } from "./durable-presentation.ts";
@@ -37,13 +37,16 @@ export class AgentPresentation {
   private contextTokens = 0;
   private disposed = false;
   private failure?: Error;
-  private readonly chrome = createLivePresentation(() => [
-    { target: ids.actions(this), html: renderPromptActions(this, this.isStreaming, this.controller.hasStoppableWork) },
-    { target: ids.stats(this), html: renderAgentPaneComposerFooter(this, this.stats()), morph: false },
-    { target: ids.completionCatalog(this), html: this.catalog },
-    { target: notificationControlId(this), html: renderNotificationControl(this, this.isStreaming), action: "replace" },
-    ...(this.failure ? [{ target: ids.notices(this), html: renderNotice("error", "This Agent view disconnected. Reload to reconnect.") }] : []),
-  ], 50);
+  private readonly chrome = createLivePresentation(() => this.chromeRegions(), 50);
+  private chromeRegions(): LiveRegion[] {
+    return [
+      { target: ids.actions(this), html: renderPromptActions(this, this.isStreaming, this.controller.hasStoppableWork) },
+      { target: ids.stats(this), html: renderAgentPaneComposerFooter(this, this.stats()), morph: false },
+      { target: ids.completionCatalog(this), html: this.catalog },
+      { target: notificationControlId(this), html: renderNotificationControl(this, this.isStreaming), action: "replace" },
+      ...(this.failure ? [{ target: ids.notices(this), html: renderNotice("error", "This Agent view disconnected. Reload to reconnect.") }] : []),
+    ];
+  }
 
   private constructor(agent: WorkspaceAgentInfo, private readonly controller: DurableAgentController, private readonly modelRuntime: Awaited<ReturnType<typeof createPiModelRuntime>>) {
     this.workspaceId = agent.workspaceId;
@@ -134,15 +137,16 @@ export class AgentPresentation {
       cost: buckets.reduce((sum, item) => sum + item.cost.total, 0), modelName: this.model?.id,
       thinkingLevel: this.thinkingLevel, thinkingLevels: this.availableThinkingLevels(), models: this.models.map(model => ({ ...model, selected: model.provider === this.model?.provider && model.id === this.model.id })) };
   }
-  subscribeLivePresentation(listener: AgentLivePresentationListener) {
+  subscribeLivePresentation(listener: AgentLivePresentationListener, shown?: LiveRegionDigests) {
     this.assertOpen();
-    this.transcriptListeners.set(listener, this.presentation.subscribeLivePresentation(listener));
-    const chrome = this.chrome.subscribe(listener);
+    this.transcriptListeners.set(listener, this.presentation.subscribeLivePresentation(listener, shown));
+    const chrome = this.chrome.subscribe(listener, shown);
     return { unsubscribe: () => { this.transcriptListeners.get(listener)?.unsubscribe(); this.transcriptListeners.delete(listener); chrome.unsubscribe(); } };
   }
   subscribeTurnPresentation(turn: string, branch: string, listener: AgentLivePresentationListener) { this.assertOpen(); return this.presentation.subscribeTurnPresentation(turn, branch, listener); }
-  async paneState() { this.assertOpen(); return { transcriptHtml: this.presentation.transcriptHtml(), busy: this.isStreaming, hasStoppableWork: this.controller.hasStoppableWork, stats: this.stats(), readOnly: this.readOnly }; }
-  async refreshCompletionCatalog() { if (this.readOnly) return ""; this.catalog = await renderWorkspaceCompletionCatalog(this.workspaceId); this.chrome.invalidate(); return this.catalog; }
+  /** The regions the agent channel publishes, for the pane to place. */
+  paneState() { this.assertOpen(); return { regions: [this.presentation.transcriptRegion(), ...this.chromeRegions()], readOnly: this.readOnly }; }
+  async refreshCompletionCatalog() { if (this.readOnly) return; this.catalog = await renderWorkspaceCompletionCatalog(this.workspaceId); this.chrome.invalidate(); }
   revealTurn(target: string) { return this.presentation.revealTurn(target); }
   async refreshModelConfiguration(defaultModel?: ModelRef) {
     if (this.readOnly) return;

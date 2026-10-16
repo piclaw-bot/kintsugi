@@ -9,7 +9,7 @@ function occupant(id: string, initial: WorkspaceAgentTabSummary[]) {
     id, label: id, iconHtml: id,
     tabs: {
       list: async () => agents,
-      render: async ({ agentId }) => `${id}/${agentId}`,
+      render: async ({ agentId }) => ({ html: `${id}/${agentId}` }),
       close: async ({ agentId }) => {
         closed.push(agentId);
         agents = agents.filter((agent) => agent.id !== agentId);
@@ -37,7 +37,7 @@ test("mixed Agent types expose ownership and route rendering and closure", async
   expect((await host.list({ workspaceId: "workspace" })).map(({ id, agentTypeId }) => ({ id, agentTypeId }))).toEqual([
     { id: "first", agentTypeId: "builtin" }, { id: "second", agentTypeId: "codex" }, { id: "third", agentTypeId: "codex" },
   ]);
-  expect(await host.render({ workspaceId: "workspace", agentId: "second" })).toBe("codex/second");
+  expect(await host.render({ workspaceId: "workspace", agentId: "second" })).toEqual({ html: "codex/second" });
   await host.close({ workspaceId: "workspace", agentId: "second" });
   expect(codex.closed).toEqual(["second"]);
   expect(builtin.closed).toEqual([]);

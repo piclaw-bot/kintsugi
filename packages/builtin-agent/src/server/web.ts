@@ -1,6 +1,6 @@
 import { KintsugiCoreError, createKeyedOperationQueue, type KintsugiEventBus } from "@kintsugi/core";
 import { builtinAgentIconHtml } from "@kintsugi/design-system/icons";
-import { launchComposerCommand, type WorkspaceAgentTabProvider, type WorkspaceCommandContribution, type WorkspaceModule } from "@kintsugi/shared";
+import { launchComposerCommand, type WorkspaceAgentPane, type WorkspaceAgentTabProvider, type WorkspaceCommandContribution, type WorkspaceModule } from "@kintsugi/shared";
 import { registerAgentEvents } from "./agent-events.ts";
 import { resolveAgent } from "./delegation.ts";
 import { removeWorkspaceInitialPromptDrafts } from "./initial-prompt-draft.ts";
@@ -18,7 +18,7 @@ let agentEvents: KintsugiEventBus | undefined;
 
 export function createWorkspaceAgentTabProvider(dependencies: {
   list(workspaceId: string): Promise<readonly WorkspaceAgentInfo[]>;
-  render(conversation: WorkspaceAgentInfo): Promise<string>;
+  render(conversation: WorkspaceAgentInfo): Promise<WorkspaceAgentPane>;
   dispose(workspaceId: string, agentId: string): Promise<void>;
   restore(workspaceId: string, agentId: string): void;
   removeClosedAgent(conversation: WorkspaceAgentInfo): Promise<void>;
@@ -57,16 +57,8 @@ export const workspaceAgentTabProvider = createWorkspaceAgentTabProvider({
   list: listWorkspaceAgents,
   async render(conversation) {
     const runtime = await getWorkspaceAgentPresentation(conversation, { events: agentEvents });
-    const [state, completionCatalog] = await Promise.all([
-      runtime.paneState(),
-      runtime.refreshCompletionCatalog(),
-    ]);
-    return await renderAgentPane(
-      { workspaceId: conversation.workspaceId, agentId: conversation.agentId },
-      conversation,
-      state,
-      completionCatalog,
-    );
+    await runtime.refreshCompletionCatalog();
+    return await renderAgentPane({ workspaceId: conversation.workspaceId, agentId: conversation.agentId }, conversation, runtime.paneState());
   },
   dispose: closeWorkspaceAgent,
   restore: restoreWorkspaceAgentRuntime,
@@ -96,11 +88,11 @@ export const builtinAgentWorkspaceModule: WorkspaceModule = {
   id: "builtin-agent",
   cableChannels: [{
     name: "agent",
-    async subscribe(identifier, listener, events) {
+    async subscribe(identifier, listener, events, shown) {
       if (identifier.channel !== "agent") throw new Error("Invalid Agent channel identifier");
       const agent = await resolveAgent(identifier.workspaceId, identifier.agentId);
       const runtime = await getWorkspaceAgentPresentation(agent, { events });
-      return runtime.subscribeLivePresentation(listener);
+      return runtime.subscribeLivePresentation(listener, shown);
     },
   }, {
     name: "agent-turn",
