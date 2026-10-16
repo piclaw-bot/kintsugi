@@ -1,8 +1,16 @@
+import { availableParallelism } from "node:os";
+import { effectiveCpu } from "../../../packages/host/src/system/sampler.ts";
 import { existsSync } from "node:fs";
 import { chown, mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
+import { Type } from "typebox";
+import { Value } from "typebox/value";
+import { readTextIfExists, writeJsonAtomic } from "../../../packages/core/src/index.ts";
 import { readStorageDriver } from "../../../packages/core/src/storage-driver.ts";
 const GiB = 1024 ** 3;
+const budgetFile = "/data/supervisor/system-resource-policy.json";
+const budgetSchema = Type.Object({ memory: Type.Integer({ minimum: 3 * GiB }), memorySwap: Type.Integer({ minimum: 3 * GiB }), nanoCpus: Type.Integer({ minimum: 1 }), pids: Type.Integer({ minimum: 2048 }) });
+export function defaultSystemMemory(total: number, available: number, current: number) { return Math.floor(Math.min(total, available + current) * 0.75); }
 export function resourcePolicy(memory: number, pids: number) {
   if (memory < 3 * GiB)
     throw new Error(
@@ -64,7 +72,32 @@ export async function initializeResources() {
     }
     if (path === "/sys/fs/cgroup") break;
   }
+  const cpuLimits: string[] = [];
+  for (let path = root; path !== "/sys/fs/cgroup"; path = dirname(path)) cpuLimits.push(await readFile(join(path, "cpu.max"), "utf8"));
+  let effectiveCpus = effectiveCpu(cpuLimits, availableParallelism());
+  // Older host installers do not set Docker limits. Establish a finite boundary before starting the inner daemon.
+  const savedText = await readTextIfExists(budgetFile);
+  const saved = savedText === undefined ? undefined : Value.Parse(budgetSchema, JSON.parse(savedText));
+  if ((await readFile(join(root, "memory.max"), "utf8")).trim() === "max") {
+    const availableMemory = Number(meminfo.match(/^MemAvailable:\s+(\d+)/m)![1]) * 1024;
+    const currentMemory = Number(await readFile(join(root, "memory.current"), "utf8"));
+    memory = Math.min(saved?.memory ?? memory, defaultSystemMemory(memory, availableMemory, currentMemory));
+    resourcePolicy(memory, pids);
+    await writeFile(join(root, "memory.max"), String(memory));
+  }
+  let swap = 0;
+  if (existsSync(join(root, "memory.swap.max"))) {
+    const limit = (await readFile(join(root, "memory.swap.max"), "utf8")).trim();
+    swap = limit === "max" ? Math.max(0, (saved?.memorySwap ?? memory) - memory) : Number(limit);
+    await writeFile(join(root, "memory.swap.max"), String(swap));
+  }
+  if (cpuLimits[0]!.startsWith("max")) {
+    effectiveCpus = Math.min(saved ? saved.nanoCpus / 1e9 : Infinity, Math.max(0.25, effectiveCpus * 0.75));
+    await writeFile(join(root, "cpu.max"), String(Math.floor(effectiveCpus * 100000)) + " 100000");
+  }
+  if (!Number.isFinite(pids)) { pids = saved?.pids ?? 8192; await writeFile(join(root, "pids.max"), String(pids)); }
   const policy = resourcePolicy(memory, pids);
+  await writeJsonAtomic(budgetFile, { memory, memorySwap: memory + swap, nanoCpus: Math.floor(effectiveCpus * 1e9), pids }, { mode: 0o600 });
   const management = join(root, "management");
   const workloads = join(root, "workloads");
   const processes = join(management, "processes");
@@ -131,6 +164,8 @@ export async function initializeResources() {
   await chown(join(buildClients, "cgroup.procs"), 1000, 1000);
   await chown(join(workloads, "commands", "cgroup.procs"), 1000, 1000);
   const result = {
+    resourceControlVersion: 1,
+    effectiveCpus,
     workloadsCgroupParent: `${relative}/workloads`,
     managementCgroupParent: `${relative}/management/apps`,
     commandsCgroup: join(workloads, "commands"),

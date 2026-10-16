@@ -16,6 +16,7 @@ class LiveSurfaceController extends Controller<HTMLElement> {
   private pending?: ReturnType<typeof Promise.withResolvers<void>>;
   ready = false;
   private failure?: HTMLElement;
+  private failed = false;
 
   connect(): void {
     mounts.set(this.element, this);
@@ -36,6 +37,7 @@ class LiveSurfaceController extends Controller<HTMLElement> {
     this.subscription?.unsubscribe();
     this.subscription = undefined;
     this.ready = false;
+    this.failed = false;
     this.pending?.resolve();
     this.pending = undefined;
   }
@@ -72,7 +74,7 @@ class LiveSurfaceController extends Controller<HTMLElement> {
   }
 
   ensureReady(): Promise<void> {
-    if (this.ready) return Promise.resolve();
+    if (this.ready || this.failed) return Promise.resolve();
     if (this.pending) return this.pending.promise;
     const pending = this.pending = Promise.withResolvers<void>();
     if (this.subscription) return pending.promise;
@@ -95,6 +97,7 @@ class LiveSurfaceController extends Controller<HTMLElement> {
         this.pending = undefined;
         this.subscription = undefined;
         this.ready = false;
+        this.failed = true;
         this.showFailure(reason);
         // A rejected pane must not reject workspace selection or sibling preparation.
         pending?.resolve();

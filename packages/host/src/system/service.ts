@@ -15,6 +15,8 @@ export class HostService {
   private sampling?: Promise<HostSample>;
   constructor(private readonly sample: () => Promise<HostSample>, private readonly socketName = "kintsugi-host", private readonly network?: (request: Extract<HostCommand, { operation: "network" }>) => Promise<HostResult>) {}
 
+  resourceControl?: (id: string, recover: boolean, action: "admit" | "park") => Promise<null>;
+
   private async list(): Promise<HostTerminal[]> {
     // The dedicated host tmux server is started once and kept alive with no sessions.
     const text = await tmux(this.socketName, "list-sessions", "-F", "#{session_id}|#{session_name}");
@@ -31,6 +33,10 @@ export class HostService {
   }
   async handle(request: HostCommand): Promise<HostResult> {
     switch (request.operation) {
+      case "resources": {
+        if (!this.resourceControl) throw new Error("Workspace resource control is unavailable");
+        return this.resourceControl(request.workspaceId, request.recover ?? false, request.action ?? "admit");
+      }
       case "network": {
         if (!this.network) throw new Error("Workspace network control is unavailable");
         return this.network(request);
@@ -57,13 +63,14 @@ export class HostService {
 }
 
 /** Only the app receives this socket mount. No privileged API on the public supervisor listener. */
-export async function startHostService(options: { root: string; effectiveMemory: number; socketPath?: string; tmuxSocketName?: string; network?: (request: Extract<HostCommand, { operation: "network" }>) => Promise<HostResult> }) {
+export async function startHostService(options: { resourceControl?: (id: string, recover: boolean, action: "admit" | "park") => Promise<null>; root: string; effectiveMemory: number; socketPath?: string; tmuxSocketName?: string; network?: (request: Extract<HostCommand, { operation: "network" }>) => Promise<HostResult> }) {
   const socketPath = options.socketPath ?? hostSocketPath;
   const socketName = options.tmuxSocketName ?? "kintsugi-host";
   await mkdir(dirname(socketPath), { recursive: true });
   // Keep the server alive even after explicitly terminating the final terminal.
   await tmux(socketName, "-f", "/dev/null", "start-server", ";", "set-option", "-g", "exit-empty", "off");
   const service = new HostService(() => sampleHost(options.root, options.effectiveMemory), socketName, options.network);
+  service.resourceControl = options.resourceControl;
   const server = createServer(socket => {
     let terminal: ObservableTerminalConnection | undefined;
     let initialized = false;

@@ -810,6 +810,12 @@ if (operation === 'auth-check') {
     if (saved.mode === 'hosts' || saved.applied?.mode === 'hosts') required = 2;
   }
   process.stdout.write(String(required)+"\n");
+ } else if (operation === 'resource-limits') {
+  const limits = await read('/data/supervisor/system-resource-policy.json');
+  if (Object.keys(limits).length) {
+    if (![limits.memory,limits.memorySwap,limits.nanoCpus,limits.pids].every(n=>Number.isSafeInteger(n)&&n>0) || limits.memorySwap<limits.memory) throw Error('Invalid saved System resource policy');
+    console.log([limits.memory,limits.memorySwap,limits.nanoCpus,limits.pids].join(' '));
+  }
 } else if (operation === 'rollback-plan') {
   if (!imageIdPattern.test(history.previousSystemImage ?? '') || !imageIdPattern.test(history.previousAppImage ?? '')) throw Error('No retained System/app rollback pair');
   console.log([history.previousSystemImage,history.previousAppImage,hostname].join('\n'));
@@ -960,6 +966,52 @@ case "$action" in
       done <<<"$saved_publications"
     fi
     for mapping in "${admin_publish[@]}"; do admin_port_args+=(--publish "$mapping"); done
+    # Docker persists explicit resource intent; preserve it across replacement and rollback.
+    # Previously unbounded installs receive a finite budget, leaving a quarter of Docker-host RAM/CPU outside System.
+    resource_args=()
+    host_memory="$(docker info --format '{{.MemTotal}}')"
+    host_cpus="$(docker info --format '{{.NCPU}}')"
+    [[ "$host_memory" =~ ^[1-9][0-9]*$ && "$host_cpus" =~ ^[1-9][0-9]*$ ]] || fail "Cannot determine Docker host resource capacity; nothing was replaced"
+    memory_limit=0; swap_limit=0; nano_cpus=0; pid_limit=0
+    if [ "$installed" -eq 1 ]; then
+      saved_limits="$(docker inspect --format '{{.HostConfig.Memory}} {{.HostConfig.MemorySwap}} {{.HostConfig.NanoCpus}} {{if .HostConfig.PidsLimit}}{{.HostConfig.PidsLimit}}{{else}}0{{end}}' "$system_name")"
+      read -r memory_limit swap_limit nano_cpus pid_limit <<< "$saved_limits"
+      if [ "$memory_limit" = 0 ]; then
+        remembered_limits="$(release_plan "$old_system_image" resource-limits)" || fail "Cannot read saved System resource policy; nothing was replaced"
+        if [ -n "$remembered_limits" ]; then
+          read -r remembered_memory remembered_swap remembered_cpu remembered_pids <<< "$remembered_limits"
+          memory_limit="$remembered_memory"
+          [ "$swap_limit" -ne 0 ] || swap_limit="$remembered_swap"
+          [ "$nano_cpus" -ne 0 ] || nano_cpus="$remembered_cpu"
+          [ "$pid_limit" -gt 0 ] || pid_limit="$remembered_pids"
+        fi
+      fi
+      [[ "$memory_limit" =~ ^[0-9]+$ && "$swap_limit" =~ ^-?[0-9]+$ && "$nano_cpus" =~ ^[0-9]+$ && "$pid_limit" =~ ^-?[0-9]+$ ]] || fail "Cannot read saved System limits; nothing was replaced"
+    fi
+    if [ "$memory_limit" -eq 0 ]; then
+      available_memory="$host_memory"
+      if [ "$host_os" = Linux ] && [ -r /proc/meminfo ]; then
+        available_memory="$(awk '/^MemAvailable:/ {printf "%.0f", $2 * 1024}' /proc/meminfo)"
+        [[ "$available_memory" =~ ^[1-9][0-9]*$ ]] || fail "Cannot read available host memory; nothing was replaced"
+        if [ "$installed" -eq 1 ]; then
+          current_percent="$(docker stats --no-stream --format '{{.MemPerc}}' "$system_name")"
+          current_percent="${current_percent%%%}"
+          [[ "$current_percent" =~ ^[0-9]+([.][0-9]+)?$ ]] || fail "Cannot sample existing System memory; nothing was replaced"
+          available_memory="$(awk -v free="$available_memory" -v total="$host_memory" -v percent="$current_percent" 'BEGIN {printf "%.0f", free + total * percent / 100}')"
+        fi
+      fi
+      if [ "$available_memory" -gt "$host_memory" ]; then available_memory="$host_memory"; fi
+      memory_limit=$((available_memory * 3 / 4)); swap_limit="$memory_limit"
+    fi
+    [ "$memory_limit" -ge 3221225472 ] || fail "System needs 3 GiB within its resource budget; free or increase Docker host memory before updating"
+    [ "$memory_limit" -le "$host_memory" ] || fail "Saved System RAM limit exceeds Docker host capacity; nothing was replaced"
+    if [ "$swap_limit" -eq 0 ]; then swap_limit="$memory_limit"; fi
+    [ "$swap_limit" -ne -1 ] || fail "System has unlimited swap; select a finite Docker memory-swap limit before updating"
+    [ "$swap_limit" -ge "$memory_limit" ] || fail "Saved memory-swap limit is smaller than RAM; nothing was replaced"
+    if [ "$nano_cpus" -eq 0 ]; then nano_cpus=$((host_cpus * 750000000)); fi
+    if [ "$pid_limit" -le 0 ]; then pid_limit=8192; fi
+    [ "$pid_limit" -ge 2048 ] || fail "System requires at least 2048 processes; nothing was replaced"
+    resource_args=(--memory "$memory_limit" --memory-swap "$swap_limit" --cpus "$(printf '%d.%09d' "$((nano_cpus / 1000000000))" "$((nano_cpus % 1000000000))")" --pids-limit "$pid_limit")
     # Proxy mappings have their own reserved ports; never discard them with --no-admin-publish.
     proxy_port_args=()
     saved_proxy=""
@@ -1076,7 +1128,7 @@ UPDATER_TMPFILES
     fi
     stop_on_failure=1
     run_quiet "Starting Kintsugi services" docker run -d --name "$system_name" --label "kintsugi.storage-driver=$storage_driver" --hostname "$tailscale_hostname" --privileged --cgroupns=host --restart unless-stopped \
-      --stop-timeout 120 --tmpfs /run --mount "source=$system_name,target=/data" --publish 127.0.0.1:3080:3080 "${admin_port_args[@]}" "${proxy_port_args[@]}" "${updater_mount[@]}" \
+      --stop-timeout 120 "${resource_args[@]}" --tmpfs /run --mount "source=$system_name,target=/data" --publish 127.0.0.1:3080:3080 "${admin_port_args[@]}" "${proxy_port_args[@]}" "${updater_mount[@]}" \
       "$system_image" --app-image "$app_image" --access-mode "${access_mode:-tailscale}"
     ;;
   connect)

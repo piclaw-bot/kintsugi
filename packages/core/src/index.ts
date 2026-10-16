@@ -66,7 +66,7 @@ export {
 } from "./git-hosting.ts";
 
 export { createKeyedOperationQueue } from "./keyed-operation-queue.ts";
-export { workloadCgroupArgs, workloadCommand } from "./workload-resources.ts";
+export { workloadCgroupArgs, workloadCommand, workspaceResourceControlAvailable } from "./workload-resources.ts";
 
 export { commandSignal, withCommandSignal, waitForCommand, runCommand, killCommandGroup } from "./command-scope.ts";
 

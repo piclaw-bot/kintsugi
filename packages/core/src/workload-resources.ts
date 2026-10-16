@@ -1,7 +1,7 @@
 import { readTextIfExists } from "./fs.ts";
 const descriptor = "/run/kintsugi-system/resources.json";
 async function resources(): Promise<
-  { workloadsCgroupParent: string } | undefined
+  { workloadsCgroupParent: string; resourceControlVersion?: number } | undefined
 > {
   const text = await readTextIfExists(descriptor);
   // A developer's local Docker context has no System-owned workload group.
@@ -22,3 +22,5 @@ export async function workloadCommand(args: string[]): Promise<string[]> {
     ...args,
   ];
 }
+
+export async function workspaceResourceControlAvailable(): Promise<boolean> { return (await resources())?.resourceControlVersion === 1; }

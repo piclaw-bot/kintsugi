@@ -179,6 +179,12 @@ describe("Workspace presentation", () => {
     expect(presentation.reorderWorkView("workspace-1", { type: "file", path: "/work/missing.md" }, 0)).rejects.toMatchObject({ code: "work_view_not_found" });
   });
 
+  test("listing before attachment leaves later default views intact", async () => {
+    expect(await presentation.listWorkViews("workspace-1")).toEqual([]);
+    await presentation.initialize("workspace-1", [{type: "file", path: "/work/README.md"}]);
+    expect(await presentation.listWorkViews("workspace-1")).toEqual([{reference: {type: "file", path: "/work/README.md"}}]);
+  });
+
   test("initialization only writes missing presentation state", async () => {
     const context = { type: "file", path: "/work/CONTEXT.md" } as const;
     await presentation.initialize("workspace-1", [context]);

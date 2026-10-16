@@ -227,3 +227,38 @@ test("a failed work-view loader does not reject the workspace channel or its age
     const workspace=await app.fetch(new Request(`http://test.local/workspaces/${workspaceId}`,{headers:{Accept:"application/json"}}));expect(workspace.status).toBe(200);
   },undefined,[module]);
 });
+
+test("force parking a failed workspace does not need live pane adapters", async () => {
+  const module: WorkspaceModule = { id: "unavailable-terminal", attachToWorkspace: () => ({ workViews: [{key: "terminal:one", sourceKey: "terminal:one", kind: "resource", label: "Shell", reference: {type: "terminal"}, availability: {phase: "live"}}] }), workViews: [{ type: "terminal", parseReference: () => ({ type: "terminal" }), identity: () => "one", async render() { throw Error("Container stopped"); }, async close() { throw Error("Cannot attach to stopped container"); } }] };
+  await withTestApp([], async ({ app, registry, workspaceId }) => {
+    await app.createWorkView(workspaceId, { type: "terminal" });
+    registry.startProvisioning(workspaceId); registry.setProvisioningState(workspaceId, "failed", "Workspace stopped after OOM");
+    const response = await app.fetch(new Request(`http://test.local/workspaces/${workspaceId}/park?force=1`, { method: "POST", headers: { Origin: "http://test.local", Accept: "application/json" } }));
+    expect(response.status).toBe(200); expect(registry.get(workspaceId)!.parked).toBe(true);
+    expect(registry.get(workspaceId)!.phase.kind).toBe("runningPhase");
+  }, undefined, [module]);
+});
+
+test.each(["stopped", "hung"])("home and settings stay available without touching a %s workspace container", async mode => {
+  let calls = 0;
+  const module: WorkspaceModule = { id: "unresponsive-workspace", attachToWorkspace: async () => {
+    calls++;
+    if (mode === "stopped") throw Error("Error response from daemon: container fixture-container is not running");
+    return new Promise(() => {});
+  } };
+  await withTestApp([], async ({ app, workspaceId }) => {
+    for (const path of ["/", "/settings", `/workspaces/${workspaceId}`]) {
+      const response = await app.fetch(new Request(`http://test.local${path}`, { headers: { Accept: "text/html" } }));
+      expect(response.status).toBe(200);
+    }
+    expect((await app.fetch(new Request("http://test.local/", { method: "HEAD" }))).status).toBe(200);
+    expect(calls).toBe(0);
+    if (mode === "stopped") {
+      let received = 0;
+      const subscription = await app.subscribeSurface({channel: "module", name: "surface", workspaceId, params: {kind: "workspace"}}, () => { received++; });
+      expect(calls).toBe(1); expect(received).toBeGreaterThan(0);
+      expect((await app.fetch(new Request("http://test.local/"))).status).toBe(200);
+      subscription.unsubscribe();
+    }
+  }, undefined, [module]);
+});

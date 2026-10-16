@@ -157,8 +157,9 @@ export function createWorkspacePresentationStore(options: WorkspacePresentationS
 
     async listWorkViews(workspaceId) {
       return await serialized(workspaceId, async () => {
-        const state = await requiredState(workspaceId);
-        return state.workViews;
+        // Navigation/recovery can list views before any container-backed module has attached.
+        // Leave initialization to the first successful attachment so its defaults are retained.
+        return (await read(workspaceId))?.workViews ?? [];
       });
     },
 

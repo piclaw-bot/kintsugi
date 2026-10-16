@@ -68,7 +68,7 @@ export async function sampleHost(root: string, effectiveMemory: number): Promise
     }),
     ...["", "management", "workloads"].map(group => probe(`${group || "System"} pressure and limits`, async () => {
       const base = join(root, group);
-      const names = ["memory.current", "memory.max", "memory.events", "memory.swap.current", "memory.swap.max", "memory.stat", "cpu.stat", "cpu.pressure", "memory.pressure", "io.pressure", "io.stat", "pids.current", "pids.max", "pids.events"];
+      const names = ["memory.current", "memory.max", "memory.events", "memory.events.local", "memory.swap.current", "memory.swap.max", "memory.stat", "cpu.stat", "cpu.pressure", "memory.pressure", "io.pressure", "io.stat", "pids.current", "pids.max", "pids.events"];
       const readings = await Promise.all(names.map(async name => `${name}:\n${await read(join(base, name))}`));
       return readings.join("\n");
     })),
@@ -89,6 +89,7 @@ export async function sampleHost(root: string, effectiveMemory: number): Promise
     probe("Containers · status and health", () => command(["docker", "ps", "-a", "--format", "table {{.Names}}\t{{.Status}}\t{{.Image}}"])),
     probe("Containers · resource usage", () => command(["docker", "stats", "--no-stream", "--format", "table {{.Name}}\t{{.CPUPerc}}\t{{.MemUsage}}\t{{.BlockIO}}\t{{.PIDs}}"], 8000)),
     probe("Docker storage · potentially shared layers", () => command(["docker", "system", "df"], 8000)),
+    probe("Workspace resource policy and restart containment", async () => (await read("/data/supervisor/workspace-resources.json")).slice(0, 65536)),
     probe("Kintsugi service state", () => command(["docker", "inspect", "--format", "{{.Name}} {{json .State}}", "kintsugi"])),
   ]);
   sections.sort((a, b) => a.title.localeCompare(b.title));

@@ -5,6 +5,7 @@ import { maybeNameWorkspaceFromPrompt } from "@kintsugi/builtin-agent/server";
 import {
   KintsugiCoreError,
   createKeyedOperationQueue,
+  withCommandSignal, waitForCommand,
   invalidArguments,
   isJsonObject,
   readJsonObject,
@@ -86,7 +87,7 @@ export interface WebAppDeps {
   /** Force-remove the workspace container. */
   destroyWorkspace(id: string): Promise<void>;
   /** Persist parked state and stop or start its workspace container. Defaults to setWorkspaceParked. */
-  persistWorkspaceParked?(id: string, parked: boolean): Promise<void>;
+  persistWorkspaceParked?(id: string, parked: boolean, recover?: boolean, force?: boolean): Promise<void>;
   /** Receives background task failures. Defaults to console.error. */
   logError?(message: string): void;
   workspaceRemovedHandlers?: Array<(workspaceId: string) => void | Promise<void>>;
@@ -176,8 +177,14 @@ export function createWebApp(deps: WebAppDeps): WebApp {
       const resource = createLiveResource<SurfaceState>(async () => {
         const entry = requireWorkspace(workspaceId);
         if (contributed) return { kind: "regions", regions: await contributed.load({ workspaceId, key }) };
-        if (entry.phase.kind === "runningPhase" && !entry.phase.deletion) {
-          return { kind: "workspace", presentation: await prepareWorkspacePresentation(workspaceId, { agent: params.agent, workView: params.work }) };
+        if (entry.phase.kind === "runningPhase" && !entry.phase.deletion && !entry.parked) {
+          try {
+            const presentation = await withCommandSignal(AbortSignal.timeout(10_000), () => waitForCommand(prepareWorkspacePresentation(workspaceId, { agent: params.agent, workView: params.work })));
+            return { kind: "workspace", presentation };
+          } catch (error) {
+            logError(`Workspace ${workspaceId} is unavailable: ${errorMessage(error)}`);
+            return { kind: "regions", regions: [{ target: workspaceResidentId(workspaceId), html: workspaceUnavailableHtml(entry, errorMessage(error)) }] };
+          }
         }
         return { kind: "regions", regions: [{ target: workspaceResidentId(workspaceId), html: entry.phase.deletion
           ? deletionPresentation(entry, entry.phase.deletion) : workspaceBootResidentHtml(entry) }] };
@@ -560,16 +567,24 @@ export function createWebApp(deps: WebAppDeps): WebApp {
     return registry.list().filter(entry => !entry.parked).sort((a, b) => a.id.localeCompare(b.id)).map(entry => `<div id="${workspaceResidentId(entry.id)}" class="workspace-detail-resident${entry.id === selectedId ? " visible" : ""}" data-turbo-permanent data-workspace-residency-target="resident" data-workspace-id="${escapeHtml(entry.id)}" data-controller="live-surface" data-live-surface-workspace-value="${escapeHtml(entry.id)}" data-live-surface-kind-value="workspace" data-live-surface-eager-value="${entry.id === selectedId}" data-live-surface-agent-value="${entry.id === selectedId ? escapeHtml(selection?.agent ?? "") : ""}" data-live-surface-work-value="${entry.id === selectedId ? escapeHtml(selection?.workView ?? "") : ""}">${entry.id === selectedId ? selectedHtml : ""}</div>`).join("");
   }
 
+  function workspaceUnavailableHtml(entry: WorkspaceEntry, message?: string): string {
+    const retry = actionLinkHtml({ href: `/workspaces/${encodeURIComponent(entry.id)}?retryPane=1`, variant: "secondary", content: { kind: "caption", caption: "Retry workspace" } });
+    const status = message ? warningBannerHtml({ title: "Workspace unavailable", message, role: "alert", actionsHtml: retry })
+      : '<div class="workspace-detail-loading-status" role="status"><span class="status-spinner" aria-hidden="true"></span> Loading workspace…</div>';
+    return `<div class="workspace-boot"><div class="main"><div class="body"><h2>${escapeHtml(workspaceTitle(entry))}</h2>${status}<p>You can use other workspaces and Settings while this workspace is unavailable.</p><p>Force parking stops its processes and closes terminal and VS Code views.</p><form method="post" action="/workspaces/${encodeURIComponent(entry.id)}/park?force=1" data-action="submit->workspace-navigation#parkWorkspace">${buttonHtml({ type: "submit", variant: "secondary", content: { kind: "caption", caption: "Force park workspace" } })}</form></div></div></div>`;
+  }
+
   async function workspaceDetailHostHtml(pane: WorkspacePanePresentation, selectedId?: string, initialSelection?: FixedWorkspacePresentation["initialSelection"]): Promise<string> {
     const entry = selectedId ? requireWorkspace(selectedId) : undefined;
-    const state = entry ? await surfaceFor({ channel: "module", name: "surface", workspaceId: entry.id, params: { kind: "workspace", agent: initialSelection?.agent ?? "", work: initialSelection?.workView ?? "" } }).read() : undefined;
-    const selectedHtml = !state ? "" : state.kind === "workspace"
-      ? renderWorkspacePresentation(state.presentation)
-      : state.regions.map(region => region.html).join("");
+    // HTTP shell/navigation must not depend on a workspace container responding.
+    // Its existing live surface loads the selected workspace after the shell is usable.
+    const selectedHtml = !entry ? "" : entry.phase.kind === "runningPhase"
+      ? workspaceUnavailableHtml(entry)
+      : workspaceBootResidentHtml(entry);
     return `<div id="workspace_detail" class="workspace-detail-host" data-controller="workspace-residency" data-workspace-residency-max-resident-value="5">
       <div class="workspace-detail-empty" data-workspace-residency-target="empty"${selectedId ? " hidden" : ""}>${emptyWorkspaceArtworkHtml(pane)}</div>
       <div class="workspace-detail-loading" data-workspace-residency-target="loading" hidden><div class="workspace-detail-loading-status" role="status"><span class="status-spinner" aria-hidden="true"></span> Loading workspace…</div></div>
-      <div id="workspace_residents" style="display:contents">${workspaceMounts(selectedId, selectedHtml, state?.kind === "workspace" ? state.presentation.initialSelection : initialSelection)}</div>
+      <div id="workspace_residents" style="display:contents">${workspaceMounts(selectedId, selectedHtml, initialSelection)}</div>
     </div>`;
   }
 
@@ -947,28 +962,33 @@ export function createWebApp(deps: WebAppDeps): WebApp {
   async function requestWorkspaceParkedState(id: string, parked: boolean, force = false): Promise<
     { kind: "confirmation"; workViews: WorkspaceWorkViewState[] } | { kind: "updated"; stream: string }
   > {
-    return await serializePresentationMutation(id, async () => {
+    const mutate = async () => {
       const entry = requireWorkspace(id);
-      if (entry.phase.kind !== "runningPhase") throw new KintsugiCoreError("workspace_not_ready", `workspace ${id} is not ready`);
-      const affected = parked ? (await workspacePresentationBundle(id)).storedWorkViews.filter(({ reference }) => reference.type === "terminal" || reference.type === "vscode") : [];
-      if (affected.length && !force) return { kind: "confirmation", workViews: affected };
-      for (const { reference } of affected) await closeWorkView(id, reference);
+      if (entry.phase.kind !== "runningPhase" && !(parked && force && !entry.phase.deletion)) throw new KintsugiCoreError("workspace_not_ready", `workspace ${id} is not ready`);
+      const affected = parked ? (await presentationStore.listWorkViews(id)).filter(({ reference }) => reference.type === "terminal" || reference.type === "vscode") : [];
+      if (affected.length && !force) return { kind: "confirmation" as const, workViews: affected };
+      for (const { reference } of affected) {
+        if (force) { await presentationStore.closeWorkView(id, reference); registry.clearSurfaceAttention(id, workViewKey(reference)); }
+        else await closeWorkView(id, reference);
+      }
       if (entry.parked !== parked) {
-        await persistWorkspaceParked(id, parked);
+        await persistWorkspaceParked(id, parked, !parked, force);
         suppressParkedStateCallbacks = true;
         registry.setParked(id, parked);
+        if (parked && entry.phase.kind !== "runningPhase") registry.startRunning(id);
         suppressParkedStateCallbacks = false;
       }
       const parkedResident = parked ? dismissWorkspaceParkConfirmationTurboStream(id) : "";
       const stream = `${parkedResident}`;
       invalidatePresentation();
-      return { kind: "updated", stream };
-    });
+      return { kind: "updated" as const, stream };
+    };
+    return parked && force ? mutate() : serializePresentationMutation(id, mutate);
   }
 
   async function parkWorkspaceEndpoint(id: string, parked: boolean, request: Request): Promise<Response> {
     const entry = requireWorkspace(id);
-    if (entry.phase.kind !== "runningPhase") return requestAcceptsJson(request)
+    if (entry.phase.kind !== "runningPhase" && !(parked && new URL(request.url).searchParams.get("force") === "1" && !entry.phase.deletion)) return requestAcceptsJson(request)
       ? jsonResponse({ error: { code: "workspace_not_ready", message: `workspace ${id} is not ready` } }, { status: 409 })
       : wantsStream(request) ? turboStreamResponse("", { status: 409 }) : response("Workspace is not ready", { status: 409 });
     const force = new URL(request.url).searchParams.get("force") === "1";

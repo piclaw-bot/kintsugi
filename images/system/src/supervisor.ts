@@ -19,6 +19,7 @@ import { Value } from "typebox/value";
 import { createWorkspaceNetworkControl } from "./workspace-network.ts";
 import { readStorageDriver, storageContainerdConfig, assertStorageSupport } from "../../../packages/core/src/storage-driver.ts";
 import { filesystemFailure } from "./filesystems.ts";
+import { createWorkspaceResourceControl } from "./workspace-resources.ts";
 import { initializeResources } from "./resources.ts";
 import { spawn, type ChildProcess } from "node:child_process";
 import { existsSync } from "node:fs";
@@ -42,6 +43,7 @@ const { values } = parseArgs({
   strict: true,
 });
 let resources: Awaited<ReturnType<typeof initializeResources>>;
+let workspaceResources: ReturnType<typeof createWorkspaceResourceControl> | undefined;
 const storageDriver = await readStorageDriver("/data/supervisor/storage.json");
 const timeout = 120_000;
 const stateDir = "/data/supervisor";
@@ -488,6 +490,7 @@ const server = Bun.serve({
         busy,
         candidate,
         systemVersion,
+        workspaceResources: workspaceResources?.status(),
         currentImage: persisted.currentImage,
         previousImage: persisted.previousImage,
         uninstall: persisted.uninstall,
@@ -711,6 +714,8 @@ async function shutdown(code: number) {
   stopping = true;
   healthy = false;
   stage("Stopping Kintsugi services");
+  // Stop sampling before shutdown stops containers; a service stop is not an operator park or OOM.
+  await workspaceResources?.shutdown();
   stopCommands();
   await startup;
   await activeOperation;
@@ -765,7 +770,8 @@ async function initialize() {
   }
   resources = await initializeResources();
   const network = await createWorkspaceNetworkControl(resources.buildClientsCgroupParent);
-  await startHostService({ root: dirname(dirname(resources.commandsCgroup)), effectiveMemory: resources.effectiveMemory, network });
+  workspaceResources = createWorkspaceResourceControl({ memory: resources.policy.memory, cpus: resources.effectiveCpus, cgroupParent: resources.workloadsCgroupParent, docker: (...args) => command(["docker", ...args], undefined, 10_000) });
+  await startHostService({ resourceControl: (id, recover, action) => action === "park" ? workspaceResources!.park(id) : workspaceResources!.admit(id, recover), root: dirname(dirname(resources.commandsCgroup)), effectiveMemory: resources.effectiveMemory, network });
   await chown(hostSocketPath, 1000, 1000);
   // Privileged containers only copy device nodes the host /dev already has; some
   // VMs lack loop-control until first use. Opening it autoloads the loop driver.
@@ -799,7 +805,25 @@ async function initialize() {
     "Docker",
   );
   if (uninstalling) { initialized = true; return; }
-  for (const id of persisted.runningContainers ?? []) await docker("start", id);
+  const recovery = await workspaceResources.reconcile(true, persisted.runningContainers ?? []);
+  void (async () => {
+    while (!stopping) {
+      await sleep(2000);
+      if (stopping) break;
+      try { await workspaceResources!.reconcile(); } catch (error) { log(`Workspace resource control failed: ${String(error)}`); }
+    }
+  })();
+  for (const id of new Set([...(persisted.runningContainers ?? []), ...recovery.restore])) {
+    if (stopping) break;
+    try {
+      const [container] = JSON.parse(await docker("inspect", id));
+      if (container.Config.Labels?.["com.kintsugi.type"] === "workspace") await workspaceResources.admit(container.Config.Labels["com.kintsugi.workspace-id"]);
+      await docker("start", id);
+    } catch (error) {
+      // A removed, failed or unadmitted workload must not prevent management from booting.
+      log(`Container restore held: ${String(error)}`);
+    }
+  }
   persisted.runningContainers = [];
   await persist();
   // Tailscale login may happen after app boot. Its network state is independent.

@@ -1,3 +1,5 @@
+import { workspaceResourceControlAvailable } from "@kintsugi/core";
+import { hostRequest } from "@kintsugi/host/control";
 import { createHash } from "node:crypto";
 import { workspaceHomeMounts } from "./home.ts";
 import { workspaceImagePreloader } from "./preload.ts";
@@ -324,7 +326,7 @@ function planEnvDockerArgs(env: Record<string, string>): string[] {
 function workspaceCreateDockerArgs(container: string, image: string, plan: WorkspaceDockerPlan): string[] {
   return [
     "create",
-    "--restart", "unless-stopped",
+    "--restart", "no",
     "--name", container,
     ...Object.entries(plan.labels).flatMap(([name, value]) => ["--label", `${name}=${value}`]),
     "--network", workspaceNetworkName(plan.labels[workspaceIdLabel]!),
@@ -611,13 +613,14 @@ export async function setWorkspaceTitle(id: string, title: string): Promise<null
   return null;
 }
 
-function workspaceContainerLifecycle(id: string, checkpointRequired: boolean) {
+function workspaceContainerLifecycle(id: string, checkpointRequired: boolean, recover = false) {
   return createWorkspaceContainerLifecycle({
     directory: kintsugiDataPath(getKintsugiRuntimeContext(), "workspaces", id, "configuration"),
     container: workspaceContainerName(id), checkpointRequired,
     waitForStartup: () => waitForWorkspaceStartup(id),
     beforeStart: async () => {
       if (await isWorkspaceRunning(id)) return;
+      if (await workspaceResourceControlAvailable()) await hostRequest({ operation: "resources", workspaceId: id, recover });
       const policy = await prepareWorkspaceNetwork(id);
       await configureWorkspaceDns(id, policy);
     },
@@ -625,9 +628,9 @@ function workspaceContainerLifecycle(id: string, checkpointRequired: boolean) {
 }
 
 /** Complete interrupted configuration before starting; never rerun planning hooks. */
-export async function ensureWorkspaceStarted(id: string): Promise<string> {
+export async function ensureWorkspaceStarted(id: string, recover = false): Promise<string> {
   const labels = await validateWorkspaceContainer(id);
-  const lifecycle = workspaceContainerLifecycle(id, labels[workspaceConfigurationLabel] === "1");
+  const lifecycle = workspaceContainerLifecycle(id, labels[workspaceConfigurationLabel] === "1", recover);
   const log = await lifecycle.ensureStarted();
   workspaceGatewayCache.delete(workspaceGatewayCacheKey(id));
   return log;
@@ -646,16 +649,17 @@ export async function stopWorkspaceContainer(id: string): Promise<void> {
   workspaceGatewayCache.delete(workspaceGatewayCacheKey(id));
 }
 
-export async function setWorkspaceParked(id: string, parked: boolean): Promise<null> {
+export async function setWorkspaceParked(id: string, parked: boolean, recover = false): Promise<null> {
   await validateWorkspaceContainer(id);
   const context = getKintsugiRuntimeContext();
   await mkdir(workspaceMetadataDir(context, id), { recursive: true });
   const path = workspaceMetadataPath(context, id, parkedPath);
   if (parked) {
+    if (await workspaceResourceControlAvailable()) await hostRequest({ operation: "resources", workspaceId: id, action: "park" });
     await writeFile(path, "");
     await stopWorkspaceContainer(id);
   } else {
-    await ensureWorkspaceStarted(id);
+    await ensureWorkspaceStarted(id, recover);
     await rm(path, { force: true });
   }
   return null;

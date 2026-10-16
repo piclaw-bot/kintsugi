@@ -1,7 +1,7 @@
 import { assertSystemCompatible, requiredSystemVersion } from "@kintsugi/shared/system-version";
 import { readSystemVersion } from "../../../../packages/update/src/server/supervisor.ts";
 import { configureAgentMcp, handleAgentMcpRequest } from "@kintsugi/agent/server";
-import { createKintsugiEventBus, getKintsugiRuntimeContext } from "@kintsugi/core";
+import { createKintsugiEventBus, getKintsugiRuntimeContext, withCommandSignal, waitForCommand } from "@kintsugi/core";
 import { designSystemCatalogueHtml } from "@kintsugi/design-system/catalogue";
 import { attachHostObservableTerminal, observableTerminalCols, observableTerminalRows, type ObservableTerminalConnection } from "@kintsugi/observable-terminal/server";
 import { deliverAttachmentDraft, removeAttachmentDraft, validDraftId } from "@kintsugi/prompt/server";
@@ -103,9 +103,15 @@ app = createWebApp({
     const draft = options.context?.agent?.attachmentDraft;
     if (draft && validDraftId(draft)) await removeAttachmentDraft(draft);
   },
-  async persistWorkspaceParked(id, parked) {
-    if (parked) await kintsugiEvents.emit("workspace_suspending", { workspaceId: id });
-    await setWorkspaceParked(id, parked);
+  async persistWorkspaceParked(id, parked, recover = false, force = false) {
+    if (parked) {
+      const suspend = () => kintsugiEvents.emit("workspace_suspending", { workspaceId: id });
+      if (force) {
+        try { await withCommandSignal(AbortSignal.timeout(3000), () => waitForCommand(suspend())); }
+        catch (error) { console.error("Agent suspension did not finish before force parking", error); }
+      } else await suspend();
+    }
+    await setWorkspaceParked(id, parked, recover);
     if (!parked && registry.get(id)!.phase.kind === "runningPhase") {
       registry.startProvisioning(id);
       resumeWorkspace(id);

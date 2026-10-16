@@ -83,7 +83,7 @@ export function createAdminHandler(options: {
       const result = await systemFetch(route.path === "/host/status" ? "/status" : "/access", forwarded);
       if (!result.ok) return problem(502, "system_request_failed", "System rejected the operation");
       const value = await result.json();
-      if (route.path === "/host/status") return Response.json({ healthy: value.healthy, busy: value.busy, currentImage: value.currentImage, connectionState: value.connectionState, localOrigin: value.localOrigin, tailnetHost: value.tailnetHost });
+      if (route.path === "/host/status") return Response.json({ workspaceResources: value.workspaceResources, healthy: value.healthy, busy: value.busy, currentImage: value.currentImage, connectionState: value.connectionState, localOrigin: value.localOrigin, tailnetHost: value.tailnetHost });
       return Response.json({ mode: value.mode, connectionState: value.connectionState, origin: value.origin, authUrl: value.authUrl });
     }
     if (route.path === "/openapi.json") {

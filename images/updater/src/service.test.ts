@@ -158,3 +158,15 @@ test("paired planning refuses legacy images while listed-host data remains", () 
   await expect(updater.check()).rejects.toThrow("before downgrading");
   expect(calls.some(args => args.includes("pull") || args[0] === "bash")).toBe(false);
 }));
+
+test("a newly copied updater installs the early boot rule even when the previous installer predates it", async () => {
+  const { ensureUpdaterBootDirectory } = await import("./service.ts");
+  const directory = await mkdtemp(join(tmpdir(), "updater-boot-rule-"));const rule=join(directory,"tmpfiles.d/kintsugi-updater.conf");const calls:string[][]=[];
+  try {
+    const command:UpdaterCommand=async args=>{calls.push(args);return {code:0,stdout:""};};
+    await ensureUpdaterBootDirectory(rule,command);await ensureUpdaterBootDirectory(rule,command);
+    expect(await readFile(rule,"utf8")).toBe("d /run/kintsugi-updater 0700 root root -\n");expect((await stat(rule)).mode&0o777).toBe(0o644);
+    expect(calls).toEqual([["systemd-tmpfiles","--create",rule],["systemd-tmpfiles","--create",rule]]);
+    await expect(ensureUpdaterBootDirectory(rule,async()=>({code:1,stdout:""}))).rejects.toThrow("boot directory");
+  } finally {await rm(directory,{recursive:true,force:true});}
+});

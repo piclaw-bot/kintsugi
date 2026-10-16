@@ -4,7 +4,7 @@ import { assertSystemCompatible, assertImagePairCompatible } from "../../../pack
 import { readStorageDriver, assertStorageSupport } from "../../../packages/core/src/storage-driver.ts";
 import { appendFile, chmod, mkdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { parseArgs } from "node:util";
 import { Type } from "typebox";
 import { Value } from "typebox/value";
@@ -24,6 +24,18 @@ const execute: UpdaterCommand = async args => {
 };
 const imageMetadata = Type.Object({ Id: Type.String(), RepoDigests: Type.Optional(Type.Array(Type.String())), Config: Type.Object({ Labels: Type.Optional(Type.Union([Type.Record(Type.String(), Type.String()), Type.Null()])) }) });
 type Metadata = import("typebox").Static<typeof imageMetadata>;
+// An older installer can copy this updater without applying its new boot rule.
+// Install the owned rule on service startup too, before the next host reboot.
+export async function ensureUpdaterBootDirectory(rule = "/etc/tmpfiles.d/kintsugi-updater.conf", command: UpdaterCommand = execute): Promise<void> {
+  await mkdir(dirname(rule), { recursive: true });
+  const temporary = `${rule}.${crypto.randomUUID()}`;
+  await writeFile(temporary, "d /run/kintsugi-updater 0700 root root -\n", { mode: 0o644, flag: "wx" });
+  await chmod(temporary, 0o644);
+  await rename(temporary, rule);
+  const result = await command(["systemd-tmpfiles", "--create", rule]);
+  if (result.code !== 0) throw new Error("Cannot prepare the host updater boot directory");
+}
+
 export interface UpdaterOptions { directory: string; installer: string; systemName?: string; command?: UpdaterCommand; resolve?: (reference: string, directory: string) => Promise<PlannedImage>; updated?: () => void }
 
 /** Owns only one installation. Requests never supply commands, repositories, credentials or paths. */
@@ -209,6 +221,7 @@ if (import.meta.main) {
   if (process.getuid?.() !== 0) throw Error("The host updater must run as root.");
   const { values } = parseArgs({ options: { directory: { type: "string", default: "/var/lib/kintsugi-updater" }, installer: { type: "string", default: "/usr/local/lib/kintsugi-updater/install.sh" } } });
   if ((await stat(values.installer!)).uid !== 0 || ((await stat(values.installer!)).mode & 0o022)) throw Error("Updater installer must be root-owned and not writable by group/others.");
+  await ensureUpdaterBootDirectory();
   const updater = new InstallationUpdater({ directory: values.directory!, installer: values.installer!, updated: () => setTimeout(() => process.exit(0), 1000) }); await updater.initialize();
   await mkdir("/run/kintsugi-updater", { recursive: true, mode: 0o700 }); await chmod("/run/kintsugi-updater", 0o700);
   // The systemd unit holds service.lock before starting this process.

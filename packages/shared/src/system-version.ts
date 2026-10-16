@@ -1,5 +1,5 @@
 /** Kintsugi's app/System contract, independent of image tags and upstream's version numbers. */
-export const systemVersion = 2;
+export const systemVersion = 3;
 /** Optional feature gate; existing app functions still require only version zero. */
 export const listedHostsSystemVersion = 2;
 /** App capability for reading persisted listed-host policy snapshots. */
@@ -13,6 +13,7 @@ export const requiredSystemVersionLabel = "org.kintsugi.required-system-version"
 // 0: existing unversioned Kintsugi images.
 // 1: compatibility status, image labels and enforcement.
 // 2: listed-host network policies, pinned destinations and protected TCP port grants.
+// 3: persistent workspace resource admission and OOM circuit breaking.
 const maximumVersion = 2_147_483_647;
 
 export function parseSystemVersion(value: string | undefined): number {

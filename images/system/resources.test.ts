@@ -18,3 +18,9 @@ test("reject constrained Systems rather than silently discarding protection", ()
   expect(() => resourcePolicy(2 * GiB, 8192)).toThrow("3 GiB");
   expect(() => resourcePolicy(8 * GiB, 1024)).toThrow("2048");
 });
+
+test("unbounded older installers receive a finite budget that accounts for other host services", async () => {
+  const { defaultSystemMemory } = await import("./src/resources.ts");
+  expect(defaultSystemMemory(16*GiB,8*GiB,4*GiB)).toBe(9*GiB);
+  expect(defaultSystemMemory(16*GiB,14*GiB,8*GiB)).toBe(12*GiB);
+});

@@ -2,7 +2,7 @@ import { expect, test } from "bun:test";
 
 const installer = (await Bun.file(new URL("./install.sh", import.meta.url)).text()).replace("no_updater=0", "no_updater=1");
 
-function run(options: { networkDataVersion?: number; systemCompatibility?: string; appNetworkCompatibility?: string; hostUpdater?: boolean; systemd?: boolean; tmpfilesFails?: boolean; savedStorageDriver?: string; storageCompatible?: boolean; erofsMissing?: boolean; savedRepository?: string; savedHostname?: string; appPrepareFails?: boolean; savedRegistry?: boolean; rollbackAvailable?: boolean; installerCompatible?: boolean; promptRepository?: string; promptHostname?: string; systemState?: "restarting" | "exited"; portMappings?: string; nonRoot?: boolean; denySudo?: boolean; mac?: boolean; wsl?: boolean; installed?: boolean; old?: boolean; legacyAtelier?: boolean; legacyVolumeOnly?: boolean; legacyPreSystem?: boolean; legacyDownloadFails?: boolean; legacyDelegateFails?: boolean; pullFails?: boolean; pullDenied?: boolean; appFails?: boolean; retryUpdateRequest?: boolean; rejectUpdateRequest?: boolean; pendingHealth?: boolean; missingFilesystem?: boolean; loadable?: boolean; uninstallAnswer?: string; uninstallFails?: boolean; uninstallRequestFails?: boolean; inventoryFails?: boolean; volumeOnly?: boolean; volumeRemovalFails?: boolean; initiallyStopped?: boolean } = {}, args: string[] = []) {
+function run(options: { rememberedLimits?: string; hostMemoryAvailable?: number; currentMemoryPercent?: string; resourceLimits?: string; hostMemory?: number; hostCpus?: number; networkDataVersion?: number; systemCompatibility?: string; appNetworkCompatibility?: string; hostUpdater?: boolean; systemd?: boolean; tmpfilesFails?: boolean; savedStorageDriver?: string; storageCompatible?: boolean; erofsMissing?: boolean; savedRepository?: string; savedHostname?: string; appPrepareFails?: boolean; savedRegistry?: boolean; rollbackAvailable?: boolean; installerCompatible?: boolean; promptRepository?: string; promptHostname?: string; systemState?: "restarting" | "exited"; portMappings?: string; nonRoot?: boolean; denySudo?: boolean; mac?: boolean; wsl?: boolean; installed?: boolean; old?: boolean; legacyAtelier?: boolean; legacyVolumeOnly?: boolean; legacyPreSystem?: boolean; legacyDownloadFails?: boolean; legacyDelegateFails?: boolean; pullFails?: boolean; pullDenied?: boolean; appFails?: boolean; retryUpdateRequest?: boolean; rejectUpdateRequest?: boolean; pendingHealth?: boolean; missingFilesystem?: boolean; loadable?: boolean; uninstallAnswer?: string; uninstallFails?: boolean; uninstallRequestFails?: boolean; inventoryFails?: boolean; volumeOnly?: boolean; volumeRemovalFails?: boolean; initiallyStopped?: boolean } = {}, args: string[] = []) {
   const pinned = `sha256:${"c".repeat(64)}`;
   const logPath = `/tmp/kintsugi-install-test-${crypto.randomUUID()}.log`;
   const mock = `
@@ -34,6 +34,7 @@ rm() {
     *) command rm "$@" ;;
   esac
 }
+awk() { if [[ "$*" == *MemAvailable* ]]; then echo ${options.hostMemoryAvailable ?? 17179869184}; else command awk "$@"; fi; }
 module_loaded=0
 container_present=${options.installed ? 1 : 0}
 volume_present=${options.installed || options.volumeOnly ? 1 : 0}
@@ -62,6 +63,7 @@ docker() {
       else printf '%s' '{"auths":{"ghcr.io":{"auth":"Zml4dHVyZTp0b2tlbg=="}}}' > "$3"; fi
       return 0 ;;
     'run --rm')
+      if [[ "$*" == *' resource-limits '* ]]; then printf '%s\n' ${JSON.stringify(options.rememberedLimits ?? '')}; return 0; fi
       if [[ "$*" == *' network-data-version '* ]]; then echo ${options.networkDataVersion ?? 0}; return 0; fi
       if [[ "$*" == *' rollback-plan '* ]]; then if [ "${options.rollbackAvailable === false ? 0 : 1}" -eq 0 ]; then return 1; fi; printf '%s\n%s\n%s\n' ${pinned} ${pinned} kintsugi-system; return 0; fi
       if [[ "$*" == *' auth-check '* ]]; then echo ${options.savedRegistry ? 1 : 0}; return 0; fi
@@ -77,6 +79,8 @@ docker() {
         printf '%s\n%s\n%s\n' "\${system:-$source-system:latest}" "\${app:-$source:latest}" "\${hostname:-${options.savedHostname ?? 'kintsugi-system'}}"
       fi
       return 0 ;;
+    'stats --no-stream') echo ${options.currentMemoryPercent ?? '0.00%'}; return 0 ;;
+    'info --format') if [[ "$*" == *MemTotal* ]]; then echo ${options.hostMemory ?? 17179869184}; else echo ${options.hostCpus ?? 8}; fi; return 0 ;;
     'image inspect') if [[ "$*" == *'org.kintsugi.system-version'* ]]; then echo ${options.systemCompatibility ?? '0'}; elif [[ "$*" == *'deployment-config'* || "$*" == *'host-updater'* ]]; then echo 1; elif [[ "$*" == *'storage-drivers'* ]]; then echo ${options.storageCompatible === false ? 'erofs' : 'erofs,overlayfs'}; elif [[ "$*" == *'installer-config'* ]]; then echo ${options.installerCompatible === false ? 0 : 1}; elif [[ "$*" == *'{{.Id}}'* ]]; then echo ${pinned}; fi; return 0 ;;
     'pull '*)
       if [ "${options.pullDenied ? 1 : 0}" -eq 1 ]; then echo 'Error response from daemon: Head "https://ghcr.io/v2/rcarmo/kintsugi-system/manifests/latest": denied: denied' >&2; return 1; fi
@@ -125,7 +129,7 @@ docker() {
         return
       fi ;;
     'logs --tail') echo 'supervisor startup failed: io.weight unavailable';;
-    'inspect --format') if [[ "$*" == *'kintsugi.storage-driver'* ]]; then echo ${options.savedStorageDriver ?? ''}; elif [[ "$*" == *'{{.Image}}'* ]]; then echo ${pinned}; elif [[ "$*" == *'range $port'* ]]; then printf '%b\\n' ${JSON.stringify(options.portMappings ?? '')}; elif [[ "$*" == *State.Status* ]]; then echo ${options.systemState ?? 'running'}; elif [[ "$*" == *3080/tcp* ]]; then echo 55123; else echo ${options.initiallyStopped ? "false" : "true"}; fi ;;
+    'inspect --format') if [[ "$*" == *HostConfig.Memory* ]]; then echo ${options.resourceLimits ?? '0 0 0 0'}; elif [[ "$*" == *'kintsugi.storage-driver'* ]]; then echo ${options.savedStorageDriver ?? ''}; elif [[ "$*" == *'{{.Image}}'* ]]; then echo ${pinned}; elif [[ "$*" == *'range $port'* ]]; then printf '%b\\n' ${JSON.stringify(options.portMappings ?? '')}; elif [[ "$*" == *State.Status* ]]; then echo ${options.systemState ?? 'running'}; elif [[ "$*" == *3080/tcp* ]]; then echo 55123; else echo ${options.initiallyStopped ? "false" : "true"}; fi ;;
   esac
 }
 `;
@@ -157,7 +161,7 @@ test("fresh install launches privileged System with persistent named volume and 
   const result = run({}, ["--system-image", "test/system:v1", "--app-image", "test/app:v1"]);
   expect(result.status).toBe(0);
   expect(result.output).toContain("DOCKER image inspect test/system:v1");
-  expect(result.output).toContain(`--name kintsugi-system --label kintsugi.storage-driver=erofs --hostname kintsugi-system --privileged --cgroupns=host --restart unless-stopped --stop-timeout 120 --tmpfs /run --mount source=kintsugi-system,target=/data --publish 127.0.0.1:3080:3080 ${pinnedSystem} --app-image test/app:v1 --access-mode tailscale`);
+  expect(result.output).toContain(`--name kintsugi-system --label kintsugi.storage-driver=erofs --hostname kintsugi-system --privileged --cgroupns=host --restart unless-stopped --stop-timeout 120 --memory 12884901888 --memory-swap 12884901888 --cpus 6.000000000 --pids-limit 8192 --tmpfs /run --mount source=kintsugi-system,target=/data --publish 127.0.0.1:3080:3080 ${pinnedSystem} --app-image test/app:v1 --access-mode tailscale`);
   expect(result.output).not.toContain("DOCKER stop");
   expect(result.output).toContain("DOCKER exec kintsugi-system bun -e");
 });
@@ -779,4 +783,28 @@ test("listed-host data rejects legacy app/System targets before stopping the ins
     expect(result.output).not.toContain("DOCKER rm kintsugi-system");
   }
   expect(run({ installed: true, networkDataVersion: 2, systemCompatibility: "2", appNetworkCompatibility: "2" }).status).toBe(0);
+});
+
+test("installer preserves finite manual System RAM/swap/CPU/PID limits through update and rollback", () => {
+  for (const action of ["update","rollback"]) {
+    const result=run({installed:true,resourceLimits:"10737418240 12884901888 2500000000 4096"},["--non-interactive","--confirm-replace","--action",action]);
+    expect(result.status).toBe(0);expect(result.output).toContain("--memory 10737418240 --memory-swap 12884901888 --cpus 2.500000000 --pids-limit 4096");
+  }
+});
+test("new default budgets reserve RAM already used by unrelated host services", () => {
+  const fresh=run({hostMemoryAvailable:8*1024**3},unattended);
+  expect(fresh.status).toBe(0);expect(fresh.output).toContain("--memory 6442450944 --memory-swap 6442450944");
+  const update=run({installed:true,hostMemoryAvailable:8*1024**3,currentMemoryPercent:"25.00%"},["--non-interactive","--confirm-replace","--action","update"]);
+  expect(update.status).toBe(0);expect(update.output).toContain("--memory 9663676416 --memory-swap 9663676416");
+});
+test("unsafe available memory and unlimited saved swap fail before replacement", () => {
+  for (const options of [{installed:true,hostMemoryAvailable:1024**3},{installed:true,resourceLimits:"10737418240 -1 0 0"}]) {
+    const result=run(options,["--non-interactive","--confirm-replace","--action","update"]);
+    expect(result.status).not.toBe(0);expect(result.output).not.toContain("DOCKER stop --time 120");expect(result.output).not.toContain("DOCKER rm kintsugi-system");
+  }
+});
+
+test("installer reapplies a runtime budget recorded after an older installer upgrade without discarding explicit CPU limits", () => {
+  const result=run({installed:true,resourceLimits:"0 0 2000000000 4096",rememberedLimits:"10737418240 12884901888 9000000000 8192"},["--non-interactive","--confirm-replace","--action","update"]);
+  expect(result.status).toBe(0);expect(result.output).toContain("--memory 10737418240 --memory-swap 12884901888 --cpus 2.000000000 --pids-limit 4096");
 });
