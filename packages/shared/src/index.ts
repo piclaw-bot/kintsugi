@@ -390,6 +390,11 @@ export const mobileComposerMediaQuery = "(max-width: 700px)";
 export const agentComposerSendPromptEvent = "agent-composer:send-prompt";
 export interface AgentComposerSendPromptDetail { text: string }
 
+/** Scrolling over an embedded frame, which never reaches this document. A
+ * synthetic wheel event would do, but iOS Chrome scrolls for those. */
+export const frameScrollEvent = "kintsugi:frame-scroll";
+export interface FrameScrollDetail { deltaY: number }
+
 /** Enter inserts a newline everywhere; only ⌘↩ (Ctrl+↩ on Windows and Linux) sends. */
 export function composerSubmitKey(event: Pick<KeyboardEvent, "key" | "metaKey" | "ctrlKey">): boolean {
   return event.key === "Enter" && (event.metaKey || event.ctrlKey);

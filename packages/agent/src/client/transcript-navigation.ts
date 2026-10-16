@@ -1,4 +1,4 @@
-import { layoutAfterEvent, layoutBeforeEvent } from "@kintsugi/shared";
+import { frameScrollEvent, layoutAfterEvent, layoutBeforeEvent, type FrameScrollDetail } from "@kintsugi/shared";
 
 interface TranscriptGeometry {
   viewport: number;
@@ -51,6 +51,7 @@ export class TranscriptNavigation {
     if (this.composerOpener) this.resizeObserver.observe(this.composerOpener);
     transcript.addEventListener("scroll", this.scrolled);
     transcript.addEventListener("wheel", this.wheel, { capture: true, passive: true });
+    transcript.addEventListener(frameScrollEvent, this.frameScrolled);
     transcript.addEventListener("touchstart", this.touchStarted, { passive: true });
     transcript.addEventListener("touchmove", this.touchMoved, { passive: true });
     transcript.addEventListener("touchend", this.touchEnded, { passive: true });
@@ -312,6 +313,11 @@ export class TranscriptNavigation {
     if (event.deltaY < 0) this.pause();
   };
 
+  private readonly frameScrolled = (event: Event): void => {
+    // SAFETY: frameScrollEvent always carries a FrameScrollDetail.
+    if ((event as CustomEvent<FrameScrollDetail>).detail.deltaY < 0) this.pause();
+  };
+
   private readonly touchStarted = (event: TouchEvent): void => {
     this.touch = event.touches.length === 1 ? { x: event.touches[0]!.clientX, y: event.touches[0]!.clientY } : undefined;
   };
@@ -358,6 +364,7 @@ export class TranscriptNavigation {
     delete this.transcript.dataset.following;
     this.transcript.removeEventListener("scroll", this.scrolled);
     this.transcript.removeEventListener("wheel", this.wheel, true);
+    this.transcript.removeEventListener(frameScrollEvent, this.frameScrolled);
     this.transcript.removeEventListener("touchstart", this.touchStarted);
     this.transcript.removeEventListener("touchmove", this.touchMoved);
     this.transcript.removeEventListener("touchend", this.touchEnded);

@@ -41,4 +41,14 @@ export function registerDesignSystemControllers(application: Pick<Application, "
   application.register("popup-select", PopupSelectController);
   application.register("toggle", ToggleController);
   application.register("transient-feedback", TransientFeedbackController);
+  window.addEventListener("blur", dismissPopoversForFrameFocus);
+}
+
+// Light dismiss only sees pointers in this document. Focus moving into an
+// embedded frame means someone clicked or tapped outside the open popover.
+function dismissPopoversForFrameFocus(): void {
+  if (!(document.activeElement instanceof HTMLIFrameElement)) return;
+  for (const popover of document.querySelectorAll<HTMLElement>("[popover=auto]:popover-open")) {
+    if (popover.matches(":popover-open")) popover.hidePopover();
+  }
 }

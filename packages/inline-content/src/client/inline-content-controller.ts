@@ -1,6 +1,6 @@
 import { Value } from "typebox/value";
 import { inlineContentFrameMessage } from "../shared/inline-content-protocol.ts";
-import type { WorkspaceClientControllerConstructor } from "@kintsugi/shared";
+import { frameScrollEvent, type FrameScrollDetail, type WorkspaceClientControllerConstructor } from "@kintsugi/shared";
 
 export function createInlineContentController(Controller: WorkspaceClientControllerConstructor) {
   return class extends Controller {
@@ -49,6 +49,8 @@ export function createInlineContentController(Controller: WorkspaceClientControl
           this.frameTarget.style.height = `${Math.max(1, Math.min(30000, data.height))}px`;
           if (data.overflow) { this.statusTarget.textContent = "This visual is wider than the conversation. Ask the agent to make it responsive."; this.statusTarget.hidden = false; }
         }
+        // Replay input from inside the visual as if it happened over the frame.
+        if (data.type === "scroll") this.frameTarget.dispatchEvent(new CustomEvent<FrameScrollDetail>(frameScrollEvent, { detail: { deltaY: data.deltaY }, bubbles: true }));
         if (data.type === "error") this.fail(`An interaction failed: ${data.message}`, false);
         if (data.type === "link") {
           // A sandbox cannot navigate Kintsugi. External navigation always requires host confirmation.
