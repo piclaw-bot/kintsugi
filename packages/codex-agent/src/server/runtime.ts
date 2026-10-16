@@ -59,6 +59,7 @@ export class CodexRuntime {
     }
     this.presentation.invalidate();
   }
+  async systemPrompt() { return this.instructions; }
   async refreshCompletionCatalog() {
     this.completionCatalog = await renderWorkspaceCompletionCatalog(this.workspaceId, "cli", codexSlashCommands);
     this.presentation.invalidate();

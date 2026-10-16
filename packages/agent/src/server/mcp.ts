@@ -49,6 +49,13 @@ export interface CliAgentConnection {
 
 /** Prepare the relay, native instructions, and credential as one CLI connection. */
 export async function prepareCliAgentConnection(workspaceId: string, agentId: string, applicationInstructions?: string): Promise<CliAgentConnection> {
+  // CLIs discover the root AGENTS.md themselves, by their own rules.
+  const [, appended, agentsFiles] = await Promise.all([startMcpRelay(workspaceId), agentInstructions(workspaceId, agentId, applicationInstructions), loadWorkspaceAgentsFiles(workspaceId, { includeRoot: false })]);
+  const instructions = [appended, ...agentsFiles.map(formatProjectInstructions)].join("\n\n");
+  return { url: "http://127.0.0.1:2988/mcp", token: credentialStore().issue({ workspaceId, agentId, instructionDelivery: "system-prompt" }), instructions };
+}
+
+async function startMcpRelay(workspaceId: string): Promise<void> {
   const result = await execWorkspaceShell(workspaceId, `set -eu
 # One loopback HTTP listener per workspace; parent Unix sockets survive host restarts.
 (
@@ -64,10 +71,6 @@ done
 cat /tmp/kintsugi-mcp.log >&2
 exit 1`);
   if (result.exitCode !== 0) throw new Error(result.stderr.trim() || "Could not start workspace MCP relay");
-  // CLIs discover the root AGENTS.md themselves, by their own rules.
-  const agentsFiles = await loadWorkspaceAgentsFiles(workspaceId, { includeRoot: false });
-  const instructions = [await agentInstructions(workspaceId, agentId, applicationInstructions), ...agentsFiles.map(formatProjectInstructions)].join("\n\n");
-  return { url: "http://127.0.0.1:2988/mcp", token: credentialStore().issue({ workspaceId, agentId, instructionDelivery: "system-prompt" }), instructions };
 }
 
 /** CLI agents run outside Kintsugi's runtime, so their turn boundaries arrive as authenticated loopback requests. */

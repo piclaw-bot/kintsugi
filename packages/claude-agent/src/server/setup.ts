@@ -25,12 +25,15 @@ export function claudeMcpConfigPath(agentId: string) { return `${claudeAgentDire
 export const renderedTranscriptInstructions = "Your replies are rendered as rich Markdown in Kintsugi's web transcript, not in a terminal. Where Claude Code's guidance about terminal output conflicts with this, follow Kintsugi's guidance.";
 
 export async function prepareClaude(workspaceId: string, agentId: string): Promise<{ instructions: string }> {
-  await installClaudeSubscriptionAuth(workspaceId, claudeConfigDirectory(agentId), await createPiModelRuntime());
-  const connection = await prepareCliAgentConnection(workspaceId, agentId, kintsugiSystemPrompt);
-  const instructions = [connection.instructions, renderedTranscriptInstructions].join("\n\n");
-  // Claude waits for alwaysLoad servers at startup and includes their tools in turn one.
-  const mcp = { mcpServers: { "kintsugi": { type: "http", url: connection.url, headers: { Authorization: `Bearer ${connection.token}` }, alwaysLoad: true } } };
-  await writeCliSessionFiles(workspaceId, { directory: claudeAgentDirectory(agentId) }, { "claude-mcp.json": JSON.stringify(mcp) });
-  await checkedWorkspaceShell(workspaceId, cliLaunchScript({ executable: "claude", label, npmPackage: "@anthropic-ai/claude-code", version: claudeCodeVersion, args: ["--version"] }));
-  return { instructions };
+  const [, connection] = await Promise.all([
+    installClaudeSubscriptionAuth(workspaceId, claudeConfigDirectory(agentId), await createPiModelRuntime()),
+    prepareCliAgentConnection(workspaceId, agentId, kintsugiSystemPrompt).then(async connection => {
+      // Claude waits for alwaysLoad servers at startup and includes their tools in turn one.
+      const mcp = { mcpServers: { "kintsugi": { type: "http", url: connection.url, headers: { Authorization: `Bearer ${connection.token}` }, alwaysLoad: true } } };
+      await writeCliSessionFiles(workspaceId, { directory: claudeAgentDirectory(agentId) }, { "claude-mcp.json": JSON.stringify(mcp) });
+      return connection;
+    }),
+    checkedWorkspaceShell(workspaceId, cliLaunchScript({ executable: "claude", label, npmPackage: "@anthropic-ai/claude-code", version: claudeCodeVersion, args: ["--version"] })),
+  ]);
+  return { instructions: [connection.instructions, renderedTranscriptInstructions].join("\n\n") };
 }

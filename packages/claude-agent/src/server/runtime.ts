@@ -82,6 +82,10 @@ export class ClaudeRuntime {
     }
     catch (error) { await runtime.dispose(); throw error; }
   }
+  async systemPrompt() {
+    await this.activate();
+    return this.instructions;
+  }
   async activate() {
     if (this.connecting) await this.connecting;
     if (this.failure) await this.reconnect();
@@ -98,9 +102,8 @@ export class ClaudeRuntime {
     });
   }
   private get sessions() { return claudeSessionDirectory(this.workspaceId, this.agentId); }
+  /** Saved history alone; showing it needs nothing from the workspace container. */
   private async prepareState() {
-    const prepared = await prepareClaude(this.workspaceId, this.agentId);
-    this.instructions = prepared.instructions;
     const { sessionId, forkedFrom } = this.record;
     const exists = await hasClaudeSession(this.sessions, sessionId);
     if (exists && forkedFrom) { delete this.record.forkedFrom; this.save(); }
@@ -124,6 +127,7 @@ export class ClaudeRuntime {
     this.interrupting = false;
     try {
       if (!statePrepared) await this.prepareState();
+      this.instructions = (await prepareClaude(this.workspaceId, this.agentId)).instructions;
       const { sessionId, forkedFrom } = this.record;
       const exists = await hasClaudeSession(this.sessions, sessionId);
       this.transport = await openClaudeTransport(this.workspaceId, this.agentId, {

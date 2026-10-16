@@ -13,12 +13,14 @@ export async function requireSetup() {
 export function codexHome(agentId: string) { return `/home/agent/.local/share/kintsugi-agents/${agentId}/codex`; }
 
 export async function prepareCodex(workspaceId: string, agentId: string): Promise<{ instructions: string; mcp: { url: string; token: string } }> {
-  await installCodexSubscriptionAuth(workspaceId, codexHome(agentId), await createPiModelRuntime());
-  const connection = await prepareCliAgentConnection(workspaceId, agentId, kintsugiSystemPrompt);
   // Codex keeps its base coding prompt, AGENTS.md discovery and native tools.
   // Only the renderer-aware application guidance and plugin instructions differ.
   // Connection overrides belong to this process, not the native settings file.
   // Codex owns config.toml so skill, plugin and app changes survive reconnects.
-  await checkedWorkspaceShell(workspaceId, cliLaunchScript({ executable: "codex", label: "Codex", npmPackage: "@openai/codex", version: codexVersion, args: ["--version"] }));
+  const [, connection] = await Promise.all([
+    installCodexSubscriptionAuth(workspaceId, codexHome(agentId), await createPiModelRuntime()),
+    prepareCliAgentConnection(workspaceId, agentId, kintsugiSystemPrompt),
+    checkedWorkspaceShell(workspaceId, cliLaunchScript({ executable: "codex", label: "Codex", npmPackage: "@openai/codex", version: codexVersion, args: ["--version"] })),
+  ]);
   return { instructions: connection.instructions, mcp: { url: connection.url, token: connection.token } };
 }

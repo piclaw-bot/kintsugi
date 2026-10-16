@@ -14,7 +14,8 @@ export interface NativeAgentRuntime {
   readonly state: { readonly notices: readonly string[] };
   readonly failure?: Error;
   readonly isBusy: boolean;
-  readonly instructions: string;
+  /** Waits for a connecting harness. */
+  systemPrompt(): Promise<string>;
   readonly completionCatalog: string;
   readonly presentation: ReturnType<typeof createLivePresentation>;
   refreshCompletionCatalog(): Promise<void>;

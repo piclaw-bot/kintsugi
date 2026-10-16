@@ -97,7 +97,7 @@ export function createNativeAgentRoutes<Runtime extends NativeAgentRuntime, Comm
     if (operation.startsWith("transcript-items/") && request.method === "GET") {
       const key = decodeURIComponent(operation.slice("transcript-items/".length));
       const ctx = rendering.renderContext(runtime);
-      if (key === "system-prompt") return response(renderModelContextDetailFrame(ctx, { systemPrompt: runtime.instructions, tools: [] }, key));
+      if (key === "system-prompt") return response(renderModelContextDetailFrame(ctx, { systemPrompt: await runtime.systemPrompt(), tools: [] }, key));
       const item = findTranscriptItem(rendering.transcriptItems(runtime), key);
       if (!item) return new Response("Transcript item not found", { status: 404 });
       const count = Number(url.searchParams.get("count") ?? 100);
