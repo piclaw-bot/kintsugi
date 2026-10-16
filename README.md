@@ -4,18 +4,26 @@
 
 Kintsugi is an opinionated fork of [AgentsInTheCloud](https://github.com/lucasmeijer/AgentsInTheCloud), originally created by Lucas Meijer. It runs coding agents on your own infrastructure, with your choice of model providers and tools for evaluating their work.
 
-This fork adds:
+## Features
 
-- ARM builds
-- A mobile-friendly resizable compose box
+Kintsugi combines reviewed upstream changes with fork-specific additions:
+
+- Native AMD64 and ARM64 builds.
+- A mobile-friendly, resizable composer.
+- Built-in agent code mode, including classifier and image models.
+- GitHub, GitLab.com and Bitbucket Cloud connections, plus a configurable Gitea HTTPS instance.
+- A Changes view that includes unchanged tracked files, working-tree text editing, image previews and browser-supported audio/video playback.
+- Dictation that preserves trailing audio and releases the microphone when recording ends.
 - An embedded Draw.io editor and diagram previews.
 - A scoped, token-authenticated management API.
 - Configurable Docker release sources, private GHCR authentication, pinned updates and installer rollback.
 - Word wrapping in the file viewer, including Markdown source mode.
 - GitHub Copilot subscription usage, quota information and consistently labeled calendar-month pacing across Copilot and Codex.
+- OpenCode Go five-hour and weekly usage tracking, with monthly exhaustion reflected in availability.
 - Unattended installation and transactional admin bootstrap with private token delivery.
 - Trusted LAN proxy access with configurable preview origins, Caddy TLS termination and persistent publications.
-- Opt-in workspace LAN/private-network permissions, configurable CIDR groups and external DNS/mDNS forwarders, with restart status and security-scoped admin settings.
+- A 1,000-origin preview pool (`41000–41999`) with retained identities and pane-local failure handling.
+- Opt-in workspace LAN/private-network permissions, exact private TCP host/port grants, configurable CIDR groups and external DNS/mDNS forwarders, with restart status and security-scoped admin settings.
 - Tag-only releases with native AMD64/ARM64 builds, staged checks, shared caches and selective CI.
 
 The name comes from **金継ぎ**, the Japanese art of repairing pottery with gold, because the original project was a brilliant way to glue together several components and I wanted to honor that approach.
@@ -23,6 +31,8 @@ The name comes from **金継ぎ**, the Japanese art of repairing pottery with go
 > You can read [this blog post](https://taoofmac.com/space/blog/2026/10/10/1200#a-coding-environment) for the motivation behind this fork.
 
 ## Installation
+
+The current published release is [v0.3.2](https://github.com/rcarmo/kintsugi/releases/tag/v0.3.2). Releases publish app, System and workspace images and advance `latest`; `stable` is promoted separately. Publishing does not update or restart an installation.
 
 Use a dedicated Linux server with Docker. The installer defaults to `ghcr.io/rcarmo/kintsugi` and `ghcr.io/rcarmo/kintsugi-system`; matching images must be available before installation.
 
@@ -45,6 +55,26 @@ Setup asks for the app image repository and Tailscale machine name. System defau
 
 For unattended setup and LAN access, follow the [deployment instructions](docs/automation.md#trusted-lan-proxy-deployment-v002). Use the installer from the selected release tag, with matching app and System version tags. Cloning the repository does not install a running service.
 
+## Upgrading an existing installation
+
+Use **Settings → Check now → Download update → Restart to update** for a normal update. Saved release sources and explicit pins remain authoritative; select **Latest** if you want to follow new releases instead of a pinned version. Installation updates interrupt running workspaces, so finish active work first.
+
+An app or normal installation update cannot rewrite an external Caddyfile. Installations still using the old ten-port preview pool need a one-time coordinated [installer and Caddy update](docs/automation.md#recover-an-exhausted-preview-range) to expand their saved range to `41000–41999`. Keep the existing origin assignments; origins are not recycled.
+
+Generated Caddy configuration keeps TCP preview port 41641 available while disabling HTTP/3 on that listener, leaving UDP 41641 for Tailscale. Merge its listener options into your existing global Caddy block, preserve unrelated sites and settings, then validate and reload. An app update does not apply this change to an existing Caddyfile.
+
+Stop active code-mode scripts before downgrading to an app that predates code mode. Image rollback preserves journals; it does not restore old session data. See [release and downgrade guidance](docs/releases.md).
+
+## Git hosting
+
+Open **Settings → Git hosting** to connect GitHub, GitLab.com, Bitbucket Cloud or Gitea. Repository search uses connected accounts; public GitHub search also works without a connection. Workspace images include `gh`, `glab` and `bkt`.
+
+For Gitea, enter one server's HTTPS URL and personal access token. Custom ports and installation subpaths are supported, and the Git username comes from the validated account. The certificate must be trusted by the host. No additional Gitea CLI is installed. GitLab support currently targets gitlab.com, not arbitrary self-hosted instances.
+
+Provider tokens stay outside Agent sandboxes. Workspaces receive placeholders that the egress proxy substitutes only for permitted destinations; Gitea credentials are restricted to the configured HTTPS origin, including its port. Connecting a private server does not grant workspace LAN access or automatically trust its SSH key. Configure [network permissions](docs/automation.md#exact-private-tcp-destinations) and SSH trust separately.
+
+Existing workspace containers do not gain new provider CLIs or environment variables merely because the app was updated. They need preparation against the updated workspace image; custom images must supply their own tools.
+
 ## Management API
 
 Kintsugi provides an optional token-authenticated JSON management API for host-local or LAN automation without Tailscale. It is **disabled by default**. Configure listeners and issue scoped tokens with `apps/web/scripts/admin-bindings.ts`.
@@ -58,7 +88,7 @@ The normal app also supports JSON representations of UI operations for agents an
 ## Development
 
 ```sh
-bun install
+bun install --frozen-lockfile
 bun run check
 bun run web
 ```
