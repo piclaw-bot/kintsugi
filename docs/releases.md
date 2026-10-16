@@ -43,8 +43,13 @@ before any publication. Promotion advances workspace, System, then app images.
 Local app-only publishing also checks the existing System on every target channel.
 Publish new System support before making an app require it. Unversioned images are
 version 0. Version 1 provides the compatibility foundation; version 2 adds optional
-listed-host policies. The app minimum stays at 0, with an explicit capability-2
-gate for listed-host mode. Saved custom sources, pins and the retained image-pair protocol are unchanged.
+listed-host policies; version 3 adds persistent resource admission and OOM
+containment. The app minimum stays at 0, with explicit capability-2 and capability-3
+gates for listed-host mode and resource controls. The network-policy reader stays
+at 2. Configured inspector allocations require independent resource-policy reader
+1 and System 3; app-only and paired preparation/activation/rollback and installer
+checks reject incompatible targets without resetting configuration. Saved custom
+sources, pins and the retained image-pair protocol are unchanged.
 
 Built-in code mode adds journal bookkeeping and executable task definitions to the
 app, not a new System operation. Stop active code-mode scripts before downgrading

@@ -15,6 +15,8 @@ Kintsugi combines reviewed upstream changes with fork-specific additions:
 - A Changes view that includes unchanged tracked files, working-tree text editing, image previews and browser-supported audio/video playback.
 - Dictation that preserves trailing audio and releases the microphone when recording ends.
 - An embedded Draw.io editor and diagram previews.
+- Workspace properties with desired/effective resource limits, live RAM/swap/CPU changes, OOM/restart diagnostics and staged network controls.
+- Finite installation/workspace resource budgets, aggregate admission and persistent OOM circuit breaking.
 - A scoped, token-authenticated management API.
 - Configurable Docker release sources, private GHCR authentication, pinned updates and installer rollback.
 - Word wrapping in the file viewer, including Markdown source mode.
@@ -32,7 +34,7 @@ The name comes from **金継ぎ**, the Japanese art of repairing pottery with go
 
 ## Installation
 
-The current published release is [v0.3.2](https://github.com/rcarmo/kintsugi/releases/tag/v0.3.2). Releases publish app, System and workspace images and advance `latest`; `stable` is promoted separately. Publishing does not update or restart an installation.
+The current published release is [v0.3.3](https://github.com/rcarmo/kintsugi/releases/tag/v0.3.3). Releases publish app, System and workspace images and advance `latest`; `stable` is promoted separately. Publishing does not update or restart an installation.
 
 Use a dedicated Linux server with Docker. The installer defaults to `ghcr.io/rcarmo/kintsugi` and `ghcr.io/rcarmo/kintsugi-system`; matching images must be available before installation.
 
@@ -62,6 +64,8 @@ Use **Settings → Check now → Download update → Restart to update** for a n
 An app or normal installation update cannot rewrite an external Caddyfile. Installations still using the old ten-port preview pool need a one-time coordinated [installer and Caddy update](docs/automation.md#recover-an-exhausted-preview-range) to expand their saved range to `41000–41999`. Keep the existing origin assignments; origins are not recycled.
 
 Generated Caddy configuration keeps TCP preview port 41641 available while disabling HTTP/3 on that listener, leaving UDP 41641 for Tailscale. Merge its listener options into your existing global Caddy block, preserve unrelated sites and settings, then validate and reload. An app update does not apply this change to an existing Caddyfile.
+
+For installations with manually applied Docker resource caps, use the new release’s host installer once to preserve those settings through the first replacement; an older installed updater may still use its older installer. See [workspace properties and resource protection](docs/automation.md#workspace-properties-and-resource-protection). Subsequent updates preserve finite limits. Saved inspector allocations require resource-aware images; unsafe downgrades are refused without resetting them.
 
 Stop active code-mode scripts before downgrading to an app that predates code mode. Image rollback preserves journals; it does not restore old session data. See [release and downgrade guidance](docs/releases.md).
 

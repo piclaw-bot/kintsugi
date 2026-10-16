@@ -139,6 +139,40 @@ Additional operations: `GET/PUT /admin/bindings`, `GET/POST /admin/tokens`, `DEL
 
 See the internal [workspace network policy](workspace-network.md) documentation for payloads, DNS/mDNS requirements, enforcement, state files and regression commands. Runtime LAN permissions require System and default to Off; enabling them does not change admin/UI exposure or Tailscale routing.
 
+### Workspace properties and resource protection
+
+Open the gear beside a workspace to inspect its **Properties**, including a stopped workspace. Inspection does not start its container. The dialog shows desired/Docker/effective cgroup limits, current/peak memory, additional swap, CPU use/quota, OOM and exit/restart history, capacity/headroom, network policy, addresses and declared/published ports. Container environment variables and command arguments are omitted.
+
+Resource controls require System compatibility 3. The normal UI uses the private System management path; the browser never receives a Docker socket. Admin JSON reads and writes both require `security` scope:
+
+```http
+GET /workspaces/{id}/resources
+POST /workspaces/{id}/resources
+Content-Type: application/json
+
+{"memory":1073741824,"additionalSwap":0,"cpus":1.5,"acknowledgeMemoryReduction":false}
+```
+
+The UI uses MiB; JSON uses bytes and CPU cores. `additionalSwap` is extra swap, not Docker’s total RAM-plus-swap value. Zero disables it. Legacy unlimited values are labelled; new allocations must be finite and fit the admitted budget. A reduction below current or unknown usage needs explicit acknowledgement because it can kill processes. Supported changes apply live without a restart. Failed applies retain desired settings, report actual settings separately and wait for an explicit retry or a stopped-workspace apply.
+
+Network changes use the existing Off/LAN/private/listed-host model. Saving changes desired state only. Park/unpark applies policy and closes terminal/VS Code views. Installation-wide LAN CIDR, DNS-forwarder and search-domain edits have a separate confirmation and can affect other workspaces on their next park/unpark. Private hosts, management/peer exclusions and DNS pinning retain their existing checks.
+
+New installation defaults leave a quarter of allocatable host RAM/CPU outside System. RAM admission accounts for other host services already using memory. System reserves management memory and an aggregate workload boundary; workspace admission leaves room for source reads and image builds. Individual defaults are up to 2 GiB RAM, no additional swap, up to four CPU cores and 1,024 PIDs, reduced on smaller installations. Swap grants must fit the finite installation swap budget. Caps contain Kintsugi allocations; they do not reserve memory against unrelated unlimited host services growing later.
+
+Finite Docker limits are retained through installer replacement and rollback. New System also establishes and records a finite runtime boundary when an older installer supplied none. If an existing installation has manual `docker update` caps, run the current release’s host installer once rather than relying on an older installed updater to preserve the exact prior settings. This interrupts workspaces and follows saved repositories/pins:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/rcarmo/kintsugi/v0.3.3/scripts/install.sh \
+  -o /tmp/install-kintsugi-v0.3.3.sh
+bash /tmp/install-kintsugi-v0.3.3.sh --action update
+```
+
+The updater also installs its owned early tmpfiles rule on startup, so an older installer copying a new updater does not leave the boot-directory race unresolved. No fresh physical-host reboot acceptance is implied by the isolated tmpfiles/boot tests.
+
+OOM or repeated child OOM observations stop and park the workspace, disable automatic Docker relaunch and persist the failure across service/container recreation. Explicit unpark after a 60-second cooldown acknowledges a retry. Deliberately stopped workspaces stay parked during recovery; inspection and home-page loading do not restart them. Other workspaces and Settings remain reachable when one workspace is stopped or unresponsive.
+
+Configured inspector limits carry resource-policy reader version 1. App-only preparation/activation, paired planning/rollback and the installer refuse images that cannot honour them; System 3 is required. Missing labels mean reader zero. This does not change the network-policy reader format (2), the default app minimum (0), release sources or pins. Image rollback preserves configuration; it does not restore old settings. Use compatible images rather than deleting desired allocations to force a downgrade.
+
 ### Audit and request limits
 
 `admin-audit.jsonl` uses admission/completion records joined by `requestId`. It records token ID, **transportPeer** (the socket peer, possibly Docker's proxy rather than the original client), method, route template and status. Forwarded client headers are never trusted. Payloads, raw URLs, bearer secrets, sign-in URLs and diagnostic output are omitted.
