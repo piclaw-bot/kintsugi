@@ -113,8 +113,7 @@ export async function startWorkspaceEgressProxy({ socketPath, ca, getContext, up
   const context: ProxyContext = { secrets: getContext, fetch: upstreamFetch, connect: upstreamConnect, upgrade: upstreamUpgrade, dnsLookup: upstreamDnsLookup, proxyForUrl: upstreamProxyForUrl };
   const connections = new Set<net.Socket>();
   const server = createServer((req, res) => void handleProxyHttp(context, req, res).catch((thrown) => {
-    const error = thrown instanceof Error ? thrown : new Error(String(thrown));
-    writeError(res, proxyFailure(error));
+    handleProxyHttpFailure(res, thrown instanceof Error ? thrown : new Error(String(thrown)));
   }));
   server.on("upgrade", (req, socket, head) => {
     socket.pause();
@@ -265,8 +264,7 @@ async function startMitmTargetServer(ca: MitmCa, hostname: string): Promise<Mitm
     const path = mitmReq.url || "/";
     mitmReq.url = `https://${context.hostname}${path.startsWith("/") ? path : `/${path}`}`;
     void handleProxyHttp(context.context, mitmReq, mitmRes).catch((thrown) => {
-      const error = thrown instanceof Error ? thrown : new Error(String(thrown));
-      writeError(mitmRes, proxyFailure(error));
+      handleProxyHttpFailure(mitmRes, thrown instanceof Error ? thrown : new Error(String(thrown)));
     });
   });
   server.on("upgrade", (req, socket, head) => {
@@ -473,6 +471,15 @@ function proxyFailure(error: Error): ProxyFailure {
 function writeError(res: ServerResponse, failure: ProxyFailure): void {
   res.writeHead(failure.status, failure.statusText, { "content-type": "text/plain" });
   res.end(`${failure.message}\n`);
+}
+
+function handleProxyHttpFailure(res: ServerResponse, error: Error): void {
+  if (res.headersSent) {
+    console.error("Workspace egress response failed after its headers were sent", error);
+    res.destroy();
+    return;
+  }
+  writeError(res, proxyFailure(error));
 }
 
 function connectErrorResponse(failure: ProxyFailure): string {
