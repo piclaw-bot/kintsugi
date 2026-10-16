@@ -57,7 +57,7 @@ export const workspaceAgentTabProvider = createWorkspaceAgentTabProvider({
   list: listWorkspaceAgents,
   async render(conversation) {
     const runtime = await getWorkspaceAgentPresentation(conversation, { events: agentEvents });
-    await runtime.refreshCompletionCatalog();
+    await runtime.loadCompletionCatalog();
     return await renderAgentPane({ workspaceId: conversation.workspaceId, agentId: conversation.agentId }, conversation, runtime.paneState());
   },
   dispose: closeWorkspaceAgent,

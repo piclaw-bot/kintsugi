@@ -87,10 +87,11 @@ export interface WorkspaceAgentTabSummary {
 }
 
 /** An Agent's pane. The workspace publishes only its shell; the Agent's own live
- * presentation publishes the content, which a page places into the shell's mounts. */
+ * presentation publishes the content, which a page places into the shell's mounts.
+ * Regions render on demand: only a page render needs them. */
 export interface WorkspaceAgentPane {
   html: string;
-  live?: { regions: readonly import("./live-presentation.ts").LiveRegion[]; subscriberId: string };
+  live?: { regions(): readonly import("./live-presentation.ts").LiveRegion[]; subscriberId: string };
 }
 
 /** Durable Agent-tab seam: cheap shell metadata plus on-demand body rendering. */

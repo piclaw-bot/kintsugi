@@ -145,7 +145,12 @@ export class AgentPresentation {
   }
   subscribeTurnPresentation(turn: string, branch: string, listener: AgentLivePresentationListener) { this.assertOpen(); return this.presentation.subscribeTurnPresentation(turn, branch, listener); }
   /** The regions the agent channel publishes, for the pane to place. */
-  paneState() { this.assertOpen(); return { regions: [this.presentation.transcriptRegion(), ...this.chromeRegions()], readOnly: this.readOnly }; }
+  paneState() { this.assertOpen(); return { regions: () => [this.presentation.transcriptRegion(), ...this.chromeRegions()], readOnly: this.readOnly }; }
+  private catalogLoad?: Promise<void>;
+  /** Skills and templates load from the container once; finished turns refresh them. */
+  loadCompletionCatalog() {
+    return this.catalogLoad ??= this.refreshCompletionCatalog().catch(error => { this.catalogLoad = undefined; throw error; });
+  }
   async refreshCompletionCatalog() { if (this.readOnly) return; this.catalog = await renderWorkspaceCompletionCatalog(this.workspaceId); this.chrome.invalidate(); }
   revealTurn(target: string) { return this.presentation.revealTurn(target); }
   async refreshModelConfiguration(defaultModel?: ModelRef) {

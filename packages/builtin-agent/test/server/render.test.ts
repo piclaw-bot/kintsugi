@@ -17,7 +17,7 @@ const firstEditModel = (html: string): Array<{ name: string; hunks: Array<{ coll
 
 describe("transcript rendering", () => {
   test("server-rendered panes and routes use immutable conversation identity", async () => {
-    const { html } = await renderAgentPane(ctx, agent, { regions: paneRegions() });
+    const { html } = await renderAgentPane(ctx, agent, { regions: paneRegions });
     expect(html).toContain(`data-agent-pane-agent-id-value="${agent.agentId}"`);
     expect(html).toContain(`/agents/${agent.agentId}/messages`);
     expect(html).not.toContain("data-agent-pane-label-value");

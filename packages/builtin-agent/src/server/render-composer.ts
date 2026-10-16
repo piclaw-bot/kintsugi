@@ -32,7 +32,7 @@ interface AgentPaneState {
   readOnly?: boolean;
   /** What the pane's live presentation publishes. The shell has mounts for its transcript
    * and, unless read-only, the composer's actions, footer and slash-command catalog. */
-  regions: readonly LiveRegion[];
+  regions(): readonly LiveRegion[];
 }
 
 /** The pane's shell; its controller's channel owns the content placed into the mounts. */

@@ -24,7 +24,7 @@ async function useTemporaryDataDir(): Promise<void> {
   process.env.ATELIER_DATA_DIR = temporaryDataDir;
 }
 
-const emptyPaneState = (ctx: AgentRenderContext) => ({ regions: [ids.transcript(ctx), ids.actions(ctx), ids.stats(ctx), ids.completionCatalog(ctx)].map(target => ({ target, html: "" })) });
+const emptyPaneState = (ctx: AgentRenderContext) => ({ regions: () => [ids.transcript(ctx), ids.actions(ctx), ids.stats(ctx), ids.completionCatalog(ctx)].map(target => ({ target, html: "" })) });
 
 describe("initial Agent prompt drafts", () => {
   test("belong to one immutable conversation and survive body reconstruction", async () => {
