@@ -136,6 +136,10 @@ export function createAgentPaneController(Controller: StimulusControllerConstruc
       this.connected = true;
       this.element.dataset.agentPresentationReady = "false";
       if (isWorkspacePaneVisible(this.element)) this.becomeVisible();
+      else requestAnimationFrame(() => {
+        // A lazy mount can connect before its parent's live stream restores selection.
+        if (this.connected && !this.logicallyVisible && isWorkspacePaneVisible(this.element)) this.becomeVisible();
+      });
     }
 
     disconnect(): void {
