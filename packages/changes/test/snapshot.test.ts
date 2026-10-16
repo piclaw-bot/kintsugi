@@ -3,7 +3,7 @@ import { afterEach, expect, test } from "bun:test";
 import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { captureChanges } from "../src/server/snapshot.ts";
+import { captureChanges, captureHistory, commitHistory } from "../src/server/snapshot.ts";
 
 const roots: string[] = [];
 afterEach(async () => { await Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true }))); });
@@ -65,6 +65,21 @@ test("handles clean and non-Git directories", async () => {
   const empty = await mkdtemp(join(tmpdir(), "changes-no-git-"));
   roots.push(empty);
   expect((await captureChanges(localRepository(empty))).index.phase).toBe("not-git");
+});
+
+test("history keeps multi-line commit bodies with their subject", async () => {
+  const root = await repository();
+  await writeFile(join(root, "a.txt"), "a\n");
+  await git(root, "add", ".");
+  await git(root, "commit", "-m", "First subject", "-m", "Line one\n\nLine three");
+  await writeFile(join(root, "b.txt"), "b\n");
+  await git(root, "add", ".");
+  await git(root, "commit", "-m", "Second subject");
+  const history = await captureHistory(localRepository(root));
+  const commits = history.commits.filter(commit => commit.kind === "commit").map(({ subject, body }) => ({ subject, body }));
+  const expected = [{ subject: "Second subject", body: "" }, { subject: "First subject", body: "Line one\n\nLine three" }];
+  expect(commits).toEqual(expected);
+  expect((await commitHistory(localRepository(root), history)).commits.map(({ subject, body }) => ({ subject, body }))).toEqual(expected);
 });
 
 test("image comparisons capture immutable before/after bytes, including renamed, added, deleted and staged images", async () => {

@@ -33,16 +33,17 @@ export interface ChangesSnapshot {
 }
 export class InvalidDiffEndpoints extends Error {}
 
-const commitFormat = "%H%x00%P%x00%s%x00%an%x00%cs";
-function commitRecord(history: ChangesHistory, line: string): ChangesCommit {
-  const [id, parents, subject, author, date] = line.split("\0");
-  return { id: id!, parents: parents ? parents.split(" ") : [], subject: subject!, author: author!, date: date!, refs: history.references.filter(ref => ref.id === id), ahead: history.aheadIds.has(id!), kind: "commit" };
+const commitFormat = "%H%x00%P%x00%s%x00%an%x00%cs%x00%b%x1e";
+function commitRecords(history: ChangesHistory, output: Buffer): ChangesCommit[] {
+  return output.toString("utf8").split("\x1e").map(record => record.replace(/^\n/, "")).filter(Boolean).map(record => {
+    const [id, parents, subject, author, date, body] = record.split("\0");
+    return { id: id!, parents: parents ? parents.split(" ") : [], subject: subject!, body: body!.trim(), author: author!, date: date!, refs: history.references.filter(ref => ref.id === id), ahead: history.aheadIds.has(id!), kind: "commit" };
+  });
 }
 
 export async function commitHistory(root: Repository, history: ChangesHistory, skip = 0, limit = 50): Promise<{ commits: ChangesCommit[]; hasMore: boolean }> {
   if (!history.tips.length) return { commits: [], hasMore: false };
-  const output = (await git(root, ["log", "--topo-order", `--skip=${skip}`, `--max-count=${limit + 1}`, `--format=${commitFormat}`, ...history.tips, "--"])).toString("utf8").trimEnd();
-  const commits = output ? output.split("\n").map(line => commitRecord(history, line)) : [];
+  const commits = commitRecords(history, await git(root, ["log", "--topo-order", `--skip=${skip}`, `--max-count=${limit + 1}`, `--format=${commitFormat}`, ...history.tips, "--"]));
   return { commits: commits.slice(0, limit), hasMore: commits.length > limit };
 }
 
@@ -101,8 +102,7 @@ export async function captureHistory(root: Repository): Promise<ChangesHistory> 
     const [id, ...parents] = line.split(" ");
     return { id: id!, parents };
   })];
-  const output = pageOutput.toString("utf8").trimEnd();
-  const commits = output ? output.split("\n").map(line => commitRecord(history, line)) : [];
+  const commits = commitRecords(history, pageOutput);
   history.commits.push(...commits.slice(0, 8));
   history.loaded = Math.min(commits.length, 8);
   history.hasMore = commits.length > 8;

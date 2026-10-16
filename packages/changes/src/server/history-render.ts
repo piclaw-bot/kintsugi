@@ -20,7 +20,7 @@ export function renderHistoryGraph(model: HistoryModel, historyId: string, moreH
     const stats = c.kind === "commit" ? "" : `<span class="changes-node-stats"><span>${c.stats!.files} ${c.stats!.files === 1 ? "file" : "files"}</span><span class="changes-additions">+${c.stats!.additions}</span><span class="changes-deletions">−${c.stats!.deletions}</span></span>`;
     return `<tr tabindex="0" data-changes-diff-endpoints-target="row" data-commit="${c.id}" data-path="${rowSelected(c.id)}" aria-selected="${rowSelected(c.id)}" aria-label="${escapeHtml(c.subject + (c.ahead ? ` · Not in ${model.upstream}` : ""))}" title="${escapeHtml(c.subject + (c.ahead ? ` · Not in ${model.upstream}` : ""))}" data-action="keydown->changes-diff-endpoints#navigate">
       ${index === 0 ? `<td class="changes-graph-cell" rowspan="${graph.nodes.length}">${svg}</td>` : ""}
-      <td class="changes-description"><div class="changes-commit-line">${c.id === model.head ? '<span class="changes-head">HEAD</span>' : ""}${labels}<span class="changes-commit-subject" title="${escapeHtml(c.subject)}">${escapeHtml(c.subject)}</span>${stats}</div></td>
+      <td class="changes-description"><div class="changes-commit-line">${c.id === model.head ? '<span class="changes-head">HEAD</span>' : ""}${labels}<span class="changes-commit-subject" title="${escapeHtml(c.body ? `${c.subject}\n\n${c.body}` : c.subject)}">${escapeHtml(c.subject)}</span>${stats}</div></td>
       <td data-col="author">${escapeHtml(c.author)}</td><td data-col="date">${escapeHtml(c.date)}</td><td data-col="sha"><code>${c.kind === "commit" ? c.id.slice(0, 7) : "—"}</code></td>
     </tr>`;
   }).join("");

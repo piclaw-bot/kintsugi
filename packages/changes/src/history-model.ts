@@ -8,6 +8,7 @@ export interface ChangesCommit {
   id: string;
   parents: string[];
   subject: string;
+  body?: string;
   author: string;
   date: string;
   refs: ChangesRef[];
