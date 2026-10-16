@@ -128,9 +128,12 @@ class WorkspaceResidencyController extends Controller<HTMLElement> {
       || (attention.get(a.dataset.workspaceId!) ?? Infinity) - (attention.get(b.dataset.workspaceId!) ?? Infinity)
       || Number(b.dataset.lastActivatedAt ?? 0) - Number(a.dataset.lastActivatedAt ?? 0));
     this.retained = new Set(candidates.slice(0, this.maxResidentValue));
+    // The visible workspace goes live first; preloads would compete with it.
+    const visible = this.residentTargets.find(resident => resident.classList.contains("visible"));
+    const visibleLoading = visible !== undefined && !(liveSurfaceReady(visible) && (this.presentation(visible)?.intendedSurfacesReady() ?? true));
     for (const resident of candidates) {
       if (!this.retained.has(resident)) { releaseLiveSurface(resident); continue; }
-      if (this.prepared(resident) || this.preparing.has(resident)) continue;
+      if (this.prepared(resident) || this.preparing.has(resident) || (visibleLoading && resident !== visible)) continue;
       this.preparing.add(resident);
       void (async () => {
         await prepareLiveSurface(resident);
