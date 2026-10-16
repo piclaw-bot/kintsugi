@@ -118,6 +118,13 @@ class LiveSurfaceController extends Controller<HTMLElement> {
         // A rejected pane must not reject workspace selection or sibling preparation.
         pending?.resolve();
         subscription?.unsubscribe();
+        if (this.kindValue === "workspace" && /^workspace (?:not found|not in registry):/.test(reason)) {
+          const workspaceId = this.workspaceValue;
+          pending?.resolve();
+          this.element.remove();
+          document.dispatchEvent(new CustomEvent("kintsugi:workspace-removed", { detail: { workspaceId } }));
+          return;
+        }
       },
     });
     return pending.promise;

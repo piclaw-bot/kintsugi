@@ -94,6 +94,15 @@ export function createAgentPaneController(Controller: StimulusControllerConstruc
       this.element.dataset.agentPresentationReady = "false";
       if (this.cableSubscription) this.setReconnecting(true);
     };
+    private readonly cableRejected = (): void => {
+      this.element.dataset.agentPresentationReady = "false";
+      this.setTurnConnectionActive(false);
+      this.setReconnecting(false);
+      this.element.dispatchEvent(new CustomEvent("kintsugi:agent-connection-rejected", {
+        bubbles: true,
+        detail: { workspaceId: this.workspaceIdValue, agentId: this.agentIdValue },
+      }));
+    };
     private readonly submitting = (event: SubmitEvent): void => {
       if (event.defaultPrevented) return;
       const submittedText = this.inputTarget.value;
@@ -208,7 +217,7 @@ export function createAgentPaneController(Controller: StimulusControllerConstruc
         this.moduleChannelValue
           ? CableTopics.module(this.moduleChannelValue, this.workspaceIdValue, { agentId: this.agentIdValue })
           : CableTopics.agent(this.workspaceIdValue, this.agentIdValue),
-        { onReady: this.cableReady, onDisconnected: this.cableDisconnected, shownIn: this.element },
+        { onReady: this.cableReady, onDisconnected: this.cableDisconnected, onRejected: this.cableRejected, shownIn: this.element },
       );
     }
 

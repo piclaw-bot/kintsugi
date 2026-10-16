@@ -104,6 +104,7 @@ export function createWorkspacePresentationController(
       this.element.addEventListener("kintsugi:workspace-residency-visible", this.residencyVisible);
       this.element.addEventListener("live:structure", this.structureChanged);
       this.element.addEventListener("kintsugi:workspace-residency-hidden", this.residencyHidden);
+      this.element.addEventListener("kintsugi:agent-connection-rejected", this.agentConnectionRejected);
       this.element.addEventListener("turbo:before-morph-attribute", this.preserveAgentWidth);
       document.addEventListener("visibilitychange", this.documentVisibilityChanged);
       this.restorePreferences();
@@ -123,6 +124,7 @@ export function createWorkspacePresentationController(
       this.element.removeEventListener("kintsugi:workspace-residency-visible", this.residencyVisible);
       this.element.removeEventListener("live:structure", this.structureChanged);
       this.element.removeEventListener("kintsugi:workspace-residency-hidden", this.residencyHidden);
+      this.element.removeEventListener("kintsugi:agent-connection-rejected", this.agentConnectionRejected);
       this.element.removeEventListener("turbo:before-morph-attribute", this.preserveAgentWidth);
       document.removeEventListener("visibilitychange", this.documentVisibilityChanged);
       this.sizeObserver?.disconnect();
@@ -144,6 +146,18 @@ export function createWorkspacePresentationController(
       this.state.phoneDestination = "agents";
       this.persistAndApply();
     }
+
+    private readonly agentConnectionRejected = (event: Event): void => {
+      // SAFETY: Agent panes emit this event with their server-rendered workspace and agent identities.
+      const detail = (event as CustomEvent<{ workspaceId: string; agentId: string }>).detail;
+      if (detail.workspaceId !== this.workspaceIdValue || detail.agentId !== this.state.activeAgentId) return;
+      const alternatives = [...this.element.querySelectorAll<HTMLElement>("[data-agent-id]")]
+        .map(element => element.dataset.agentId)
+        .filter((agentId): agentId is string => Boolean(agentId && agentId !== detail.agentId));
+      this.state.activeAgentId = alternatives[0];
+      this.state.phoneDestination = "agents";
+      this.persistAndApply();
+    };
 
     presentWorkView(key: string): void {
       navigationIntents.set(this.workspaceIdValue, { ...navigationIntents.get(this.workspaceIdValue), work: key });
