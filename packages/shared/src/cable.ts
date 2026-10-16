@@ -1,7 +1,7 @@
 import type { JsonValue } from "@kintsugi/core";
 import { Type, type Static } from "typebox";
 import { Value } from "typebox/value";
-import { liveRegionDigestsSchema, type LiveRegionDigests } from "./live-presentation.ts";
+import { liveRegionDigestsSchema, type LiveRegionDigests } from "./live-region-digests.ts";
 
 export interface CableSubscriptionOptions {
   /** Runs after the server's authoritative initial update has been applied to the DOM. */

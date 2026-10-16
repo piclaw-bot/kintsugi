@@ -1,4 +1,5 @@
-import { Type, type Static } from "typebox";
+import type { LiveRegionDigests } from "./live-region-digests.ts";
+export { liveRegionDigestsSchema, type LiveRegionDigests } from "./live-region-digests.ts";
 import { escapeHtml, turboStream } from "./index.ts";
 
 /** A region owns its markup; nested independently-owned islands use data-turbo-permanent. */
@@ -18,8 +19,6 @@ export interface LiveSubscription {
 }
 
 /** Digests of the regions a server-rendered page shows, by target. */
-export const liveRegionDigestsSchema = Type.Record(Type.String(), Type.String());
-export type LiveRegionDigests = Readonly<Static<typeof liveRegionDigestsSchema>>;
 
 /** Carries a page's shown regions on the element whose controller subscribes; the Cable client sends them until a snapshot is applied. */
 export const liveShownAttribute = "data-live-shown";
