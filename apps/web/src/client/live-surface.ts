@@ -48,9 +48,11 @@ class LiveSurfaceController extends Controller<HTMLElement> {
 
   select(agent: string, work: string): void {
     if (this.kindValue !== "workspace" || (this.selectedAgent === agent && this.selectedWork === work)) return;
+    // An empty value subscribes to the workspace's default, which may already be the choice.
     const presentation = this.element.querySelector<HTMLElement>("[data-workspace-initial-agent]");
-    if (this.subscription && this.agentValue === "" && this.workValue === ""
-      && presentation?.dataset.workspaceInitialAgent === agent && presentation.dataset.workspaceInitialWork === work) {
+    const continues = (value: string, initial: string | undefined, chosen: string) => value === chosen || (value === "" && initial === chosen);
+    if (this.subscription && continues(this.agentValue, presentation?.dataset.workspaceInitialAgent, agent)
+      && continues(this.workValue, presentation?.dataset.workspaceInitialWork, work)) {
       this.selectedAgent = agent;
       this.selectedWork = work;
       return;
