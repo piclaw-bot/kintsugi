@@ -1,5 +1,5 @@
 import type { WorkspaceModule } from "@kintsugi/shared";
-import { listWorkspaces } from "@kintsugi/workspace";
+import { getWorkspaceInit } from "@kintsugi/workspace";
 import { isGitWorkspaceTemplateInit } from "../workspace-template.ts";
 import { registerWorkspaceTemplateSshAgentWorkspaceEvents, restoreWorkspaceTemplateSshAgents } from "../ssh-agent.ts";
 import { registerWorkspaceTemplateWorkspaceEvents } from "../workspace-repos.ts";
@@ -14,8 +14,7 @@ export const kintsugiServerModule: WorkspaceModule = {
     registerWorkspaceTemplateSshAgentWorkspaceEvents(events);
     await restoreWorkspaceTemplateSshAgents();
     events.on("agent_system_prompt_prepare", async ({ workspaceId, lines }) => {
-      const workspace = (await listWorkspaces()).workspaces.find((entry) => entry.id === workspaceId);
-      if (isGitWorkspaceTemplateInit(workspace?.init)) lines.push(persistentSystemPromptLine);
+      if (isGitWorkspaceTemplateInit(await getWorkspaceInit(workspaceId))) lines.push(persistentSystemPromptLine);
     });
   },
 };
