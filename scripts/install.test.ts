@@ -2,7 +2,7 @@ import { expect, test } from "bun:test";
 
 const installer = (await Bun.file(new URL("./install.sh", import.meta.url)).text()).replace("no_updater=0", "no_updater=1");
 
-function run(options: { networkDataVersion?: number; systemCompatibility?: string; appNetworkCompatibility?: string; hostUpdater?: boolean; savedStorageDriver?: string; storageCompatible?: boolean; erofsMissing?: boolean; savedRepository?: string; savedHostname?: string; appPrepareFails?: boolean; savedRegistry?: boolean; rollbackAvailable?: boolean; installerCompatible?: boolean; promptRepository?: string; promptHostname?: string; systemState?: "restarting" | "exited"; portMappings?: string; nonRoot?: boolean; denySudo?: boolean; mac?: boolean; wsl?: boolean; installed?: boolean; old?: boolean; legacyAtelier?: boolean; legacyVolumeOnly?: boolean; legacyPreSystem?: boolean; legacyDownloadFails?: boolean; legacyDelegateFails?: boolean; pullFails?: boolean; pullDenied?: boolean; appFails?: boolean; retryUpdateRequest?: boolean; rejectUpdateRequest?: boolean; pendingHealth?: boolean; missingFilesystem?: boolean; loadable?: boolean; uninstallAnswer?: string; uninstallFails?: boolean; uninstallRequestFails?: boolean; inventoryFails?: boolean; volumeOnly?: boolean; volumeRemovalFails?: boolean; initiallyStopped?: boolean } = {}, args: string[] = []) {
+function run(options: { networkDataVersion?: number; systemCompatibility?: string; appNetworkCompatibility?: string; hostUpdater?: boolean; systemd?: boolean; tmpfilesFails?: boolean; savedStorageDriver?: string; storageCompatible?: boolean; erofsMissing?: boolean; savedRepository?: string; savedHostname?: string; appPrepareFails?: boolean; savedRegistry?: boolean; rollbackAvailable?: boolean; installerCompatible?: boolean; promptRepository?: string; promptHostname?: string; systemState?: "restarting" | "exited"; portMappings?: string; nonRoot?: boolean; denySudo?: boolean; mac?: boolean; wsl?: boolean; installed?: boolean; old?: boolean; legacyAtelier?: boolean; legacyVolumeOnly?: boolean; legacyPreSystem?: boolean; legacyDownloadFails?: boolean; legacyDelegateFails?: boolean; pullFails?: boolean; pullDenied?: boolean; appFails?: boolean; retryUpdateRequest?: boolean; rejectUpdateRequest?: boolean; pendingHealth?: boolean; missingFilesystem?: boolean; loadable?: boolean; uninstallAnswer?: string; uninstallFails?: boolean; uninstallRequestFails?: boolean; inventoryFails?: boolean; volumeOnly?: boolean; volumeRemovalFails?: boolean; initiallyStopped?: boolean } = {}, args: string[] = []) {
   const pinned = `sha256:${"c".repeat(64)}`;
   const logPath = `/tmp/kintsugi-install-test-${crypto.randomUUID()}.log`;
   const mock = `
@@ -18,7 +18,22 @@ sudo() {
   if [ "$1" = -n ]; then shift; fi
   "$@"
 }
-systemctl() { printf 'SYSTEMCTL %s\\n' "$*" >&2; return 1; }
+systemctl() { printf 'SYSTEMCTL %s\\n' "$*" >&2; printf 'SYSTEMCTL %s\\n' "$*" >> "${logPath}.host"; return ${options.systemd ? 0 : 1}; }
+systemd-tmpfiles() { printf 'TMPFILES %s\\n' "$*" >> "${logPath}.host"; return ${options.tmpfilesFails ? 1 : 0}; }
+install() {
+  printf 'INSTALL %s\\n' "$*" >> "${logPath}.host"
+  if [[ "$*" == *'/dev/stdin /etc/tmpfiles.d/kintsugi-updater.conf' ]]; then command tee "${logPath}.tmpfiles" >/dev/null; fi
+}
+mv() { printf 'MV %s\\n' "$*" >> "${logPath}.host"; }
+tee() {
+  if [ "$1" = /etc/systemd/system/kintsugi-updater.service ]; then command tee "${logPath}.unit"; else command tee "$@"; fi
+}
+rm() {
+  case "$*" in
+    *'/etc/tmpfiles.d/kintsugi-updater.conf'*|*'/var/lib/kintsugi-updater'*|*'/etc/modules-load.d/kintsugi-system.conf'*) printf 'REMOVE %s\\n' "$*" >> "${logPath}.host" ;;
+    *) command rm "$@" ;;
+  esac
+}
 module_loaded=0
 container_present=${options.installed ? 1 : 0}
 volume_present=${options.installed || options.volumeOnly ? 1 : 0}
@@ -31,6 +46,7 @@ modprobe() {
 mkdir() { :; }
 docker() {
   printf 'DOCKER %s\\n' "$*" >&2
+  printf 'DOCKER %s\\n' "$1 \${2:-}" >> "${logPath}.host"
   if [ "$1" = --config ]; then shift 2; fi
   case "$1 \${2:-}" in
     'container inspect')
@@ -40,7 +56,11 @@ docker() {
         atelier-system) return ${options.legacyAtelier ? 0 : 1} ;;
         atelier) return ${options.legacyPreSystem ? 0 : 1} ;;
       esac ;;
-    'cp '*) printf '%s' '{"auths":{"ghcr.io":{"auth":"Zml4dHVyZTp0b2tlbg=="}}}' > "$3"; return 0 ;;
+    'create '*) echo updater-extract; return 0 ;;
+    'cp '*)
+      if [[ "$2" == *'/usr/local/bin/bun' ]]; then printf '#!/bin/sh\\nexit 0\\n' > "$3";
+      else printf '%s' '{"auths":{"ghcr.io":{"auth":"Zml4dHVyZTp0b2tlbg=="}}}' > "$3"; fi
+      return 0 ;;
     'run --rm')
       if [[ "$*" == *' network-data-version '* ]]; then echo ${options.networkDataVersion ?? 0}; return 0; fi
       if [[ "$*" == *' rollback-plan '* ]]; then if [ "${options.rollbackAvailable === false ? 0 : 1}" -eq 0 ]; then return 1; fi; printf '%s\n%s\n%s\n' ${pinned} ${pinned} kintsugi-system; return 0; fi
@@ -57,7 +77,7 @@ docker() {
         printf '%s\n%s\n%s\n' "\${system:-$source-system:latest}" "\${app:-$source:latest}" "\${hostname:-${options.savedHostname ?? 'kintsugi-system'}}"
       fi
       return 0 ;;
-    'image inspect') if [[ "$*" == *'org.kintsugi.system-version'* ]]; then echo ${options.systemCompatibility ?? '0'}; elif [[ "$*" == *'deployment-config'* ]]; then echo 1; elif [[ "$*" == *'storage-drivers'* ]]; then echo ${options.storageCompatible === false ? 'erofs' : 'erofs,overlayfs'}; elif [[ "$*" == *'installer-config'* ]]; then echo ${options.installerCompatible === false ? 0 : 1}; elif [[ "$*" == *'{{.Id}}'* ]]; then echo ${pinned}; fi; return 0 ;;
+    'image inspect') if [[ "$*" == *'org.kintsugi.system-version'* ]]; then echo ${options.systemCompatibility ?? '0'}; elif [[ "$*" == *'deployment-config'* || "$*" == *'host-updater'* ]]; then echo 1; elif [[ "$*" == *'storage-drivers'* ]]; then echo ${options.storageCompatible === false ? 'erofs' : 'erofs,overlayfs'}; elif [[ "$*" == *'installer-config'* ]]; then echo ${options.installerCompatible === false ? 0 : 1}; elif [[ "$*" == *'{{.Id}}'* ]]; then echo ${pinned}; fi; return 0 ;;
     'pull '*)
       if [ "${options.pullDenied ? 1 : 0}" -eq 1 ]; then echo 'Error response from daemon: Head "https://ghcr.io/v2/rcarmo/kintsugi-system/manifests/latest": denied: denied' >&2; return 1; fi
       return ${options.pullFails ? 1 : 0} ;;
@@ -119,8 +139,11 @@ docker() {
     );
   const result = Bun.spawnSync([process.platform === "darwin" ? "/bin/bash" : "bash", "-c", mock + script, "installer", ...args], { stdin: "ignore" });
   const log = Bun.spawnSync(["cat", logPath]).stdout.toString();
-  Bun.spawnSync(["rm", "-f", logPath, `${logPath}.checked`, `${logPath}.update-attempted`, `${logPath}.update-accepted`, `${logPath}.container-removed`, `${logPath}.volume-removed`]);
-  return { status: result.exitCode, output: result.stdout.toString() + result.stderr.toString() + log };
+  const hostTrace = Bun.spawnSync(["cat", `${logPath}.host`]).stdout.toString();
+  const tmpfiles = Bun.spawnSync(["cat", `${logPath}.tmpfiles`]).stdout.toString();
+  const unit = Bun.spawnSync(["cat", `${logPath}.unit`]).stdout.toString();
+  Bun.spawnSync(["rm", "-f", logPath, `${logPath}.checked`, `${logPath}.update-attempted`, `${logPath}.update-accepted`, `${logPath}.container-removed`, `${logPath}.volume-removed`, `${logPath}.host`, `${logPath}.tmpfiles`, `${logPath}.unit`]);
+  return { status: result.exitCode, output: result.stdout.toString() + result.stderr.toString() + log, hostTrace, tmpfiles, unit };
 }
 
 test("piped sudo installs read prompts from the caller's terminal", () => {
@@ -688,6 +711,63 @@ test("default host updater rejects a missing systemd manager before replacing Sy
 test("explicit no-updater supports isolated non-systemd installs",()=>{
   const result=run({hostUpdater:true,installed:true},["--no-updater","--non-interactive","--action","update","--confirm-replace"]);
   expect(result.status).toBe(0);expect(result.output).not.toContain("SYSTEMCTL");
+});
+
+for (const action of ["install", "update", "rollback"]) {
+  test(`${action} installs and applies a private boot-time updater directory before starting System`, () => {
+    const result = run({ hostUpdater: true, systemd: true, installed: action !== "install", initiallyStopped: action === "update" }, ["--action", action]);
+    expect(result.status).toBe(0);
+    expect(result.tmpfiles).toBe("d /run/kintsugi-updater 0700 root root -\n");
+    expect(result.hostTrace).toContain("INSTALL -m 644 -o root -g root /dev/stdin /etc/tmpfiles.d/kintsugi-updater.conf");
+    const apply = result.hostTrace.indexOf("TMPFILES --create /etc/tmpfiles.d/kintsugi-updater.conf");
+    expect(apply).toBeGreaterThan(result.hostTrace.indexOf("INSTALL -m 644"));
+    expect(apply).toBeLessThan(result.hostTrace.indexOf("DOCKER run -d"));
+    if (action === "update") expect(apply).toBeLessThan(result.hostTrace.indexOf("DOCKER start kintsugi-system"));
+    expect(result.output).toContain("type=bind,source=/run/kintsugi-updater,target=/run/kintsugi-updater,readonly");
+    if (action !== "rollback") {
+      expect(result.unit).toContain("After=docker.service\nRequires=docker.service");
+      expect(result.unit).toContain("RuntimeDirectoryMode=0700\nRuntimeDirectoryPreserve=yes");
+      expect(result.unit).not.toContain("Before=docker");
+      expect(result.hostTrace.indexOf("SYSTEMCTL enable --now kintsugi-updater.service")).toBeGreaterThan(apply);
+    }
+  });
+}
+
+test("tmpfiles failure stops installation before starting or replacing System", () => {
+  const result = run({ hostUpdater: true, systemd: true, tmpfilesFails: true, installed: true }, ["--action", "update"]);
+  expect(result.status).not.toBe(0);
+  expect(result.hostTrace).toContain("TMPFILES --create");
+  expect(result.output).not.toContain("DOCKER stop");
+  expect(result.output).not.toContain("DOCKER run -d");
+});
+
+test("no-updater and macOS do not install a boot-time rule or socket mount", () => {
+  for (const options of [{ hostUpdater: true, systemd: true }, { hostUpdater: true, mac: true }]) {
+    const result = run(options, options.mac ? [] : ["--no-updater"]);
+    expect(result.status).toBe(0);
+    expect(result.tmpfiles).toBe("");
+    expect(result.hostTrace).not.toContain("TMPFILES");
+    expect(result.output).not.toContain("source=/run/kintsugi-updater");
+  }
+});
+
+test("confirmed uninstall removes only the owned tmpfiles rule after deleting System storage", () => {
+  const result = run({ hostUpdater: true, systemd: true, nonRoot: true, installed: true, uninstallAnswer: "DELETE KINTSUGI" }, ["--uninstall"]);
+  expect(result.status, result.output).toBe(0);
+  expect(result.hostTrace).toContain("REMOVE -f /etc/tmpfiles.d/kintsugi-updater.conf");
+  expect(result.hostTrace.indexOf("REMOVE -f")).toBeGreaterThan(result.hostTrace.indexOf("DOCKER volume rm"));
+  expect(result.output).toContain("SUDO -n rm -f /etc/tmpfiles.d/kintsugi-updater.conf");
+});
+
+test("no-updater, cancelled and failed uninstalls retain the boot-time rule", () => {
+  for (const [options, args] of [
+    [{ uninstallAnswer: "DELETE KINTSUGI" }, ["--uninstall", "--no-updater"]],
+    [{ uninstallAnswer: "no" }, ["--uninstall"]],
+    [{ uninstallAnswer: "DELETE KINTSUGI", uninstallFails: true }, ["--uninstall"]],
+  ] as const) {
+    const result = run({ hostUpdater: true, systemd: true, installed: true, ...options }, [...args]);
+    expect(result.hostTrace).not.toContain("REMOVE -f /etc/tmpfiles.d/kintsugi-updater.conf");
+  }
 });
 
 test("listed-host data rejects legacy app/System targets before stopping the installation", () => {
