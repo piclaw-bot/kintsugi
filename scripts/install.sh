@@ -648,7 +648,11 @@ uninstall_system() {
   fi
   remaining="$(docker volume ls --format '{{.Name}}' --filter "name=^${system_name}$")"
   if [ -n "$remaining" ]; then run_quiet "Deleting installation storage" docker volume rm "$system_name"; fi
-  if [ "$host_os" = Linux ] && [ "$no_updater" -eq 0 ]; then run_root rm -rf /var/lib/kintsugi-updater; fi
+  if [ "$host_os" = Linux ] && [ "$no_updater" -eq 0 ]; then
+    request_root
+    run_root rm -f /etc/tmpfiles.d/kintsugi-updater.conf
+    run_root rm -rf /var/lib/kintsugi-updater
+  fi
   remaining="$(docker ps -a --format '{{.Names}}' --filter "name=^${system_name}$")"
   [ -z "$remaining" ] || fail "System container still exists"
   remaining="$(docker volume ls --format '{{.Name}}' --filter "name=^${system_name}$")"
@@ -975,8 +979,12 @@ case "$action" in
       systemctl show-environment >>"$log_file" 2>&1 || fail "Host updater requires a running systemd manager; use --no-updater for an app-only installation"
     fi
     if [ "$host_os" = Linux ] && [ "$no_updater" -eq 0 ]; then
-      run_root mkdir -p /run/kintsugi-updater
-      run_root chmod 700 /run/kintsugi-updater
+      # tmpfiles runs before Docker at boot; the updater itself must stay after Docker.
+      run_root install -d -m 755 /etc/tmpfiles.d
+      run_root install -m 644 -o root -g root /dev/stdin /etc/tmpfiles.d/kintsugi-updater.conf <<'UPDATER_TMPFILES'
+d /run/kintsugi-updater 0700 root root -
+UPDATER_TMPFILES
+      run_root systemd-tmpfiles --create /etc/tmpfiles.d/kintsugi-updater.conf
       updater_mount=(--mount "type=bind,source=/run/kintsugi-updater,target=/run/kintsugi-updater,readonly")
     fi
     pull_log_start="$(($(wc -l <"$log_file") + 1))"
