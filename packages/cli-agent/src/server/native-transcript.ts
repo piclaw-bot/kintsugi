@@ -2,12 +2,15 @@ import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { isNotFoundError } from "@kintsugi/core";
 import type { TSchema, Static } from "typebox";
-import { Compile } from "typebox/compile";
+import { Compile, type Validator } from "typebox/compile";
+
+// Histories can hold tens of thousands of rows; compiled checks are much faster than interpreted ones.
+const validators = new WeakMap<TSchema, Validator>();
 
 /** Native CLI histories are append-only; the last line can still be in flight. */
 export function* nativeJsonlRows<T extends TSchema>(jsonl: string, schema: T): Generator<Static<T>> {
-  // Value.Check resolves the schema on every call; a long history needs one validator.
-  const validator = Compile(schema);
+  let validator = validators.get(schema);
+  if (!validator) validators.set(schema, validator = Compile(schema));
   const lines = jsonl.split("\n");
   for (const [index, line] of lines.entries()) {
     if (!line.trim()) continue;
@@ -18,7 +21,7 @@ export function* nativeJsonlRows<T extends TSchema>(jsonl: string, schema: T): G
       throw error;
     }
     if (validator.Check(parsed)) {
-      // SAFETY: The compiled validator validated the parsed row against the supplied schema.
+      // SAFETY: The compiled validator checked the parsed row against the supplied schema.
       yield parsed as Static<T>;
     }
   }
