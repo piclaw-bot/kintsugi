@@ -2,7 +2,7 @@
 import { StreamActions } from "@hotwired/turbo";
 import type { CableStreamRenderer } from "./cable.ts";
 
-type Stream = HTMLElement & { targetElements: HTMLElement[]; templateElement: HTMLTemplateElement; templateContent: DocumentFragment };
+type Stream = HTMLElement & { targetElements: HTMLElement[]; templateElement: HTMLTemplateElement };
 let delivery = Promise.resolve();
 
 /** One application queue, not just a receipt-time lease check. Parent mounts and
@@ -21,13 +21,16 @@ export const renderCableStreams: CableStreamRenderer = (html, isCurrent, onAppli
       if (!document.dispatchEvent(new CustomEvent("live:before-stream-render", { cancelable: true, detail: { newStream: stream } }))) continue;
       // Permanent islands survive only while their key remains in the parent's
       // snapshot. Turbo itself preserves them even when absent, so dispose those
-      // absent keys explicitly before morphing the owning region.
+      // absent keys explicitly before morphing the owning region. Nested islands
+      // belong to their enclosing island's region, not this one.
       if (stream.getAttribute("method") === "morph") {
+        // Read the template itself: Turbo's templateContent getter clones it on every access.
+        const incoming = new Set([...stream.templateElement.content.querySelectorAll("[id]")].map(element => element.id));
         for (const target of stream.targetElements) {
-          const islands = [...target.querySelectorAll<HTMLElement>("[id][data-turbo-permanent]")];
-          for (const island of islands) {
-            if (islands.some(parent => parent !== island && parent.contains(island))) continue;
-            if (!stream.templateContent.querySelector(`#${CSS.escape(island.id)}`)) island.remove();
+          for (const island of target.querySelectorAll<HTMLElement>("[id][data-turbo-permanent]")) {
+            const enclosing = island.parentElement!.closest("[id][data-turbo-permanent]");
+            if (enclosing && target.contains(enclosing)) continue;
+            if (!incoming.has(island.id)) island.remove();
           }
         }
       }
