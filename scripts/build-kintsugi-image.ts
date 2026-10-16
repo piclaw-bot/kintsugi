@@ -304,11 +304,12 @@ const defaultBuildArgs = [
 const allBuildArgs = [...defaultBuildArgs, ...options.buildArgs];
 
 // Tooling may come from a different checkout. Stamp the requirement from the image's source tree.
-const compatibility = Value.Parse(Type.Object({ label: Type.String(), version: Type.Integer({ minimum: 0, maximum: 2147483647 }), networkLabel: Type.String(), networkVersion: Type.Integer({ minimum: 0, maximum: 2147483647 }), source: Type.String() }), JSON.parse(run(["bun", "-e", 'import {requiredSystemVersion as version,requiredSystemVersionLabel as label,networkPolicyVersionLabel as networkLabel,networkPolicyVersion as networkVersion} from "./packages/shared/src/system-version.ts";import {imageSource as source} from "./packages/shared/src/publishing.ts";process.stdout.write(JSON.stringify({label,version,networkLabel,networkVersion,source}));'])));
+const compatibility = Value.Parse(Type.Object({ label: Type.String(), version: Type.Integer({ minimum: 0, maximum: 2147483647 }), networkLabel: Type.String(), networkVersion: Type.Integer({ minimum: 0, maximum: 2147483647 }), resourceLabel: Type.String(), resourceVersion: Type.Integer({ minimum: 0, maximum: 2147483647 }), source: Type.String() }), JSON.parse(run(["bun", "-e", 'import {requiredSystemVersion as version,requiredSystemVersionLabel as label,networkPolicyVersionLabel as networkLabel,networkPolicyVersion as networkVersion,resourcePolicyVersionLabel as resourceLabel,resourcePolicyVersion as resourceVersion} from "./packages/shared/src/system-version.ts";import {imageSource as source} from "./packages/shared/src/publishing.ts";process.stdout.write(JSON.stringify({label,version,networkLabel,networkVersion,resourceLabel,resourceVersion,source}));'])));
 await buildImage(imageRefs, [
   "--label", `org.opencontainers.image.source=${compatibility.source}`,
   "--label", `${compatibility.label}=${compatibility.version}`,
   "--label", `${compatibility.networkLabel}=${compatibility.networkVersion}`,
+  "--label", `${compatibility.resourceLabel}=${compatibility.resourceVersion}`,
   ...allBuildArgs.flatMap((buildArg) => ["--build-arg", buildArg]),
   "--file", "apps/web/Dockerfile", ".",
 ]);

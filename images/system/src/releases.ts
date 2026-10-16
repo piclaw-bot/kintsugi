@@ -55,7 +55,7 @@ export function createReleaseRequests(options: {
         const repository = activeReleaseSource(settings)[component === "app" ? "appRepository" : "systemRepository"];
         if (url.searchParams.has("reference") && (!reference.startsWith(repository + "@") || !/^sha256:[a-f0-9]{64}$/.test(reference.slice(repository.length + 1)))) return Response.json({ error: "Expected pinned image from the configured repository" }, { status: 400 });
         const plan = await resolveImage(reference, await options.registry.fetcher(options.fetcher));
-        return Response.json({ reference: plan.reference, digest: plan.reference.split("@")[1], revision: plan.revision, source: plan.source, indexDigest: plan.indexDigest, requiredSystemVersion: plan.requiredSystemVersion ?? 0, networkPolicyVersion: plan.networkPolicyVersion ?? 0 });
+        return Response.json({ reference: plan.reference, digest: plan.reference.split("@")[1], revision: plan.revision, source: plan.source, indexDigest: plan.indexDigest, requiredSystemVersion: plan.requiredSystemVersion ?? 0, networkPolicyVersion: plan.networkPolicyVersion ?? 0, resourcePolicyVersion: plan.resourcePolicyVersion });
       }
       if (url.pathname === "/release/prepare" && request.method === "POST") {
         if (options.busy()) return Response.json({ error: "An update is in progress" }, { status: 409 });

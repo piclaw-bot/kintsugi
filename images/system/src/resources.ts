@@ -149,7 +149,7 @@ export async function initializeResources() {
   // Kernels built without swap support (e.g. smolvm) omit the swap controls;
   // there is nothing to prohibit there.
   if (existsSync(join(workloads, "memory.swap.max"))) {
-    await writeFile(join(workloads, "memory.swap.max"), "0");
+    await writeFile(join(workloads, "memory.swap.max"), String(Math.floor(swap * 0.8)));
   } else {
     console.info("Swap controls unavailable; this kernel has no swap to limit");
   }
@@ -165,6 +165,8 @@ export async function initializeResources() {
   await chown(join(workloads, "commands", "cgroup.procs"), 1000, 1000);
   const result = {
     resourceControlVersion: 1,
+    swapBudget: Math.floor(swap * 0.8),
+    swapSupported: existsSync(join(workloads, "memory.swap.max")),
     effectiveCpus,
     workloadsCgroupParent: `${relative}/workloads`,
     managementCgroupParent: `${relative}/management/apps`,

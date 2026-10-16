@@ -170,3 +170,8 @@ test("a newly copied updater installs the early boot rule even when the previous
     await expect(ensureUpdaterBootDirectory(rule,async()=>({code:1,stdout:""}))).rejects.toThrow("boot directory");
   } finally {await rm(directory,{recursive:true,force:true});}
 });
+
+test("paired discovery refuses images that cannot honour configured resource allocations before pull or installer execution", () => fixture(async (updater,directory,calls)=>{
+  await mkdir(join(directory,"app/workspaces/fixture/metadata"),{recursive:true});await writeFile(join(directory,"app/workspaces/fixture/metadata/resource-policy.json"),JSON.stringify({version:1}));
+  await expect(updater.check()).rejects.toThrow("resource-aware");expect(calls.some(args=>args.includes("pull")||args[0]==="bash"||args.includes("stop"))).toBe(false);
+}));

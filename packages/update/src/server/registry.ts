@@ -1,4 +1,4 @@
-import { parseSystemVersion, systemVersionLabel, requiredSystemVersionLabel, networkPolicyVersionLabel } from "@kintsugi/shared/system-version";
+import { parseSystemVersion, systemVersionLabel, requiredSystemVersionLabel, networkPolicyVersionLabel, resourcePolicyVersionLabel } from "@kintsugi/shared/system-version";
 import { type UpdateChannel } from "./update-channel.ts";
 import { Type, type Static } from "typebox";
 import { Value } from "typebox/value";
@@ -8,7 +8,7 @@ export const repository = appRepository.replace(/^ghcr\.io\//, "");
 
 export type HttpFetcher = (input: string | URL, init?: RequestInit) => Promise<Response>;
 
-export interface ImageMetadata { digest: string; revision?: string; indexDigest?: string; requiredSystemVersion?: number; networkPolicyVersion?: number; source?: string; }
+export interface ImageMetadata { digest: string; revision?: string; indexDigest?: string; requiredSystemVersion?: number; networkPolicyVersion?: number; resourcePolicyVersion?: number; source?: string; }
 
 interface RegistryAuth { realm: string; service?: string; scope?: string }
 
@@ -142,6 +142,7 @@ export async function fetchChannelImageMetadata(channel: UpdateChannel, fetcher:
   const { base } = parseReference(`${appRepository}:${channel}`);
   const image = await fetchRegistryImage(base, channel, fetcher, platform);
   const result: ImageMetadata = { digest: image.digest, revision: image.labels["org.opencontainers.image.revision"], requiredSystemVersion: parseSystemVersion(image.labels[requiredSystemVersionLabel]), networkPolicyVersion: parseSystemVersion(image.labels[networkPolicyVersionLabel]) };
+  if (image.labels[resourcePolicyVersionLabel] !== undefined) result.resourcePolicyVersion = parseSystemVersion(image.labels[resourcePolicyVersionLabel]);
   if (image.labels["org.opencontainers.image.source"]) result.source = image.labels["org.opencontainers.image.source"];
   return result;
 }
@@ -153,6 +154,7 @@ export interface PlannedImage {
   requiredSystemVersion?: number;
   systemVersion?: number;
   networkPolicyVersion?: number;
+  resourcePolicyVersion?: number;
   reference: string;
   revision?: string;
   indexDigest?: string;
@@ -187,6 +189,7 @@ export async function resolveImage(reference: string, fetcher: HttpFetcher = fet
   if (!/^sha256:[a-f0-9]{64}$/.test(pinnedDigest)) throw new Error("Invalid image digest");
   const plan: PlannedImage = { networkPolicyVersion: parseSystemVersion(image.labels[networkPolicyVersionLabel]), requiredSystemVersion: parseSystemVersion(image.labels[requiredSystemVersionLabel]), systemVersion: parseSystemVersion(image.labels[systemVersionLabel]), reference: `${registry}/${name}@${pinnedDigest}`, layers: image.layers, dependencies };
   if (image.rootDigest && image.rootDigest !== image.digest && /^sha256:[a-f0-9]{64}$/.test(image.rootDigest)) plan.indexDigest = image.rootDigest;
+  if (image.labels[resourcePolicyVersionLabel] !== undefined) plan.resourcePolicyVersion = parseSystemVersion(image.labels[resourcePolicyVersionLabel]);
   if (image.labels["org.opencontainers.image.source"]) plan.source = image.labels["org.opencontainers.image.source"];
   if (image.labels["org.opencontainers.image.revision"]) plan.revision = image.labels["org.opencontainers.image.revision"];
   return plan;

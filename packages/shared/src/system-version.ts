@@ -5,6 +5,10 @@ export const listedHostsSystemVersion = 2;
 /** App capability for reading persisted listed-host policy snapshots. */
 export const networkPolicyVersion = 2;
 export const networkPolicyVersionLabel = "org.kintsugi.network-policy-version";
+/** Reader for persisted workspace resource allocations; independent of network policy format. */
+export const resourcePolicyVersion = 1;
+export const resourcePolicyVersionLabel = "org.kintsugi.resource-policy-version";
+export const resourceControlSystemVersion = 3;
 /** Keep zero for the support release. Raise only after the corresponding System support is published. */
 export const requiredSystemVersion = 0;
 export const systemVersionLabel = "org.kintsugi.system-version";

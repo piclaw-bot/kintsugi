@@ -1,3 +1,4 @@
+import { requiredAppResourceStateVersion } from "@kintsugi/shared/resource-compatibility";
 import { fetchReleaseHistory, parseNotesRepository, imageNotesRepository } from "./release-history.ts";
 import { renderMarkdown } from "@kintsugi/markdown";
 import { dialogHtml } from "@kintsugi/design-system/dialog";
@@ -39,6 +40,7 @@ interface StateSnapshot {
   systemVersion?: number;
   targetNeedsInstaller: boolean;
   targetNeedsPolicyReset: boolean;
+  targetNeedsResourceReader: boolean;
   updateChannel: UpdateChannel;
   releaseSource: ReleaseSource;
   progressMessage?: string;
@@ -57,6 +59,7 @@ export interface UpdateManagerDeps {
   detectRuntime?: () => Promise<SelfUpdateRuntime | undefined>;
   readSystemVersion?: () => Promise<number>;
   readNetworkStateVersion?: () => Promise<number>;
+  readResourceStateVersion?: () => Promise<number>;
   fetchReleaseHistory?: typeof fetchReleaseHistory;
   resolveNotesMetadata?: (reference: string) => Promise<ImageMetadata>;
   fetchMetadata?: (channel: UpdateChannel) => Promise<ImageMetadata>;
@@ -77,6 +80,7 @@ export class UpdateManager {
   private runtime: SelfUpdateRuntime | undefined;
   private systemVersion: number | undefined;
   private networkStateVersion = 0;
+  private resourceStateVersion = 0;
   private state: UpdateState = "idle";
   private percent: number | undefined;
   private error: string | undefined;
@@ -137,9 +141,10 @@ export class UpdateManager {
 
   snapshot(): StateSnapshot {
     const settings = { releaseSource: this.releaseSource, releaseChannel: this.updateChannel === "custom" ? this.trackingChannel : this.updateChannel, releaseMode: "custom" as const };
+    const targetNeedsResourceReader = !this.installationClient && this.target !== undefined && this.resourceStateVersion > (this.target.resourcePolicyVersion ?? 0);
     const targetNeedsPolicyReset = !this.installationClient && this.target !== undefined && this.networkStateVersion > (this.target.networkPolicyVersion ?? 0);
     const targetNeedsInstaller = !this.installationClient && this.target !== undefined && this.systemVersion !== undefined && (this.target.requiredSystemVersion === undefined || this.target.requiredSystemVersion > this.systemVersion);
-    return { systemVersion: this.systemVersion, targetNeedsInstaller, targetNeedsPolicyReset, updateScope: this.installationClient ? "installation" : "app", appReference: releaseReference(settings, "app"), systemReference: releaseReference(settings, "system"), state: this.state, percent: this.percent, error: this.error, selfUpdatable: Boolean(this.runtime), target: this.target, updateChannel: this.updateChannel, releaseSource: { ...this.releaseSource }, progressMessage: this.progressMessage };
+    return { systemVersion: this.systemVersion, targetNeedsInstaller, targetNeedsPolicyReset, targetNeedsResourceReader, updateScope: this.installationClient ? "installation" : "app", appReference: releaseReference(settings, "app"), systemReference: releaseReference(settings, "system"), state: this.state, percent: this.percent, error: this.error, selfUpdatable: Boolean(this.runtime), target: this.target, updateChannel: this.updateChannel, releaseSource: { ...this.releaseSource }, progressMessage: this.progressMessage };
   }
 
   private updateSidebar(checked = false): void {
@@ -178,9 +183,10 @@ export class UpdateManager {
     if (this.state === "idle" || this.state === "failed") this.setState("checking");
     let target: ImageMetadata;
     try {
-      const dataVersion = await this.readNetworkStateVersion();
+      const [dataVersion, resourceVersion] = await Promise.all([this.readNetworkStateVersion(), this.readResourceStateVersion()]);
       if (generation !== this.channelGeneration || this.pullPromise || this.prepared || this.restarting) return;
       this.networkStateVersion = dataVersion;
+      this.resourceStateVersion = resourceVersion;
       target = await (this.deps.fetchMetadata ?? fetchChannelImageMetadata)(channel);
     } catch (error) {
       // A superseded channel's failures are as stale as its successful responses.
@@ -251,9 +257,13 @@ export class UpdateManager {
     return this.pullPromise;
   }
 
+  private async readResourceStateVersion(): Promise<number> { return (this.deps.readResourceStateVersion ?? (() => requiredAppResourceStateVersion(getKintsugiRuntimeContext().kintsugiDataDir)))(); }
+
   private async readNetworkStateVersion(): Promise<number> { return (this.deps.readNetworkStateVersion ?? (() => requiredAppNetworkStateVersion(getKintsugiRuntimeContext().kintsugiDataDir)))(); }
 
   private async pullNewestTarget(): Promise<void> {
+    this.resourceStateVersion = await this.readResourceStateVersion();
+    if (this.snapshot().targetNeedsResourceReader) { this.setState("installer_required"); return; }
     this.networkStateVersion = await this.readNetworkStateVersion();
     if (this.snapshot().targetNeedsPolicyReset) { this.setState("installer_required"); return; }
     if (this.installationClient) {
@@ -289,6 +299,8 @@ export class UpdateManager {
     this.restarting = true;
     this.setState("restarting");
     try {
+      this.resourceStateVersion = await this.readResourceStateVersion();
+      if (this.snapshot().targetNeedsResourceReader) throw new UpdateConflictError("Saved workspace limits require a resource-aware image; the running app was not changed.");
       await (this.deps.requestUpdate ?? requestSupervisorUpdate)(this.prepared.imageId);
     } catch (error) {
       this.restarting = false;
@@ -433,7 +445,7 @@ function renderCheckFeedback(state: "initial" | "in-progress", feedback = false)
 }
 
 function renderUpdateControl(snapshot: StateSnapshot, surface: UpdateControlSurface): string {
-  if (snapshot.state === "installer_required") return renderInstallerRequired(snapshot);
+  if (snapshot.state === "installer_required" || snapshot.targetNeedsResourceReader) return renderInstallerRequired(snapshot);
   if (snapshot.state === "checking") return renderCheckFeedback("in-progress");
   if (!snapshot.selfUpdatable) return "";
   if ((snapshot.state === "failed" && !snapshot.target) || snapshot.state === "idle") return renderCheckFeedback("initial");
@@ -448,6 +460,7 @@ function renderUpdateControl(snapshot: StateSnapshot, surface: UpdateControlSurf
 }
 
 function renderInstallerRequired(snapshot: StateSnapshot): string {
+  if (snapshot.targetNeedsResourceReader) return warningBannerHtml({title:"Select resource-aware images",message:"This image cannot honour saved workspace resource limits. Select compatible app and System images; desired allocations were not changed."});
   if (snapshot.targetNeedsPolicyReset) return warningBannerHtml({ title: "Apply Off before downgrading", message: "This image cannot read saved listed-host policies. Turn off listed-host access and park/unpark every affected workspace before downgrading. Saved data was not changed." });
   const command = `curl -fsSL https://raw.githubusercontent.com/${githubRepository}/main/scripts/install.sh | bash`;
   return warningBannerHtml({ title: "Update the installation", message: snapshot.target?.requiredSystemVersion === undefined

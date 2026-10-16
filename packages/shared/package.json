@@ -15,7 +15,9 @@
     "./network-lookup": "./src/network-lookup.ts",
     "./network-compatibility": "./src/network-compatibility.ts",
     "./publishing": "./src/publishing.ts",
-    "./system-version": "./src/system-version.ts"
+    "./system-version": "./src/system-version.ts",
+    "./workspace-resources": "./src/workspace-resources.ts",
+    "./resource-compatibility": "./src/resource-compatibility.ts"
   },
   "dependencies": {
     "@kintsugi/core": "workspace:*",

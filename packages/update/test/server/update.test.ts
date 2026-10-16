@@ -51,6 +51,7 @@ function manager(extra: UpdateManagerDeps = {}) {
     detectRuntime: async () => ({ currentDigest: oldDigest }),
     readSystemVersion: async () => 1,
     readNetworkStateVersion: async () => 0,
+    readResourceStateVersion: async () => 0,
     fetchMetadata: async () => ({ digest: newDigest, requiredSystemVersion: 0 }),
     prepareUpdate: async (reference) => ({ reference, imageId: "sha256:prepared-image-id" }),
     setInterval: noInterval, ...extra,
@@ -541,4 +542,13 @@ test("explicit GitHub notes override does not mutate sources or need registry re
 test("older metadata readers cannot substitute a moving channel for a pinned notes target", async () => {
   const instance=manager({detectRuntime:async()=>({currentDigest:oldDigest,currentRevision:revision(1)}),fetchMetadata:async()=>({digest:newDigest,requiredSystemVersion:0}),resolveNotesMetadata:async()=>({digest:newerDigest,revision:revision(2),source:"https://github.com/example/repo"})});
   await instance.initialize(context().ctx);await expect(instance.releaseHistory()).rejects.toThrow("selected image changed");expect(instance.snapshot().state).toBe("available");
+});
+
+test("resource-incompatible app-only downgrades refuse download and keep configuration intact",async()=>{
+  let downloads=0;const instance=manager({readSystemVersion:async()=>3,readResourceStateVersion:async()=>1,fetchMetadata:async()=>({digest:newDigest,requiredSystemVersion:0,resourcePolicyVersion:0}),prepareUpdate:async()=>{downloads++;return{reference:exact,imageId:"unused"};}});
+  await instance.initialize(context().ctx);expect(instance.snapshot().targetNeedsResourceReader).toBe(true);await instance.startPull();expect(instance.snapshot().state).toBe("installer_required");expect(downloads).toBe(0);
+});
+test("resource requirements added after preparation are revalidated before app activation",async()=>{
+  let required=0,requests=0;const instance=manager({readResourceStateVersion:async()=>required,requestUpdate:async()=>{requests++;}});await instance.initialize(context().ctx);await instance.startPull();required=1;
+  await expect(instance.restart()).rejects.toThrow("resource-aware");expect(requests).toBe(0);
 });

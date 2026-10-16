@@ -1,3 +1,6 @@
+import { requiredAppResourceStateVersion, assertResourceStateCompatible } from "@kintsugi/shared/resource-compatibility";
+import { getKintsugiRuntimeContext } from "@kintsugi/core";
+import { resourcePolicyVersionLabel, resourceControlSystemVersion } from "@kintsugi/shared/system-version";
 import { imageSource } from "@kintsugi/shared/publishing";
 import { assertSystemCompatible } from "@kintsugi/shared/system-version";
 import { readSystemVersion } from "./supervisor.ts";
@@ -86,7 +89,7 @@ export interface PreparedUpdate { imageId: string; reference: string; }
 export async function prepareUpdate(reference: string, progress: (progress: PullProgress) => void, deps: {
   pull?: typeof pullImageReference; inspect?: typeof dockerImageInspect; resolve?: typeof resolveImage; exec?: DockerExec;
   prune?: typeof pruneUnusedKintsugiImages;
-  readSystemVersion?: () => Promise<number>;
+  readSystemVersion?: () => Promise<number>; readResourceStateVersion?: () => Promise<number>;
 } = {}): Promise<PreparedUpdate> {
   const pull = deps.pull ?? pullImageReference;
   const inspect = deps.inspect ?? dockerImageInspect;
@@ -105,6 +108,9 @@ export async function prepareUpdate(reference: string, progress: (progress: Pull
   await discover(reference);
   const requiredVersion = images.get(aliases.get(reference)!)!.requiredSystemVersion ?? 0;
   if (requiredVersion > 0) assertSystemCompatible(await (deps.readSystemVersion ?? readSystemVersion)(), requiredVersion);
+  const resourceRequired = await (deps.readResourceStateVersion ?? (() => requiredAppResourceStateVersion(getKintsugiRuntimeContext().kintsugiDataDir)))();
+  assertResourceStateCompatible(resourceRequired, {[resourcePolicyVersionLabel]: String(images.get(aliases.get(reference)!)!.resourcePolicyVersion ?? 0)});
+  if (resourceRequired) assertSystemCompatible(await (deps.readSystemVersion ?? readSystemVersion)(), resourceControlSystemVersion);
   progress({ kind: "progress", message: "Removing unused Kintsugi images…" });
   await (deps.prune ?? pruneUnusedKintsugiImages)(deps.exec ?? dockerExec);
   const layers = new Map<string, { size: number; current: number }>();
@@ -131,6 +137,7 @@ export async function prepareUpdate(reference: string, progress: (progress: Pull
   progress({ kind: "progress", percent: 99, message: "Finalizing…" });
   const appReference = aliases.get(reference)!;
   const appImage = await inspect(appReference);
+  assertResourceStateCompatible(resourceRequired, appImage.Config?.Labels);
   const storageDriver = await readStorageDriver();
   assertStorageSupport(appImage.Config?.Labels, storageDriver);
   for (const image of images.values()) {

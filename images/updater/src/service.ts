@@ -1,5 +1,6 @@
+import { requiredResourceStateVersion, assertResourceStateCompatible } from "../../../packages/shared/src/resource-compatibility.ts";
 import { requiredNetworkStateVersion, assertNetworkStateCompatible } from "../../../packages/shared/src/network-compatibility.ts";
-import { systemVersionLabel, networkPolicyVersionLabel } from "../../../packages/shared/src/system-version.ts";
+import { systemVersionLabel, networkPolicyVersionLabel, resourcePolicyVersionLabel } from "../../../packages/shared/src/system-version.ts";
 import { assertSystemCompatible, assertImagePairCompatible } from "../../../packages/shared/src/system-version.ts";
 import { readStorageDriver, assertStorageSupport } from "../../../packages/core/src/storage-driver.ts";
 import { appendFile, chmod, mkdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
@@ -102,6 +103,7 @@ export class InstallationUpdater {
     if (!appImage || !systemImage) throw Error("Retained image pair is unavailable.");
     assertImagePairCompatible(appImage.Config.Labels, systemImage.Config.Labels);
     assertNetworkStateCompatible(await requiredNetworkStateVersion(data), appImage.Config.Labels, systemImage.Config.Labels);
+    assertResourceStateCompatible(await requiredResourceStateVersion(data), appImage.Config.Labels, systemImage.Config.Labels);
   }
   async check() {
     if (this.operation || this.checking || this.starting) return this.snapshot();
@@ -112,6 +114,7 @@ export class InstallationUpdater {
       const [app, system] = await Promise.all([this.resolve(releaseReference(current.settings, "app"), current.data), this.resolve(releaseReference(current.settings, "system"), current.data)]);
       assertSystemCompatible(system.systemVersion ?? 0, app.requiredSystemVersion ?? 0);
       assertNetworkStateCompatible(await requiredNetworkStateVersion(current.data), { [networkPolicyVersionLabel]: String(app.networkPolicyVersion ?? 0) }, { [systemVersionLabel]: String(system.systemVersion ?? 0) });
+      assertResourceStateCompatible(await requiredResourceStateVersion(current.data), { [resourcePolicyVersionLabel]: String(app.resourcePolicyVersion ?? 0) }, { [systemVersionLabel]: String(system.systemVersion ?? 0) });
       if ((await this.installation()).selection !== current.selection) throw Error("Release selection changed. Check again.");
       const plan: InstallationPlan = { id: crypto.randomUUID(), app: app.reference, system: system.reference, available: !this.matches(current.app, app) || !this.matches(current.system, system), selection: current.selection, previousApp: current.app.Id, previousSystem: current.system.Id };
       this.state = { retainedPlan: this.state.retainedPlan, phase: plan.available ? "available" : "idle", plan, message: plan.available ? "An installation update is available." : "The installation matches the selected releases." }; await this.persist(); return this.snapshot();
@@ -146,6 +149,7 @@ this.state = { ...this.state, phase: "preparing", message: "Downloading System, 
           if (app.Config.Labels?.["kintsugi.deployment-config"] !== "1") throw Error("Selected app lacks deployment support.");
           assertImagePairCompatible(app.Config.Labels, metadata.Config.Labels);
           assertNetworkStateCompatible(await requiredNetworkStateVersion(current.data), app.Config.Labels, metadata.Config.Labels);
+          assertResourceStateCompatible(await requiredResourceStateVersion(current.data), app.Config.Labels, metadata.Config.Labels);
           const fresh = await this.installation();
           if (fresh.selection !== plan.selection || fresh.system.Id !== plan.previousSystem || fresh.app.Id !== plan.previousApp) throw Error("Installation changed during preparation.");
           // The installer performs storage, access and other capability checks again before replacement.

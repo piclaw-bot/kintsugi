@@ -620,7 +620,9 @@ function workspaceContainerLifecycle(id: string, checkpointRequired: boolean, re
     waitForStartup: () => waitForWorkspaceStartup(id),
     beforeStart: async () => {
       if (await isWorkspaceRunning(id)) return;
-      if (await workspaceResourceControlAvailable()) await hostRequest({ operation: "resources", workspaceId: id, recover });
+      const resourceControl = await workspaceResourceControlAvailable();
+      if (!resourceControl && await Bun.file(kintsugiDataPath(getKintsugiRuntimeContext(), "workspaces", id, "metadata", "resource-policy.json")).exists()) throw new Error("Configured workspace resources require newer System services before starting workspaces.");
+      if (resourceControl) await hostRequest({ operation: "resources", workspaceId: id, recover });
       const policy = await prepareWorkspaceNetwork(id);
       await configureWorkspaceDns(id, policy);
     },
@@ -679,3 +681,5 @@ export async function checkWorkspaceReadiness(id: string, report: (detail: strin
   const images = await workspaceImagePreloader.load(kintsugiDataPath(getKintsugiRuntimeContext(), "workspaces", id), report);
   await workspaceImagePreloader.install(images, workspaceContainerName(id), report, activity);
 }
+
+export { inspectWorkspaceResources, configureWorkspaceResources } from "./resources.ts";

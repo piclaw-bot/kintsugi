@@ -1,3 +1,4 @@
+import { requiredResourceStateVersion, assertResourceStateCompatible } from "../../../packages/shared/src/resource-compatibility.ts";
 import { requiredNetworkStateVersion, assertNetworkStateCompatible } from "../../../packages/shared/src/network-compatibility.ts";
 import { systemVersionLabel } from "../../../packages/shared/src/system-version.ts";
 import { systemVersion, requiredSystemVersionLabel, parseSystemVersion, assertSystemCompatible } from "../../../packages/shared/src/system-version.ts";
@@ -227,6 +228,7 @@ async function prepareImage(reference: string, options: { pullApp: boolean; pull
   assertStorageSupport(image.Config.Labels, storageDriver);
   assertSystemCompatible(systemVersion, parseSystemVersion(image.Config.Labels?.[requiredSystemVersionLabel]));
   assertNetworkStateCompatible(await requiredNetworkStateVersion("/data"), image.Config.Labels, { [systemVersionLabel]: String(systemVersion) });
+  assertResourceStateCompatible(await requiredResourceStateVersion("/data"), image.Config.Labels, { [systemVersionLabel]: String(systemVersion) });
   if (persisted.proxy && image.Config.Labels?.["kintsugi.deployment-config"] !== "1") throw new Error("App image does not support configured proxy access");
   const preload: unknown = JSON.parse(
     image.Config.Labels?.["eagerly-preload"] ?? "[]",
@@ -770,8 +772,13 @@ async function initialize() {
   }
   resources = await initializeResources();
   const network = await createWorkspaceNetworkControl(resources.buildClientsCgroupParent);
-  workspaceResources = createWorkspaceResourceControl({ memory: resources.policy.memory, cpus: resources.effectiveCpus, cgroupParent: resources.workloadsCgroupParent, docker: (...args) => command(["docker", ...args], undefined, 10_000) });
-  await startHostService({ resourceControl: (id, recover, action) => action === "park" ? workspaceResources!.park(id) : workspaceResources!.admit(id, recover), root: dirname(dirname(resources.commandsCgroup)), effectiveMemory: resources.effectiveMemory, network });
+  workspaceResources = createWorkspaceResourceControl({ memory: resources.policy.memory, cpus: resources.effectiveCpus, swap: resources.swapBudget, swapSupported: resources.swapSupported, systemMemory: resources.effectiveMemory, cgroupParent: resources.workloadsCgroupParent, docker: (...args) => command(["docker", ...args], undefined, 10_000) });
+  await startHostService({ resourceControl: request => {
+    if (request.action === "inspect") return workspaceResources!.inspect(request.workspaceId);
+    if (request.action === "configure") return workspaceResources!.configure(request.workspaceId, request.changes);
+    if (request.action === "park") return workspaceResources!.park(request.workspaceId);
+    return workspaceResources!.admit(request.workspaceId, request.recover ?? false);
+  }, root: dirname(dirname(resources.commandsCgroup)), effectiveMemory: resources.effectiveMemory, network });
   await chown(hostSocketPath, 1000, 1000);
   // Privileged containers only copy device nodes the host /dev already has; some
   // VMs lack loop-control until first use. Opening it autoloads the loop driver.

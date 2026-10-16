@@ -1,3 +1,4 @@
+import { handleWorkspaceProperties, handleWorkspaceResources, type WorkspaceResourceBackend } from "./workspace-properties.ts";
 import { handlePrivateNetworkSettings } from "./settings/private-network.ts";
 import { handleWorkspaceNetwork } from "./settings/network.ts";
 import { templateSettingsHostId, templateSettingsFrameId } from "./template-settings.ts";
@@ -77,6 +78,7 @@ import { workspaceWarnings, type WorkspaceWarning } from "./workspace-warnings.t
 
 const jsonStringSchema = Type.String();
 export interface WebAppDeps {
+  workspaceResourceBackend?: WorkspaceResourceBackend;
   registry: WorkspaceRegistry;
   workspaceModules?: WorkspaceModule[];
   /** Event bus passed through to the agent module routes. */
@@ -1265,6 +1267,15 @@ export function createWebApp(deps: WebAppDeps): WebApp {
     }
 
     let params: string[] | undefined;
+    if ((params = matchRoute(url, /^\/workspaces\/([^/]+)\/resources$/))) {
+      const entry = requireWorkspace(params[0]!);
+      return handleWorkspaceResources(request, entry.id, deps.workspaceResourceBackend);
+    }
+    if ((params = matchRoute(url, /^\/workspaces\/([^/]+)\/properties(?:\/(?:resources|network|dns))?$/))) {
+      const entry = requireWorkspace(params[0]!);
+      return handleWorkspaceProperties(request, url, entry.id, workspaceTitle(entry), html => surfacePage({kind: "module-modal", dialogHtml: html}), deps.workspaceResourceBackend);
+    }
+
     if ((params = matchRoute(url, /^\/workspaces\/([^/]+)\/network$/))) {
       const entry = requireWorkspace(params[0]!);
       return await handleWorkspaceNetwork(request, entry.id, workspaceTitle(entry), html => surfacePage({ kind: "module-modal", dialogHtml: html }));

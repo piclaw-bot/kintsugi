@@ -343,3 +343,12 @@ describe("transactional admin bootstrap",()=>{
   const before=await store.read();await expect(adminBindingsCommand(["bootstrap","--data-dir",directory,"--file",input,"--token-output",output])).rejects.toThrow();expect(await store.read()).toEqual(before);
  }));
 });
+
+test("resource inspection and allocation changes require security scope; property HTML is never an admin route", () => fixture(async ({store,handler,request}) => {
+  for(const scope of ["workspaces","host:read","configuration"] as const){const token=await store.issue({name:scope,scopes:[scope]});expect((await handler(request("/workspaces/fixture/resources","GET",undefined,`Bearer ${token.secret}`))).status).toBe(403);}
+  const token=await store.issue({name:"resource operator",scopes:["security"]});
+  expect((await handler(request("/workspaces/fixture/resources","GET",undefined,`Bearer ${token.secret}`))).status).toBe(200);
+  expect((await handler(request("/workspaces/fixture/resources","POST",JSON.stringify({memory:1024**3,additionalSwap:0,cpus:1}),`Bearer ${token.secret}`))).status).toBe(200);
+  expect((await handler(request("/workspaces/fixture/resources","POST",JSON.stringify({memory:0,additionalSwap:-1,cpus:1}),`Bearer ${token.secret}`))).status).toBe(400);
+  expect((await handler(request("/workspaces/fixture/properties","GET",undefined,`Bearer ${token.secret}`))).status).toBe(404);
+}));

@@ -2,7 +2,7 @@ import { expect, test } from "bun:test";
 
 const installer = (await Bun.file(new URL("./install.sh", import.meta.url)).text()).replace("no_updater=0", "no_updater=1");
 
-function run(options: { rememberedLimits?: string; hostMemoryAvailable?: number; currentMemoryPercent?: string; resourceLimits?: string; hostMemory?: number; hostCpus?: number; networkDataVersion?: number; systemCompatibility?: string; appNetworkCompatibility?: string; hostUpdater?: boolean; systemd?: boolean; tmpfilesFails?: boolean; savedStorageDriver?: string; storageCompatible?: boolean; erofsMissing?: boolean; savedRepository?: string; savedHostname?: string; appPrepareFails?: boolean; savedRegistry?: boolean; rollbackAvailable?: boolean; installerCompatible?: boolean; promptRepository?: string; promptHostname?: string; systemState?: "restarting" | "exited"; portMappings?: string; nonRoot?: boolean; denySudo?: boolean; mac?: boolean; wsl?: boolean; installed?: boolean; old?: boolean; legacyAtelier?: boolean; legacyVolumeOnly?: boolean; legacyPreSystem?: boolean; legacyDownloadFails?: boolean; legacyDelegateFails?: boolean; pullFails?: boolean; pullDenied?: boolean; appFails?: boolean; retryUpdateRequest?: boolean; rejectUpdateRequest?: boolean; pendingHealth?: boolean; missingFilesystem?: boolean; loadable?: boolean; uninstallAnswer?: string; uninstallFails?: boolean; uninstallRequestFails?: boolean; inventoryFails?: boolean; volumeOnly?: boolean; volumeRemovalFails?: boolean; initiallyStopped?: boolean } = {}, args: string[] = []) {
+function run(options: { resourceDataVersion?: number; appResourceCompatibility?: string; rememberedLimits?: string; hostMemoryAvailable?: number; currentMemoryPercent?: string; resourceLimits?: string; hostMemory?: number; hostCpus?: number; networkDataVersion?: number; systemCompatibility?: string; appNetworkCompatibility?: string; hostUpdater?: boolean; systemd?: boolean; tmpfilesFails?: boolean; savedStorageDriver?: string; storageCompatible?: boolean; erofsMissing?: boolean; savedRepository?: string; savedHostname?: string; appPrepareFails?: boolean; savedRegistry?: boolean; rollbackAvailable?: boolean; installerCompatible?: boolean; promptRepository?: string; promptHostname?: string; systemState?: "restarting" | "exited"; portMappings?: string; nonRoot?: boolean; denySudo?: boolean; mac?: boolean; wsl?: boolean; installed?: boolean; old?: boolean; legacyAtelier?: boolean; legacyVolumeOnly?: boolean; legacyPreSystem?: boolean; legacyDownloadFails?: boolean; legacyDelegateFails?: boolean; pullFails?: boolean; pullDenied?: boolean; appFails?: boolean; retryUpdateRequest?: boolean; rejectUpdateRequest?: boolean; pendingHealth?: boolean; missingFilesystem?: boolean; loadable?: boolean; uninstallAnswer?: string; uninstallFails?: boolean; uninstallRequestFails?: boolean; inventoryFails?: boolean; volumeOnly?: boolean; volumeRemovalFails?: boolean; initiallyStopped?: boolean } = {}, args: string[] = []) {
   const pinned = `sha256:${"c".repeat(64)}`;
   const logPath = `/tmp/kintsugi-install-test-${crypto.randomUUID()}.log`;
   const mock = `
@@ -64,6 +64,7 @@ docker() {
       return 0 ;;
     'run --rm')
       if [[ "$*" == *' resource-limits '* ]]; then printf '%s\n' ${JSON.stringify(options.rememberedLimits ?? '')}; return 0; fi
+      if [[ "$*" == *' resource-data-version '* ]]; then echo ${options.resourceDataVersion ?? 0}; return 0; fi
       if [[ "$*" == *' network-data-version '* ]]; then echo ${options.networkDataVersion ?? 0}; return 0; fi
       if [[ "$*" == *' rollback-plan '* ]]; then if [ "${options.rollbackAvailable === false ? 0 : 1}" -eq 0 ]; then return 1; fi; printf '%s\n%s\n%s\n' ${pinned} ${pinned} kintsugi-system; return 0; fi
       if [[ "$*" == *' auth-check '* ]]; then echo ${options.savedRegistry ? 1 : 0}; return 0; fi
@@ -101,6 +102,7 @@ docker() {
         printf '${options.uninstallFails ? "failed\\nvolume is in use" : "complete\\nManaged resources deleted"}\\n'; return 0
       fi ;;
     'exec kintsugi-system')
+      if [[ "$*" == *'org.kintsugi.resource-policy-version'* ]]; then echo ${options.appResourceCompatibility ?? '0'}; return 0; fi
       if [[ "$*" == *'org.kintsugi.network-policy-version'* ]]; then echo ${options.appNetworkCompatibility ?? '0'}; return 0; fi
       if [[ "$*" == *"Cannot prepare the selected app"* ]]; then
         if [ "${options.appPrepareFails ? 1 : 0}" -eq 1 ]; then return 1; fi
@@ -807,4 +809,11 @@ test("unsafe available memory and unlimited saved swap fail before replacement",
 test("installer reapplies a runtime budget recorded after an older installer upgrade without discarding explicit CPU limits", () => {
   const result=run({installed:true,resourceLimits:"0 0 2000000000 4096",rememberedLimits:"10737418240 12884901888 9000000000 8192"},["--non-interactive","--confirm-replace","--action","update"]);
   expect(result.status).toBe(0);expect(result.output).toContain("--memory 10737418240 --memory-swap 12884901888 --cpus 2.000000000 --pids-limit 4096");
+});
+
+test("saved workspace resource allocations refuse incompatible app/System replacements before stopping services",()=>{
+  for(const target of [{systemCompatibility:"2",appResourceCompatibility:"1"},{systemCompatibility:"3",appResourceCompatibility:"0"}]){
+    const result=run({installed:true,resourceDataVersion:1,...target});expect(result.status).not.toBe(0);expect(result.output).toContain("resource-aware");expect(result.output).not.toContain("DOCKER stop --time 120");expect(result.output).not.toContain("DOCKER rm kintsugi-system");
+  }
+  expect(run({installed:true,resourceDataVersion:1,systemCompatibility:"3",appResourceCompatibility:"1"}).status).toBe(0);
 });

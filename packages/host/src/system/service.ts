@@ -15,7 +15,7 @@ export class HostService {
   private sampling?: Promise<HostSample>;
   constructor(private readonly sample: () => Promise<HostSample>, private readonly socketName = "kintsugi-host", private readonly network?: (request: Extract<HostCommand, { operation: "network" }>) => Promise<HostResult>) {}
 
-  resourceControl?: (id: string, recover: boolean, action: "admit" | "park") => Promise<null>;
+  resourceControl?: (request: Extract<HostCommand, { operation: "resources" }>) => Promise<HostResult>;
 
   private async list(): Promise<HostTerminal[]> {
     // The dedicated host tmux server is started once and kept alive with no sessions.
@@ -35,7 +35,7 @@ export class HostService {
     switch (request.operation) {
       case "resources": {
         if (!this.resourceControl) throw new Error("Workspace resource control is unavailable");
-        return this.resourceControl(request.workspaceId, request.recover ?? false, request.action ?? "admit");
+        return this.resourceControl(request);
       }
       case "network": {
         if (!this.network) throw new Error("Workspace network control is unavailable");
@@ -63,7 +63,7 @@ export class HostService {
 }
 
 /** Only the app receives this socket mount. No privileged API on the public supervisor listener. */
-export async function startHostService(options: { resourceControl?: (id: string, recover: boolean, action: "admit" | "park") => Promise<null>; root: string; effectiveMemory: number; socketPath?: string; tmuxSocketName?: string; network?: (request: Extract<HostCommand, { operation: "network" }>) => Promise<HostResult> }) {
+export async function startHostService(options: { resourceControl?: (request: Extract<HostCommand, { operation: "resources" }>) => Promise<HostResult>; root: string; effectiveMemory: number; socketPath?: string; tmuxSocketName?: string; network?: (request: Extract<HostCommand, { operation: "network" }>) => Promise<HostResult> }) {
   const socketPath = options.socketPath ?? hostSocketPath;
   const socketName = options.tmuxSocketName ?? "kintsugi-host";
   await mkdir(dirname(socketPath), { recursive: true });

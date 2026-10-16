@@ -1,4 +1,5 @@
 import type { HostMetricId } from "./diagnostics.ts";
+import { workspaceResourceChangeSchema, type WorkspaceResourceSnapshot } from "@kintsugi/shared/workspace-resources";
 import { Type, type Static } from "typebox";
 import { Value } from "typebox/value";
 export const hostSocketPath = "/run/kintsugi-host/control.sock";
@@ -9,7 +10,7 @@ export interface HostSample { sampledAt: string; durationMs: number; metrics: Ho
 import { networkModeSchema, networkConfigurationSchema, type WorkspaceNetworkPolicy } from "@kintsugi/shared/network-policy";
 export interface HostResults {
   network: WorkspaceNetworkPolicy;
-  resources: null;
+  resources: null | WorkspaceResourceSnapshot;
   list: HostTerminal[];
   create: HostTerminal;
   terminate: null;
@@ -19,6 +20,8 @@ export type HostResult = HostResults[keyof HostResults];
 const terminalId = Type.String({ pattern: "^host-[a-f0-9-]{36}$" });
 const requestSchema = Type.Union([
   Type.Object({ operation: Type.Literal("resources"), action: Type.Optional(Type.Union([Type.Literal("admit"), Type.Literal("park")])), workspaceId: Type.String({ pattern: "^[a-zA-Z0-9][a-zA-Z0-9_.-]*$" }), recover: Type.Optional(Type.Boolean()) }, { additionalProperties: false }),
+  Type.Object({ operation: Type.Literal("resources"), action: Type.Literal("inspect"), workspaceId: Type.String({ pattern: "^[a-zA-Z0-9][a-zA-Z0-9_.-]*$" }) }, { additionalProperties: false }),
+  Type.Object({ operation: Type.Literal("resources"), action: Type.Literal("configure"), workspaceId: Type.String({ pattern: "^[a-zA-Z0-9][a-zA-Z0-9_.-]*$" }), changes: workspaceResourceChangeSchema }, { additionalProperties: false }),
   Type.Object({ operation: Type.Literal("network"), destinations: Type.Optional(Type.Array(Type.Object({ host: Type.String({ maxLength: 253 }), port: Type.Integer({ minimum: 1, maximum: 65535 }) }, { additionalProperties: false }), { maxItems: 256 })), workspaceId: Type.String({ pattern: "^[a-zA-Z0-9][a-zA-Z0-9_.-]*$" }), mode: networkModeSchema, configuration: networkConfigurationSchema }),
   Type.Object({ operation: Type.Literal("list") }),
   Type.Object({ operation: Type.Literal("create") }),

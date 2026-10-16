@@ -630,3 +630,12 @@ html.software-keyboard-visible .composer.launch-composer :is(.agent-attach-row, 
   .agent-type-picker :is(.agent-type-picker-header, .content-row__metadata) { display:none; }
   .agent-type-picker-header + .agent-type-choice { border-top:none; }
 }
+
+.workspace-properties { display: flex; flex-direction: column; gap: 20px; min-width: 0; }
+.workspace-properties-toolbar { display: flex; justify-content: flex-end; }
+.workspace-properties section { min-width: 0; }
+.workspace-properties section + section { border-top: 1px solid var(--line); padding-top: 16px; }
+.workspace-properties-readings { display: grid; grid-template-columns: minmax(130px, 1fr) minmax(0, 2fr); gap: 6px 16px; margin: 12px 0 20px; }
+.workspace-properties-readings dt { color: var(--text); }
+.workspace-properties-readings dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+@media (max-width: 700px) { .workspace-properties-readings { grid-template-columns: minmax(0, 1fr); gap: 2px; } .workspace-properties-readings dd { margin-bottom: 8px; } }
