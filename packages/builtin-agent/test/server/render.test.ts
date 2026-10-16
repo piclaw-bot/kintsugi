@@ -49,6 +49,20 @@ describe("transcript rendering", () => {
     expect(html).toBe("");
   });
 
+  test("native completed activity loads its details only when opened", () => {
+    const nativeCtx: AgentRenderContext = { ...ctx, inlineWorkingItems: true, lazyCompletedWorkingItems: true, transcriptBasePath: "/workspaces/ws/codex-agents/agent" };
+    const item: TranscriptItem = { type: "working", key: "worked", startedAt: 1000, completedAt: 3500, items: [{ type: "thinking", key: "thought", text: "large historical detail" }] };
+    const html = renderTranscriptItem(nativeCtx, item);
+    expect(html).toContain('data-controller="agent-lazy-detail"');
+    expect(html).toContain('data-agent-lazy-detail-target="frame"');
+    expect(html).toContain('data-src="/workspaces/ws/codex-agents/agent/transcript-items/worked"');
+    expect(html).not.toContain("large historical detail");
+
+    const active = renderTranscriptItem(nativeCtx, { ...item, completedAt: undefined });
+    expect(active).toContain("large historical detail");
+    expect(active).not.toContain('data-controller="agent-lazy-detail"');
+  });
+
   test("live assistant text uses stable and mutable server-rendered Markdown targets", () => {
     const html = renderTranscriptItem(ctx, { type: "text", key: "stream", text: "First **bold** paragraph.\n\nTrailing *emphasis*", final: false, live: true });
     expect(html).toContain(`id="${ctxPrefix}_itemtext_stable_stream"`);

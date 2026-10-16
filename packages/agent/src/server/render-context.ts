@@ -18,6 +18,8 @@ export interface AgentRenderContext {
   readOnly?: boolean;
   /** Render working items inline instead of subscribing to builtin turn details. */
   inlineWorkingItems?: boolean;
+  /** Load completed working items through the transcript detail route when opened. */
+  lazyCompletedWorkingItems?: boolean;
 }
 
 export function commentaryContext(ctx: AgentRenderContext): AgentRenderContext {

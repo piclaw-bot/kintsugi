@@ -107,11 +107,18 @@ export function renderWorkingSection(ctx: AgentRenderContext, section: WorkingTr
   const commentary = commentaryContext(ctx);
   commentaryHtml ??= workingCommentaryItems(section).map((item) => renderTranscriptItem(commentary, item)).join("");
   const revealing = Boolean(ctx.revealTarget && section.items.some((item) => item.anchor === ctx.revealTarget || item.key === ctx.revealTarget));
-  const attributes = ctx.readOnly ? "" : ctx.inlineWorkingItems ? `data-agent-turn-turn-id-value="${escapeHtml(section.key)}"` : `data-controller="agent-turn" data-agent-turn-workspace-id-value="${escapeHtml(ctx.workspaceId)}" data-agent-turn-agent-id-value="${escapeHtml(ctx.agentId)}" data-agent-turn-turn-id-value="${escapeHtml(section.key)}" data-agent-turn-branch-id-value="${escapeHtml(ctx.branchId ?? "")}"${revealing ? ` data-agent-turn-reveal-value="${escapeHtml(ctx.revealTarget!)}"` : ""} data-action="toggle->agent-turn#toggle"`;
-  const items = ctx.readOnly || ctx.inlineWorkingItems ? renderWorkingContent(ctx, section) : "";
+  const finished = section.completedAt !== undefined || section.stoppedAt !== undefined;
+  const lazy = !ctx.readOnly && Boolean(ctx.lazyCompletedWorkingItems && finished);
+  const attributes = ctx.readOnly ? "" : lazy
+    ? 'data-controller="agent-lazy-detail" data-action="toggle->agent-lazy-detail#load"'
+    : ctx.inlineWorkingItems ? `data-agent-turn-turn-id-value="${escapeHtml(section.key)}"` : `data-controller="agent-turn" data-agent-turn-workspace-id-value="${escapeHtml(ctx.workspaceId)}" data-agent-turn-agent-id-value="${escapeHtml(ctx.agentId)}" data-agent-turn-turn-id-value="${escapeHtml(section.key)}" data-agent-turn-branch-id-value="${escapeHtml(ctx.branchId ?? "")}"${revealing ? ` data-agent-turn-reveal-value="${escapeHtml(ctx.revealTarget!)}"` : ""} data-action="toggle->agent-turn#toggle"`;
+  const items = lazy
+    ? `<turbo-frame id="${ids.detailFrame(ctx, section.key)}" data-turbo-permanent data-agent-lazy-detail-target="frame" data-src="${escapeHtml(transcriptItemPath(ctx, section.key))}"></turbo-frame>`
+    : ctx.readOnly || ctx.inlineWorkingItems ? renderWorkingContent(ctx, section) : "";
+  const builtinLazy = !ctx.readOnly && !ctx.inlineWorkingItems && !lazy;
   return `<div class="agent-working-block" id="${ids.item(ctx, section.key)}">${disclosureHtml({
     element: { attributesHtml: attributes }, summary, open: revealing,
-    bodyAttributesHtml: `id="${ids.workingItems(ctx, section.key)}"${ctx.readOnly || ctx.inlineWorkingItems ? "" : ' data-agent-turn-target="items" data-turbo-permanent'}`,
+    bodyAttributesHtml: lazy ? undefined : `id="${ids.workingItems(ctx, section.key)}"${builtinLazy ? ' data-agent-turn-target="items" data-turbo-permanent' : ""}`,
     bodyHtml: items,
   })}<div class="disclosure-content agent-working-commentary" id="${ids.workingItems(commentary, section.key)}">${commentaryHtml}</div></div>`;
 }

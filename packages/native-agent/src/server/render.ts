@@ -15,7 +15,7 @@ export function createNativeAgentRendering<Runtime extends NativeAgentRuntime>(o
   stats(runtime: Runtime): AgentStatsView;
 }) {
   function renderContext(runtime: Runtime): AgentRenderContext {
-    return { workspaceId: runtime.workspaceId, agentId: runtime.agentId, inlineWorkingItems: true, model: runtime.record.model ? parseModelRef(runtime.record.model) : undefined, transcriptBasePath: `/workspaces/${encodeURIComponent(runtime.workspaceId)}/${options.routeSegment}/${encodeURIComponent(runtime.agentId)}` };
+    return { workspaceId: runtime.workspaceId, agentId: runtime.agentId, inlineWorkingItems: true, lazyCompletedWorkingItems: true, model: runtime.record.model ? parseModelRef(runtime.record.model) : undefined, transcriptBasePath: `/workspaces/${encodeURIComponent(runtime.workspaceId)}/${options.routeSegment}/${encodeURIComponent(runtime.agentId)}` };
   }
   function transcriptItems(runtime: Runtime): TranscriptItem[] {
     return [
