@@ -367,6 +367,7 @@ const server = Bun.serve<SocketData>({
     return await compressDynamicResponse(request, await app.fetch(request));
   },
   websocket: {
+    perMessageDeflate: true,
     open(ws) {
       if (ws.data.kind === "provision-term") openProvisionTermSocket(ws, ws.data);
       else ws.data.open?.(ws);

@@ -14,12 +14,16 @@ class LiveSurfaceController extends Controller<HTMLElement> {
   declare workValue: string;
   private subscription?: CableSubscription;
   private pending?: ReturnType<typeof Promise.withResolvers<void>>;
+  private selectedAgent = "";
+  private selectedWork = "";
   ready = false;
   private failure?: HTMLElement;
   private failed = false;
 
   connect(): void {
     mounts.set(this.element, this);
+    this.selectedAgent = this.agentValue;
+    this.selectedWork = this.workValue;
     if (this.eagerValue) void this.ensureReady();
   }
 
@@ -43,9 +47,18 @@ class LiveSurfaceController extends Controller<HTMLElement> {
   }
 
   select(agent: string, work: string): void {
-    if (this.kindValue !== "workspace" || (this.agentValue === agent && this.workValue === work)) return;
+    if (this.kindValue !== "workspace" || (this.selectedAgent === agent && this.selectedWork === work)) return;
+    const presentation = this.element.querySelector<HTMLElement>("[data-workspace-initial-agent]");
+    if (this.subscription && this.agentValue === "" && this.workValue === ""
+      && presentation?.dataset.workspaceInitialAgent === agent && presentation.dataset.workspaceInitialWork === work) {
+      this.selectedAgent = agent;
+      this.selectedWork = work;
+      return;
+    }
     this.agentValue = agent;
     this.workValue = work;
+    this.selectedAgent = agent;
+    this.selectedWork = work;
     if (!this.subscription) return;
     this.stop();
     void this.ensureReady();

@@ -11,6 +11,7 @@ async function scenario(script: string) {
       import { expect, mock } from "bun:test";
       import { mkdirSync, writeFileSync } from "node:fs";
       const connections = [];
+      let initializationGate;
       const launchSettings = { model: "anthropic::claude-opus-5-5", thinkingLevel: "medium" };
       const models = [
         { value: "default", displayName: "Default (recommended)", description: "" },
@@ -29,7 +30,7 @@ async function scenario(script: string) {
           const connection = { start, message, failed, sent: [], calls: [], closed: false,
             send(value) { this.sent.push(value); },
             query: {
-              initializationResult: async () => ({ models, commands: [{ name: "compact", description: "Compact", argumentHint: "" }, { name: "model", description: "Model", argumentHint: "" }] }),
+              initializationResult: async () => { await initializationGate?.promise; return { models, commands: [{ name: "compact", description: "Compact", argumentHint: "" }, { name: "model", description: "Model", argumentHint: "" }] }; },
               getContextUsage: async () => ({ percentage: 12 }),
               async interrupt() { connection.calls.push(["interrupt"]); },
               async stopTask(taskId) { connection.calls.push(["stopTask", taskId]); },
@@ -82,6 +83,23 @@ test("a launch prompt starts a new native session once, and retries of a send ar
   expect(connection.sent).toHaveLength(2);
   expect(connection.sent[1].message.content).toEqual([{ type: "text", text: "again\\n\\nAttached notes.md" }, { type: "image", source: { type: "base64", media_type: "image/png", data: "iVBORw0KGgo=" } }]);
   await expect(runtime.send({ ...input, text: "different" }, "request")).rejects.toMatchObject({ code: "invalid_arguments" });
+  await agents.disposeAll();
+`));
+
+test("a restored Agent presents saved history without waiting for Claude to initialize", () => scenario(`
+  const agentId = "restored-agent";
+  const sessionId = crypto.randomUUID();
+  const metadata = process.env.ATELIER_DATA_DIR + "/workspaces/workspace/metadata";
+  mkdirSync(metadata, { recursive: true });
+  writeFileSync(metadata + "/claude-code-agents.json", JSON.stringify({ agents: [{ id: agentId, title: "Claude Code", sessionId, model: "anthropic::claude-opus-5-5", thinkingLevel: "medium", submissions: [] }] }));
+  record(agentId, sessionId, [{ type: "user", uuid: "saved-prompt", timestamp: "2026-10-16T07:00:00.000Z", message: { role: "user", content: "Saved history" } }]);
+  initializationGate = Promise.withResolvers();
+  const runtime = await agents.ready("workspace", agentId);
+  expect(runtime.state.rows.map(row => row.uuid)).toEqual(["saved-prompt"]);
+  expect(runtime.models).toEqual([]);
+  initializationGate.resolve();
+  await runtime.activate();
+  expect(runtime.models).toHaveLength(3);
   await agents.disposeAll();
 `));
 

@@ -6,7 +6,8 @@ import { createWorkspaceRegistry } from "../src/server/workspace-registry.ts";
 
 function socket() {
   const sent: CableServerMessage[] = [];
-  return { sent, send(raw: string) { sent.push(decodeCableServerMessage(raw)); return raw.length; } };
+  const compressed: boolean[] = [];
+  return { sent, compressed, send(raw: string, compress = false) { sent.push(decodeCableServerMessage(raw)); compressed.push(compress); return raw.length; } };
 }
 function server(channels: CableChannelAdapter[] = []) {
   return createCableServer({ registry: createWorkspaceRegistry(), events: createKintsugiEventBus(), channels, logError: () => {} });
@@ -99,5 +100,18 @@ test("slow sockets are disconnected rather than accumulating event history", () 
   const ws = { send() { throw new Error("must not enqueue"); }, getBufferedAmount() { return 2 * 1024 * 1024; }, close() { closed = true; } };
   cable.open(ws, { kind: "cable", connectionId: "connection" });
   expect(closed).toBe(true);
+  cable.close(ws);
+});
+
+test("large live snapshots use negotiated WebSocket compression", async () => {
+  const cable = server([{ name: "agent", subscribe(_identifier, listener) {
+    listener("x".repeat(2048));
+    return { ready: Promise.resolve(), unsubscribe() {} };
+  } }]);
+  const ws = socket();
+  cable.open(ws, { kind: "cable", connectionId: "connection" });
+  cable.message(ws, JSON.stringify({ command: "subscribe", identifier, subscriptionId: "mount" }));
+  await Bun.sleep(0);
+  expect(ws.compressed).toEqual([false, true]);
   cable.close(ws);
 });

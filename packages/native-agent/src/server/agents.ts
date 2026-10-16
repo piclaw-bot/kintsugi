@@ -51,6 +51,7 @@ export function createNativeAgents<Record extends NativeAgentRecord, Runtime ext
   settings: Pick<ReturnType<typeof createCliModelSettings>, "prepare">;
   newRecord(selected: CliModelSettings): Record;
   open(workspaceId: string, record: Record, save: () => void, events: KintsugiEventBus): Promise<Runtime>;
+  activate?(runtime: Runtime): Promise<void>;
 }, getEvents: () => KintsugiEventBus) {
   let metadata: NativeAgentStore<Record> | undefined;
   const store = () => metadata ??= options.store();
@@ -73,6 +74,7 @@ export function createNativeAgents<Record extends NativeAgentRecord, Runtime ext
       const record = options.newRecord(await options.settings.prepare({ model: parameters.model ?? "", thinkingLevel: parameters.thinkingLevel ?? "" }));
       store().add(workspaceId, record);
       const runtime = await ready(workspaceId, record.id);
+      await options.activate?.(runtime);
       const input = parameters.input;
       if (input && (input.text.trim() || input.images.length || input.attachmentNotes.length)) await runtime.send(input, `launch-${record.id}`);
       return record.id;

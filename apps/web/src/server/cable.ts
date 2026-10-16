@@ -16,7 +16,7 @@ export interface CableSocketData {
 }
 
 export interface CableSocket {
-  send(message: string): number;
+  send(message: string, compress?: boolean): number;
   getBufferedAmount?(): number;
   close?(code: number, reason: string): void;
 }
@@ -58,7 +58,8 @@ function send(ws: CableSocket, message: CableServerMessage): void {
     ws.close?.(1013, "Live updates exceeded delivery capacity; reconnect for a snapshot");
     return;
   }
-  ws.send(JSON.stringify(message));
+  const serialized = JSON.stringify(message);
+  ws.send(serialized, serialized.length >= 1024);
 }
 
 export function createCableServer(options: CableServerOptions): CableServer {

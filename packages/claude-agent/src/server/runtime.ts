@@ -35,6 +35,7 @@ export class ClaudeRuntime {
   /** Claude Code's own measure of how full its context window is. */
   contextPercent: number | null = null;
   private transport?: ClaudeTransport;
+  private connecting?: Promise<void>;
   private disposed = false;
   private closing = false;
   /** A turn is running, or a queued prompt will start one. */
@@ -74,32 +75,57 @@ export class ClaudeRuntime {
   }
   static async open(workspaceId: string, record: ClaudeAgentRecord, save: () => void, events: KintsugiEventBus) {
     const runtime = new ClaudeRuntime(workspaceId, record, save, events);
-    try { await runtime.connect(); return runtime; }
+    try {
+      await runtime.prepareState();
+      void runtime.startConnection(true).catch(() => {});
+      return runtime;
+    }
     catch (error) { await runtime.dispose(); throw error; }
   }
+  async activate() {
+    if (this.connecting) await this.connecting;
+    if (this.failure) await this.reconnect();
+    if (!this.transport) throw new Error("Claude Code Agent is not connected");
+  }
   async reconnect() {
+    if (this.connecting) return this.connecting;
     return this.serialize(this.agentId, async () => {
       if (!this.failure) return;
       if (this.disposed || this.closing) throw new Error("Claude Code Agent is closed");
       await this.transport?.close();
       this.failure = undefined;
-      await this.connect();
+      await this.startConnection();
     });
   }
   private get sessions() { return claudeSessionDirectory(this.workspaceId, this.agentId); }
-  private async connect() {
+  private async prepareState() {
+    const prepared = await prepareClaude(this.workspaceId, this.agentId);
+    this.instructions = prepared.instructions;
+    const { sessionId, forkedFrom } = this.record;
+    const exists = await hasClaudeSession(this.sessions, sessionId);
+    if (exists && forkedFrom) { delete this.record.forkedFrom; this.save(); }
+    // A fork has no history of its own until Claude records its first message.
+    const source = exists ? sessionId : forkedFrom;
+    this.state.hydrate(source ? await readClaudeRows(this.sessions, source) ?? [] : []);
+  }
+  private startConnection(statePrepared = false): Promise<void> {
+    if (this.connecting) return this.connecting;
+    const connection = this.connect(statePrepared);
+    this.connecting = connection;
+    void connection.then(
+      () => { if (this.connecting === connection) this.connecting = undefined; },
+      () => { if (this.connecting === connection) this.connecting = undefined; },
+    );
+    return connection;
+  }
+  private async connect(statePrepared = false) {
     this.running = false;
     this.backgroundTasks = [];
     this.interrupting = false;
     try {
-      const prepared = await prepareClaude(this.workspaceId, this.agentId);
-      this.instructions = prepared.instructions;
+      if (!statePrepared) await this.prepareState();
       const { sessionId, forkedFrom } = this.record;
       const exists = await hasClaudeSession(this.sessions, sessionId);
-      if (exists && forkedFrom) { delete this.record.forkedFrom; this.save(); }
-      // A fork has no history of its own until Claude records its first message.
-      const source = exists ? sessionId : forkedFrom;
-      this.state.hydrate(source ? await readClaudeRows(this.sessions, source) ?? [] : []);
       this.transport = await openClaudeTransport(this.workspaceId, this.agentId, {
         sessionId, ...exists ? { resume: sessionId } : forkedFrom ? { resume: forkedFrom, forkSession: true } : {},
         instructions: this.instructions,
@@ -108,6 +134,7 @@ export class ClaudeRuntime {
         effort: this.record.thinkingLevel as EffortLevel | undefined,
       }, message => this.receive(message), error => { this.failure = error; this.changed(); });
       const initialized = await this.transport.query.initializationResult();
+      if (this.disposed || this.closing) { await this.transport.close(); return; }
       // Claude only names its models by version once a few starts have built up its account state, so they are named as everywhere else in Kintsugi.
       const registry = await createPiModelRuntime();
       this.models = initialized.models.map(model => model.value === "default" ? model : { ...model, displayName: registry.getModel("anthropic", model.resolvedModel ?? model.value)?.name ?? model.displayName });
@@ -122,6 +149,7 @@ export class ClaudeRuntime {
     }
   }
   async send(input: WorkspaceAgentInput, requestId: string) {
+    await this.activate();
     return this.serialize(this.agentId, async () => {
       this.assertOpen();
       const text = [input.text, ...input.attachmentNotes].filter(Boolean).join("\n\n");
@@ -145,6 +173,7 @@ export class ClaudeRuntime {
     });
   }
   async command(command: ClaudeCommand, requestId: string): Promise<ClaudeCommandResult> {
+    await this.activate();
     if (command.kind === "model") {
       await this.configure({ model: `anthropic::${command.model}` });
       return { kind: "done", message: `Using ${this.selectedModel?.displayName ?? command.model}.` };
@@ -192,13 +221,14 @@ export class ClaudeRuntime {
     (this.record.commandSubmissions ??= []).push(submission);
     this.save();
     this.state.notices.length = 0;
-    await this.connect();
+    await this.startConnection();
     return { kind: "done", message: submission.message };
   }
   private requireIdle(action: string) {
     if (this.isBusy) throw invalidArguments(`Stop Claude before ${action}`);
   }
   async stop() {
+    await this.activate();
     this.assertOpen();
     if (this.running) {
       this.interrupting = true;
@@ -220,6 +250,7 @@ export class ClaudeRuntime {
     };
   }
   async configure(parameters: { model?: string; thinkingLevel?: string }) {
+    await this.activate();
     return this.serialize(this.agentId, async () => {
       this.assertOpen();
       if (this.isBusy) throw invalidArguments("Stop Claude before changing its model or thinking level");
@@ -312,6 +343,7 @@ export class ClaudeRuntime {
 export function createClaudeAgents(getEvents: () => KintsugiEventBus) {
   return createNativeAgents({
     store: createClaudeStore, settings, open: ClaudeRuntime.open,
+    activate: runtime => runtime.activate(),
     newRecord: (selected): ClaudeAgentRecord => ({ id: crypto.randomUUID(), title: label, sessionId: crypto.randomUUID(), ...selected, submissions: [] }),
   }, getEvents);
 }
