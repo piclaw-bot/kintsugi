@@ -91,8 +91,7 @@ class RuntimeController extends Controller {
     event.preventDefault();
     if (event.isTrusted && /^https?:\/\//i.test(href)) this.port?.postMessage({ type: "link", href });
   };
-  // Scrolling and keys over the frame never reach the host. It needs upward
-  // scrolling to stop following the transcript, and keys for its shortcuts.
+  // Scrolling over the frame never reaches the host; upward scrolling must stop transcript following.
   private wheel = (event: WheelEvent): void => {
     // Ctrl+wheel is pinch zoom.
     if (event.deltaY !== 0 && !event.ctrlKey) this.port?.postMessage({ type: "scroll", deltaY: event.deltaY });
