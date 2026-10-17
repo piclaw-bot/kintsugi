@@ -1,3 +1,4 @@
+import { telemetryConfigSchema } from "@kintsugi/llm/server";
 import { workspaceResourceChangeSchema } from "@kintsugi/shared/workspace-resources";
 import { privateNetworkAccessInput } from "../settings/private-network.ts";
 import { networkConfigurationSchema, networkModeSchema } from "@kintsugi/shared/network-policy";
@@ -22,6 +23,8 @@ export function adminInputSchema(route: AdminRoute): TSchema {
   const path = route.path;
   if (path.endsWith("/private-network-access")) return privateNetworkAccessInput;
   if (path === "/workspaces/{id}/resources") return workspaceResourceChangeSchema;
+  if (path === "/settings/telemetry" || path === "/settings/telemetry/test") return telemetryConfigSchema;
+  if (path === "/settings/telemetry/discard") return object({ confirmed: Type.Literal(true) });
   if (path === "/settings/network") return networkConfigurationSchema;
   if (path === "/workspaces/{id}/network") return object({ mode: networkModeSchema });
   if (path === "/settings/release-source") return releaseSourceSchema;

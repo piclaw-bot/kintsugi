@@ -25,6 +25,10 @@ for (const prefix of [template, globalSettings]) {
 }
 for (const suffix of ["delete", "preload-images"]) route("POST", `${template}/${suffix}`, ["configuration"]);
 for (const suffix of ["privileged", "seed-config", "dockerfile"]) route("POST", `${template}/${suffix}`, ["security"]);
+route("GET", "/settings/telemetry", ["security"], "Read token telemetry settings and export status");
+route("POST", "/settings/telemetry", ["security"], "Configure app-level Graphite export of new recorded usage");
+route("POST", "/settings/telemetry/test", ["security"], "Test a Carbon TCP connection without sending usage or saving settings");
+route("POST", "/settings/telemetry/discard", ["security"], "Explicitly discard pending token telemetry exports");
 route("GET", "/settings/network", ["security"], "Read LAN CIDRs and external DNS forwarders");
 route("POST", "/settings/network", ["security"], "Configure LAN CIDRs and external DNS forwarders; workspace restart required");
 route("GET", "/workspaces/{id}/resources", ["security"], "Inspect desired, Docker and cgroup limits without starting the workspace");

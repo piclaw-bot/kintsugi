@@ -16,3 +16,6 @@ export { anthropicSubscriptionUnavailableReason, requireProviderSubscription, us
 
 export { availableProviderModels, cheapestAvailableProviderModel } from "./known-model-provider-incorrectness.ts";
 export { codexAccountId } from "./codex-token.ts";
+
+export { tokenTelemetry, type TelemetryCounter, type TelemetrySnapshotSource } from "./token-telemetry.ts";
+export { telemetryConfigSchema } from "./token-telemetry-types.ts";

@@ -1,3 +1,4 @@
+import { registerDurableTelemetry } from "./durable-telemetry.ts";
 import { enabledModelOptionViews } from "@kintsugi/agent/server/model-state";
 import { getAgentModelThinkingLevel } from "@kintsugi/llm/server";
 import { publishWorkspaceAgentBusy } from "@kintsugi/agent/server";
@@ -55,6 +56,7 @@ export async function openDurableAgentRuntime(
   const { harness } = workspace;
   const agents = new Map<string, Promise<Awaited<ReturnType<typeof controller>>>>();
   const observers = new Set<() => Promise<void>>();
+  observers.add(await registerDurableTelemetry(harness, workspaceId));
   const commandDrains = new Set<() => Promise<void>>();
   const usageListeners = new Set<() => void>();
   const workListeners = new Set<() => void>();

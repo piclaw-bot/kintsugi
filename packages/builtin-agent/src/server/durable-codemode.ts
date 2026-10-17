@@ -1,3 +1,4 @@
+import { attributeModelToolUsage } from "./durable-model-tool-usage.ts";
 import type { JsonValue } from "@earendil-works/chord";
 import { defineEntry, type Extension, type JsonObject, type NestedToolExecutionResult } from "@earendil-works/pi-durable";
 import { CODEMODE_TOOL_NAME, createCodemodeExtension } from "@earendil-works/pi-durable/codemode";
@@ -98,7 +99,7 @@ export function createWorkspaceCodemodeExtension(workspaceId: string, sandbox: C
   const extension = createCodemodeExtension({ sandbox });
   // SAFETY: code mode uses only createTempDir and writeFile of its environment.
   const env = workspaceOutputFiles(workspaceId) as ExecutionEnv;
-  return { ...extension, tools: extension.tools?.map(tool => tool.name !== CODEMODE_TOOL_NAME ? tool : {
+  return { ...extension, tools: extension.tools?.map(attributeModelToolUsage).map(tool => tool.name !== CODEMODE_TOOL_NAME ? tool : {
     ...tool,
     execute: (args, api, context) => tool.execute(args, {
       ...api, env,
