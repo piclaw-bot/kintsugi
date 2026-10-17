@@ -29,14 +29,36 @@ test("workspace defaults bound memory, CPU and processes on small and large inst
   expect(workspaceResourceDefaults(2*GiB,1)).toEqual({ memory: GiB, cpus: 1, pids: 1024 });
   expect(workspaceResourceDefaults(64*GiB,64)).toEqual({ memory: 2*GiB, cpus: 4, pids: 1024 });
 });
-test("concurrent admission reserves RAM before Docker starts containers", () => fixture(async f => {
+test("concurrent admission accepts overlapping RAM and CPU caps before Docker starts containers", () => fixture(async f => {
   const control = f.create();
-  expect((await Promise.allSettled(["a","b","c","d"].map(id => control.admit(id)))).map(r=>r.status)).toEqual(["fulfilled","fulfilled","fulfilled","rejected"]);
+  expect((await Promise.allSettled(["a","b","c","d"].map(id => control.admit(id)))).map(r=>r.status)).toEqual(["fulfilled","fulfilled","fulfilled","fulfilled"]);
+  const snapshot=await control.inspect("a");
+  expect(snapshot.capacity.otherMemory+snapshot.desired.memory).toBeGreaterThan(snapshot.capacity.workspaceBudget);
+  expect(snapshot.capacity.otherCpus!+snapshot.desired.cpus).toBeGreaterThan(snapshot.capacity.cpus);
   expect(f.calls.filter(c=>c[0]==="update").every(c=>c.includes("no")&&c.includes("128"))).toBe(true);
 }));
-test("restoration parks excess workloads and preserves management/build headroom", () => fixture(async f => {
-  f.containers.forEach(c=>{c.State.Running=true;}); const result=await f.create().reconcile();
-  expect(f.containers.filter(c=>c.State.Running)).toHaveLength(3); expect(f.parked).toContain("d"); expect(result.budget).toBe(Math.floor(8*GiB*.8));
+test("reconciliation keeps healthy overlapping 4+2+2 GiB caps and preserves management/build headroom", () => fixture(async f => {
+  f.containers[0]!.HostConfig.Memory=4*GiB;f.containers[0]!.HostConfig.MemorySwap=4*GiB;
+  f.containers.slice(0,3).forEach(c=>{c.State.Running=true;}); const control=f.create(),result=await control.reconcile();
+  await control.reconcile(true);
+  expect(f.containers.filter(c=>c.State.Running)).toHaveLength(3);expect(f.parked).toEqual([]);
+  expect(["a","b","c"].every(id=>control.status().workspaces[id]!.desiredRunning)).toBe(true);
+  expect(result.budget).toBe(Math.floor(8*GiB*.8));expect(result.aggregateMemory).toBe(8*GiB);
+  // Even caps summing above the actual parent hard cap are not reservations.
+  f.containers[3]!.State.Running=true;await control.reconcile();
+  expect(f.containers.every(c=>c.State.Running)).toBe(true);expect(f.parked).toEqual([]);expect(f.calls.some(c=>c[0]==="stop")).toBe(false);
+}));
+test("configure allows overlapping limits while peers are running and pending admission", () => fixture(async f => {
+  const control=f.create(2*GiB);
+  await control.configure("a",{memory:4*GiB,additionalSwap:2*GiB,cpus:6});await control.admit("a");f.containers[0]!.State.Running=true;
+  await control.configure("b",{memory:2*GiB,additionalSwap:2*GiB,cpus:6});await control.admit("b");
+  f.containers[2]!.State.Running=true;
+  const changed=await control.configure("c",{memory:2*GiB,additionalSwap:2*GiB,cpus:6});
+  expect(changed.inSync).toBe(true);expect(changed.capacity.otherMemory).toBe(6*GiB);expect(changed.capacity.otherAdditionalSwap).toBe(4*GiB);
+  await control.admit("c");f.containers[1]!.State.Running=true;f.containers[2]!.State.Running=true;
+  await control.reconcile();expect(f.containers.slice(0,3).every(c=>c.State.Running)).toBe(true);expect(f.parked).toEqual([]);
+  const maximum=await control.configure("d",{memory:changed.capacity.workspaceBudget,additionalSwap:2*GiB,cpus:6});
+  expect(maximum.inSync).toBe(true);await control.admit("d");
 }));
 test("a child OOM trips durable containment without restarting the app or unrelated workspace", () => fixture(async f => {
   f.containers[0]!.State.Running=true;f.containers[1]!.State.Running=true;
@@ -105,11 +127,11 @@ test("RAM and CPU changes apply live and survive recreation without restarting u
   expect(f.calls.slice(index).some(c=>c[0]==="start"||c[0]==="stop"||c[0]==="restart")).toBe(false);
   f.containers[0]=container("a");f.containers[0]!.Id="new-a";await f.create().admit("a");expect(f.containers[0]!.HostConfig.Memory).toBe(GiB);expect(f.containers[0]!.HostConfig.NanoCpus).toBe(1.5e9);
 }));
-test("unsafe reductions need acknowledgement and admission rejects unlimited or overcommitted allocations", () => fixture(async f => {
+test("unsafe reductions need acknowledgement and individual limits must be finite and within capacity", () => fixture(async f => {
   f.containers[0]!.State.Running=true;const control=f.create();await control.reconcile();const before=await readFile(f.file,"utf8");
   await expect(control.configure("a",{memory:64*1024**2,additionalSwap:0,cpus:1})).rejects.toThrow("Confirm");expect(await readFile(f.file,"utf8")).toBe(before);
-  await expect(control.configure("a",{memory:0,additionalSwap:0,cpus:1})).rejects.toThrow();
-  await expect(control.configure("a",{memory:7*GiB,additionalSwap:0,cpus:1})).rejects.toThrow("budget");
+  for(const memory of [0,-1,Infinity,NaN])await expect(control.configure("a",{memory,additionalSwap:0,cpus:1})).rejects.toThrow();
+  await expect(control.configure("a",{memory:7*GiB,additionalSwap:0,cpus:1})).rejects.toThrow("per-workspace maximum");
   await expect(control.configure("a",{memory:GiB,additionalSwap:1024**2,cpus:1})).rejects.toThrow("swap");
   await expect(control.configure("a",{memory:GiB,additionalSwap:0,cpus:7})).rejects.toThrow("CPU");
   const applied=await control.configure("a",{memory:64*1024**2,additionalSwap:0,cpus:1,acknowledgeMemoryReduction:true});expect(applied.inSync).toBe(true);
@@ -120,13 +142,17 @@ test("failed live applies keep desired settings durable and do not silently retr
   const failed=await control.configure("a",{memory:3*GiB,additionalSwap:0,cpus:2});expect(failed.pending).toBe(true);expect(failed.inSync).toBe(false);expect(failed.applied.memory).toBe(2*GiB);expect(failed.desired.memory).toBe(3*GiB);
   f.refuseUpdate(false);const restored=f.create();await restored.reconcile();expect(f.containers[0]!.HostConfig.Memory).toBe(2*GiB);expect((await restored.inspect("a")).pending).toBe(true);
   await expect(restored.admit("a")).rejects.toThrow("pending");
+  // A failed live apply is not a reservation blocking another workspace.
+  expect((await restored.configure("b",{memory:4*GiB,additionalSwap:0,cpus:6})).inSync).toBe(true);await restored.admit("b");
   expect((await restored.configure("a",{memory:3*GiB,additionalSwap:0,cpus:2})).inSync).toBe(true);
 }));
-test("additional swap is distinct from Docker total memory-swap and has aggregate admission", () => fixture(async f => {
-  const extra=128*1024**2,control=f.create(2*extra);
-  for(const id of ["a","b","c"])await control.configure(id,{memory:GiB,additionalSwap:extra,cpus:1});
+test("additional swap caps overlap but each is bounded by shared swap capacity", () => fixture(async f => {
+  const extra=128*1024**2,control=f.create(extra);
+  for(const id of ["a","b","c","d"])await control.configure(id,{memory:GiB,additionalSwap:extra,cpus:1});
   expect((await control.inspect("a")).applied.memorySwap).toBe(GiB+extra);
-  await control.admit("a");await control.admit("b");await expect(control.admit("c")).rejects.toThrow("swap admission");
+  expect((await Promise.allSettled(["a","b","c","d"].map(id=>control.admit(id)))).every(r=>r.status==="fulfilled")).toBe(true);
+  await expect(control.configure("a",{memory:GiB,additionalSwap:extra+1,cpus:1})).rejects.toThrow("swap capacity");
+  f.containers.forEach(c=>{c.State.Running=true;});await control.reconcile();expect(f.parked).toEqual([]);
 }));
 
 test("kernels without swap controls still apply RAM and CPU safely without pretending to grant swap",()=>fixture(async f=>{
@@ -134,6 +160,15 @@ test("kernels without swap controls still apply RAM and CPU safely without prete
   const changed=await control.configure("a",{memory:GiB,additionalSwap:0,cpus:1});expect(changed.inSync).toBe(true);expect(changed.capacity.swapSupported).toBe(false);
   expect(f.calls.filter(c=>c[0]==="update").every(c=>!c.includes("--memory-swap"))).toBe(true);
   await expect(control.configure("a",{memory:GiB,additionalSwap:1024**2,cpus:1})).rejects.toThrow("swap");
+}));
+test("pending admission protects startup intent, then expires so an operator stop stays parked",()=>fixture(async f=>{
+  const control=f.create();await control.admit("a");await control.reconcile();expect(control.status().workspaces.a!.desiredRunning).toBe(true);expect(f.parked).not.toContain("a");
+  f.advance(60_001);await control.admit("b");await control.reconcile();expect(control.status().workspaces.a!.desiredRunning).toBe(false);expect(f.parked).toContain("a");
+}));
+test("admission rejects individual operator caps beyond RAM, CPU or swap capacity",()=>fixture(async f=>{
+  for(const configure of [(c:ReturnType<typeof container>)=>{c.HostConfig.Memory=7*GiB;c.HostConfig.MemorySwap=7*GiB;},(c:ReturnType<typeof container>)=>{c.HostConfig.NanoCpus=7e9;},(c:ReturnType<typeof container>)=>{c.HostConfig.Memory=GiB;c.HostConfig.MemorySwap=2*GiB;}]){
+    configure(f.containers[0]=container("a"));await expect(f.create().admit("a")).rejects.toThrow();
+  }
 }));
 test("last exit metadata remains visible after a successful retry and later recreation",()=>fixture(async f=>{
   const c=f.containers[0]!;c.State.OOMKilled=true;c.State.ExitCode=137;c.State.FinishedAt="2026-10-16T19:00:00Z";const control=f.create();await control.reconcile();f.advance(60_001);await control.admit("a",true);
