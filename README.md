@@ -8,25 +8,29 @@ Kintsugi is an opinionated fork of [AgentsInTheCloud](https://github.com/lucasme
 
 Kintsugi combines reviewed upstream changes with fork-specific additions:
 
-- Native AMD64 and ARM64 builds.
-- A mobile-friendly, resizable composer.
-- Built-in agent code mode, including classifier and image models.
-- GitHub, GitLab.com and Bitbucket Cloud connections, plus a configurable Gitea HTTPS instance.
-- A Changes view that includes unchanged tracked files, working-tree text editing, image previews and browser-supported audio/video playback.
+### Agents and workspace tools
+
+- Mobile-friendly, resizable composer and built-in agent code mode with classifier and image models.
+- GitHub, GitLab.com, Bitbucket Cloud and configurable Gitea HTTPS connections.
+- Changes view with unchanged tracked files, working-tree text editing, image previews and browser-supported audio/video. Bounded reads and on-demand scans keep closed Changes views off workspace startup.
+- File-viewer word wrapping, including Markdown source, plus embedded Draw.io editing and diagram previews.
 - Dictation that preserves trailing audio and releases the microphone when recording ends.
-- An embedded Draw.io editor and diagram previews.
-- Workspace properties with desired/effective resource limits, live RAM/swap/CPU changes, OOM/restart diagnostics and staged network controls.
-- Finite installation/workspace resource budgets, aggregate admission and persistent OOM circuit breaking.
-- A scoped, token-authenticated management API.
-- Configurable Docker release sources, private GHCR authentication, pinned updates and installer rollback.
-- Word wrapping in the file viewer, including Markdown source mode.
-- GitHub Copilot subscription usage, quota information and consistently labeled calendar-month pacing across Copilot and Codex.
-- OpenCode Go five-hour and weekly usage tracking, with monthly exhaustion reflected in availability.
-- Unattended installation and transactional admin bootstrap with private token delivery.
-- Trusted LAN proxy access with configurable preview origins, Caddy TLS termination and persistent publications.
-- A 1,000-origin preview pool (`41000–41999`) with retained identities and pane-local failure handling.
-- Opt-in workspace LAN/private-network permissions, exact private TCP host/port grants, configurable CIDR groups and external DNS/mDNS forwarders, with restart status and security-scoped admin settings.
-- Tag-only releases with native AMD64/ARM64 builds, staged checks, shared caches and selective CI.
+- Copilot/Codex usage and quotas with calendar-month pacing, plus OpenCode Go five-hour/weekly usage and availability checks for monthly exhaustion.
+
+### Resources and networking
+
+- Workspace Properties with usage/peaks, desired/effective limits, OOM/restart diagnostics, live RAM/additional-swap/CPU edits and staged network settings.
+- Finite installation/workspace limits, shared workload boundaries, host/management headroom and persistent OOM circuit breaking. Workspace caps may overlap; they are not memory reservations.
+- Home and Settings stay accessible with stopped or hung workspaces; pane failures stay local and deliberately stopped workspaces stay stopped.
+- Trusted LAN proxy access with Caddy TLS, persistent publications and a configurable pool of 1,000 retained preview origins (`41000–41999`).
+- Opt-in LAN/private-network access, exact private TCP host/port grants, CIDR groups and DNS/mDNS forwarders, with management/peer exclusions, DNS pinning and security-scoped settings.
+
+### Installation and automation
+
+- Native AMD64/ARM64 builds with EROFS or OverlayFS storage.
+- Unattended installation, a scoped token-authenticated management API and transactional admin bootstrap with private token delivery.
+- Custom Docker release sources, private GHCR authentication, pinned updates and paired app/System updates with rollback. Installer replacements preserve finite resource caps; updater startup repairs its early boot directories.
+- Tag-only releases with staged native checks, shared build caches and selective CI.
 
 The name comes from **金継ぎ**, the Japanese art of repairing pottery with gold, because the original project was a brilliant way to glue together several components and I wanted to honor that approach.
 
