@@ -65,7 +65,7 @@ interface Editors {
   section(name: "secrets" | "ssh" | "environment" | "network"): TemplateSettingsSection;
   form(path: string, contents: string, options: EditorFormOptions): string;
   disclosure(section: TemplateSettingsSection, editor: string | undefined, label: string, contents: string, description?: string, attributesHtml?: string): string;
-  removeForm(path: string, section: TemplateSettingsSection, label: string, consequence: string): string;
+  removeForm(path: string, section: TemplateSettingsSection, label: string): string;
   actionUrl(path: string): string;
 }
 
@@ -93,8 +93,8 @@ function editors(scope: ConfigurationScope, location: EditorLocation, saved: boo
       const summaryContent = description ? { kind: "multiline" as const, description } : { kind: "compact" as const };
       return disclosureHtml({ element: { attributesHtml: `data-settings-editor-disclosure="${escapeHtml(editorKey(section, editor))}"${attributesHtml ? ` ${attributesHtml}` : ""}` }, summary: { ...summaryContent, width: "fit", label: { kind: "text", text: label }, attributesHtml: `data-settings-editor-record="${escapeHtml(editorKey(section, editor))}"` }, bodyHtml: `<div class="template-settings-inline-body">${contents}</div>`, open: opened(section, editor) });
     },
-    removeForm(path, section, label, consequence) {
-      return `<div class="template-settings-remove">${paragraph(consequence)}<form method="post" action="${escapeHtml(actionUrl(path))}" data-action="turbo:submit-start->settings-editor#submitting turbo:submit-end->settings-editor#submitted">${destructiveConfirmationHtml({ id: `template_remove_${section}_${path.replace(/[^a-zA-Z0-9]/g, "_")}`, trigger: { type: "button", variant: "danger", content: { kind: "caption", caption: label } }, confirmCaption: label, cancelCaption: "Cancel" })}</form></div>`;
+    removeForm(path, section, label) {
+      return `<div class="template-settings-remove"><form method="post" action="${escapeHtml(actionUrl(path))}" data-action="turbo:submit-start->settings-editor#submitting turbo:submit-end->settings-editor#submitted">${destructiveConfirmationHtml({ id: `template_remove_${section}_${path.replace(/[^a-zA-Z0-9]/g, "_")}`, trigger: { type: "button", variant: "danger", content: { kind: "caption", caption: label } }, confirmCaption: label, cancelCaption: "Cancel" })}</form></div>`;
     },
   };
 }
@@ -126,7 +126,7 @@ function secretEditor(e: Editors, secret?: WorkspaceTemplateSecretSummary): stri
       ${toggleHtml({ variant: "button", label: "Allow substitution in URL paths", name: "allowInPath", value: permission, options: [{ value: "false", label: "Disallow" }, { value: "true", label: "Allow" }], element: { dataAction: `${isNew ? "click->workspace-template-new-secret#choose change->workspace-template-new-secret#choose " : ""}change->settings-editor#toggleChanged`, data: isNew ? { "workspace-template-new-secret-target": "toggle" } : undefined } })}</div>
       ${paragraph("Allow only if the service needs this secret in its URL path, rather than headers or the request body.")}
     </div>` })}`;
-  return `${secret ? paragraph(secret.configured ? "Secret stored" : "No value stored") : ""}${e.form(`/secrets${secret ? `/${encodeURIComponent(secret.id)}` : ""}`, content, { section, editor: record, caption: isNew ? "Add secret" : "Save changes", attributesHtml: isNew ? 'data-controller="workspace-template-new-secret"' : "" })}${secret ? e.removeForm(`/secrets/${encodeURIComponent(secret.id)}/delete`, section, "Delete secret", `Delete ${secret.envName} and its stored value. Requests using it will no longer receive this secret.`) : ""}`;
+  return `${secret ? paragraph(secret.configured ? "Secret stored" : "No value stored") : ""}${e.form(`/secrets${secret ? `/${encodeURIComponent(secret.id)}` : ""}`, content, { section, editor: record, caption: isNew ? "Add secret" : "Save changes", attributesHtml: isNew ? 'data-controller="workspace-template-new-secret"' : "" })}${secret ? e.removeForm(`/secrets/${encodeURIComponent(secret.id)}/delete`, section, "Delete secret") : ""}`;
 }
 
 function secretsSection(e: Editors, secrets: WorkspaceTemplateSecretSummary[], counterpart?: Counterpart): string {
@@ -138,7 +138,7 @@ function environmentSection(e: Editors, variables: WorkspaceTemplateEnvironmentV
   const section = e.section("environment");
   const editor = (variable?: WorkspaceTemplateEnvironmentVariable) => {
     const record = variable?.id ?? "new";
-    return `${e.form(`/environment${variable ? `/${encodeURIComponent(variable.id)}` : ""}`, `<div class="template-settings-inline-fields">${field("Name", "name", variable?.name ?? "", 'required autocomplete="off"')}${field("Value", "value", variable?.value ?? "", 'autocomplete="off"')}</div>`, { section, editor: record, caption: variable ? "Save changes" : "Add variable" })}${variable ? e.removeForm(`/environment/${encodeURIComponent(variable.id)}/delete`, section, "Remove variable", `Remove ${variable.name} from new workspaces. Existing containers stay unchanged.`) : ""}`;
+    return `${e.form(`/environment${variable ? `/${encodeURIComponent(variable.id)}` : ""}`, `<div class="template-settings-inline-fields">${field("Name", "name", variable?.name ?? "", 'required autocomplete="off"')}${field("Value", "value", variable?.value ?? "", 'autocomplete="off"')}</div>`, { section, editor: record, caption: variable ? "Save changes" : "Add variable" })}${variable ? e.removeForm(`/environment/${encodeURIComponent(variable.id)}/delete`, section, "Remove variable") : ""}`;
   };
   return e.disclosure(section, undefined, "Environment variables", `${paragraph("Added to new workspaces. Use Secrets for passwords and API keys.")}<div class="template-settings-inline-records">${variables.map(variable => e.disclosure(section, variable.id, variable.name, editor(variable), counterpart?.records.environment.some(other => other.name === variable.name) ? counterpart.describe(variable.name) : undefined)).join("")}${e.disclosure(section, "new", "Add variable", editor())}</div>`);
 }
@@ -150,7 +150,7 @@ function sshSection(e: Editors, keys: WorkspaceTemplateSshKeySummary[], knownHos
     const fields = e.form(`/ssh-keys${key ? `/${encodeURIComponent(key.id)}` : ""}`, `${field("Name", "name", key?.name ?? "", 'autocomplete="off"')}${key ? "" : textarea("Private key", "privateKey", "", 7, 'required autocomplete="off" spellcheck="false"')}`, { section, editor: record, caption: key ? "Save changes" : "Add key" });
     if (!key) return fields;
     const copy = buttonConfirmationHtml({ type: "button", variant: "secondary", content: { kind: "caption", caption: "Copy public key", iconHtml: Icons.Copy }, confirmationLabel: "Copied to clipboard", attributesHtml: 'data-action="ssh-public-key-copy#copy"' });
-    return `${fields}<div class="template-settings-toolbar" data-controller="ssh-public-key-copy" data-ssh-public-key-copy-url-value="${escapeHtml(e.actionUrl(`/ssh-keys/${encodeURIComponent(key.id)}/public-key`))}"><span>${escapeHtml(key.keyType)}</span>${copy}<span data-ssh-public-key-copy-target="error" role="status" hidden>Could not copy key</span></div>${e.removeForm(`/ssh-keys/${encodeURIComponent(key.id)}/delete`, section, "Remove key", `Remove SSH key “${key.name || key.keyType}”. Connections relying on it may stop working.`)}`;
+    return `${fields}<div class="template-settings-toolbar" data-controller="ssh-public-key-copy" data-ssh-public-key-copy-url-value="${escapeHtml(e.actionUrl(`/ssh-keys/${encodeURIComponent(key.id)}/public-key`))}"><span>${escapeHtml(key.keyType)}</span>${copy}<span data-ssh-public-key-copy-target="error" role="status" hidden>Could not copy key</span></div>${e.removeForm(`/ssh-keys/${encodeURIComponent(key.id)}/delete`, section, "Remove key")}`;
   };
   const trusted = e.form("/ssh-known-hosts", `${paragraph("GitHub, GitLab and Bitbucket are trusted by default. Only add identities you have verified with the server’s administrator.")}${textarea("Known hosts", "knownHosts", knownHosts, 7, 'spellcheck="false"')}`, { section, editor: "known-hosts" });
   return e.disclosure(section, undefined, "SSH keys", `${paragraph("Your agent may use these but can’t see them. Private keys are encrypted outside workspaces. Changes also apply to existing workspaces.")}<div class="template-settings-inline-records">${keys.map(key => e.disclosure(section, key.id, key.name || "Unnamed key", keyEditor(key))).join("")}${e.disclosure(section, "new", "Add key", keyEditor())}${e.disclosure(section, "known-hosts", "Trusted SSH servers", trusted)}</div>`);
