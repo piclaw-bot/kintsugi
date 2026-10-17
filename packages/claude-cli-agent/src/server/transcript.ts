@@ -8,6 +8,7 @@ import { Value } from "typebox/value";
 
 const imageSourceSchema = Type.Object({ type: Type.Literal("base64"), media_type: Type.String(), data: Type.String() });
 const resultBlockSchema = Type.Object({ type: Type.String(), text: Type.Optional(Type.String()), source: Type.Optional(imageSourceSchema) });
+const bashInputSchema = Type.Object({ timeout: Type.Optional(Type.Number()) });
 const editInputSchema = Type.Object({ file_path: Type.String(), old_string: Type.String(), new_string: Type.String(), replace_all: Type.Optional(Type.Boolean()) });
 const blockSchema = Type.Object({
   type: Type.String(), text: Type.Optional(Type.String()), thinking: Type.Optional(Type.String()),
@@ -30,7 +31,8 @@ type ClaudeBlock = Static<typeof blockSchema>;
 type ProjectedToolCall = { name: string; args: unknown };
 /** Claude's file and shell tools render like Kintsugi's own. */
 export function claudeToolCall(block: Pick<ClaudeBlock, "name" | "input">): ProjectedToolCall {
-  if (block.name === "Bash") return { name: "bash", args: block.input };
+  // Claude's Bash timeout is in milliseconds and defaults to two minutes; AgentsInTheCloud's is in seconds.
+  if (block.name === "Bash") return { name: "bash", args: Value.Check(bashInputSchema, block.input) ? { ...block.input, timeout: (block.input.timeout ?? 120_000) / 1000 } : block.input };
   if (block.name === "Read") return { name: "read", args: block.input };
   if (block.name === "Write") return { name: "write", args: block.input };
   if (block.name === "Edit" && Value.Check(editInputSchema, block.input) && block.input.replace_all !== true) {

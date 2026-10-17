@@ -2,7 +2,7 @@ import { expect, test } from "bun:test";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
-import { claudeTranscriptRecords, claudeTurnSettled, loadClaudeTranscriptImage } from "../src/server/transcript.ts";
+import { claudeToolCall, claudeTranscriptRecords, claudeTurnSettled, loadClaudeTranscriptImage } from "../src/server/transcript.ts";
 
 type Image = { type: "image"; source: { type: "base64"; media_type: string; data: string } };
 type Content = string | Array<{ type: string; thinking?: string; text?: string; id?: string; name?: string; input?: { command: string } | { file_path: string; old_string: string; new_string: string; replace_all?: boolean }; tool_use_id?: string; content?: string | Array<Image>; is_error?: boolean; source?: Image["source"] }>;
@@ -22,6 +22,11 @@ test("projects Claude user, thinking, text, tools and results into transcript re
   expect(records[1]).toMatchObject({ parts: [{ type: "thinking", text: "Search" }, { type: "toolCall", callId: "call", name: "bash" }] });
   expect(records[2]).toMatchObject({ callId: "call", text: "file.ts" });
   expect(records[3]).toMatchObject({ stopReason: "stop", parts: [{ type: "text", text: "Found it" }] });
+});
+
+test("converts Claude's millisecond Bash timeout to the seconds the bash visualization expects", () => {
+  expect(claudeToolCall({ name: "Bash", input: { command: "ls", timeout: 300_000 } })).toEqual({ name: "bash", args: { command: "ls", timeout: 300 } });
+  expect(claudeToolCall({ name: "Bash", input: { command: "ls" } })).toEqual({ name: "bash", args: { command: "ls", timeout: 120 } });
 });
 
 test("preserves image references and failed tool results", () => {
