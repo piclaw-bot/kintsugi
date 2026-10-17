@@ -6,31 +6,29 @@ Kintsugi is an opinionated fork of [AgentsInTheCloud](https://github.com/lucasme
 
 ## Features
 
-Kintsugi combines reviewed upstream changes with fork-specific additions:
+Kintsugi adds the following to upstream AgentsInTheCloud:
 
-### Agents and workspace tools
-
-- Mobile-friendly, resizable composer and built-in agent code mode with classifier and image models.
-- GitHub, GitLab.com, Bitbucket Cloud and configurable Gitea HTTPS connections.
-- Changes view with unchanged tracked files, working-tree text editing, image previews and browser-supported audio/video. Bounded reads and on-demand scans keep closed Changes views off workspace startup.
-- File-viewer word wrapping, including Markdown source, plus embedded Draw.io editing and diagram previews.
-- Dictation that preserves trailing audio and releases the microphone when recording ends.
-- Copilot/Codex usage and quotas with calendar-month pacing, plus OpenCode Go five-hour/weekly usage and availability checks for monthly exhaustion.
-
-### Resources and networking
+### Workspace controls and safety
 
 - Workspace Properties with usage/peaks, desired/effective limits, OOM/restart diagnostics, live RAM/additional-swap/CPU edits and staged network settings.
 - Finite installation/workspace limits, shared workload boundaries, host/management headroom and persistent OOM circuit breaking. Workspace caps may overlap; they are not memory reservations.
-- Home and Settings stay accessible with stopped or hung workspaces; pane failures stay local and deliberately stopped workspaces stay stopped.
+- Home and Settings remain accessible with stopped or hung workspaces. Pane failures stay local, and deliberately stopped workspaces stay stopped.
+- Bounded Changes reads and on-demand repository scans, so closed Changes views do not block workspace startup.
+
+### Networking and deployment
+
 - Trusted LAN proxy access with Caddy TLS, persistent publications and a configurable pool of 1,000 retained preview origins (`41000–41999`).
 - Opt-in LAN/private-network access, exact private TCP host/port grants, CIDR groups and DNS/mDNS forwarders, with management/peer exclusions, DNS pinning and security-scoped settings.
+- Unattended installation, OverlayFS support for kernels without EROFS, and a scoped token-authenticated management API with private bootstrap-token delivery.
+- Custom Docker release sources, private GHCR authentication, version pins and retained-pair rollback. The host updater coordinates app/System updates; installer replacements preserve finite resource caps.
+- Tag-only releases with verified native AMD64/ARM64 images, staged checks, shared build caches and selective CI.
 
-### Installation and automation
+### Tools and provider extensions
 
-- Native AMD64/ARM64 builds with EROFS or OverlayFS storage.
-- Unattended installation, a scoped token-authenticated management API and transactional admin bootstrap with private token delivery.
-- Custom Docker release sources, private GHCR authentication, pinned updates and paired app/System updates with rollback. Installer replacements preserve finite resource caps; updater startup repairs its early boot directories.
-- Tag-only releases with staged native checks, shared build caches and selective CI.
+- A configurable Gitea HTTPS connection, including custom ports and installation subpaths, with credentials restricted to its exact origin.
+- An embedded Draw.io editor and diagram previews with page tabs.
+- Extended Copilot quota reporting and corrected Copilot/Codex calendar-month pacing, plus OpenCode Go five-hour/weekly usage and monthly-exhaustion availability checks.
+- Classifier-only provider credentials for code mode and Pi, and microphone release when dictation stops, adapted from Larry Hudson’s fork.
 
 The name comes from **金継ぎ**, the Japanese art of repairing pottery with gold, because the original project was a brilliant way to glue together several components and I wanted to honor that approach.
 
@@ -75,13 +73,11 @@ Stop active code-mode scripts before downgrading to an app that predates code mo
 
 ## Git hosting
 
-Open **Settings → Git hosting** to connect GitHub, GitLab.com, Bitbucket Cloud or Gitea. Repository search uses connected accounts; public GitHub search also works without a connection. Workspace images include `gh`, `glab` and `bkt`.
+Kintsugi adds Gitea alongside upstream’s GitHub, GitLab.com and Bitbucket Cloud connections. Open **Settings → Git hosting** to configure it.
 
-For Gitea, enter one server's HTTPS URL and personal access token. Custom ports and installation subpaths are supported, and the Git username comes from the validated account. The certificate must be trusted by the host. No additional Gitea CLI is installed. GitLab support currently targets gitlab.com, not arbitrary self-hosted instances.
+For Gitea, enter one server's HTTPS URL and personal access token. Custom ports and installation subpaths are supported, and the Git username comes from the validated account. The certificate must be trusted by the host. No additional Gitea CLI is installed.
 
 Provider tokens stay outside Agent sandboxes. Workspaces receive placeholders that the egress proxy substitutes only for permitted destinations; Gitea credentials are restricted to the configured HTTPS origin, including its port. Connecting a private server does not grant workspace LAN access or automatically trust its SSH key. Configure [network permissions](docs/automation.md#exact-private-tcp-destinations) and SSH trust separately.
-
-Existing workspace containers do not gain new provider CLIs or environment variables merely because the app was updated. They need preparation against the updated workspace image; custom images must supply their own tools.
 
 ## Management API
 
