@@ -52,7 +52,10 @@ async function proxyRequest(port: number, target: string, { method = "GET", head
   method?: string; headers?: Record<string, string>; body?: string;
 } = {}) {
   return await new Promise<{ status: number; body: string }>((resolve, reject) => {
-    const req = request({ hostname: "127.0.0.1", port, path: target, method,
+    // The restart case needs a new connection to the surviving relay, not a
+    // global-Agent socket whose upstream listener has just been closed. Explicit
+    // persistent TLS tests below retain their own connections independently.
+    const req = request({ hostname: "127.0.0.1", port, path: target, method, agent: false,
       headers: { ...headers, host: new URL(target).host, "content-length": Buffer.byteLength(body) },
     }, (response) => {
       let body = "";
