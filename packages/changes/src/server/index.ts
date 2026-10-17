@@ -14,7 +14,7 @@ import { Type } from "typebox";
 import { Value } from "typebox/value";
 import { collectUnchangedPaths, readUnchangedContents, readUnchangedFile, unchangedMediaType, type ChangesFile, type UnchangedFile } from "./diff.ts";
 import { canEditFile } from "../editing.ts";
-import { renderEditModel, renderUnchangedFile, renderUnchangedPaths, changesBodyId, comparisonId, errorId, historyContentId, renderChanges, renderChangesTitle, renderChangesFile, renderComparison, renderError, renderHistory, renderDiff } from "./render.ts";
+import { renderEditModel, renderUnchangedFile, renderUnchangedPaths, changesBodyId, comparisonId, errorId, historyContentId, renderChanges, renderChangesFile, renderComparison, renderError, renderHistory, renderDiff } from "./render.ts";
 import type { DiffEndpoints } from "../history.ts";
 import { captureChanges, commitHistory, InvalidDiffEndpoints, workingTree, type ChangesSnapshot } from "./snapshot.ts";
 
@@ -255,7 +255,10 @@ export const kintsugiServerModule: WorkspaceModule = {
   initialize(context) {
     invalidateWorkspace = context.invalidateWorkspace;
     context.events.on("workspace_agent_turn_finished", async ({ workspaceId }) => {
-      const state = await current(workspaceId);
+      // Do not scan repositories for workspaces whose Changes view has never been opened.
+      const pending = states.get(workspaceId);
+      if (!pending) return;
+      const state = await pending;
       const ticket = ++state.request;
       const next = await refreshChanges(workspaceRepository(workspaceId), state.snapshot);
       // A later user selection owns the comparison; don't overwrite it with this capture.
@@ -270,10 +273,10 @@ export const kintsugiServerModule: WorkspaceModule = {
     });
     context.onWorkspaceRemoved(workspaceId => { states.delete(workspaceId); changesEdits.delete(workspaceId); clearDeletionReview(workspaceId); reviewComments.delete(workspaceId); });
   },
-  async attachToWorkspace({ workspaceId }) {
-    const { snapshot } = await current(workspaceId);
+  attachToWorkspace() {
+    // Attaching a closed view must not put repository capture on the workspace's critical path.
     return {
-      workViews: [{ reference, sourceKey: "changes:workspace", label: renderChangesTitle(snapshot), kind: "contextual", iconHtml: Icons.Changes, availability: { phase: "live" }, initiallyOpen: false }],
+      workViews: [{ reference, sourceKey: "changes:workspace", label: "Changes", kind: "contextual", iconHtml: Icons.Changes, availability: { phase: "live" }, initiallyOpen: false }],
       commands: [{ id: "changes.open", label: "Changes", description: "Compare local commits and uncommitted changes.", scope: "workspace", surfaces: { ui: { placement: "work-launcher", iconHtml: Icons.Changes, label: "Changes" }, shortcut: { defaultBinding: "Meta+Alt+KeyC" } } }],
     };
   },
