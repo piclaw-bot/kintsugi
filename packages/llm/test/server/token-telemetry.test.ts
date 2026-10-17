@@ -1,3 +1,5 @@
+import { SessionManager } from "@earendil-works/pi-coding-agent";
+import { isJsonObject } from "@kintsugi/core";
 import { afterEach, expect, test } from "bun:test";
 import { appendFile, mkdtemp, mkdir, readFile, rename, rm, stat, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -234,4 +236,111 @@ test("test connection sends no usage, and Carbon transport writes newline-termin
     const payload = "kintsugi.test.usage.provider.model.tokens.total 42 123\n";
     await sendCarbon("127.0.0.1", address.port, payload); expect(chunks.join("")).toBe(payload);
   } finally { await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve())); }
+});
+
+test("Claude recovers session identity for partial usage records and lets response models override it", () => {
+  const meta = state();
+  nativeUsageRecords("claude", { type: "system", subtype: "init", model: "claude-session" }, meta, cutoff, "file");
+  const { model: _model, ...message } = claudeRow("partial").message;
+  expect(nativeUsageRecords("claude", { ...claudeRow("partial"), message }, meta, cutoff, "file")[0]!.model).toBe("claude-session");
+  expect(nativeUsageRecords("claude", claudeRow("concrete"), meta, cutoff, "file")[0]!.model).toBe("claude-test");
+});
+
+test("Codex keeps explicit native provider identity and separates model changes without changing cache counts", () => {
+  const meta = state();
+  nativeUsageRecords("codex", { type: "session_meta", payload: { id: "thread", model_provider: "private-provider" } }, meta, cutoff, "file");
+  nativeUsageRecords("codex", { type: "turn_context", payload: { model: "model-one", turn_id: "one" } }, meta, cutoff, "file");
+  const first = nativeUsageRecords("codex", codexRow(100), meta, cutoff, "file")[0]!;
+  expect(first).toMatchObject({ provider: "private-provider", model: "model-one", usage: { input: 5, output: 5, cache_read: 5, total: 15 } });
+  expect(metricPoints(config, [first], 100).find(point => point.path.endsWith("cache.hit_percent"))!.value).toBe(50);
+  nativeUsageRecords("codex", { type: "turn_context", payload: { model: "model-two", turn_id: "two" } }, meta, cutoff, "file");
+  expect(nativeUsageRecords("codex", codexRow(110), meta, cutoff, "file")[0]).toMatchObject({ provider: "private-provider", model: "model-two", usage: { total: 15 } });
+  nativeUsageRecords("codex", { type: "session_meta", payload: { id: "another-thread", model_provider: "openai" } }, meta, cutoff, "file");
+  nativeUsageRecords("codex", { type: "turn_context", payload: { model: "fresh" } }, meta, cutoff, "file");
+  expect(nativeUsageRecords("codex", codexRow(10), meta, cutoff, "file")[0]).toMatchObject({ provider: "openai-codex", model: "fresh", usage: { total: 15 } });
+});
+
+test("Pi recovers identity from the correct branch instead of a sibling's last model", () => {
+  const meta = state();
+  nativeUsageRecords("pi", { type: "model_change", id: "model-a", parentId: null, provider: "provider-a", modelId: "model-a" }, meta, cutoff, "file");
+  nativeUsageRecords("pi", { type: "message", id: "user", parentId: "model-a", message: { role: "user" } }, meta, cutoff, "file");
+  nativeUsageRecords("pi", { type: "model_change", id: "sibling", parentId: "user", provider: "provider-b", modelId: "model-b" }, meta, cutoff, "file");
+  const { provider: _provider, model: _model, ...message } = piRow("recovered").message;
+  const recovered = nativeUsageRecords("pi", { ...piRow("recovered"), parentId: "user", message }, meta, cutoff, "file")[0]!;
+  expect(recovered).toMatchObject({ provider: "provider-a", model: "model-a", usage });
+  const points = metricPoints(config, [recovered], 100);
+  expect(points.find(point => point.path.endsWith("tokens.prompt"))!.value).toBe(33);
+  expect(points.find(point => point.path.endsWith("cache.hit_percent"))!.value).toBeCloseTo(20 / 33 * 100);
+  const unresolved = nativeUsageRecords("pi", { ...piRow("missing-parent"), parentId: "unavailable-ancestor", message }, meta, cutoff, "file")[0]!;
+  expect(unresolved.provider).toBe("unknown"); expect(unresolved.model).toBe("unknown");
+});
+
+test("Pi physical response models and standalone usage keep their own identity, including cache warming", () => {
+  const meta = state();
+  const response = nativeUsageRecords("pi", { ...piRow("physical"), message: { ...piRow("physical").message, model: "virtual-selection", responseModel: "physical-response" } }, meta, cutoff, "file")[0]!;
+  expect(response.model).toBe("physical-response");
+  const warm = { type: "usage", id: "warming", parentId: "physical", timestamp: at, kind: "cache_warm", provider: "warm-provider", model: "warm-model", usage: piRow("unused").message.usage };
+  expect(nativeUsageRecords("pi", warm, meta, cutoff, "file")[0]).toMatchObject({ provider: "warm-provider", model: "warm-model", usage });
+  const { provider: _provider, model: _model, ...message } = piRow("continuation").message;
+  expect(nativeUsageRecords("pi", { ...piRow("continuation"), parentId: "warming", message }, meta, cutoff, "file")[0]).toMatchObject({ provider: "provider", model: "physical-response" });
+  expect(meta.piContexts!.length).toBeLessThanOrEqual(128);
+});
+
+test("native metadata recovered at enablement survives cursor persistence without backfilling usage", async () => {
+  const { dir, store } = await storeFixture();
+  const claude = await history(dir, "home/.claude/projects/-work/partial.jsonl", [claudeRow("old")]);
+  const pi = await history(dir, "workspaces/ws/home-local/.local/share/pi/sessions/tab/partial.jsonl", [
+    { type: "model_change", id: "model", parentId: null, provider: "selected-provider", modelId: "selected-model" },
+    { type: "message", id: "user", parentId: "model", message: { role: "user" } },
+  ]);
+  await baselineNativeUsage(dir, store);
+  const { model: _model, ...claudeMessage } = claudeRow("new").message;
+  const { provider: _provider, model: _piModel, ...piMessage } = piRow("new").message;
+  await appendFile(claude, JSON.stringify({ ...claudeRow("new"), message: claudeMessage }) + "\n");
+  await appendFile(pi, JSON.stringify({ ...piRow("new"), parentId: "user", message: piMessage }) + "\n");
+  await collectNativeUsage(dir, store, cutoff, noopEstimate); store.batch(config, cutoff);
+  const payload = store.nextBatch()!.payload;
+  expect(payload).toContain(".anthropic.claude-test.tokens.total 38 ");
+  expect(payload).toContain(".selected-provider.selected-model.tokens.total 38 ");
+  expect(payload).not.toContain("unknown");
+  await collectNativeUsage(dir, store, cutoff, noopEstimate); expect(store.pending()).toBe(0);
+});
+
+
+test("actual Pi SessionManager usage entries export their recorded models and cache counts", async () => {
+  const dir = await directory(), manager = SessionManager.create("/work", join(dir, "native"));
+  const nativeUsage = { input: 10, output: 5, cacheRead: 20, cacheWrite: 3, reasoning: 2, totalTokens: 38, cost: { input: 0.001, output: 0.002, cacheRead: 0.003, cacheWrite: 0.004, total: 0.01 } };
+  manager.appendModelChange("chat-provider", "chat-model");
+  manager.appendMessage({ role: "assistant", api: "openai-completions", provider: "chat-provider", model: "chat-model", content: [{ type: "text", text: "Recorded response" }], stopReason: "stop", usage: nativeUsage, timestamp: cutoff + 1000 });
+  const warm = manager.appendUsage("cache_warm", "warm-provider", "warm-model", nativeUsage);
+  const rows = (await readFile(manager.getSessionFile()!, "utf8")).trim().split("\n");
+  const meta = state(), records = rows.flatMap(line => { const row: unknown = JSON.parse(line); return isJsonObject(row) ? nativeUsageRecords("pi", row, meta, cutoff, "file") : []; });
+  expect(records.some(record => record.model === "chat-model")).toBe(true);
+  expect(records.some(record => record.provider === warm.provider && record.model === warm.model)).toBe(true);
+  const points = metricPoints(config, records, 100);
+  expect(points.find(point => point.path.endsWith("warm-provider.warm-model.tokens.cache_read"))!.value).toBe(20);
+  expect(points.find(point => point.path.endsWith("warm-provider.warm-model.cache.hit_percent"))!.value).toBeCloseTo(20 / 33 * 100);
+});
+
+
+test("enabling Codex export preserves custom provider identity when the header is outside the bounded tail", async () => {
+  const { dir, store } = await storeFixture();
+  const path = await history(dir, "home/.codex/sessions/large.jsonl", [
+    { type: "session_meta", payload: { id: "private-thread", model_provider: "private-provider", model: "old-model" } },
+    ...Array.from({ length: 40 }, () => ({ type: "unrelated", payload: { type: "unrelated", text: "x".repeat(64 * 1024) } })),
+    { type: "turn_context", payload: { model: "recent-model", turn_id: "recent-turn" } }, codexRow(100),
+  ]);
+  await baselineNativeUsage(dir, store);
+  await appendFile(path, JSON.stringify(codexRow(110)) + "\n");
+  await collectNativeUsage(dir, store, cutoff, noopEstimate); store.batch(config, cutoff);
+  expect(store.nextBatch()!.payload).toContain(".private-provider.recent-model.tokens.total 15 ");
+  expect(store.nextBatch()!.payload).not.toContain("openai-codex");
+});
+
+test("recording usage does not mutate caller-owned usage or snapshot objects", async () => {
+  const { store } = await storeFixture();
+  const record = { id: "immutable", provider: "p", model: "m", usage: { input: 1, output: 2, total: 3 } };
+  const before = structuredClone(record);
+  store.event(record); store.counter("source", record, true); store.counter("source", record);
+  expect(record).toEqual(before); expect(Object.hasOwn(record.usage, "cache_complete")).toBe(false);
 });

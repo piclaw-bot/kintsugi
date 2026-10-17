@@ -56,7 +56,7 @@ export class TokenTelemetryStore {
     const usage = previous ? counterDelta(record.usage, this.parseUsage(previous.usage)) : record.usage;
     this.add(record.provider, record.model, usage);
     // Keep maxima: a partial replay must not lower the deduplication baseline.
-    const stored = previous ? this.parseUsage(previous.usage) : record.usage;
+    const stored = previous ? this.parseUsage(previous.usage) : { ...record.usage };
     for (const key of accountingFields) {
       if (record.usage[key] !== undefined) stored[key] = Math.max(stored[key] ?? 0, record.usage[key]);
     }
@@ -66,7 +66,7 @@ export class TokenTelemetryStore {
   counter(source: string, record: TelemetryUsage, baseline = false) {
     const previous = this.db.query<{ usage: string }, [string, string]>("SELECT usage FROM counters WHERE source=? AND id=?").get(source, record.id);
     if (!baseline) this.add(record.provider, record.model, previous ? counterDelta(record.usage, this.parseUsage(previous.usage)) : record.usage);
-    const stored = previous && !baseline ? this.parseUsage(previous.usage) : record.usage;
+    const stored = previous && !baseline ? this.parseUsage(previous.usage) : { ...record.usage };
     for (const key of accountingFields) {
       if (record.usage[key] !== undefined) stored[key] = Math.max(stored[key] ?? 0, record.usage[key]);
     }

@@ -11,7 +11,8 @@ import type { TokenTelemetryStore, TelemetryFileCursor } from "./token-telemetry
 export type NativeUsageFormat = "claude" | "codex" | "pi";
 export interface NativeUsageFile { path: string; format: NativeUsageFormat }
 const nativeStateSchema = Type.Object({
-  model: Type.String(), session: Type.String(), turn: Type.String(),
+  model: Type.String(), provider: Type.Optional(Type.String()), session: Type.String(), turn: Type.String(),
+  piContexts: Type.Optional(Type.Array(Type.Object({ id: Type.String(), provider: Type.Optional(Type.String()), model: Type.String() }), { maxItems: 128 })),
   totals: Type.Optional(tokenUsageSchema),
 });
 export type NativeUsageState = Static<typeof nativeStateSchema>;
@@ -46,13 +47,32 @@ function codexUsage(value: JsonObject): TokenUsage | undefined {
     reasoning: number(value.reasoning_output_tokens), total: number(value.total_tokens) ?? input + output };
 }
 
+/** An explicit identity change must not combine a new provider with a previous model (or the reverse). */
+function rememberIdentity(state: NativeUsageState, provider: string | undefined, model: string | undefined) {
+  if (provider && provider !== state.provider && !model) state.model = "unknown";
+  if (model && model !== state.model && !provider) state.provider = undefined;
+  if (provider) state.provider = provider;
+  if (model) state.model = model;
+}
+
 /** Native histories are external input. Billing follows physical responses, including abandoned branches/subagents. */
 export function nativeUsageRecords(format: NativeUsageFormat, row: JsonObject, state: NativeUsageState, cutoff: number, identity: string): TelemetryUsage[] {
   if (format === "codex") {
     const payload = object(row.payload);
     if (!payload) return [];
-    if (row.type === "session_meta") state.session = text(payload.id) ?? state.session;
-    if (row.type === "turn_context") { state.model = text(payload.model) ?? state.model; state.turn = text(payload.turn_id) ?? state.turn; }
+    if (row.type === "session_meta") {
+      const session = text(payload.id);
+      if (session && session !== state.session) { state.model = "unknown"; state.provider = undefined; state.turn = ""; state.totals = undefined; }
+      state.session = session ?? state.session;
+      const nativeProvider = text(payload.model_provider);
+      rememberIdentity(state, nativeProvider === "openai" ? "openai-codex" : nativeProvider, text(payload.model));
+    }
+    if (row.type === "turn_context") {
+      const nativeProvider = text(payload.model_provider);
+      // The registered Codex agents use ChatGPT by default; explicit native custom providers remain distinct.
+      rememberIdentity(state, nativeProvider ? nativeProvider === "openai" ? "openai-codex" : nativeProvider : state.provider ?? "openai-codex", text(payload.model));
+      state.turn = text(payload.turn_id) ?? state.turn;
+    }
     if (row.type === "event_msg" && (payload.type === "task_started" || payload.type === "turn_started")) state.turn = text(payload.turn_id) ?? state.turn;
     if (row.type !== "event_msg" || payload.type !== "token_count") return [];
     const info = object(payload.info), total = object(info?.total_token_usage), last = object(info?.last_token_usage);
@@ -64,21 +84,49 @@ export function nativeUsageRecords(format: NativeUsageFormat, row: JsonObject, s
     const usage = previous ? counterDelta(totals, previous) : last && codexUsage(last);
     if (!usage) return [];
     const origin = state.turn || state.session || identity;
-    return [{ id: `codex:${hash(`${origin}:${JSON.stringify(totals)}`)}`, provider: "openai-codex", model: state.model, usage }];
+    return [{ id: `codex:${hash(`${origin}:${JSON.stringify(totals)}`)}`, provider: state.provider ?? "openai-codex", model: state.model, usage }];
   }
   const message = object(row.message);
-  if (!message || !(date(row.timestamp) >= cutoff)) return [];
   if (format === "claude") {
-    if (row.type !== "assistant") return [];
+    if (row.type === "system" && row.subtype === "init") rememberIdentity(state, "anthropic", text(row.model));
+    if (row.type !== "assistant" || !message) return [];
+    rememberIdentity(state, "anthropic", text(message.model));
+    if (!(date(row.timestamp) >= cutoff)) return [];
     const raw = object(message.usage), usage = raw && claudeUsage(raw), id = text(message.id) ?? text(row.uuid);
     if (!usage || !id) return [];
-    return [{ id: `claude:${id}`, provider: "anthropic", model: text(message.model) ?? "unknown", usage }];
+    return [{ id: `claude:${id}`, provider: "anthropic", model: state.model, usage }];
   }
-  if (row.type !== "message" || message.role !== "assistant") return [];
-  const raw = object(message.usage), usage = raw && piUsage(raw), id = text(row.id);
-  if (!usage || !id) return [];
-  const provider = text(message.provider) ?? "unknown", model = text(message.model) ?? "unknown";
-  return [{ id: `pi:${hash(`${provider}:${id}:${date(row.timestamp)}`)}`, provider, model, usage }];
+  if (row.type === "session") {
+    const session = text(row.id);
+    if (session && session !== state.session) { state.model = "unknown"; state.provider = undefined; state.piContexts = []; }
+    state.session = session ?? state.session;
+    return [];
+  }
+  // Pi is a tree. Recover only the recorded parent's context, never a sibling branch's last model.
+  if (Object.hasOwn(row, "parentId")) {
+    const parent = text(row.parentId), inherited = state.piContexts?.findLast(entry => entry.id === parent);
+    state.provider = inherited?.provider; state.model = inherited?.model ?? "unknown";
+  }
+  if (row.type === "model_change") rememberIdentity(state, text(row.provider), text(row.modelId));
+  if (row.type === "message" && message?.role === "assistant") rememberIdentity(state, text(message.provider), text(message.responseModel) ?? text(message.model));
+  const id = text(row.id);
+  if (id) {
+    state.piContexts ??= [];
+    state.piContexts.push({ id, provider: state.provider, model: state.model });
+    if (state.piContexts.length > 128) state.piContexts.shift();
+  }
+  if (!id || !(date(row.timestamp) >= cutoff)) return [];
+  if (row.type === "usage") {
+    // Pi's model-attributed ledger includes cache-warming requests; it is separate from chat messages.
+    const raw = object(row.usage), usage = raw && piUsage(raw), provider = text(row.provider) ?? "unknown", model = text(row.model) ?? "unknown";
+    return usage ? [{ id: `pi:${hash(`${provider}:${id}:${date(row.timestamp)}`)}`, provider, model, usage }] : [];
+  }
+  if (row.type !== "message" || message?.role !== "assistant") return [];
+  const raw = object(message.usage), usage = raw && piUsage(raw);
+  if (!usage) return [];
+  // Retain the original message-based deduplication key when metadata recovery improves attribution.
+  const originalProvider = text(message.provider) ?? "unknown";
+  return [{ id: `pi:${hash(`${originalProvider}:${id}:${date(row.timestamp)}`)}`, provider: state.provider ?? "unknown", model: state.model, usage }];
 }
 
 /** Whitelist canonical native roots. Session-share exports are copies and are deliberately excluded. */
@@ -144,10 +192,24 @@ export async function baselineNativeUsage(dataDir: string, store: TokenTelemetry
     catch (error) { if (isNotFoundError(error)) continue; throw error; }
     const { handle, stat, identity } = opened;
     try {
-      const baselineBytes = file.format === "codex" ? maxRowBytes : 1;
+      const baselineBytes = maxRowBytes;
       const offset = Math.max(0, stat.size - baselineBytes), buffer = Buffer.alloc(Math.min(stat.size, baselineBytes));
       await handle.read(buffer, 0, buffer.length, offset);
       const lines = buffer.toString("utf8").split("\n"), state = emptyState();
+      if (offset && file.format === "codex") {
+        // Provider/session identity is in Codex's header, which may be far outside the recent-usage tail.
+        // Do not seed a mutable model from that old prefix; the tail owns the latest turn's model.
+        const prefix = Buffer.alloc(Math.min(stat.size, maxReadBytes));
+        const { bytesRead } = await handle.read(prefix, 0, prefix.length, 0);
+        const end = prefix.subarray(0, bytesRead).indexOf(10);
+        if (end >= 0) {
+          try {
+            const header: unknown = JSON.parse(prefix.subarray(0, end).toString("utf8"));
+            const payload = isJsonObject(header) && header.type === "session_meta" ? object(header.payload) : undefined;
+            if (payload) nativeUsageRecords("codex", { type: "session_meta", payload: { id: payload.id ?? null, model_provider: payload.model_provider ?? null } }, state, Infinity, identity);
+          } catch (error) { if (!(error instanceof SyntaxError)) throw error; }
+        }
+      }
       if (offset) lines.shift();
       lines.pop(); // an incomplete row cannot establish a usage baseline
       for (const line of lines) {
