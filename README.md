@@ -37,7 +37,7 @@ The name comes from **金継ぎ**, the Japanese art of repairing pottery with go
 
 ## Installation
 
-The current release is [v0.3.4](https://github.com/rcarmo/kintsugi/releases/tag/v0.3.4). It allows overlapping workspace resource limits and keeps closed Changes scans from blocking workspace startup; see the [release notes](release_notes/v0.3.4.md). Releases publish app, System and workspace images and advance `latest`; `stable` is promoted separately. Publishing does not update or restart an installation.
+The current release is [v0.3.5](https://github.com/rcarmo/kintsugi/releases/tag/v0.3.5). It adds opt-in Graphite token telemetry and native-agent accounting improvements; see the [release notes](release_notes/v0.3.5.md). Releases publish app, System and workspace images and advance `latest`; `stable` is promoted separately. Publishing does not update or restart an installation.
 
 Use a dedicated Linux server with Docker. The installer defaults to `ghcr.io/rcarmo/kintsugi` and `ghcr.io/rcarmo/kintsugi-system`; matching images must be available before installation.
 
@@ -92,7 +92,7 @@ The normal app also supports JSON representations of UI operations for agents an
 
 ## Token consumption telemetry
 
-Available on `main`; not included in v0.3.4. **Settings → Token telemetry** configures opt-in Carbon plaintext TCP export (default port `2003`, 15-minute intervals) to a trusted Graphite server. Only new recorded consumption is collected; provider caching defaults remain unchanged.
+Available from v0.3.5. **Settings → Token telemetry** configures opt-in Carbon plaintext TCP export (default port `2003`, 15-minute intervals) to a trusted Graphite server. Only new recorded consumption is collected; provider caching defaults remain unchanged.
 
 [PiClaw](https://github.com/rcarmo/piclaw)-compatible paths under `kintsugi.<instance>.usage.<provider>.<model>` carry token/cache counts, token-weighted cache percentages and available API-equivalent cost estimates. Estimates are not subscription charges. Prompts, replies and tool output are not exported. Pi tools, compaction and branch summaries without reliable model attribution retain their counts in explicitly labelled `unattributed.pi_*` buckets, never under the parent model.
 

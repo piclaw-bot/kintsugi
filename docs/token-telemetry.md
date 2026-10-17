@@ -1,6 +1,6 @@
 # Graphite token telemetry
 
-Available on `main`; not included in v0.3.4. Token telemetry exports recorded agent consumption to Graphite. It is separate from provider subscription quotas and is disabled by default.
+Available from v0.3.5. Token telemetry exports recorded agent consumption to Graphite. It is separate from provider subscription quotas and is disabled by default.
 
 ## Configuration
 
