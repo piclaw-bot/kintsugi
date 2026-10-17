@@ -5,7 +5,7 @@ import type { WorkspaceGateway } from "./workspace-gateway.ts";
 export * from "./workspace-gateway.ts";
 
 export { providerBadgeHtml, providerBrandIconHtml } from "./brand-icons.ts";
-export { escapeHtml } from "./html.ts";
+export { escapeHtml, turboStream } from "./html.ts";
 export { errorMessage, formatBytes } from "./format.ts";
 export { isHopByHopHeader, stripHopByHopHeaders } from "./proxy-headers.ts";
 
@@ -54,16 +54,6 @@ export function looksLikeWorkspaceTemplateSpec(value: string): boolean {
 export function shouldSearchRepositories(query: string): boolean {
   const trimmed = query.trim();
   return trimmed.length >= 2 && !looksLikeWorkspaceTemplateSpec(trimmed);
-}
-
-type TurboStreamAction = "append" | "prepend" | "before" | "replace" | "update" | "remove";
-
-export function turboStream(action: TurboStreamAction, target: string, html = "", options: { targets?: boolean; method?: "morph" } = {}): string {
-  const targetAttribute = options.targets ? "targets" : "target";
-  const targetValue = escapeHtml(target);
-  const method = options.method ? ` method="${options.method}"` : "";
-  if (action === "remove") return `<turbo-stream action="remove" ${targetAttribute}="${targetValue}"${method}></turbo-stream>`;
-  return `<turbo-stream action="${action}" ${targetAttribute}="${targetValue}"${method}><template>${html}</template></turbo-stream>`;
 }
 
 export function turboStreamResponse(body: string, init: ResponseInit = {}): Response {
