@@ -55,6 +55,36 @@ function rememberIdentity(state: NativeUsageState, provider: string | undefined,
   if (model) state.model = model;
 }
 
+/** Auxiliary usage cannot inherit the conversation model: tools and summaries can call other models. */
+function explicitPiUsageIdentity(record: JsonObject, usage: JsonObject): { provider: string; model: string } | undefined {
+  for (const candidate of [record, usage, object(record.details)]) {
+    if (!candidate) continue;
+    const ref = object(candidate.model);
+    const provider = text(candidate.provider) ?? text(ref?.provider);
+    const model = text(candidate.responseModel) ?? text(candidate.response_model) ?? text(candidate.model) ?? text(ref?.id);
+    if (provider && model) return { provider, model };
+  }
+  return;
+}
+
+/** Pi code mode stores one combined usage plus model/cost call rows. A single model is exactly attributable. */
+function homogeneousPiCodemodeIdentity(message: JsonObject): { provider: string; model: string } | undefined {
+  if (message.toolName !== "codemode") return;
+  const calls = object(message.details)?.calls;
+  if (!Array.isArray(calls)) return;
+  const references = new Set<string>();
+  for (const value of calls) {
+    const call = object(value);
+    if (!call || (call.name !== "models.classify" && call.name !== "models.generateImages") || number(call.cost) === undefined) continue;
+    const ref = text(call.args);
+    if (!ref || ref.indexOf("/") <= 0 || ref.endsWith("/")) return;
+    references.add(ref);
+  }
+  if (references.size !== 1) return;
+  const ref = [...references][0]!, slash = ref.indexOf("/");
+  return { provider: ref.slice(0, slash), model: ref.slice(slash + 1) };
+}
+
 /** Native histories are external input. Billing follows physical responses, including abandoned branches/subagents. */
 export function nativeUsageRecords(format: NativeUsageFormat, row: JsonObject, state: NativeUsageState, cutoff: number, identity: string): TelemetryUsage[] {
   if (format === "codex") {
@@ -119,14 +149,24 @@ export function nativeUsageRecords(format: NativeUsageFormat, row: JsonObject, s
   if (row.type === "usage") {
     // Pi's model-attributed ledger includes cache-warming requests; it is separate from chat messages.
     const raw = object(row.usage), usage = raw && piUsage(raw), provider = text(row.provider) ?? "unknown", model = text(row.model) ?? "unknown";
-    return usage ? [{ id: `pi:${hash(`${provider}:${id}:${date(row.timestamp)}`)}`, provider, model, usage }] : [];
+    return usage ? [{ id: `pi:${hash(`${provider}:${id}:${date(row.timestamp)}`)}`, provider: provider !== "unknown" && model !== "unknown" ? provider : "unattributed", model: provider !== "unknown" && model !== "unknown" ? model : "pi_usage", usage }] : [];
+  }
+  const auxiliary = row.type === "compaction" || row.type === "branch_summary"
+    ? row : row.type === "message" && message?.role === "toolResult" ? message : undefined;
+  if (auxiliary) {
+    const raw = object(auxiliary.usage), usage = raw && piUsage(raw);
+    if (!raw || !usage) return [];
+    const model = explicitPiUsageIdentity(auxiliary, raw) ?? (auxiliary === message ? homogeneousPiCodemodeIdentity(auxiliary) : undefined);
+    const attributed = model ?? { provider: "unattributed", model: row.type === "compaction" ? "pi_compaction" : row.type === "branch_summary" ? "pi_branch_summary" : "pi_tools" };
+    return [{ id: `pi-extra:${hash(`${row.type}:${id}:${date(row.timestamp)}`)}`, ...attributed, usage }];
   }
   if (row.type !== "message" || message?.role !== "assistant") return [];
   const raw = object(message.usage), usage = raw && piUsage(raw);
   if (!usage) return [];
   // Retain the original message-based deduplication key when metadata recovery improves attribution.
   const originalProvider = text(message.provider) ?? "unknown";
-  return [{ id: `pi:${hash(`${originalProvider}:${id}:${date(row.timestamp)}`)}`, provider: state.provider ?? "unknown", model: state.model, usage }];
+  const attributed = state.provider && state.provider !== "unknown" && state.model !== "unknown";
+  return [{ id: `pi:${hash(`${originalProvider}:${id}:${date(row.timestamp)}`)}`, provider: attributed ? state.provider! : "unattributed", model: attributed ? state.model : "pi_assistant", usage }];
 }
 
 /** Whitelist canonical native roots. Session-share exports are copies and are deliberately excluded. */

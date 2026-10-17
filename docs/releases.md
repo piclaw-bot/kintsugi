@@ -51,6 +51,16 @@ at 2. Configured inspector allocations require independent resource-policy reade
 checks reject incompatible targets without resetting configuration. Saved custom
 sources, pins and the retained image-pair protocol are unchanged.
 
+Token telemetry is app-owned and opt-in. It introduces no new System operation or
+compatibility-counter change: System 3, app minimum 0, network-policy reader 2 and
+resource-policy reader 1 remain unchanged. Updating source does not enable an
+exporter or deploy an installation. Its private configuration/checkpoints live in
+app data and survive app replacement. An app that predates this feature does not export telemetry;
+image rollback is not a settings/checkpoint restore. Provider caching defaults,
+custom release sources and pins remain authoritative. The native Pi adapters must
+be reviewed when managed CLIs change their recorded accounting format. See the
+[telemetry guide](token-telemetry.md), including its known native-record limitations.
+
 Built-in code mode adds journal bookkeeping and executable task definitions to the
 app, not a new System operation. Stop active code-mode scripts before downgrading
 to an app that predates this tool: an older registry must not be assumed to resume

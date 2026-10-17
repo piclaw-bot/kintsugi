@@ -28,6 +28,7 @@ Kintsugi adds the following to upstream AgentsInTheCloud:
 - A configurable Gitea HTTPS connection, including custom ports and installation subpaths, with credentials restricted to its exact origin.
 - An embedded Draw.io editor and diagram previews with page tabs.
 - Extended Copilot quota reporting and corrected Copilot/Codex calendar-month pacing, plus OpenCode Go five-hour/weekly usage and monthly-exhaustion availability checks.
+- Opt-in [Graphite token-consumption telemetry](#token-consumption-telemetry) with per-provider/model counts, cache percentages and available cost estimates, using PiClaw-compatible metric paths.
 - Classifier-only provider credentials for code mode and Pi, and microphone release when dictation stops, adapted from Larry Hudson’s fork.
 
 The name comes from **金継ぎ**, the Japanese art of repairing pottery with gold, because the original project was a brilliant way to glue together several components and I wanted to honor that approach.
@@ -88,6 +89,14 @@ Scopes cover workspace lifecycle, templates and shared configuration, secrets, S
 Non-loopback listeners require TLS, including listeners published through Docker. The installer publishes no admin ports unless explicitly requested with `--admin-publish IP:HOST_PORT:ADMIN_PORT`. Docker publications can bypass host firewall rules: bind to a trusted interface and enforce network filtering. See [admin setup and permissions](docs/automation.md#optional-authenticated-admin-bindings) for configuration, certificates, token storage and revocation.
 
 The normal app also supports JSON representations of UI operations for agents and Work views. Those use the app's existing access boundary and require a matching `Origin` on mutations; this CSRF check is not authentication. Agent prompting, arbitrary commands and terminal access are not exposed through admin listeners.
+
+## Token consumption telemetry
+
+Available on `main`; not included in v0.3.4. **Settings → Token telemetry** configures opt-in Carbon plaintext TCP export (default port `2003`, 15-minute intervals) to a trusted Graphite server. Only new recorded consumption is collected; provider caching defaults remain unchanged.
+
+[PiClaw](https://github.com/rcarmo/piclaw)-compatible paths under `kintsugi.<instance>.usage.<provider>.<model>` carry token/cache counts, token-weighted cache percentages and available API-equivalent cost estimates. Estimates are not subscription charges. Prompts, replies and tool output are not exported. Pi tools, compaction and branch summaries without reliable model attribution retain their counts in explicitly labelled `unattributed.pi_*` buckets, never under the parent model.
+
+See the [telemetry guide](docs/token-telemetry.md) for the metric schema, agent/accounting coverage, Graphite aggregation, private storage, API permissions and bounded retry behaviour. Missing native records cannot be reconstructed; this is not complete billing reconciliation.
 
 ## Development
 

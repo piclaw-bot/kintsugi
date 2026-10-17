@@ -230,6 +230,14 @@ Kintsugi reuses repository images based on the default workspace image plus `.ki
 For repository-specific VS Code extensions, see [VS Code extensions](./vscode.md).
 
 
+### Token consumption telemetry
+
+When supported by the running app, **Settings → Token telemetry** can export new recorded agent consumption to a trusted Graphite/Carbon TCP server. It is disabled by default. Configure the host, port (default `2003`), stable unique instance name and interval (default 15 minutes).
+
+The app reads committed built-in usage and native Claude/Codex/Pi accounting. Metrics include available token/cache counts, weighted cache percentages and API-equivalent cost estimates, not subscription charges. Prompts, replies and tool output are not exported. Pi usage without reliable model attribution is retained under the reserved provider `unattributed`, not assigned to its parent chat model.
+
+This does not enable workspace LAN access, change provider caching defaults or backfill old history. Plain TCP has no encryption/authentication. Settings shows pending delivery and errors, with test/refresh actions; retries are bounded to seven days or 10 MiB. Missing backend records cannot be recovered as billable usage. See the repository’s [telemetry guide](https://github.com/rcarmo/kintsugi/blob/main/docs/token-telemetry.md) for paths, coverage and Graphite aggregation.
+
 ## 9. Updates
 
 Open **Settings** to check **Updates** for Kintsugi. In a System-managed installation, download an available Update, then use **Restart to update** to apply it. Downloading alone does not apply the Update. Updates is separate from updating packages or agent CLIs inside a Workspace.

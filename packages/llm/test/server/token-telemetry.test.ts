@@ -1,5 +1,5 @@
 import { SessionManager } from "@earendil-works/pi-coding-agent";
-import { isJsonObject } from "@kintsugi/core";
+import { isJsonObject, type JsonObject } from "@kintsugi/core";
 import { afterEach, expect, test } from "bun:test";
 import { appendFile, mkdtemp, mkdir, readFile, rename, rm, stat, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -272,7 +272,7 @@ test("Pi recovers identity from the correct branch instead of a sibling's last m
   expect(points.find(point => point.path.endsWith("tokens.prompt"))!.value).toBe(33);
   expect(points.find(point => point.path.endsWith("cache.hit_percent"))!.value).toBeCloseTo(20 / 33 * 100);
   const unresolved = nativeUsageRecords("pi", { ...piRow("missing-parent"), parentId: "unavailable-ancestor", message }, meta, cutoff, "file")[0]!;
-  expect(unresolved.provider).toBe("unknown"); expect(unresolved.model).toBe("unknown");
+  expect(unresolved.provider).toBe("unattributed"); expect(unresolved.model).toBe("pi_assistant");
 });
 
 test("Pi physical response models and standalone usage keep their own identity, including cache warming", () => {
@@ -343,4 +343,75 @@ test("recording usage does not mutate caller-owned usage or snapshot objects", a
   const before = structuredClone(record);
   store.event(record); store.counter("source", record, true); store.counter("source", record);
   expect(record).toEqual(before); expect(Object.hasOwn(record.usage, "cache_complete")).toBe(false);
+});
+
+test("Pi auxiliary usage uses explicit model metadata and never the parent conversation's model", () => {
+  const meta = state();
+  nativeUsageRecords("pi", { type: "model_change", id: "brain", parentId: null, provider: "brain-provider", modelId: "brain-model" }, meta, cutoff, "file");
+  const raw = piRow("unused").message.usage;
+  for (const type of ["compaction", "branch_summary"]) {
+    const row = { type, id: type, parentId: "brain", timestamp: at, usage: raw, details: { provider: "summary-provider", model: "summary-model" } };
+    expect(nativeUsageRecords("pi", row, meta, cutoff, "file")[0]).toMatchObject({ provider: "summary-provider", model: "summary-model", usage });
+    expect(nativeUsageRecords("pi", { type, id: type + "-unattributed", parentId: "brain", timestamp: at, usage: raw }, meta, cutoff, "file")[0]).toMatchObject({ provider: "unattributed", model: `pi_${type}`, usage });
+  }
+  const row = { ...piRow("tool"), parentId: "brain", message: { role: "toolResult", toolCallId: "tool-call", provider: "tool-provider", model: "tool-model", usage: raw } };
+  expect(nativeUsageRecords("pi", row, meta, cutoff, "file")[0]).toMatchObject({ provider: "tool-provider", model: "tool-model", usage });
+});
+
+test("Pi homogeneous code-mode model calls have exactly attributable combined usage", () => {
+  const raw = piRow("unused").message.usage;
+  const calls: JsonObject[] = [
+    { id: "c1", name: "models.classify", args: "classifier/model", cost: 0.01, status: "ok" },
+    { id: "c2", name: "models.classify", args: "classifier/model", cost: 0, status: "error" },
+    { id: "c3", name: "models.generateImages", args: "different/model", status: "cancelled" },
+  ];
+  const row = { ...piRow("codemode"), message: { role: "toolResult", toolName: "codemode", toolCallId: "script", usage: raw, details: { calls } } };
+  const record = nativeUsageRecords("pi", row, state(), cutoff, "file")[0]!;
+  expect(record).toMatchObject({ provider: "classifier", model: "model", usage });
+  expect(metricPoints(config, [record], 100).find(point => point.path.endsWith("cache.hit_percent"))!.value).toBeCloseTo(20 / 33 * 100);
+  const mixed = { ...row, message: { ...row.message, details: { calls: [...calls, { id: "c4", name: "models.generateImages", args: "images/model", cost: 0.2, status: "ok" }] } } };
+  expect(nativeUsageRecords("pi", mixed, state(), cutoff, "file")[0]).toMatchObject({ provider: "unattributed", model: "pi_tools", usage });
+});
+
+test("actual Pi compaction and branch summaries demonstrate the native attribution gap", async () => {
+  const dir = await directory(), manager = SessionManager.create("/work", join(dir, "native"));
+  const native = { input: 10, output: 5, cacheRead: 20, cacheWrite: 3, totalTokens: 38, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0.01 } };
+  const user = manager.appendMessage({ role: "user", content: "Original request", timestamp: cutoff });
+  const compactId = manager.appendCompaction("Summary", user, 100, undefined, false, native);
+  const branchId = manager.branchWithSummary(user, "Branch summary", undefined, false, native);
+  // Force the native manager's lazy buffer to disk without any provider request.
+  manager.appendMessage({ role: "assistant", api: "openai-completions", provider: "p", model: "m", content: [], stopReason: "stop", usage: native, timestamp: cutoff });
+  const entries = manager.getEntries();
+  const compact = entries.find(entry => entry.id === compactId)!, branch = entries.find(entry => entry.id === branchId)!;
+  expect(compact.type).toBe("compaction"); expect(branch.type).toBe("branch_summary");
+  expect(Object.hasOwn(compact, "provider")).toBe(false); expect(Object.hasOwn(compact, "model")).toBe(false);
+  expect(Object.hasOwn(branch, "provider")).toBe(false); expect(Object.hasOwn(branch, "model")).toBe(false);
+});
+
+
+test("unattributed Pi tools and summaries retain counts once across copies and retries", async () => {
+  const { store } = await storeFixture(), raw = piRow("unused").message.usage;
+  const rows: JsonObject[] = [
+    { type: "compaction", id: "c", timestamp: at, usage: raw },
+    { type: "branch_summary", id: "b", timestamp: at, usage: raw },
+    { type: "message", id: "t", timestamp: at, message: { role: "toolResult", toolName: "external", usage: raw } },
+  ];
+  for (const copy of ["source", "copy", "source"]) for (const row of rows) for (const record of nativeUsageRecords("pi", row, state(), cutoff, copy)) store.event(record);
+  store.batch(config, cutoff);
+  const payload = store.nextBatch()!.payload;
+  for (const category of ["pi_compaction", "pi_branch_summary", "pi_tools"]) expect(payload).toContain(`.unattributed.${category}.tokens.total 38 `);
+  expect(payload).not.toContain("tokens.total 76"); expect(payload).not.toContain("tokens.total 114");
+});
+
+
+test("Pi recorded failed/stopped auxiliary work retains paid usage without invented cache percentages", () => {
+  const rows: JsonObject[] = [
+    { type: "message", id: "failed", timestamp: at, message: { role: "toolResult", toolName: "external", isError: true, usage: { input: 4, output: 2, totalTokens: 6 } } },
+    { type: "branch_summary", id: "summary", timestamp: at, usage: { input: 4, output: 2, totalTokens: 6 }, provider: "summary-provider", responseModel: "physical-summary", model: "virtual-summary" },
+  ];
+  const records = rows.flatMap(row => nativeUsageRecords("pi", row, state(), cutoff, "file"));
+  expect(records[0]).toMatchObject({ provider: "unattributed", model: "pi_tools", usage: { total: 6 } });
+  expect(records[1]).toMatchObject({ provider: "summary-provider", model: "physical-summary", usage: { total: 6 } });
+  expect(metricPoints(config, records, 100).some(point => point.path.endsWith("cache.hit_percent"))).toBe(false);
+  expect(nativeUsageRecords("pi", { type: "compaction", id: "no-report", timestamp: at }, state(), cutoff, "file")).toEqual([]);
 });

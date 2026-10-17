@@ -135,7 +135,7 @@ Additional operations: `GET/PUT /admin/bindings`, `GET/POST /admin/tokens`, `DEL
 
 ### Workspace network settings
 
-`GET/POST /settings/network` manages installation LAN CIDRs, external DNS forwarders and search domains. `GET/POST /workspaces/{id}/network` reads or saves a persistent `off`, `lan` or `private` mode. All four operations require `security`. Workspace responses distinguish desired mode, applied policy and `restartRequired`; changes apply after parking and unparking the workspace, which closes terminal and VS Code views.
+`GET/POST /settings/network` manages installation LAN CIDRs, external DNS forwarders and search domains. `GET/POST /workspaces/{id}/network` reads or saves a persistent `off`, `lan`, `private` or `hosts` mode. All four operations require `security`. Workspace responses distinguish desired mode, applied policy and `restartRequired`; changes apply after parking and unparking the workspace, which closes terminal and VS Code views.
 
 See the internal [workspace network policy](workspace-network.md) documentation for payloads, DNS/mDNS requirements, enforcement, state files and regression commands. Runtime LAN permissions require System and default to Off; enabling them does not change admin/UI exposure or Tailscale routing.
 
@@ -412,7 +412,7 @@ The `update-channel` section is **Update channel**, with **Stable**, **Latest** 
 
 The `update` section is **Updates**, the feature for managing Kintsugi installation Updates. It is separate from Workspace package and agent CLI updates.
 
-Settings is app-level, not configuration for the selected Workspace, a Workspace template, or an individual Agent. Git hosting connections (GitHub, GitLab and Bitbucket) are shared across Workspaces; their tokens are distinct from the Commit identity used to author commits. Connect one with POST `/settings/git-hosting/:provider/connect` (`github`, `gitlab` or `bitbucket`) and form field `token`, plus `account` (the Atlassian account email) for Bitbucket. The settings section is a registered settings contribution ID, such as `theme`, `commit-identity`, `git-hosting`, `models`, `dictation`, or `update`.
+Settings is app-level, not configuration for the selected Workspace, a Workspace template, or an individual Agent. Git hosting connections (GitHub, GitLab, Bitbucket and configurable Gitea) are shared across Workspaces; their tokens are distinct from the Commit identity used to author commits. Connect one with POST `/settings/git-hosting/:provider/connect` (`github`, `gitlab`, `bitbucket` or `gitea`) and form field `token`, plus `account` (the Atlassian account email) for Bitbucket or `serverUrl` (the HTTPS instance URL) for Gitea. See the [Git hosting guide](../README.md#git-hosting) for instance and credential scope. The settings section is a registered settings contribution ID, such as `theme`, `commit-identity`, `git-hosting`, `models`, `dictation`, or `update`.
 
 ## Create and wait for a workspace
 
@@ -519,10 +519,33 @@ After staging the desired Work view, use the agent's `present` tool with:
 http://localhost:3000/workspaces/<id>
 ```
 
+## Export recorded token consumption
+
+The `telemetry` Settings section configures app-level Graphite export. It is off by default, uses Carbon plaintext TCP (port `2003`) and aggregates new recorded usage every 15 minutes by default. Collection polls local accounting every 30 seconds. It does not start workspaces, make inference requests or change provider caching defaults.
+
+All admin telemetry reads/writes require `security` scope:
+
+| Endpoint | Operation |
+| --- | --- |
+| `GET /settings/telemetry` | Configuration, queue state, delivery/error and dropped/invalid/oversized counters |
+| `POST /settings/telemetry` | Save enablement, host, port, instance and interval |
+| `POST /settings/telemetry/test` | Test unsaved input via TCP; no metric write or settings save |
+| `POST /settings/telemetry/discard` | Explicitly discard pending exports with `{ "confirmed": true }` |
+
+Save/test body:
+
+```json
+{"enabled":true,"host":"graphite.example.net","port":2003,"instance":"my-kintsugi","intervalMinutes":15}
+```
+
+Normal UI JSON requests still require the matching `Origin`; admin bindings use bearer authentication. The HTML settings frame is excluded from admin listeners. Pending exports must be delivered or discarded before changing the saved destination/instance. Disabling stops collection/delivery; re-enabling excludes disabled-period usage while retaining prior pending batches.
+
+The [telemetry guide](token-telemetry.md) defines the PiClaw-compatible metric paths, cache-rate denominator, native coverage, reserved Pi `unattributed` buckets, private storage and retry limits. Carbon connectivity is not an acknowledgement of stored data. The destination does not grant workspace LAN access. No production exporter is enabled merely by updating Kintsugi.
+
 ## Inspect Model provider usage
 
 `GET /usage` with `Accept: application/json` returns all connected providers with
-implemented subscription-usage support (OpenAI Codex and Anthropic). Refresh an
+implemented usage support (OpenAI Codex, Anthropic, GitHub Copilot, xAI, Radius and OpenCode Go). Refresh an
 individual provider with `GET /usage/providers/openai-codex` or
 `GET /usage/providers/anthropic` and the same header. Anthropic requires subscription
 OAuth sign-in, not an API key. Its five-hour, weekly, and available model/feature
@@ -536,7 +559,7 @@ workspace Usage button opens that dialog with its provider expanded.
 
 Each result includes provider-reported windows, their durations and resets,
 and pacing relative to elapsed time. Provider failures populate `error`.
-The Usage feature does not record or persist installation-wide token totals.
+These `/usage` endpoints report account allowances/balances, not local token consumption. Opt-in [Graphite token telemetry](token-telemetry.md) separately persists recorded local consumption and export checkpoints.
 
 A provider card groups provider-reported 0% windows under **Unused limits**
 (collapsed when there are used limits, expanded when all limits are unused)

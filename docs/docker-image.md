@@ -93,3 +93,15 @@ the app without starting another shared stack. Merely mounting a connection does
 not switch modes. The old `--own-snapshotter` option is no longer accepted.
 
 On hosts without cgroup swap controls, installation is allowed only when `/proc/meminfo` reports zero total swap. Keep swap disabled on these hosts; hosts with swap require working cgroup swap limits. The installer explicitly pulls images for the Docker server’s platform, so a release missing that platform fails at pull time rather than with an `exec format error`.
+
+## Token telemetry data
+
+The opt-in Graphite exporter runs in the app. Its private `telemetry/config.json`
+and `telemetry/usage.sqlite` are under the normal app data directory; retain that
+volume during replacement and use the normal supported backup procedure. Retry
+retention (seven days / 10 MiB) does not bound the entire deduplication database.
+No extra image dependency, environment variable, System capability or workspace
+LAN permission is required. Native CLI records are read from their managed data
+paths; an app update does not change their cache policy. See [token telemetry](token-telemetry.md)
+for configuration, accounting coverage and protocol limits. Nothing is sent until
+an administrator explicitly enables a destination.

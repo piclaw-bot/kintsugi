@@ -2,6 +2,13 @@
 
 Workspace LAN access is a persistent, opt-in egress permission. It defaults to `off`, requires System for runtime enforcement, and applies to every process and agent in the workspace. It is independent of UI/admin listener exposure and Tailscale subnet-route acceptance. System runs an opt-in, workspace-only DNS forwarding service; an external bridge still handles mDNS. No LAN or Tailscale subnet routes are installed.
 
+The opt-in [Graphite token exporter](token-telemetry.md) is an app-level management
+connection to an administrator-selected destination. It does not grant workspaces
+that destination, alter Off/CIDR/exact-host policy, or bypass workspace exclusions
+and DNS pinning. Use a trusted receiver network: Carbon plaintext has no TLS or
+authentication. A development app inside a workspace still obeys that outer
+workspace’s own network policy.
+
 ## Modes and configuration
 
 | Mode | Additional destinations |
