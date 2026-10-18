@@ -18,6 +18,7 @@ import {
 } from "@kintsugi/proxy-ingress/server";
 import { proxyAccessSchema, validateProxyAccess, kintsugiName, errorMessage, type WorkspaceAppBackend, type WorkspaceAppRef, type WorkspaceServerAppResolver, type WorkspaceServerProvisioningHook, type WorkspaceServerSocketHandler, type WorkspaceServerSocketSession } from "@kintsugi/shared";
 import { response, textResponse } from "@kintsugi/shared/http";
+import { kintsugiThemes, readThemeSetting } from "@kintsugi/shared/theme";
 import { checkWorkspaceReadiness, createWorkspace, ensureWorkspaceStarted, deleteWorkspace, ensureHostInotifyLimit, isWorkspaceRunning, listWorkspaces, resolveWorkspace, stopWorkspaceContainer, setWorkspaceParked, workspaceImageOutdated, workspacePortBackend, workspaceSetupProvisioningHook } from "@kintsugi/workspace";
 import { ensureDefaultWorkspaceImage } from "@kintsugi/workspace-image";
 import type { ServerWebSocket } from "bun";
@@ -203,6 +204,13 @@ async function serveStatic(pathname: string, request: Request): Promise<Response
 
   const entry = legacyStaticFiles[pathname];
   if (!entry) return undefined;
+  // Installed apps paint their system bars from the manifest, so it follows the chosen theme.
+  if (pathname === "/manifest.webmanifest") {
+    const theme = readThemeSetting();
+    const { background } = kintsugiThemes.find(({ id }) => id === theme)!;
+    const manifest = { ...await Bun.file(entry.url).json(), background_color: background, theme_color: background };
+    return new Response(JSON.stringify(manifest), { headers: { "content-type": entry.contentType, "cache-control": "no-store" } });
+  }
   const file = Bun.file(entry.url);
   if (!(await file.exists())) return textResponse("not found", { status: 404 });
   const headers = new Headers({ "content-type": entry.contentType });
