@@ -4,6 +4,7 @@ import { resolveDiffEndpoints } from "../diff-endpoints.ts";
 import { workingTree, historyGraph, diffEndpointsDescription, comparisonGraph, rowHeight, type DiffEndpoints, type HistoryGraph, type HistoryModel } from "../history.ts";
 
 type ComparisonModel = { endpoints: DiffEndpoints; label: string; baseLabel: string; targetLabel: string };
+const minimumHistoryHeight = 72;
 
 export function createDiffEndpointsController(Controller: WorkspaceClientControllerConstructor) {
   return class DiffEndpointsController extends Controller {
@@ -114,6 +115,27 @@ export function createDiffEndpointsController(Controller: WorkspaceClientControl
       event.preventDefault();
       event.stopPropagation();
       this.closePicker();
+    }
+
+    beginResize(event: PointerEvent): void {
+      if (event.button !== 0) return;
+      event.preventDefault();
+      // SAFETY: Only the history resizer binds this action.
+      (event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
+    }
+    dragResize(event: PointerEvent): void {
+      // SAFETY: Only the history resizer binds this action; capture ends with the drag.
+      if ((event.currentTarget as HTMLElement).hasPointerCapture(event.pointerId)) this.setHistoryHeight(event.clientY - this.pickerTarget.getBoundingClientRect().top);
+    }
+    resizeWithKeyboard(event: KeyboardEvent): void {
+      if (event.key !== "ArrowUp" && event.key !== "ArrowDown") return;
+      event.preventDefault();
+      const direction = event.key === "ArrowUp" ? -1 : 1;
+      this.setHistoryHeight(this.pickerTarget.getBoundingClientRect().height + direction * (event.shiftKey ? 80 : 24));
+    }
+    // The stylesheet keeps room for the comparison below.
+    private setHistoryHeight(height: number): void {
+      this.element.style.setProperty("--changes-history-height", `${Math.max(minimumHistoryHeight, height)}px`);
     }
 
     private commitAt(element: Element, clientY: number): string | undefined {

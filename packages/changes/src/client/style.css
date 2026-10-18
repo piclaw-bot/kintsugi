@@ -55,8 +55,14 @@
 .changes-diff-endpoints-header [aria-expanded="false"] .disclosure-icon { transform: rotate(-90deg); }
 .changes-picker-host {
   flex: none; display: flex; flex-direction: column; min-height: 0; border-bottom: 1px solid var(--line);
-  height: min(60%, calc(min(var(--changes-history-rows, 1), 10) * 36px + var(--changes-history-chrome, var(--changes-history-more-height))));
+  position: relative;
+  height: var(--changes-history-height, min(60%, calc(min(var(--changes-history-rows, 1), 10) * 36px + var(--changes-history-chrome, var(--changes-history-more-height)))));
+  max-height: max(72px, calc(100% - 140px));
 }
+.changes-picker-resizer { position: absolute; z-index: 3; left: 0; right: 0; bottom: -4px; height: 8px; cursor: row-resize; touch-action: none; outline: none; }
+.changes-picker-resizer::after { content: ""; position: absolute; left: 0; right: 0; top: 3px; height: 1px; background: transparent; }
+.changes-picker-resizer:hover::after, .changes-picker-resizer:focus-visible::after { background: var(--text); }
+@media (pointer: coarse) { .changes-picker-resizer { bottom: -8px; height: 16px; } .changes-picker-resizer::after { top: 7px; } }
 .changes-history-scroll { height: 100%; min-height: 0; min-width: 0; overflow: auto; flex: 1; overscroll-behavior: contain; user-select: none; -webkit-user-select: none; }
 .changes-history-table { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: var(--text-code); }
 .changes-history-table tbody tr { --changes-history-row-background: transparent; height: 36px; cursor: default; outline: none; }
