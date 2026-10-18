@@ -5,6 +5,7 @@ import { workingTree, historyGraph, diffEndpointsDescription, comparisonGraph, r
 
 type ComparisonModel = { endpoints: DiffEndpoints; label: string; baseLabel: string; targetLabel: string };
 const minimumHistoryHeight = 72;
+const historyHeightStorageKey = "agents-in-the-cloud:changes-history-height";
 
 export function createDiffEndpointsController(Controller: WorkspaceClientControllerConstructor) {
   return class DiffEndpointsController extends Controller {
@@ -47,6 +48,8 @@ export function createDiffEndpointsController(Controller: WorkspaceClientControl
     private lastOperation: "compare" | "refresh" | "history" = "compare";
 
     connect(): void {
+      const storedHeight = localStorage.getItem(historyHeightStorageKey);
+      if (storedHeight) this.setHistoryHeight(Number(storedHeight));
       this.resize = new ResizeObserver(() => this.measure());
       this.resize.observe(this.element);
       if (this.hasPickerTarget) {
@@ -135,7 +138,9 @@ export function createDiffEndpointsController(Controller: WorkspaceClientControl
     }
     // The stylesheet keeps room for the comparison below.
     private setHistoryHeight(height: number): void {
-      this.element.style.setProperty("--changes-history-height", `${Math.max(minimumHistoryHeight, height)}px`);
+      const clamped = Math.max(minimumHistoryHeight, Math.round(height));
+      this.element.style.setProperty("--changes-history-height", `${clamped}px`);
+      localStorage.setItem(historyHeightStorageKey, String(clamped));
     }
 
     private commitAt(element: Element, clientY: number): string | undefined {
