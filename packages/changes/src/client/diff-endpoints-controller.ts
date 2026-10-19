@@ -5,7 +5,7 @@ import { workingTree, historyGraph, diffEndpointsDescription, comparisonGraph, r
 
 type ComparisonModel = { endpoints: DiffEndpoints; label: string; baseLabel: string; targetLabel: string };
 const minimumHistoryHeight = 72;
-const historyHeightStorageKey = "agents-in-the-cloud:changes-history-height";
+const historyHeightStorageKey = "kintsugi:changes-history-height";
 
 export function createDiffEndpointsController(Controller: WorkspaceClientControllerConstructor) {
   return class DiffEndpointsController extends Controller {
@@ -49,7 +49,8 @@ export function createDiffEndpointsController(Controller: WorkspaceClientControl
 
     connect(): void {
       const storedHeight = localStorage.getItem(historyHeightStorageKey);
-      if (storedHeight) this.setHistoryHeight(Number(storedHeight));
+      const parsedHeight = Number(storedHeight);
+      if (storedHeight && Number.isFinite(parsedHeight)) this.setHistoryHeight(parsedHeight);
       this.resize = new ResizeObserver(() => this.measure());
       this.resize.observe(this.element);
       if (this.hasPickerTarget) {

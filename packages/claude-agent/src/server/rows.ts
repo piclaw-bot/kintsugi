@@ -23,7 +23,7 @@ const rowSchema = Type.Object({
   type: Type.String(), subtype: Type.Optional(Type.String()), uuid: Type.Optional(Type.String()), timestamp: Type.Optional(Type.String()),
   isSidechain: Type.Optional(Type.Boolean()), isMeta: Type.Optional(Type.Boolean()), isCompactSummary: Type.Optional(Type.Boolean()), isApiErrorMessage: Type.Optional(Type.Boolean()),
   content: Type.Optional(Type.Unknown()),
-  origin: Type.Optional(Type.Object({ runId: Type.Optional(Type.String()) })),
+  origin: Type.Optional(Type.Object({ kind: Type.Optional(Type.String()), runId: Type.Optional(Type.String()) })),
   message: Type.Optional(Type.Object({
     id: Type.Optional(Type.String()), content: Type.Union([Type.String(), Type.Array(blockSchema)]),
     stop_reason: Type.Optional(Type.Union([Type.String(), Type.Null()])), usage: Type.Optional(usageSchema),
@@ -59,7 +59,7 @@ export function claudeRows(jsonl: string): ClaudeRow[] {
       if (row.type === "system" && row.subtype === "compact_boundary" && row.uuid) rows.push({ kind: "compact", uuid: row.uuid, timestamp });
     } else if (row.type === "user") {
       const text = claudeText(claudeBlocks(row.message.content)).trim();
-      if (text.startsWith("<task-notification>")) rows.push({ kind: "task", uuid: row.uuid, timestamp, runId: row.origin?.runId ?? row.uuid, summary: tag(text, "summary")?.trim() || "A background task finished." });
+      if (row.origin?.kind === "task-notification" || (row.isMeta === true && text.startsWith("<task-notification>"))) rows.push({ kind: "task", uuid: row.uuid, timestamp, runId: row.origin?.runId ?? row.uuid, summary: tag(text, "summary")?.trim() || "A background task finished." });
       else rows.push({ kind: "user", uuid: row.uuid, timestamp, content: claudeBlocks(row.message.content), meta: row.isMeta === true || row.isCompactSummary === true });
     } else if (row.type === "assistant") {
       rows.push({ kind: "assistant", uuid: row.uuid, timestamp, messageId: row.message.id ?? row.uuid, content: claudeBlocks(row.message.content), stopReason: row.message.stop_reason ?? null, usage: row.message.usage, error: row.isApiErrorMessage === true });
