@@ -22,14 +22,15 @@ export const renderCableStreams: CableStreamRenderer = (html, isCurrent, onAppli
       // Permanent islands survive only while their key remains in the parent's
       // snapshot. Turbo itself preserves them even when absent, so dispose those
       // absent keys explicitly before morphing the owning region. Nested islands
-      // belong to their enclosing island's region, not this one.
+      // belong to their enclosing island's region, not this one. The region itself
+      // may be permanent; its own islands are still this region's to dispose.
       if (stream.getAttribute("method") === "morph") {
         // Read the template itself: Turbo's templateContent getter clones it on every access.
         const incoming = new Set([...stream.templateElement.content.querySelectorAll("[id]")].map(element => element.id));
         for (const target of stream.targetElements) {
           for (const island of target.querySelectorAll<HTMLElement>("[id][data-turbo-permanent]")) {
             const enclosing = island.parentElement!.closest("[id][data-turbo-permanent]");
-            if (enclosing && target.contains(enclosing)) continue;
+            if (enclosing && enclosing !== target && target.contains(enclosing)) continue;
             if (!incoming.has(island.id)) island.remove();
           }
         }
