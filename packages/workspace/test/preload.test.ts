@@ -114,6 +114,24 @@ test("resolves an existing local image without contacting a registry", async () 
   expect(f.calls.some((args) => args.includes("fetch"))).toBe(false);
 });
 
+test("restores persisted pinned image metadata after it was pruned", async () => {
+  const f = fixture();
+  const path = await directory();
+  await f.preloader.snapshot(["postgres:17"], path);
+  await f.preloader.load(path);
+  f.images.clear();
+  f.registry.set(`${postgres}@${digestA}`, digestA);
+  f.before(async (args) => {
+    if (args[0] === "agents-in-the-cloud-image-transfer" && !f.images.has(args[2]!)) throw new Error("image metadata is missing");
+  });
+
+  const restarted = createImagePreloader(f.run, f.docker, undefined, undefined, f.build, f.inWorkspace);
+  const images = await restarted.load(path);
+  expect(images).toEqual([{ requested: "postgres:17", reference: `${postgres}@${digestA}` }]);
+  expect(f.images.get(`${postgres}@${digestA}`)).toBe(digestA);
+  await restarted.install(images, "workspace");
+});
+
 test("empty preload lists execute no commands and start neither daemon", async () => {
   const f = fixture();
   const path = await directory();

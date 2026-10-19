@@ -182,10 +182,12 @@ export function createImagePreloader(run: Command = command, docker: typeof requ
     async load(directory: string, report: (detail: string) => void = () => {}): Promise<PreparedImage[]> {
       const images: PreparedImage[] = JSON.parse(await readFile(join(directory, "preloads.json"), "utf8"));
       for (const image of images) {
-        if (image.reference) continue;
         report(`Resolving image ${image.requested}`);
-        image.reference = await resolve(image.requested);
-        await writeFileAtomic(join(directory, "preloads.json"), JSON.stringify(images));
+        const reference = await resolve(image.reference ?? image.requested);
+        if (reference !== image.reference) {
+          image.reference = reference;
+          await writeFileAtomic(join(directory, "preloads.json"), JSON.stringify(images));
+        }
       }
       return images;
     },
