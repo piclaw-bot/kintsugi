@@ -28,7 +28,9 @@ export class ClaudeState {
       const intent = row.kind === "user" ? claudeUserIntent(row) : undefined;
       return intent?.kind === "prompt" && commands.some(command => command.text === intent.text && command.timestamp >= row.timestamp - 2000);
     };
-    this.rows = [...history, ...this.rows.filter(row => !recorded.has(row.uuid) && !echoed(row))];
+    // A finished task is recorded under its own UUID, not the one it was announced with.
+    const runs = new Set(history.flatMap(row => row.kind === "task" ? [row.runId] : []));
+    this.rows = [...history, ...this.rows.filter(row => !recorded.has(row.uuid) && !echoed(row) && !(row.kind === "task" && runs.has(row.runId)))];
   }
   add(row: ClaudeRow) {
     if (!this.rows.some(existing => existing.uuid === row.uuid)) this.rows.push(row);

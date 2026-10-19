@@ -46,6 +46,7 @@ export class CodexRuntime {
   private constructor(readonly workspaceId: string, readonly record: CodexAgentRecord, private readonly save: () => void, private readonly events: KintsugiEventBus) {}
   get agentId() { return this.record.id; }
   get isBusy() { return !this.failure && Boolean(this.state.activeTurn || this.turnPending); }
+  get isTurnRunning() { return this.isBusy; }
   private changed() {
     if (this.disposed) return;
     const busy = this.isBusy;

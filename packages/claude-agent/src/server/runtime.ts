@@ -48,6 +48,9 @@ export class ClaudeRuntime {
   readonly presentation = createLivePresentation(() => liveRegions(this), 50);
   private constructor(readonly workspaceId: string, readonly record: ClaudeAgentRecord, private readonly save: () => void, private readonly events: KintsugiEventBus) {}
   get agentId() { return this.record.id; }
+  /** Claude is in a turn. Background work keeps going after it, without holding up the conversation. */
+  get isTurnRunning() { return !this.failure && this.running; }
+  /** Not yet settled: Claude is in a turn or will report on background work in one. */
   get isBusy() { return !this.failure && (this.running || this.backgroundTasks.length > 0); }
   private changed() {
     if (this.disposed) return;
@@ -228,6 +231,7 @@ export class ClaudeRuntime {
     await this.startConnection();
     return { kind: "done", message: submission.message };
   }
+  /** Switching conversations restarts Claude, which would end its background work too. */
   private requireIdle(action: string) {
     if (this.isBusy) throw invalidArguments(`Stop Claude before ${action}`);
   }
@@ -257,7 +261,7 @@ export class ClaudeRuntime {
     await this.activate();
     return this.serialize(this.agentId, async () => {
       this.assertOpen();
-      if (this.isBusy) throw invalidArguments("Stop Claude before changing its model or thinking level");
+      if (this.isTurnRunning) throw invalidArguments("Stop Claude before changing its model or thinking level");
       const requested = parameters.model ? parseModelRef(parameters.model) : undefined;
       const model = requested ? requested.provider === "anthropic" && this.models.find(model => model.value === requested.id || model.resolvedModel === requested.id) : this.selectedModel;
       if (!model) throw invalidArguments("Choose an available Claude Code model");
@@ -306,6 +310,8 @@ export class ClaudeRuntime {
       this.backgroundTasks = message.tasks.filter(task => !task.ambient).map(task => task.task_id);
     } else if (message.type === "system" && message.subtype === "task_notification" && message.status !== "stopped" && !message.ambient) {
       // The finished task leaves the background set before Claude starts the turn that reports on it.
+      // A turn already running absorbs it instead.
+      if (!this.running) this.state.add({ kind: "task", uuid: message.uuid, timestamp: Date.now(), runId: message.run_id ?? message.uuid, summary: message.summary });
       this.running = true;
     } else if (message.type === "result") {
       this.running = (message.queued_turn_count ?? 0) > 0;

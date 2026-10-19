@@ -23,6 +23,7 @@ const rowSchema = Type.Object({
   type: Type.String(), subtype: Type.Optional(Type.String()), uuid: Type.Optional(Type.String()), timestamp: Type.Optional(Type.String()),
   isSidechain: Type.Optional(Type.Boolean()), isMeta: Type.Optional(Type.Boolean()), isCompactSummary: Type.Optional(Type.Boolean()), isApiErrorMessage: Type.Optional(Type.Boolean()),
   content: Type.Optional(Type.Unknown()),
+  origin: Type.Optional(Type.Object({ runId: Type.Optional(Type.String()) })),
   message: Type.Optional(Type.Object({
     id: Type.Optional(Type.String()), content: Type.Union([Type.String(), Type.Array(blockSchema)]),
     stop_reason: Type.Optional(Type.Union([Type.String(), Type.Null()])), usage: Type.Optional(usageSchema),
@@ -42,6 +43,8 @@ export type ClaudeRow =
   | { kind: "assistant"; uuid: string; timestamp: number; messageId: string; content: ClaudeBlock[]; stopReason: string | null; usage?: Static<typeof usageSchema>; error: boolean }
   /** A prompt sent while Claude worked, absorbed into its running turn. */
   | { kind: "steer"; uuid: string; timestamp: number; text: string }
+  /** A background command or subagent finished; Claude reports on it in a turn of its own. A resumed subagent finishes again, in a new run. */
+  | { kind: "task"; uuid: string; timestamp: number; runId: string; summary: string }
   | { kind: "compact"; uuid: string; timestamp: number };
 
 /** Claude Code's native JSONL is untrusted, append-only input. Sidechains belong to its own subagents. */
@@ -55,7 +58,9 @@ export function claudeRows(jsonl: string): ClaudeRow[] {
     } else if (!row.uuid || !row.message) {
       if (row.type === "system" && row.subtype === "compact_boundary" && row.uuid) rows.push({ kind: "compact", uuid: row.uuid, timestamp });
     } else if (row.type === "user") {
-      rows.push({ kind: "user", uuid: row.uuid, timestamp, content: claudeBlocks(row.message.content), meta: row.isMeta === true || row.isCompactSummary === true });
+      const text = claudeText(claudeBlocks(row.message.content)).trim();
+      if (text.startsWith("<task-notification>")) rows.push({ kind: "task", uuid: row.uuid, timestamp, runId: row.origin?.runId ?? row.uuid, summary: tag(text, "summary")?.trim() || "A background task finished." });
+      else rows.push({ kind: "user", uuid: row.uuid, timestamp, content: claudeBlocks(row.message.content), meta: row.isMeta === true || row.isCompactSummary === true });
     } else if (row.type === "assistant") {
       rows.push({ kind: "assistant", uuid: row.uuid, timestamp, messageId: row.message.id ?? row.uuid, content: claudeBlocks(row.message.content), stopReason: row.message.stop_reason ?? null, usage: row.message.usage, error: row.isApiErrorMessage === true });
     }
@@ -105,7 +110,7 @@ export async function listClaudeSessions(directory: string, limit: number): Prom
 
 const interruption = /^\[Request interrupted by user[^\]]*\]$/;
 /** Messages Claude Code writes into the conversation for itself, never shown as prompts. */
-const internalMessages = new Set(["local-command-caveat", "system-reminder", "task-notification"]);
+const internalMessages = new Set(["local-command-caveat", "system-reminder"]);
 
 /** Images in a row's order, including those inside tool results. */
 export function claudeImageSources(content: ClaudeBlock[]): Array<{ media_type: string; data: string }> {

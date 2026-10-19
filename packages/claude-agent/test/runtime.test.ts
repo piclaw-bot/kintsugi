@@ -117,7 +117,7 @@ test("prompts sent while Claude works steer its turn, and queued prompts keep it
   await agents.disposeAll();
 `));
 
-test("background work keeps Claude busy until it has reported on it", () => scenario(`
+test("background work keeps Claude from settling until it has reported on it, though its turn has ended", () => scenario(`
   const id = await agents.create("workspace");
   const runtime = await agents.ready("workspace", id);
   const [connection] = connections;
@@ -127,8 +127,11 @@ test("background work keeps Claude busy until it has reported on it", () => scen
   connection.message(tasks([{ task_id: "suite", task_type: "local_bash", description: "Run the suite" }, { task_id: "watcher", task_type: "monitor", description: "Watch", ambient: true }]));
   connection.message(result());
   expect(runtime.isBusy).toBe(true);
+  expect(runtime.isTurnRunning).toBe(false);
   expect(finished).toEqual([]);
-  connection.message(system("task_notification", { task_id: "suite", status: "completed", output_file: "", summary: "" }));
+  connection.message(system("task_notification", { task_id: "suite", run_id: "run-1", status: "completed", output_file: "", summary: "Suite passed" }));
+  expect(runtime.isTurnRunning).toBe(true);
+  expect(runtime.state.rows.at(-1)).toMatchObject({ kind: "task", runId: "run-1", summary: "Suite passed" });
   connection.message(tasks([{ task_id: "watcher", task_type: "monitor", description: "Watch", ambient: true }]));
   expect(runtime.isBusy).toBe(true);
   connection.message({ type: "stream_event", event: { type: "message_start", message: { id: "follow-up" } }, parent_tool_use_id: null, uuid: crypto.randomUUID(), session_id: "s" });

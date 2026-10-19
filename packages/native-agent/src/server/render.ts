@@ -33,7 +33,7 @@ export function createNativeAgentRendering<Runtime extends NativeAgentRuntime>(o
     const ctx = renderContext(runtime);
     return [
       { target: ids.transcript(ctx), html: transcriptHtml(runtime) },
-      { target: ids.actions(ctx), html: renderPromptActions(ctx, runtime.isBusy) },
+      { target: ids.actions(ctx), html: renderPromptActions(ctx, runtime.isTurnRunning, runtime.isBusy) },
       { target: ids.stats(ctx), html: renderAgentPaneComposerFooter(ctx, options.stats(runtime)), morph: false },
       { target: ids.completionCatalog(ctx), html: runtime.completionCatalog },
     ];

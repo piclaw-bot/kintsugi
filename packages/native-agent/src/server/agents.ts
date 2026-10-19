@@ -13,7 +13,10 @@ export interface NativeAgentRuntime {
   readonly record: NativeAgentRecord;
   readonly state: { readonly notices: readonly string[] };
   readonly failure?: Error;
+  /** Not yet settled: in a turn, or waiting on work it will report on. */
   readonly isBusy: boolean;
+  /** In a turn. Work outside one can still be stopped while the conversation takes prompts. */
+  readonly isTurnRunning: boolean;
   /** Waits for a connecting harness. */
   systemPrompt(): Promise<string>;
   readonly completionCatalog: string;

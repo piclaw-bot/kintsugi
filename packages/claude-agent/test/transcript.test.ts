@@ -85,6 +85,50 @@ test("history replaces streamed rows, keeps unrecorded prompts and drops prompts
   expect(value.rows.map(row => row.uuid)).toEqual(["sent", "echo", "queued"]);
 });
 
+const notification = (taskId: string, summary: string) => `<task-notification>\n<task-id>${taskId}</task-id>\n<status>completed</status>\n<summary>${summary}</summary>\n</task-notification>`;
+
+test("Claude's report on finished background work is a turn of its own, after the answer that started it", () => {
+  const started = jsonl(
+    user("prompt", 0, [{ type: "text", text: "Run the suite in the background" }]),
+    assistant("a1", 1, "msg_1", [{ type: "tool_use", id: "toolu_1", name: "Bash", input: { command: "bun test", run_in_background: true } }]),
+    user("result", 1, [{ type: "tool_result", tool_use_id: "toolu_1", content: "Running in background", is_error: false }]),
+    assistant("a2", 2, "msg_2", [{ type: "text", text: "Started the suite." }]),
+  );
+  const value = state(started);
+  // Claude starts reporting before history records the notification.
+  value.add({ kind: "task", uuid: "announced", timestamp: Date.parse(time(8)), runId: "run-1", summary: "Background command \"bun test\" completed" });
+  const live = projectClaudeTranscript(value, true);
+  expect(live.map(item => [item.type, "text" in item ? item.text : undefined, item.type === "working" ? item.live : undefined])).toEqual([
+    ["user", "Run the suite in the background", undefined], ["working", undefined, false], ["text", "Started the suite.", undefined],
+    ["note", "Background command \"bun test\" completed", undefined], ["working", undefined, true],
+  ]);
+  const reported = started + "\n" + jsonl(
+    user("recorded", 8, notification("suite", "Background command \"bun test\" completed"), { origin: { kind: "task-notification", runId: "run-1" } }),
+    assistant("a3", 9, "msg_3", [{ type: "text", text: "All tests pass." }]),
+  );
+  value.merge(claudeRows(reported));
+  expect(projectClaudeTranscript(value, false).map(item => [item.type, "text" in item ? item.text : undefined])).toEqual([
+    ["user", "Run the suite in the background"], ["working", undefined], ["text", "Started the suite."],
+    ["note", "Background command \"bun test\" completed"], ["working", undefined], ["text", "All tests pass."],
+  ]);
+  // A resumed task finishes again under the same task ID, in a run of its own.
+  value.add({ kind: "task", uuid: "announced-again", timestamp: Date.parse(time(20)), runId: "run-2", summary: "Background command \"bun test\" completed" });
+  value.merge(claudeRows(reported));
+  expect(value.rows.at(-1)).toMatchObject({ uuid: "announced-again" });
+});
+
+test("background work that finishes mid-turn is absorbed into it", () => {
+  const items = projectClaudeTranscript(state(jsonl(
+    user("prompt", 0, [{ type: "text", text: "Build, then test" }]),
+    assistant("a1", 1, "msg_1", [{ type: "tool_use", id: "toolu_1", name: "Bash", input: { command: "bun run build" } }]),
+    user("result", 4, [{ type: "tool_result", tool_use_id: "toolu_1", content: "Built", is_error: false }]),
+    user("task", 5, notification("watcher", "Background command \"sleep 3\" completed")),
+    assistant("a2", 6, "msg_2", [{ type: "text", text: "Built and slept." }]),
+  )), false);
+  expect(items.map(item => item.type)).toEqual(["user", "working", "text"]);
+  expect(items[1]).toMatchObject({ items: [{ type: "tool" }, { type: "note", text: "Background command \"sleep 3\" completed" }] });
+});
+
 test("prompts may start with any tag; only Claude's own tagged messages stay hidden", () => {
   const items = projectClaudeTranscript(state(jsonl(
     user("pasted", 0, [{ type: "text", text: "<pasted_content>\nlog\n</pasted_content>\nWhy?" }]),
