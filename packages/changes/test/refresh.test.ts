@@ -66,3 +66,19 @@ test("refresh follows new unpushed commits but preserves an explicit commit comp
   expect(pinned.endpoints).toEqual(explicit.endpoints);
   expect(pinned.files.get("file.txt")!.newContents).toBe("first\n");
 });
+
+test("refresh falls back to the default comparison when the selected commits are gone", async () => {
+  const { root, repo } = await repository();
+  await writeFile(join(root, "file.txt"), "first\n");
+  await git(repo, ["commit", "-am", "First"]);
+  const first = (await captureChanges(repo)).history.head!;
+  const explicit = await captureChanges(repo, { target: first });
+  const based = await captureChanges(repo, { target: workingTree, base: first });
+  await writeFile(join(root, "file.txt"), "amended\n");
+  await git(repo, ["commit", "-a", "--amend", "-m", "First, amended"]);
+  for (const previous of [explicit, based]) {
+    const refreshed = await refreshChanges(repo, previous);
+    expect(refreshed.endpoints).toEqual({ target: workingTree, base: refreshed.history.head });
+    expect(refreshed.history.head).not.toBe(first);
+  }
+});

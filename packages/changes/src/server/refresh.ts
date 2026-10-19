@@ -19,5 +19,7 @@ export async function refreshChanges(root: Repository, previous: ChangesSnapshot
     history.loaded += page.commits.length;
     history.hasMore = page.hasMore;
   }
+  // Amends, rebases and resets can drop the selected commits; show the default comparison instead.
+  if (!history.commits.some(commit => commit.id === endpoints.target) || (endpoints.base != null && !history.topology.some(commit => commit.id === endpoints.base))) endpoints = history.endpoints;
   return captureChanges(root, endpoints, history);
 }
