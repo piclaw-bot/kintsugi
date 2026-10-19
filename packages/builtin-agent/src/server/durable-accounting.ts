@@ -1,7 +1,7 @@
 import { calculateContextTokens, estimateMessageTokens } from "@earendil-works/pi-ai/utils/estimate";
 import { defineExtension, GenerationTask, hook, type ContextView } from "@earendil-works/pi-durable";
 import type { ModelRuntime } from "@earendil-works/pi-coding-agent";
-import { recordSubscriptionInference } from "@kintsugi/llm/server";
+import { hasUsageLimits, supportedUsageProviders, recordSubscriptionInference } from "@kintsugi/llm/server";
 
 /** Same head-cutoff rule as native automatic compaction, over derived context. */
 export function durableContextTokens(view: ContextView): number {
@@ -22,8 +22,8 @@ export function durableSubscriptionActivity(models: Pick<ModelRuntime, "getAuth"
     async afterResponse(message) {
       // These providers expose subscription quotas with known pacing periods.
       if ((message.provider !== "openai-codex" && message.provider !== "github-copilot" && message.provider !== "opencode-go") || message.stopReason === "error" || message.stopReason === "aborted" || message.stopReason === "deferred") return;
-      const auth = await models.getAuth(message.provider);
-      if (auth && (message.provider === "opencode-go" || auth.source === "OAuth")) record(message.provider);
+      const provider = supportedUsageProviders.find(provider => provider.id === message.provider)!;
+      if (hasUsageLimits(provider, await models.getAuth(provider.id))) record(provider.id);
     },
   })] });
 }

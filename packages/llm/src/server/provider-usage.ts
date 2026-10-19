@@ -1,4 +1,4 @@
-import { ModelsError } from "@earendil-works/pi-ai";
+import { ModelsError, type AuthResult } from "@earendil-works/pi-ai";
 import { SubscriptionUsageError, type SubscriptionUsage } from "./subscription-usage.ts";
 import { anthropicUsageSource } from "./anthropic-subscription-usage.ts";
 import { usageWindowTiming, type PacedUsageWindow } from "./usage-window.ts";
@@ -12,8 +12,21 @@ import type { ModelRuntime } from "@earendil-works/pi-coding-agent";
 
 // Only providers with implemented subscription adapters appear in the overview.
 // Radius reports a credit balance without allowance windows, so it never drives the usage button.
-export const supportedUsageProviders = [{ id: "anthropic", label: "Anthropic" }, { id: "openai-codex", label: "ChatGPT / Codex" }, { id: "xai", label: "xAI" }, { id: "radius", label: "Radius" }, { id: "github-copilot", label: "GitHub Copilot" }, { id: "opencode-go", label: "OpenCode Go" }] as const;
+export const supportedUsageProviders = [
+  { id: "anthropic", label: "Anthropic", credential: "oauth" },
+  { id: "openai-codex", label: "ChatGPT / Codex", credential: "oauth" },
+  { id: "xai", label: "xAI", credential: "oauth" },
+  { id: "radius", label: "Radius", credential: "oauth" },
+  { id: "github-copilot", label: "GitHub Copilot", credential: "oauth" },
+  { id: "opencode-go", label: "OpenCode Go", credential: "api_key" },
+] as const;
 export type UsageProvider = typeof supportedUsageProviders[number];
+
+/** Credential kind carrying limits, not whether a provider can perform inference. */
+export function hasUsageLimits(provider: UsageProvider, auth: AuthResult | undefined): boolean {
+  return !!auth && (provider.credential === "api_key" || auth.source === "OAuth");
+}
+
 type UsageRequest = { runtime: ModelRuntime; refresh: boolean };
 const subscriptionAdapters = {
   // Codex reports usage cheaply on every request, so it is always current.
@@ -80,7 +93,7 @@ export async function getProviderUsageOverview(provider: UsageProvider, options:
         // Pi owns credential storage and serialized OAuth refresh for subscriptions.
         const auth = await runtime.getAuth(provider.id, { signal: AbortSignal.timeout(10_000) });
         if (!auth?.auth.apiKey) throw new SubscriptionUsageError(`${provider.label} credentials are unavailable. Reconnect ${provider.label}.`);
-        if (provider.id !== "opencode-go" && auth.source !== "OAuth") throw new SubscriptionUsageError(`${provider.label} subscription usage requires OAuth sign-in, not an API key. Reconnect ${provider.label} with your subscription.`);
+        if (!hasUsageLimits(provider, auth)) throw new SubscriptionUsageError(`${provider.label} subscription usage requires OAuth sign-in, not an API key. Reconnect ${provider.label} with your subscription.`);
         const adapter = subscriptionAdapters[provider.id];
         const token = auth.auth.apiKey;
         reported = await sharedUsage(provider, token, refresh, () => adapter(token, { runtime, refresh }));

@@ -87,12 +87,13 @@ function providerIcon(provider: string, label: string): string {
 
 /** What the card says in place of usage limits; undefined when it can show them. */
 function usageNote(account: Account): string | undefined {
-  if (account.connection === "needs_attention") return supportedUsageProviders.some((supported) => supported.id === account.provider)
+  const usage = supportedUsageProviders.find((supported) => supported.id === account.provider);
+  if (account.connection === "needs_attention") return usage
     ? "Sign in again to use this provider and see its usage."
     : "Sign in again to use this provider.";
-  if (account.method !== "subscription" && account.provider !== "opencode-go") return "API keys don’t have usage limits to show.";
+  if (account.method !== "subscription" && usage?.credential !== "api_key") return "API keys don’t have usage limits to show.";
   if (account.provider === "openai") return "Check your subscription usage on ChatGPT.";
-  if (!supportedUsageProviders.some((supported) => supported.id === account.provider)) return `Kintsugi can’t read ${account.label} usage limits yet.`;
+  if (!usage) return `Kintsugi can’t read ${account.label} usage limits yet.`;
   return undefined;
 }
 

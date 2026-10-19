@@ -7,7 +7,7 @@ export { llmWorkspaceModule as kintsugiServerModule } from "./web.ts";
 export { estimatedTimeToHitLimitSeconds, type PacedUsageWindow } from "./usage-window.ts";
 export { recordSubscriptionInference, providersInLastInferenceWindow, selectSubscriptionLimit } from "./recent-subscription-activity.ts";
 export type { ReportedAllowance } from "./subscription-usage.ts";
-export { connectedUsageProviders, getProviderUsageOverview, providerUsageFrameId, supportedUsageProviders, type ProviderUsageOverview } from "./provider-usage.ts";
+export { connectedUsageProviders, getProviderUsageOverview, hasUsageLimits, providerUsageFrameId, supportedUsageProviders, type ProviderUsageOverview } from "./provider-usage.ts";
 
 export { installSubscriptionCli, installCodexSubscriptionAuth, installClaudeSubscriptionAuth } from "./subscription-cli.ts";
 export { renderSharedComposerSelections, renderLaunchModelSettings, renderReadOnlyLaunchModelSettings, modelThinkingLevels, type ComposerModelOption } from "./model-picker.ts";
