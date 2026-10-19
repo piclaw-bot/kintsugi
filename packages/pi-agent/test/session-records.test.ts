@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import { recordsFromSessionEntries } from "../../src/server/session-records.ts";
-import { buildTranscript } from "../../src/server/transcript.ts";
+import { recordsFromSessionEntries } from "../src/server/session-records.ts";
+import { buildTranscript } from "@kintsugi/agent/server/transcript";
 
 describe("recordsFromSessionEntries", () => {
   test("maps pi session message entries to transcript records", () => {

@@ -33,7 +33,6 @@
     "./client/composer-state": "./src/client/composer-state.ts",
     "./client/transcript-navigation": "./src/client/transcript-navigation.ts",
     "./server/read-only-transcript": "./src/server/read-only-transcript.ts",
-    "./server/session-records": "./src/server/session-records.ts",
     "./server/render-markup": "./src/server/render-markup.ts"
   },
   "dependencies": {

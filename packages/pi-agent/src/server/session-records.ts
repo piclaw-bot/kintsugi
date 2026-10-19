@@ -2,9 +2,9 @@ import { contentText } from "@earendil-works/pi-ai";
 import type { SessionEntry } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
 import { Compile } from "typebox/compile";
-import { isToolViewDetails, type SessionImageRef, type TranscriptRecord } from "./transcript.ts";
+import { isToolViewDetails, type SessionImageRef, type TranscriptRecord } from "@kintsugi/agent/server/transcript";
 
-import { turnStartEntryType, turnStartSchema, turnTimingEntryType, turnTimingRecordSchema } from "./turn-timing.ts";
+import { turnStartEntryType, turnStartSchema, turnTimingEntryType, turnTimingRecordSchema } from "@kintsugi/agent/server/turn-timing";
 
 interface ImageDimensions {
   width: number;

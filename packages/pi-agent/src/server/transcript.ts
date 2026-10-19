@@ -1,6 +1,6 @@
 import { join } from "node:path";
 import { getKintsugiRuntimeContext } from "@kintsugi/core";
-import { recordsFromSessionEntries } from "@kintsugi/agent/server/session-records";
+import { recordsFromSessionEntries } from "./session-records.ts";
 import { type TranscriptRecord } from "@kintsugi/agent/server/transcript";
 import { latestNativeSessionFile, loadNativeTranscriptFiles, loadNativeTranscriptImage, nativeImageTypes, nativeJsonlRows, nativeSessionFiles } from "@kintsugi/cli-agent/server";
 import { Type } from "typebox";
