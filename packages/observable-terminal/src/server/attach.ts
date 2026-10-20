@@ -107,9 +107,9 @@ function tmuxAttachArgs(options: HostObservableTerminalAttachOptions): string[] 
   // Tell tmux that the Gespenst client accepts OSC 8. Pi probes this client
   // feature before emitting file:// hyperlinks; RGB alone is not enough.
   if (!options.readonly) {
-    // tmux can check its own options without spawning shells, grep, and more tmux clients.
-    args.push("if-shell", "-F", "#{m:*xterm-256color:hyperlinks*,#{terminal-features}}", "", "set-option -gas terminal-features ,xterm-256color:hyperlinks", ";");
-    args.push("if-shell", "-F", "#{m:*xterm-256color:clipboard*,#{terminal-features}}", "", "set-option -gas terminal-features ,xterm-256color:clipboard", ";");
+    // Older tmux expands only the first terminal-features array entry in a format.
+    // A server-local marker keeps setup idempotent without shells or overwriting user entries.
+    args.push("if-shell", "-F", "#{@kintsugi-terminal-client-features}", "", "set-option -gas terminal-features ,xterm-256color:hyperlinks ; set-option -gas terminal-features ,xterm-256color:clipboard ; set-option -g @kintsugi-terminal-client-features 1", ";");
   }
   args.push("attach-session");
   if (options.readonly) args.push("-r");

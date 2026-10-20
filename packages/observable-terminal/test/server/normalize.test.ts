@@ -37,8 +37,7 @@ describe("observable terminal normalization", () => {
       "bind-key", "-n", "S-PPage", "copy-mode -e ; send-keys -X page-up", ";",
       "bind-key", "-T", "copy-mode", "S-PPage", "send-keys -X page-up", ";",
       "bind-key", "-T", "copy-mode", "S-NPage", "send-keys -X page-down", ";",
-      "if-shell", "-F", "#{m:*xterm-256color:hyperlinks*,#{terminal-features}}", "", "set-option -gas terminal-features ,xterm-256color:hyperlinks", ";",
-      "if-shell", "-F", "#{m:*xterm-256color:clipboard*,#{terminal-features}}", "", "set-option -gas terminal-features ,xterm-256color:clipboard", ";",
+      "if-shell", "-F", "#{@kintsugi-terminal-client-features}", "", "set-option -gas terminal-features ,xterm-256color:hyperlinks ; set-option -gas terminal-features ,xterm-256color:clipboard ; set-option -g @kintsugi-terminal-client-features 1", ";",
       "attach-session", "-t", "s",
     ]);
   });
@@ -97,8 +96,11 @@ test("interactive attachment setup configures features inside tmux without dupli
     const args = buildAttachArgs({ containerName: "unused", session: "shell", cols: 80, rows: 24 });
     const bridge = JSON.parse(args.at(-1)!);
     const prelude = bridge.args.slice(0, bridge.args.indexOf("attach-session") - 1);
+    await run(["set-option", "-ga", "terminal-features", ",fixture*:RGB"]);
     await run(prelude);
     const first = await run(["show-options", "-g", "terminal-features"]);
+    expect(first).toContain("fixture*:RGB");
+    expect(await run(["show-options", "-gqv", "@kintsugi-terminal-client-features"])).toBe("1\n");
     expect(first).toContain("xterm-256color:hyperlinks");
     expect(first).toContain("xterm-256color:clipboard");
     await run(prelude);
