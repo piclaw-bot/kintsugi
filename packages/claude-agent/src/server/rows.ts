@@ -28,9 +28,10 @@ const rowSchema = Type.Object({
     id: Type.Optional(Type.String()), content: Type.Union([Type.String(), Type.Array(blockSchema)]),
     stop_reason: Type.Optional(Type.Union([Type.String(), Type.Null()])), usage: Type.Optional(usageSchema),
   })),
-  attachment: Type.Optional(Type.Object({ type: Type.String(), prompt: Type.Optional(Type.Union([Type.String(), Type.Array(blockSchema)])), source_uuid: Type.Optional(Type.String()) })),
+  attachment: Type.Optional(Type.Object({ type: Type.String(), prompt: Type.Optional(Type.Union([Type.String(), Type.Array(blockSchema)])), source_uuid: Type.Optional(Type.String()), runId: Type.Optional(Type.String()) })),
   customTitle: Type.Optional(Type.String()), aiTitle: Type.Optional(Type.String()),
 });
+const commandOutputSchema = Type.Object({ type: Type.Literal("system"), subtype: Type.Literal("local_command"), uuid: Type.String(), content: Type.String() });
 export type ClaudeBlock = Static<typeof blockSchema>;
 /** Message content as blocks. Live SDK content uses the API's wider block types; keep only the shapes history also records. */
 export function claudeBlocks(content: string | object[]): ClaudeBlock[] {
@@ -42,10 +43,11 @@ export type ClaudeRow =
   | { kind: "user"; uuid: string; timestamp: number; content: ClaudeBlock[]; meta: boolean }
   | { kind: "assistant"; uuid: string; timestamp: number; messageId: string; content: ClaudeBlock[]; stopReason: string | null; usage?: Static<typeof usageSchema>; error: boolean }
   /** A prompt sent while Claude worked, absorbed into its running turn. */
-  | { kind: "steer"; uuid: string; timestamp: number; text: string }
+  | { kind: "steer"; uuid: string; timestamp: number; content: ClaudeBlock[] }
   /** A background command or subagent finished; Claude reports on it in a turn of its own. A resumed subagent finishes again, in a new run. */
   | { kind: "task"; uuid: string; timestamp: number; runId: string; summary: string }
-  | { kind: "compact"; uuid: string; timestamp: number };
+  | { kind: "compact"; uuid: string; timestamp: number }
+  | { kind: "output"; uuid: string; timestamp: number; text: string; error: boolean };
 
 /** Claude Code's native JSONL is untrusted, append-only input. Sidechains belong to its own subagents. */
 export function claudeRows(jsonl: string): ClaudeRow[] {
@@ -54,7 +56,16 @@ export function claudeRows(jsonl: string): ClaudeRow[] {
     if (row.isSidechain === true) continue;
     const timestamp = nativeTimestamp(row.timestamp);
     if (row.type === "attachment" && row.attachment?.type === "queued_command" && row.uuid) {
-      rows.push({ kind: "steer", uuid: row.attachment.source_uuid ?? row.uuid, timestamp, text: claudeText(claudeBlocks(row.attachment.prompt ?? "")) });
+      const content = claudeBlocks(row.attachment.prompt ?? "");
+      const text = claudeText(content).trim();
+      // The native run ID distinguishes task delivery from a user steering with pasted XML.
+      if (row.attachment.runId && text.startsWith("<task-notification>")) rows.push({ kind: "task", uuid: row.uuid, timestamp, runId: row.attachment.runId, summary: tag(text, "summary")?.trim() || "A background task finished." });
+      else rows.push({ kind: "steer", uuid: row.attachment.source_uuid ?? row.uuid, timestamp, content });
+    } else if (Value.Check(commandOutputSchema, row)) {
+      const value = row.content.trim();
+      const leading = value.match(/^<(local-command-stdout|local-command-stderr)>/)?.[1];
+      const text = leading ? tag(value, leading)?.trim() : undefined;
+      if (text) rows.push({ kind: "output", uuid: row.uuid, timestamp, text, error: leading === "local-command-stderr" });
     } else if (!row.uuid || !row.message) {
       if (row.type === "system" && row.subtype === "compact_boundary" && row.uuid) rows.push({ kind: "compact", uuid: row.uuid, timestamp });
     } else if (row.type === "user") {

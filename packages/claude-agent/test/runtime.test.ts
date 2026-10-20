@@ -140,7 +140,12 @@ test("background work keeps Claude from settling until it has reported on it, th
   expect(busyEvents).toEqual([true, false]);
   expect(finished).toEqual([id]);
   await runtime.send(input, "second");
+  connection.message(tasks([{ task_id: "server", task_type: "local_bash", description: "Serve" }, { task_id: "lint", task_type: "local_bash", description: "Lint" }]));
+  // Foreground commands notify as well; only background work is reported on.
+  connection.message(system("task_notification", { task_id: "build", run_id: "run-2", status: "completed", output_file: "", summary: "Build" }));
+  connection.message(system("task_notification", { task_id: "lint", run_id: "run-3", status: "completed", output_file: "", summary: "Lint passed" }));
   connection.message(tasks([{ task_id: "server", task_type: "local_bash", description: "Serve" }]));
+  expect(runtime.state.rows.filter(row => row.kind === "task").map(row => row.runId)).toEqual(["run-1", "run-3"]);
   connection.message(result());
   await runtime.stop();
   expect(connection.calls).toEqual([["stopTask", "server"]]);

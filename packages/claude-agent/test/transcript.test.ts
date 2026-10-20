@@ -80,7 +80,7 @@ test("history replaces streamed rows, keeps unrecorded prompts and drops prompts
   const value = new ClaudeState();
   value.add({ kind: "user", uuid: "sent", timestamp: Date.parse(time(0)), content: [{ type: "text", text: "Hello" }], meta: false });
   value.add({ kind: "user", uuid: "local-compact", timestamp: Date.parse(time(5)), content: [{ type: "text", text: "/compact" }], meta: false });
-  value.add({ kind: "steer", uuid: "queued", timestamp: Date.parse(time(6)), text: "Still waiting" });
+  value.add({ kind: "steer", uuid: "queued", timestamp: Date.parse(time(6)), content: [{ type: "text", text: "Still waiting" }] });
   value.merge(claudeRows(jsonl(user("sent", 0, [{ type: "text", text: "Hello" }]), user("echo", 5, "<command-name>/compact</command-name><command-args></command-args>"))));
   expect(value.rows.map(row => row.uuid)).toEqual(["sent", "echo", "queued"]);
 });

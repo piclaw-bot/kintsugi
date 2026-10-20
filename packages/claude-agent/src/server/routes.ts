@@ -17,7 +17,7 @@ export function claudeRoutes(agents: NativeAgents<ClaudeRuntime>) {
     isHarnessCommand: (runtime, text) => runtime.isClaudeCommand(text),
     sessionImage(runtime, entryId, index) {
       const row = runtime.state.rows.find(row => row.uuid === entryId);
-      const source = row?.kind === "user" ? claudeImageSources(row.content)[index] : undefined;
+      const source = row?.kind === "user" || row?.kind === "steer" ? claudeImageSources(row.content)[index] : undefined;
       return source ? nativeImageResponse(source.data, source.media_type) : new Response("Image not found", { status: 404 });
     },
   });

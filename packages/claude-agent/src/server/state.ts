@@ -1,5 +1,5 @@
 import type { SDKMessage } from "@anthropic-ai/claude-agent-sdk";
-import { claudeBlocks, claudeUserIntent, type ClaudeRow } from "./rows.ts";
+import { claudeBlocks, claudeText, claudeUserIntent, type ClaudeRow } from "./rows.ts";
 
 /** A content block Claude is still streaming, keyed by its position in the API message. */
 interface StreamingBlock { type: "text" | "thinking" | "tool_use"; text: string; id?: string; name?: string }
@@ -61,6 +61,11 @@ export class ClaudeState {
       }
       case "assistant": {
         const content = claudeBlocks(message.message.content);
+        // A local command's output streams as a reply no model wrote; history records it as output under the same UUID.
+        if (message.message.model === "<synthetic>" && message.error === undefined) {
+          this.add({ kind: "output", uuid: message.uuid, timestamp: Date.now(), text: claudeText(content).trim(), error: false });
+          break;
+        }
         const position = this.committedBlocks(message.message.id);
         for (const index of content.keys()) this.streaming?.blocks.delete(position + index);
         this.add({ kind: "assistant", uuid: message.uuid, timestamp: Date.now(), messageId: message.message.id, content, stopReason: message.message.stop_reason, usage: message.message.usage, error: message.error !== undefined });
@@ -72,7 +77,7 @@ export class ClaudeState {
         if (message.uuid) this.add({ kind: "user", uuid: message.uuid, timestamp: Date.now(), content: claudeBlocks(message.message.content), meta: message.isSynthetic === true });
         break;
       case "system":
-        // Command output arrives with history, where it keeps its place in the turn.
+        // Command output arrives as a synthetic reply.
         if (message.subtype === "compact_boundary") this.add({ kind: "compact", uuid: message.uuid, timestamp: Date.now() });
         break;
       case "result":
