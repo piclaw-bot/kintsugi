@@ -69,7 +69,7 @@ export function createNativeAgentRoutes<Runtime extends NativeAgentRuntime, Comm
       if (text.trim() === "/park") return new Response(null, { status: 307, headers: { Location: `/workspaces/${encodeURIComponent(workspaceId)}/park` } });
       const named = await runAgentNameCommand(text, {
         suggest: () => suggestAgentSlug(options.promptText(runtime), runtime.record.model ? parseModelRef(runtime.record.model) : undefined),
-        setTitle: title => runtime.rename(title),
+        setTitle: title => agents.rename(runtime, title),
       });
       if (named) { if (named === "no-title") throw invalidArguments("Send a prompt before asking for an Agent name"); return success(); }
       const id = requestId();

@@ -1,5 +1,5 @@
 import { KintsugiCoreError, createKeyedOperationQueue, type KintsugiEventBus, type JsonValue } from "@kintsugi/core";
-import { createWorkspaceMetadataState } from "@kintsugi/workspace";
+import { createWorkspaceMetadataState, getWorkspaceTitle, setWorkspaceTitle } from "@kintsugi/workspace";
 import { revokeAgentMcp } from "@kintsugi/agent/server";
 import type { createLivePresentation, WorkspaceAgentInput } from "@kintsugi/shared";
 import type { CliModelSettings, createCliModelSettings } from "@kintsugi/cli-agent/server";
@@ -94,6 +94,18 @@ export function createNativeAgents<Record extends NativeAgentRecord, Runtime ext
       store().remove(workspaceId, agentId);
     });
   }
+  async function rename(runtime: Runtime, title: string) {
+    const workspaceNamed = await serialize(runtime.workspaceId, async () => {
+      const previousTitle = runtime.record.title;
+      await runtime.rename(title);
+      // Like other Agents, an unnamed Workspace (or one still named after this Agent) follows the Agent's name.
+      const workspaceTitle = await getWorkspaceTitle(runtime.workspaceId);
+      const follows = workspaceTitle === null || workspaceTitle === previousTitle;
+      if (follows) await setWorkspaceTitle(runtime.workspaceId, title);
+      return follows;
+    });
+    if (workspaceNamed) await getEvents().emit("workspace_title_changed", { workspaceId: runtime.workspaceId, title });
+  }
   async function disposeWorkspace(workspaceId: string) {
     for (const record of store().list(workspaceId)) {
       const runtime = runtimes.get(record.id);
@@ -105,6 +117,6 @@ export function createNativeAgents<Record extends NativeAgentRecord, Runtime ext
     await Promise.all([...runtimes.values()].map(async runtime => (await runtime).dispose()));
     runtimes.clear();
   }
-  return { list: (workspaceId: string) => store().list(workspaceId), ready, create, close, disposeWorkspace, disposeAll };
+  return { list: (workspaceId: string) => store().list(workspaceId), ready, create, rename, close, disposeWorkspace, disposeAll };
 }
 export type NativeAgents<Runtime extends NativeAgentRuntime> = ReturnType<typeof createNativeAgents<NativeAgentRecord, Runtime>>;
