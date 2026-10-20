@@ -11,10 +11,13 @@ let dataDir: string;
 beforeEach(async () => {
   dataDir = await mkdtemp(join(tmpdir(), "kintsugi-custom-models-"));
   process.env.ATELIER_DATA_DIR = dataDir;
+  // Provider changes reach every running workspace; this instance has none.
+  process.env.ATELIER_NAMESPACE = `model-preferences-${crypto.randomUUID()}`;
 });
 
 afterEach(async () => {
   delete process.env.ATELIER_DATA_DIR;
+  delete process.env.ATELIER_NAMESPACE;
   await rm(dataDir, { recursive: true, force: true });
 });
 
