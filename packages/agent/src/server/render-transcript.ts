@@ -157,10 +157,13 @@ function showsFullThinking(model?: ModelRef): boolean {
 
 function renderThinkingItem(ctx: AgentRenderContext, item: Extract<TranscriptItem, { type: "thinking" }>): string {
   const contentId = escapeHtml(ids.itemText(ctx, item.key));
-  const text = escapeHtml(item.text.trimEnd());
+  const content = item.live
+    // Thinking rows are morphed as a whole, unlike the independently streamed prose regions.
+    ? renderStreamingTextBody({ ...ctx, streamingText: undefined }, item.key, item.text, "markdown")
+    : `<div class="markdown" id="${contentId}">${markdown(ctx, item.text.trimEnd())}</div>`;
   return transcriptRow(showsFullThinking(ctx.model)
-    ? `<div class="agent-thinking-text expanded"><span id="${contentId}">${text}</span></div>`
-    : `<div class="agent-thinking-text" data-controller="agent-thinking" data-action="click->agent-thinking#expand keydown->agent-thinking#keydown"><span id="${contentId}" data-agent-thinking-target="content">${text}</span><span data-agent-thinking-target="preview" hidden></span><button class="agent-thinking-more" type="button" data-agent-thinking-target="more" tabindex="-1" hidden>...(show more)</button></div>`);
+    ? `<div class="agent-thinking-text expanded">${content}</div>`
+    : `<div class="agent-thinking-text" data-controller="agent-thinking" data-action="click->agent-thinking#expand keydown->agent-thinking#keydown"><div data-agent-thinking-target="content">${content}</div><div class="markdown" data-agent-thinking-target="preview" hidden></div><button class="agent-thinking-more" type="button" data-agent-thinking-target="more" tabindex="-1" hidden>...(show more)</button></div>`);
 }
 
 export function renderTranscriptItemDetailFrame(ctx: AgentRenderContext, item: TranscriptItem, options: { count?: number } = {}): string {

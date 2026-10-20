@@ -22,7 +22,9 @@ export function createAgentThinkingController(Controller: StimulusControllerCons
       if (this.renderFrame) cancelAnimationFrame(this.renderFrame);
     }
 
-    expand(): void {
+    expand(event?: Event): void {
+      const interactive = event?.target instanceof Element ? event.target.closest("a, button") : null;
+      if (interactive && interactive !== this.moreTarget) return;
       if (!this.element.classList.contains("truncated")) return;
       this.expanded = true;
       if (this.renderFrame) cancelAnimationFrame(this.renderFrame);
@@ -36,7 +38,7 @@ export function createAgentThinkingController(Controller: StimulusControllerCons
     }
 
     keydown(event: KeyboardEvent): void {
-      if (event.key !== "Enter" && event.key !== " ") return;
+      if (event.target !== this.element || (event.key !== "Enter" && event.key !== " ")) return;
       event.preventDefault();
       this.expand();
     }
@@ -47,9 +49,9 @@ export function createAgentThinkingController(Controller: StimulusControllerCons
       this.renderFrame = requestAnimationFrame(() => {
         this.renderFrame = undefined;
         const fullText = (this.contentTarget.textContent ?? "").trimEnd();
-        this.contentTarget.hidden = true;
-        this.previewTarget.textContent = fullText;
-        this.previewTarget.hidden = false;
+        this.contentTarget.hidden = false;
+        this.previewTarget.replaceChildren();
+        this.previewTarget.hidden = true;
         this.moreTarget.hidden = true;
         this.element.classList.remove("truncated");
 
@@ -71,7 +73,24 @@ export function createAgentThinkingController(Controller: StimulusControllerCons
         this.moreTarget.hidden = false;
         this.element.classList.add("truncated");
 
-        this.previewTarget.textContent = fullText.slice(0, cutoff).trimEnd();
+        // Keep the server-rendered Markdown structure when shortening the preview.
+        const range = document.createRange();
+        range.setStart(this.contentTarget, 0);
+        const walker = document.createTreeWalker(this.contentTarget, NodeFilter.SHOW_TEXT);
+        let remaining = cutoff;
+        while (walker.nextNode()) {
+          const node = walker.currentNode;
+          if (remaining <= node.textContent!.length) {
+            range.setEnd(node, remaining);
+            break;
+          }
+          remaining -= node.textContent!.length;
+        }
+        const preview = range.cloneContents();
+        for (const element of preview.querySelectorAll("[id]")) element.removeAttribute("id");
+        this.previewTarget.append(preview);
+        this.contentTarget.hidden = true;
+        this.previewTarget.hidden = false;
         this.element.setAttribute("role", "button");
         this.element.setAttribute("tabindex", "0");
       });

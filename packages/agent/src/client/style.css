@@ -219,7 +219,6 @@
 .agent-detail-fullscreen { margin: 0; padding: 0; }
 .agent-thinking-text {
   position: relative; color: var(--text-bright); opacity: .5;
-  white-space: pre-wrap;
 }
 .agent-thinking-text.truncated { cursor: pointer; }
 .agent-thinking-text.expanded { max-height: none; overflow: visible; }
