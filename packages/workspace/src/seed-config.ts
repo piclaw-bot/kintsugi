@@ -38,7 +38,7 @@ export async function applySeedConfigManifest(manifest: RepoWorkspaceManifest, p
     // cross into the agent workspace, even as temporary staging files.
     const catalogue = JSON.parse(await readFile(kintsugiDataPath(runtime, "projects.json"), "utf8"));
     const sanitized = JSON.stringify(catalogue, (key, value) =>
-      key === "encryptedSecret" || key === "encryptedPrivateKey" || key === "sshKeys" ? undefined : value,
+      key === "credentials" || key === "credentialAudit" || key === "encryptedSecret" || key === "encryptedPrivateKey" || key === "sshKeys" ? undefined : value,
     );
     entries.push({ source: await writeSeedFile(seedDirectory, "projects.json", sanitized), staging: "/.kintsugi/seed-projects.json", target: workspaceTemplatesJson });
   }

@@ -1,3 +1,4 @@
+import { storedInstanceCredentialSchema, credentialAuditSchema } from "./credentials-schema.ts";
 import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { basename, join } from "node:path";
@@ -22,7 +23,7 @@ export type WorkspaceTemplateEnvironmentVariable = Omit<StoredWorkspaceTemplateE
 export type WorkspaceTemplateRecord = Static<typeof workspaceTemplateRecordSchema>;
 /** Records that own Secrets, SSH keys, trusted SSH servers and Environment variables. */
 export type ConfigurationRecord = Static<typeof configurationRecordSchema>;
-export type WorkspaceTemplateStore = { workspaceTemplates: WorkspaceTemplateRecord[]; global: ConfigurationRecord };
+export type WorkspaceTemplateStore = { workspaceTemplates: WorkspaceTemplateRecord[]; global: ConfigurationRecord; credentials?: Static<typeof storedInstanceCredentialSchema>[]; credentialAudit?: Static<typeof credentialAuditSchema>[] };
 
 /** Global workspace settings apply to every new workspace; a template's own entry with the same name wins. */
 export const globalWorkspaceConfiguration = { kind: "global" } as const;
@@ -127,6 +128,8 @@ const workspaceTemplateStoreSchema = Type.Object({
   projects: Type.Array(workspaceTemplateRecordSchema),
   /** Absent in files saved before global workspace settings existed. */
   global: Type.Optional(configurationRecordSchema),
+  credentials: Type.Optional(Type.Array(storedInstanceCredentialSchema)),
+  credentialAudit: Type.Optional(Type.Array(credentialAuditSchema)),
 });
 
 export function workspaceTemplatesFile(dataDir = getKintsugiRuntimeContext().kintsugiDataDir): string {
@@ -164,7 +167,7 @@ export function parseWorkspaceTemplateSpec(spec: string): { gitUrl: string; bran
 export async function readWorkspaceTemplateStore(file: string): Promise<WorkspaceTemplateStore> {
   try {
     const stored = Value.Parse(workspaceTemplateStoreSchema, JSON.parse(await readFile(file, "utf8")));
-    const store: WorkspaceTemplateStore = { workspaceTemplates: stored.projects, global: stored.global ?? {} };
+    const store: WorkspaceTemplateStore = { workspaceTemplates: stored.projects, global: stored.global ?? {}, credentials: stored.credentials, credentialAudit: stored.credentialAudit };
     // Ignore the retired requirement flag in older saved secrets.
     for (const workspaceTemplate of store.workspaceTemplates) for (const secret of workspaceTemplate.secrets ?? []) {
       Reflect.deleteProperty(secret, "optional");
@@ -195,7 +198,7 @@ export async function updateWorkspaceTemplateStore<Result>(file: string, mutate:
     const store = await readWorkspaceTemplateStore(file);
     const result = await mutate(store);
     // Preserve the existing on-disk envelope; this is serialization, not a data migration.
-    await writeJsonAtomic(file, { projects: store.workspaceTemplates, global: store.global });
+    await writeJsonAtomic(file, { projects: store.workspaceTemplates, global: store.global, credentials: store.credentials, credentialAudit: store.credentialAudit });
     for (const listener of workspaceTemplateStoreListeners) listener();
     return result;
   } finally {
@@ -388,6 +391,14 @@ export async function deleteWorkspaceTemplate(id: string, file = workspaceTempla
   return await updateWorkspaceTemplateStore(file, (store) => {
     const workspaceTemplate = findWorkspaceTemplateRecord(store, id);
     store.workspaceTemplates = store.workspaceTemplates.filter((candidate) => candidate.id !== id);
+    for (const credential of store.credentials ?? []) if (credential.templateIds.includes(id)) {
+      credential.templateIds = credential.templateIds.filter(templateId => templateId !== id);
+      credential.revision++;
+      credential.updatedAt = new Date().toISOString();
+      store.credentialAudit ??= [];
+      store.credentialAudit.push({ credentialId: credential.id, action: "updated", at: credential.updatedAt });
+      store.credentialAudit = store.credentialAudit.slice(-1000);
+    }
     return { workspaceTemplate: workspaceTemplateSummary(workspaceTemplate, store.global) };
   });
 }

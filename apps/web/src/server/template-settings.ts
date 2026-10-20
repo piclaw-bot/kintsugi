@@ -1,3 +1,4 @@
+import { grantedInstanceCredentials } from "@kintsugi/workspace-templates";
 import { getPrivateNetworkAccess } from "@kintsugi/workspace-templates/private-network";
 import { disclosureHtml } from "@kintsugi/design-system/disclosure";
 import { invalidArguments } from "@kintsugi/core";
@@ -199,6 +200,8 @@ export async function renderTemplateSettingsFrame(id: string, location: Template
   assertRecordExists(ownEditors, own, current);
   assertRecordExists(globalEditors, global, current);
   const general = ownEditors.form("", `<div class="template-settings-inline-fields">${field("Display name", "name", t.name, 'required autocomplete="off" data-1p-ignore="true"')}${field("Repository", "gitUrl", formatWorkspaceTemplateSpec(t), "required")}</div><label class="template-settings-color"><span>Swatch color</span><input type="hidden" name="swatchColor" value="${escapeHtml(t.swatchColor ?? "")}"><span class="template-settings-color-control"><span class="workspace-template-icon" style="--workspace-template-swatch: ${escapeHtml(t.swatchColor ?? workspaceTemplateSwatchColor(t.id))}" aria-hidden="true"></span><input type="color" name="swatchColorPicker" aria-label="Swatch color" data-settings-editor-target="colorPicker" data-default-color="${workspaceTemplateSwatchColor(t.id)}" data-action="input->settings-editor#colorChanged change->settings-editor#colorChanged"></span></label>`, { section: "general", autosave: true });
+  const catalogue = await grantedInstanceCredentials(id);
+  const credentials = disclosureHtml({ summary: { kind: "compact", width: "fit", label: { kind: "text", text: "Instance credentials" } }, bodyHtml: `<p>Granted credentials apply to existing and future workspaces from this template.</p><ul>${catalogue.map(item => `<li>${escapeHtml(item.name)} · ${escapeHtml(item.envName)} · ${escapeHtml(item.hostPattern)}</li>`).join("") || "<li>No active grants</li>"}</ul><a href="/settings?section=credentials" data-turbo-frame="_top">Manage credentials and template grants</a>` });
   const shared = disclosureHtml({ summary: { kind: "compact", width: "fit", label: { kind: "text", text: "Shared with all templates" } }, bodyHtml: `<div class="template-settings-inline-body">${configurationSections(globalEditors, global, { records: own, describe: name => `Overridden by per-template ${name} with the same name` }, globalHosts)}</div>`, open: section.startsWith("global-") });
   const onlyHere = disclosureHtml({ summary: { kind: "compact", width: "fit", label: { kind: "text", text: "Only for this template" } }, bodyHtml: `<div class="template-settings-inline-body">${configurationSections(ownEditors, own, { records: global, describe: name => `Overrides global ${name} with the same name` }, ownHosts)}</div>`, open: ["secrets", "ssh", "environment", "network"].includes(section) });
   const dockerSupport = ownEditors.form("/privileged", `${selection("Docker support", "privileged", String(t.privileged ?? false), [{ value: "false", label: "Off" }, { value: "true", label: "On" }])}${paragraph("Privileged workspaces can access host devices and data. Enable only for templates and agents you trust.")}`, { section: "container", editor: "docker", autosave: true });
@@ -212,7 +215,7 @@ export async function renderTemplateSettingsFrame(id: string, location: Template
   const focus = section !== "index" || location.section === "danger" ? editorKey(section, location.section === "danger" ? "delete" : editor) : undefined;
   const body = `<div class="template-settings-content template-settings-inline" ${editorContentAttributes(templateSettingsUrl(id, section, editor), focus, submittedPath)}>
     ${editorErrorsHtml(templateSettingsErrorId)}
-    ${general}<div class="template-settings-inline-disclosures">${shared}${onlyHere}${docker}${developer}</div>
+    ${general}<div class="template-settings-inline-disclosures">${credentials}${shared}${onlyHere}${docker}${developer}</div>
   </div>`;
   return `<turbo-frame id="${templateSettingsFrameId}" data-settings-editor-target="frame">${panelHtml({ element: { tag: "section", attributesHtml: 'aria-label="Template settings"' }, headerHtml: header, bodyHtml: body, bodyLayout: "full-bleed", bodyOverflow: "scroll" })}</turbo-frame>`;
 }

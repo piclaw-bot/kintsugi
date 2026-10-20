@@ -1,3 +1,4 @@
+import { instanceCredentialInputSchema } from "@kintsugi/workspace-templates";
 import { workspaceResourceChangeSchema } from "@kintsugi/shared/workspace-resources";
 import { workspaceTemplateSecretPathPermissionSchema } from "@kintsugi/workspace-templates";
 import { emptyWorkspaceCommandInputSchema, type WorkspaceModuleCommandHandler } from "@kintsugi/shared";
@@ -65,6 +66,12 @@ export function kintsugiOpenApi(commands: WorkspaceModuleCommandHandler[], contr
       description: "JSON representations of Kintsugi's content-negotiated UI operations. Send Accept: application/json. Mutations and WebSocket upgrades require Origin to match the public destination origin (scheme, hostname, and port). Missing, null, or foreign origins receive a plain-text 403. No origin allowlist or management authentication is required.",
     },
     paths: {
+      "/settings/credentials": {
+        get: { summary: "List instance credential metadata and recent management events; never values", responses: jsonResponse("Credential metadata", { type: "object" }) },
+        post: { summary: "Create an encrypted instance credential with explicit template grants", requestBody: jsonBody(instanceCredentialInputSchema), responses: jsonResponse("Credential metadata", { type: "object" }) },
+      },
+      "/settings/credentials/{credentialId}": { post: { summary: "Update grants, disable or rotate an instance credential; values are write-only", parameters: [{ name: "credentialId", in: "path", required: true, schema: { type: "string" } }], requestBody: jsonBody(instanceCredentialInputSchema), responses: jsonResponse("Credential metadata", { type: "object" }) } },
+      "/settings/credentials/{credentialId}/delete": { post: { summary: "Delete a credential and revoke its template grants", parameters: [{ name: "credentialId", in: "path", required: true, schema: { type: "string" } }], requestBody: jsonBody(emptyObjectSchema), responses: jsonResponse("Deleted credential metadata", { type: "object" }) } },
       "/agent-types": { get: { summary: "List available agent types, default first", responses: jsonResponse("Agent types and installation-wide default", { type: "object", properties: { defaultAgentTypeId: { type: "string" }, agentTypes: { type: "array", items: { type: "object", properties: { id: { type: "string" }, label: { type: "string" } } } } } }) } },
       "/design-system-catalogue.html": { get: { summary: "Browse design-system components, usage and edge-case playgrounds", responses: { "200": { description: "Server-rendered package catalogue", content: { "text/html": { schema: { type: "string" } } } } } } },
       ...contributedPaths,

@@ -1,3 +1,4 @@
+import { instanceCredentialInputSchema } from "@kintsugi/workspace-templates";
 import { telemetryConfigSchema } from "@kintsugi/llm/server";
 import { workspaceResourceChangeSchema } from "@kintsugi/shared/workspace-resources";
 import { privateNetworkAccessInput } from "../settings/private-network.ts";
@@ -21,6 +22,7 @@ export const workspaceCreateSchema = object({
 /** Runtime validation and OpenAPI share exactly the same mutation contracts. */
 export function adminInputSchema(route: AdminRoute): TSchema {
   const path = route.path;
+  if (path.startsWith("/settings/credentials") && !path.endsWith("/delete")) return instanceCredentialInputSchema;
   if (path.endsWith("/private-network-access")) return privateNetworkAccessInput;
   if (path === "/workspaces/{id}/resources") return workspaceResourceChangeSchema;
   if (path === "/settings/telemetry" || path === "/settings/telemetry/test") return telemetryConfigSchema;

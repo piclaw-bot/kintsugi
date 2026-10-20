@@ -1,7 +1,7 @@
 import { createCipheriv, createDecipheriv, randomBytes } from "node:crypto";
 import { chmod, mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
-import { KintsugiCoreError, getKintsugiRuntimeContext, isNotFoundError } from "@kintsugi/core";
+import { acquireFileLock, KintsugiCoreError, getKintsugiRuntimeContext, isNotFoundError } from "@kintsugi/core";
 
 const keyBytes = 32;
 const ivBytes = 12;
@@ -17,13 +17,24 @@ async function readMasterKey(file: string): Promise<Buffer> {
 }
 
 async function readOrCreateMasterKey(file: string): Promise<Buffer> {
+  const release = await acquireFileLock(`${file}.lock`, "secret encryption key");
+  try {
+    return await readOrCreateLockedMasterKey(file);
+  } finally { await release(); }
+}
+async function readOrCreateLockedMasterKey(file: string): Promise<Buffer> {
   try {
     return await readMasterKey(file);
   } catch (error) {
     if (!isNotFoundError(error)) throw error;
     const key = randomBytes(keyBytes);
     await mkdir(dirname(file), { recursive: true });
-    await writeFile(file, `${key.toString("base64url")}\n`, { encoding: "utf8", mode: 0o600 });
+    try {
+      await writeFile(file, `${key.toString("base64url")}\n`, { encoding: "utf8", mode: 0o600, flag: "wx" });
+    } catch (failure) {
+      if (!(failure instanceof Error) || !("code" in failure) || failure.code !== "EEXIST") throw failure;
+      return readMasterKey(file);
+    }
     await chmod(file, 0o600);
     return key;
   }

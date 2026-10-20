@@ -4,6 +4,8 @@ export type AdminRoute = { path: string; method: "GET" | "POST" | "PUT" | "DELET
 // Explicit allowlist: never infer access from prefixes or expose new contributed routes automatically.
 export const adminRoutes: AdminRoute[] = [];
 function route(method: AdminRoute["method"], path: string, scopes: AdminScope[], summary?: string) { adminRoutes.push({ method, path, scopes, summary }); }
+route("GET", "/settings/credentials", ["secrets"], "List instance credential metadata and bounded management audit; no values");
+for (const path of ["/settings/credentials", "/settings/credentials/{credentialId}", "/settings/credentials/{credentialId}/delete"]) route("POST", path, ["secrets"], "Manage instance credentials and explicit template grants");
 const discovery: AdminScope[] = ["configuration", "secrets", "security", "workspaces"];
 route("GET", "/openapi.json", [...discovery, "host:read"], "Discover the authenticated admin API");
 route("GET", "/agent-types", ["workspaces"]);

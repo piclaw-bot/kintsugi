@@ -23,3 +23,8 @@ test("a mismatched key reports which saved value failed and does not replace the
   await expect(decryptWorkspaceTemplateValue("template", "secret", encrypted, otherKey)).rejects.toMatchObject({ code: "workspace_template_secret_decryption_failed", message: expect.stringContaining("Restore projects.json and project-secrets.key from the same source") });
   expect(await readFile(otherKey, "utf8")).toBe(before);
 });
+test("concurrent first encryptions share one master key without replacing it", async () => {
+  const key = join(directory, "concurrent.key");
+  const encrypted = await Promise.all(Array.from({ length: 8 }, (_, index) => encryptWorkspaceTemplateValue("template", String(index), `fixture-${index}`, key)));
+  expect(await Promise.all(encrypted.map((value, index) => decryptWorkspaceTemplateValue("template", String(index), value, key)))).toEqual(Array.from({ length: 8 }, (_, index) => `fixture-${index}`));
+});

@@ -1,5 +1,5 @@
 import { withHostNetworkBoundary } from "../egress/network-boundary.ts";
-import { workspaceTemplateIdOfInit, revealEffectiveSecrets, onWorkspaceTemplateStoreChanged, workspaceTemplateSecretPlaceholder, workspaceTemplateSecretHosts, workspaceTemplateSecretAllowsPath } from "@kintsugi/workspace-templates";
+import { grantedInstanceCredentials, resolveInstanceCredential, credentialHosts, workspaceTemplateIdOfInit, revealEffectiveSecrets, onWorkspaceTemplateStoreChanged, workspaceTemplateSecretPlaceholder, workspaceTemplateSecretHosts, workspaceTemplateSecretAllowsPath } from "@kintsugi/workspace-templates";
 import { getWorkspaceInit, getAppliedWorkspaceNetwork, type WorkspaceInitInstruction } from "@kintsugi/workspace";
 import { connectedGitHostingProviders, gitHostingConnection, onGitHostingCredentialsChanged } from "@kintsugi/git-hosting";
 import { matchHostname } from "./patterns.ts";
@@ -69,6 +69,12 @@ export async function createWorkspaceSecretContext(workspaceId: string, init?: W
   const workspaceTemplateId = workspaceTemplateIdOfInit(init);
   for (const secret of await revealEffectiveSecrets(workspaceTemplateId)) {
     secrets[secret.envName] = { value: secret.secretValue, allowInPath: workspaceTemplateSecretAllowsPath(secret), hosts: workspaceTemplateSecretHosts(secret.hostPattern), placeholder: secret.placeholder ?? workspaceTemplateSecretPlaceholder(secret.envName) };
+  }
+  for (const credential of await grantedInstanceCredentials(workspaceTemplateId)) {
+    if (secrets[credential.envName] || plainEnv[credential.envName] || subscriptionSecrets[credential.envName]) throw new Error(`Credential variable conflicts with an existing integration: ${credential.envName}`);
+    const hosts = credentialHosts(credential);
+    secrets[credential.envName] = { value: "", placeholder: credential.placeholder, hosts, origins: hosts.map(host => `https://${host}`), allowInPath: credential.allowInPath,
+      resolve: () => resolveInstanceCredential(credential, workspaceTemplateId!) };
   }
   if (generation !== configurationGeneration) return createWorkspaceSecretContext(workspaceId, init);
   const created = buildContext(workspaceId, { ...secrets, ...subscriptionSecrets }, plainEnv);

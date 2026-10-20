@@ -2,7 +2,7 @@ import { afterEach, beforeEach, expect, test } from "bun:test";
 import { chmod, copyFile, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { addWorkspaceTemplate, createWorkspaceTemplateSecret, createWorkspaceTemplateSshKey, listWorkspaceTemplates, revealWorkspaceTemplateSecrets, revealWorkspaceTemplateSshKeys, getConfiguration } from "@kintsugi/workspace-templates";
+import { saveInstanceCredential, addWorkspaceTemplate, createWorkspaceTemplateSecret, createWorkspaceTemplateSshKey, listWorkspaceTemplates, revealWorkspaceTemplateSecrets, revealWorkspaceTemplateSshKeys, getConfiguration } from "@kintsugi/workspace-templates";
 import type { WorkspaceDockerPlan } from "../src/types.ts";
 import { applySeedConfigManifest, registerSeededPiAuth } from "../src/seed-config.ts";
 
@@ -62,6 +62,7 @@ test("catalogue seeding strips encrypted secrets and SSH keys before entering th
   const privateKey = await readFile(privateKeyFile, "utf8");
   await createWorkspaceTemplateSshKey(template.id, privateKey, catalogue, key);
 
+  await saveInstanceCredential(undefined, { name: "Do not seed", envName: "CATALOGUE_TOKEN", description: "Private instance metadata", type: "token", hostPattern: "api.example.com", enabled: true, allowInPath: false, templateIds: [template.id], secretValue: "catalogue-fixture-value" }, catalogue, key);
   const originalCatalogue = await readFile(catalogue, "utf8");
   const originalKey = await readFile(key, "utf8");
   const plan = await seedPlan();
@@ -71,10 +72,16 @@ test("catalogue seeding strips encrypted secrets and SSH keys before entering th
   expect(staged).not.toContain("encryptedSecret");
   expect(staged).not.toContain("encryptedPrivateKey");
   expect(staged).not.toContain("sshKeys");
+  expect(staged).not.toContain("credentials");
+  expect(staged).not.toContain("credentialAudit");
+  expect(staged).not.toContain("catalogue-fixture-value");
+  expect(staged).not.toContain("Private instance metadata");
   expect(staged).not.toContain("fixture-token");
   expect(staged).not.toContain("OPENSSH PRIVATE KEY");
   expect(staged).not.toContain(originalKey.trim());
   const expectedCatalogue = JSON.parse(originalCatalogue);
+  delete expectedCatalogue.credentials;
+  delete expectedCatalogue.credentialAudit;
   delete expectedCatalogue.projects[0].sshKeys;
   delete expectedCatalogue.projects[0].secrets[0].encryptedSecret;
   expect(JSON.parse(staged)).toEqual(expectedCatalogue);

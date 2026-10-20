@@ -79,7 +79,7 @@ export function createHttpHooks(options: CreateHttpHooksOptions = {}): CreateHtt
       const usedInHeaders = requestContainsSecretValuesInHeaders(request.headers, [entry.placeholder]);
       const usedInUrl = (entry.allowInPath && new URL(request.url).pathname.includes(entry.placeholder))
         || (options.replaceSecretsInQuery && requestContainsSecretValuesInQuery(request.url, [entry.placeholder]));
-      const resolve = matchesAnyHost(hostname, entry.hosts) && (usedInHeaders || usedInUrl);
+      const resolve = matchesAnyHost(hostname, entry.hosts) && (!entry.origins || entry.origins.includes(new URL(request.url).origin)) && (usedInHeaders || usedInUrl);
       return { ...entry, value: resolve ? await entry.resolve() : entry.value };
     }));
     assertSecretValuesAllowedForHost(request, hostname, resolvedEntries, options.replaceSecretsInQuery ?? false);

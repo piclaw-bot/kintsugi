@@ -72,3 +72,5 @@ export { onWorkspaceSshTrustChanged, workspaceSshTrustRequests, requestWorkspace
 export { isSshAuthenticationFailure } from "./git-access-failure.ts";
 
 export { workspaceTemplateSecretHosts, workspaceTemplateSecretAllowsPath } from "./secret-path-policy.ts";
+
+export { parseInstanceCredentialInput, listInstanceCredentials, saveInstanceCredential, deleteInstanceCredential, grantedInstanceCredentials, resolveInstanceCredential, credentialHosts, credentialPlaceholder, instanceCredentialInputSchema, type InstanceCredentialInput, type InstanceCredentialSummary } from "./credentials.ts";

@@ -1,3 +1,5 @@
+import { registerWorkspaceAgentTool } from "@kintsugi/agent/server/tools";
+import { createCredentialCatalogueTool } from "./credential-catalogue.ts";
 import { KintsugiCoreError, createKeyedOperationQueue, type KintsugiEventBus } from "@kintsugi/core";
 import { builtinAgentIconHtml } from "@kintsugi/design-system/icons";
 import { launchComposerCommand, type WorkspaceAgentPane, type WorkspaceAgentTabProvider, type WorkspaceCommandContribution, type WorkspaceModule } from "@kintsugi/shared";
@@ -158,6 +160,7 @@ export const builtinAgentWorkspaceModule: WorkspaceModule = {
     launch: nativeAgentLaunch,
   },
   initialize(context) {
+    registerWorkspaceAgentTool("list_credentials", workspaceId => createCredentialCatalogueTool(workspaceId));
     // SAFETY: The module boundary validates or constructs this value with the asserted domain shape.
     const events = context.events as KintsugiEventBus;
     agentEvents = events;
