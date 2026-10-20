@@ -8,6 +8,10 @@ Kintsugi is an opinionated fork of [AgentsInTheCloud](https://github.com/lucasme
 
 Kintsugi adds the following to upstream AgentsInTheCloud:
 
+### Direct contributions welcome
+
+**Kintsugi accepts direct pull requests**, without a prior issue or invitation. We respect [upstream’s separate contribution policy](https://github.com/lucasmeijer/AgentsInTheCloud#contributing); this fork welcomes external PRs for review and possible merge. See [Contributing](CONTRIBUTING.md) for scope, verification and attribution guidance.
+
 ### Workspace controls and safety
 
 - Workspace Properties with usage/peaks, desired/effective limits, OOM/restart diagnostics, live RAM/additional-swap/CPU edits and staged network settings.
@@ -37,7 +41,7 @@ The name comes from **金継ぎ**, the Japanese art of repairing pottery with go
 
 ## Installation
 
-The current release is [v0.3.5](https://github.com/rcarmo/kintsugi/releases/tag/v0.3.5). It adds opt-in Graphite token telemetry and native-agent accounting improvements; see the [release notes](release_notes/v0.3.5.md). Releases publish app, System and workspace images and advance `latest`; `stable` is promoted separately. Publishing does not update or restart an installation.
+The current release is [v0.3.6](https://github.com/rcarmo/kintsugi/releases/tag/v0.3.6); see the [release notes](https://github.com/rcarmo/kintsugi/releases/tag/v0.3.6). Releases publish app, System and workspace images and advance `latest`; `stable` is promoted separately. Publishing does not update or restart an installation.
 
 Use a dedicated Linux server with Docker. The installer defaults to `ghcr.io/rcarmo/kintsugi` and `ghcr.io/rcarmo/kintsugi-system`; matching images must be available before installation.
 
