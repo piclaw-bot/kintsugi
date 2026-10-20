@@ -26,6 +26,8 @@ const pendingServerChecks = new Map<string, Promise<void>>();
 type VSCodeThemeDefaults = {
   colorTheme: string;
   colorCustomizations: Record<string, string>;
+  tokenColors: Array<{ scope: string[]; settings: { foreground: string } }>;
+  semanticColors: Record<string, string>;
 };
 
 function requestColor(url: URL, name: string): string | undefined {
@@ -89,9 +91,50 @@ function themeDefaultsForRequest(request: Request): VSCodeThemeDefaults | undefi
   };
   if (line) Object.assign(colorCustomizations, { "panel.border": line, "sideBar.border": line, "titleBar.border": line });
   if (accent) Object.assign(colorCustomizations, { "focusBorder": accent, "button.background": accent });
+  const accentContrast = requestColor(url, "kintsugiAccentContrast");
+  if (accentContrast) colorCustomizations["button.foreground"] = accentContrast;
+  Object.assign(colorCustomizations, {
+    "terminal.background": bg, "terminal.foreground": text,
+    "panel.background": panel, "editorWidget.background": elev,
+    "menu.background": panel, "menu.foreground": text, "menu.selectionBackground": elev,
+    "quickInput.background": panel, "quickInput.foreground": text,
+    "dropdown.background": elev, "dropdown.foreground": text, "dropdown.listBackground": panel,
+    "input.background": bg, "input.foreground": text,
+    "notifications.background": panel, "notifications.foreground": text,
+    "notificationCenterHeader.background": elev, "notificationCenterHeader.foreground": text,
+  });
+  for (const color of ["black", "red", "green", "yellow", "blue", "magenta", "cyan", "white"]) {
+    for (const prefix of ["", "bright-"]) {
+      const value = requestColor(url, `kintsugiTerminal-${prefix}${color}`);
+      if (value) colorCustomizations[`terminal.ansi${prefix ? "Bright" : ""}${color[0]!.toUpperCase()}${color.slice(1)}`] = value;
+    }
+  }
+  const tokenColors: VSCodeThemeDefaults["tokenColors"] = [];
+  const semanticColors: Record<string, string> = {};
+  const syntaxRoles: Array<[string, string[], string[]]> = [
+    ["comment", ["comment"], ["comment"]],
+    ["string", ["string", "string.tag", "string.value", "string.regexp"], ["string", "regexp", "stringLiteral"]],
+    // Match the base theme's specific scopes, not just their broader parents.
+    ["keyword", ["keyword", "keyword.control", "storage", "storage.type", "storage.modifier"], ["keyword", "modifier", "newOperator"]],
+    ["number", ["constant.numeric", "constant.language", "variable.other.enummember"], ["number", "numberLiteral", "enumMember"]],
+    ["function", ["entity.name.function", "support.function"], ["function", "method"]],
+    ["variable", ["variable", "variable.language", "variable.other.constant", "support.variable", "entity.name.variable", "meta.definition.variable.name", "meta.object-literal.key", "meta.template.expression", "entity.other.attribute-name"], ["variable", "parameter", "property"]],
+    ["type", ["entity.name.type", "support.type", "support.class", "entity.name.tag"], ["type", "class", "interface", "enum", "struct", "typeParameter"]],
+    ["punctuation", ["punctuation", "punctuation.definition.tag", "punctuation.definition.template-expression.begin", "punctuation.definition.template-expression.end", "punctuation.section.embedded", "keyword.operator"], ["operator"]],
+  ];
+  for (const [role, scope, types] of syntaxRoles) {
+    const foreground = requestColor(url, `kintsugiSyntax-${role}`);
+    if (!foreground) continue;
+    tokenColors.push({ scope, settings: { foreground } });
+    for (const type of types) semanticColors[type] = foreground;
+  }
+  const punctuation = requestColor(url, "kintsugiSyntax-punctuation");
+  if (punctuation) for (let index = 1; index <= 6; index++) colorCustomizations[`editorBracketHighlight.foreground${index}`] = punctuation;
   return {
     colorTheme: luminance(bg) > 0.55 ? "Default Light Modern" : "Default Dark Modern",
     colorCustomizations,
+    tokenColors,
+    semanticColors,
   };
 }
 
@@ -161,7 +204,11 @@ export async function patchVSCodeWorkspaceAppResponse(app: WorkspaceAppHost, res
     });
     if (themeDefaults) {
       configurationDefaults["workbench.colorTheme"] = themeDefaults.colorTheme;
-      configurationDefaults["workbench.colorCustomizations"] = themeDefaults.colorCustomizations;
+      // These are defaults for our selected base theme. An explicitly chosen editor theme keeps its palette.
+      const scope = `[${themeDefaults.colorTheme}]`;
+      configurationDefaults["workbench.colorCustomizations"] = { [scope]: themeDefaults.colorCustomizations };
+      configurationDefaults["editor.tokenColorCustomizations"] = { [scope]: { textMateRules: themeDefaults.tokenColors } };
+      configurationDefaults["editor.semanticTokenColorCustomizations"] = { [scope]: { rules: themeDefaults.semanticColors } };
     }
     settings.configurationDefaults = configurationDefaults;
     return `${prefix}${escapeHtmlAttribute(JSON.stringify(settings))}${suffix}`;

@@ -1,6 +1,7 @@
 import { disclosureHtml } from "@kintsugi/design-system/disclosure";
 import { escapeHtml } from "@kintsugi/shared";
 import { response } from "@kintsugi/shared/http";
+import { readThemeSetting } from "@kintsugi/shared/theme";
 import { actionLinkHtml } from "@kintsugi/design-system/action-link";
 import { inlineDesignSystemCss } from "@kintsugi/design-system/styles/server";
 import { errorCategory, WorkspaceConnectionError, WorkspaceUpstreamError } from "./failure.ts";
@@ -101,7 +102,7 @@ export async function ingressErrorPage(error: Error, workspaceName: string): Pro
   const css = await (styles ??= inlineDesignSystemCss());
   // An empty reference navigates to this document’s URL, including its query.
   const retry = actionLinkHtml({ href: "", variant: "secondary", content: { kind: "caption", caption: "Retry" } });
-  return response(`<!doctype html><html lang="en" data-theme="nord"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${escapeHtml(title)} · Kintsugi</title><style>${css}
+  return response(`<!doctype html><html lang="en" data-theme="${readThemeSetting()}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${escapeHtml(title)} · Kintsugi</title><style>${css}
 body {
   margin: 0;
   background: var(--bg);

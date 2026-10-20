@@ -41,12 +41,12 @@
 /* assistant final message: plain typeset text, no bubble */
 .agent-final:empty { display: none; }
 
-.agent-error { color: var(--danger); background: var(--danger-soft); border: 1px solid #f1c7c7; border-radius: var(--radius-control); padding: 6px 8px; }
+.agent-error { color: var(--danger); background: var(--danger-soft); border: 1px solid color-mix(in srgb, var(--danger) 45%, var(--line)); border-radius: var(--radius-control); padding: 6px 8px; }
 
 /* notes (steer / rewind summaries / system) */
 .agent-note { color: var(--text); background: var(--warning-soft); border: 1px solid var(--line); border-radius: var(--radius-control); padding: 6px 8px; }
-.agent-note.warning { color: var(--text-bright); border-color: color-mix(in srgb, #d89b24 45%, var(--line)); }
-.agent-note.error { color: var(--danger); background: var(--danger-soft); border-color: #f1c7c7; }
+.agent-note.warning { color: var(--text-bright); border-color: color-mix(in srgb, var(--warning) 45%, var(--line)); }
+.agent-note.error { color: var(--danger); background: var(--danger-soft); border-color: color-mix(in srgb, var(--danger) 45%, var(--line)); }
 .agent-note p { margin: 0 0 4px; }
 .agent-note p:last-child { margin-bottom: 0; }
 
@@ -107,7 +107,7 @@
 .agent-noticeline > span { flex: 1; min-width: 0; overflow-wrap: anywhere; }
 .agent-noticeline > button { flex-shrink: 0; }
 @keyframes agent-notice-in { from { opacity: 0; transform: translateY(-3px); } }
-.agent-noticeline.error { color: var(--danger); border-color: #f1c7c7; background: var(--danger-soft); }
+.agent-noticeline.error { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 45%, var(--line)); background: var(--danger-soft); }
 
 /* Agent pane layout */
 .agent-row + .agent-row { margin-top: 8px; }

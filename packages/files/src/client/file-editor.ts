@@ -63,13 +63,13 @@ function fileDraft(url: string, file: EditableFileResponse): FileDraft {
 }
 
 const editorHighlightStyle = HighlightStyle.define([
-  { tag: [tags.keyword, tags.operatorKeyword, tags.modifier], color: "var(--editor-keyword)" },
-  { tag: [tags.string, tags.special(tags.string), tags.regexp], color: "var(--editor-string)" },
-  { tag: [tags.number, tags.bool, tags.null], color: "var(--editor-number)" },
-  { tag: [tags.comment, tags.meta], color: "var(--editor-comment)", fontStyle: "italic" },
-  { tag: [tags.function(tags.variableName), tags.definition(tags.propertyName), tags.heading], color: "var(--editor-title)" },
-  { tag: [tags.variableName, tags.propertyName, tags.attributeName], color: "var(--editor-variable)" },
-  { tag: [tags.typeName, tags.className, tags.tagName], color: "var(--editor-type)" },
+  { tag: [tags.keyword, tags.operatorKeyword, tags.modifier], color: "var(--syntax-keyword)" },
+  { tag: [tags.string, tags.special(tags.string), tags.regexp], color: "var(--syntax-string)" },
+  { tag: [tags.number, tags.bool, tags.null], color: "var(--syntax-number)" },
+  { tag: [tags.comment, tags.meta], color: "var(--syntax-comment)", fontStyle: "italic" },
+  { tag: [tags.function(tags.variableName), tags.definition(tags.propertyName), tags.heading], color: "var(--syntax-function)" },
+  { tag: [tags.variableName, tags.propertyName, tags.attributeName], color: "var(--syntax-variable)" },
+  { tag: [tags.typeName, tags.className, tags.tagName], color: "var(--syntax-type)" },
 ]);
 
 type EditorRefreshDetail = { workspaceId: string };

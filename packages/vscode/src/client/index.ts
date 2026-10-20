@@ -13,6 +13,15 @@ function addKintsugiThemeParams(url: URL): void {
   url.searchParams.set("kintsugiText", cssVariable("--text"));
   url.searchParams.set("kintsugiLine", cssVariable("--line"));
   url.searchParams.set("kintsugiAccent", cssVariable("--accent"));
+  url.searchParams.set("kintsugiAccentContrast", cssVariable("--accent-contrast"));
+  for (const role of ["comment", "string", "keyword", "number", "function", "variable", "type", "punctuation"]) {
+    url.searchParams.set(`kintsugiSyntax-${role}`, cssVariable(`--syntax-${role}`));
+  }
+  for (const color of ["black", "red", "green", "yellow", "blue", "magenta", "cyan", "white"]) {
+    for (const prefix of ["", "bright-"]) {
+      url.searchParams.set(`kintsugiTerminal-${prefix}${color}`, cssVariable(`--terminal-${prefix}${color}`));
+    }
+  }
 }
 
 export const vscodeClientModule: WorkspaceClientModule = {

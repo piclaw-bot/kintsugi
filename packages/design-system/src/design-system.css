@@ -94,7 +94,25 @@
   --danger: #d23b3b;
   --decorative: #7c3aed;
 
-  /* Shared source palette. Shiki and Pierre classify; Kintsugi owns color. */
+  /* ANSI roles default to UI colors; themes can supply a distinct terminal palette. */
+  --terminal-black: var(--panel);
+  --terminal-red: var(--danger);
+  --terminal-green: var(--success);
+  --terminal-yellow: var(--warning);
+  --terminal-blue: var(--accent);
+  --terminal-magenta: var(--decorative);
+  --terminal-cyan: var(--accent);
+  --terminal-white: var(--text);
+  --terminal-bright-black: var(--text-muted);
+  --terminal-bright-red: var(--danger);
+  --terminal-bright-green: var(--success);
+  --terminal-bright-yellow: var(--warning);
+  --terminal-bright-blue: var(--accent);
+  --terminal-bright-magenta: var(--decorative);
+  --terminal-bright-cyan: var(--accent);
+  --terminal-bright-white: var(--text-bright);
+
+  /* Shared source palette. Shiki, CodeMirror and Pierre classify; Kintsugi owns color. */
   --syntax-keyword: #cf222e;
   --syntax-string: #0a3069;
   --syntax-number: #0550ae;
