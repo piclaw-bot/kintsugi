@@ -45,7 +45,10 @@ input.on("line", (line) => {
   } else throw new Error("Unknown terminal bridge message: " + message.type);
 });
 input.on("close", close);
-void child.exited.then((exitCode) => {
+void child.exited.then(async (exitCode) => {
+  // Process exit can precede the PTY read callback in the same poll cycle.
+  // Let that callback forward the final bytes before closing the master.
+  if (!closed) await new Promise(setImmediate);
   const missing = sessionCheckArgs && !closed && !sessionExists();
   if (!closed) terminal.close();
   closed = true;
@@ -143,7 +146,9 @@ export function attachHostObservableTerminal(options: HostObservableTerminalAtta
   const subprocess = Bun.spawn({ cmd: ["tmux", ...tmuxAttachArgs(options)], env, terminal });
 
   let closed = false;
-  void subprocess.exited.then((exitCode) => {
+  void subprocess.exited.then(async (exitCode) => {
+    // Drain the current poll cycle before reporting exit to the viewer.
+    if (!closed) await new Promise<void>((resolve) => setImmediate(resolve));
     if (!closed) terminal.close();
     closed = true;
     events.onExit(exitCode);

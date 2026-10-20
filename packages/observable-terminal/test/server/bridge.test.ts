@@ -69,10 +69,12 @@ test("the bridge delivers final output before reporting a session removed while 
 
 test("detaching from an existing session remains reconnectable", () => scenario(`
   await Bun.write(marker, "exists");
-  const result = await attach();
-  expect(result.code).toBe(0);
-  expect(result.reason).toBeUndefined();
-  expect(result.output).toContain("FINAL-OUTPUT");
+  for (let attempt = 0; attempt < 20; attempt++) {
+    const result = await attach();
+    expect(result.code).toBe(0);
+    expect(result.reason).toBeUndefined();
+    expect(result.output).toContain("FINAL-OUTPUT");
+  }
 `));
 
 test("unexpected session-check failures remain errors, not ended sessions", () => scenario(`
