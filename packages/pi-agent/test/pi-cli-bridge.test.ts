@@ -3,7 +3,7 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ModelRuntime } from "@earendil-works/pi-coding-agent";
-import type { Api, AuthResult, Model } from "@earendil-works/pi-ai";
+import { ModelsError, type Api, type AuthResult, type Model } from "@earendil-works/pi-ai";
 import { Type } from "typebox";
 import { Value } from "typebox/value";
 import { stream as streamOpenAIResponses } from "@earendil-works/pi-ai/api/openai-responses";
@@ -17,6 +17,7 @@ function model(provider: string, api: Api = "openai-completions", baseUrl = `htt
 function fixture(models: Model<Api>[], auth: Record<string, AuthResult>) {
   return {
     models, auth,
+    getProviders: () => [...new Set(models.map(model => model.provider))].map(id => ({ id })),
     getAvailable: async (provider?: string) => models.filter((m) => (!provider || m.provider === provider) && auth[m.provider]),
     getAvailableOfType: async () => [],
     getModelOfType: () => undefined,
@@ -25,6 +26,44 @@ function fixture(models: Model<Api>[], auth: Record<string, AuthResult>) {
     getAuth: async (ref: Model<Api>) => auth[ref.provider],
   };
 }
+for (const failure of ["catalogue", "credentials"] as const) {
+  test(`expired Claude OAuth during ${failure} does not block Pi configuration or connections`, async () => {
+    const runtime = fixture([model("custom"), model("anthropic", "anthropic-messages")], {
+      custom: { auth: { apiKey: "healthy-key" } },
+      anthropic: { source: "OAuth", auth: { apiKey: "sk-ant-oat-expired" } },
+    });
+    const getAvailable = runtime.getAvailable;
+    const getAuth = runtime.getAuth;
+    let rejected = false;
+    runtime.getAvailable = async provider => {
+      if (rejected && failure === "catalogue" && (!provider || provider === "anthropic")) throw new ModelsError("oauth", "invalid_grant");
+      return getAvailable(provider);
+    };
+    runtime.getAuth = async ref => {
+      if (rejected && ref.provider === "anthropic") throw new ModelsError("oauth", "invalid_grant");
+      return getAuth(ref);
+    };
+    const enabled = [{ provider: "custom", id: "test-model", label: "Custom" }];
+    const before = await createPiCliConfiguration(runtime, enabled);
+    rejected = true;
+    const config = await createPiCliConfiguration(runtime, enabled);
+    expect(config.enabledModels).toEqual(["custom/test-model"]);
+    expect(config.auth).toEqual(before.auth);
+    expect(await piCliCredentialHosts(runtime)).toEqual(["custom.example"]);
+    const transform = createPiCliCredentialTransform(async () => runtime);
+    const request = await transform(new Request("https://custom.example/v1", { headers: { authorization: `Bearer ${before.auth.custom!.key}` } }), () => {});
+    expect(request.headers.get("authorization")).toBe("Bearer healthy-key");
+    await expect(piCliModelUnavailableReason(runtime, { provider: "anthropic", id: "test-model" })).rejects.toThrow("invalid_grant");
+  });
+}
+
+test("unexpected provider errors still fail Pi configuration and host discovery", async () => {
+  const runtime = fixture([model("custom")], { custom: { auth: { apiKey: "key" } } });
+  runtime.getAuth = async () => { throw new Error("unexpected failure"); };
+  await expect(createPiCliConfiguration(runtime, [])).rejects.toThrow("unexpected failure");
+  await expect(piCliCredentialHosts(runtime)).rejects.toThrow("unexpected failure");
+});
+
 function jwt(account: string) {
   return `eyJhbGciOiJub25lIn0.${Buffer.from(JSON.stringify({ "https://api.openai.com/auth": { chatgpt_account_id: account } })).toString("base64url")}.real-signature`;
 }
@@ -253,4 +292,19 @@ test("TypeSafe classifiers reach Pi with bridged credentials, without becoming c
     expect((await imported.getAvailableOfType("classifier", "typesafe")).map(m => m.id)).toContain("jev-latest");
     expect(await imported.getAvailable("typesafe")).toEqual([]);
   } finally { await rm(directory, { recursive: true, force: true }); }
+});
+
+test("classifier-only credentials stay available when another provider has expired OAuth", async () => {
+  const runtime = await ModelRuntime.create({ modelsPath: null, allowModelNetwork: false, refreshOnCreate: false });
+  await runtime.setRuntimeApiKey("typesafe", "classifier-secret");
+  const available = runtime.getAvailable.bind(runtime);
+  runtime.getAvailable = async provider => {
+    if (provider === "anthropic") throw new ModelsError("oauth", "invalid_grant");
+    return available(provider);
+  };
+  const config = await createPiCliConfiguration(runtime, []);
+  expect(config.auth.typesafe!.key).toContain("kintsugi-pi-");
+  expect(config.models.providers.typesafe).toBeUndefined();
+  expect(await piCliCredentialHosts(runtime)).toContain("api.typesafe.ai");
+  expect(JSON.stringify(config)).not.toContain("classifier-secret");
 });

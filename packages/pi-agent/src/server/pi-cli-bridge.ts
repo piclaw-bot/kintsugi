@@ -1,4 +1,4 @@
-import { isModelType, type Api, type AuthResult, type Model, type ClassifierModel, type ClassifierApi } from "@earendil-works/pi-ai";
+import { ModelsError, isModelType, type Api, type AuthResult, type Model, type ClassifierModel, type ClassifierApi } from "@earendil-works/pi-ai";
 import type { ModelRuntime } from "@earendil-works/pi-coding-agent";
 import { Type, type Static } from "typebox";
 import { Value } from "typebox/value";
@@ -16,7 +16,7 @@ const markerSchema = Type.Object({
 });
 type Marker = Static<typeof markerSchema>;
 type BridgedModel = Model<Api> | ClassifierModel<ClassifierApi>;
-type Runtime = Pick<ModelRuntime, "getAvailable" | "getAvailableOfType" | "getModel" | "getModelOfType" | "checkAuth"> & { getAuth(model: BridgedModel): Promise<AuthResult | undefined> };
+type Runtime = Pick<ModelRuntime, "getAvailable" | "getAvailableOfType" | "getModel" | "getModelOfType" | "checkAuth"> & { getProviders(): readonly { id: string }[]; getAuth(model: BridgedModel): Promise<AuthResult | undefined> };
 
 async function bridgedModels(runtime: Runtime, provider?: string): Promise<BridgedModel[]> {
   return [...await availableProviderModels(runtime, provider), ...await runtime.getAvailableOfType("classifier", provider)];
@@ -73,14 +73,32 @@ export interface PiCliConfiguration {
   enabledModels: string[];
 }
 
+/** An expired provider login must not prevent other providers, including classifier-only ones, from reaching Pi. */
+async function resolvedProviderModels(runtime: Runtime): Promise<Array<{ model: BridgedModel; auth: AuthResult }>> {
+  const providers = await Promise.all(runtime.getProviders().map(async ({ id }) => {
+    try {
+      const resolved = [];
+      for (const model of await bridgedModels(runtime, id)) {
+        const auth = await runtime.getAuth(model);
+        if (!auth) throw new Error(`Provider disconnected while preparing Pi: ${model.provider}`);
+        resolved.push({ model, auth });
+      }
+      return resolved;
+    } catch (error) {
+      // Models and direct requests still surface the provider's OAuth error; unexpected failures propagate.
+      if (!(error instanceof ModelsError) || error.code !== "oauth") throw error;
+      return [];
+    }
+  }));
+  return providers.flat();
+}
+
 /** Export resolved model configuration, never raw models.json (which may contain secrets or commands). */
 export async function createPiCliConfiguration(runtime: Runtime, enabledModels: EnabledModel[]): Promise<PiCliConfiguration> {
   const result: PiCliConfiguration = { auth: {}, models: { providers: {} }, enabledModels: [] };
-  const available = await bridgedModels(runtime);
+  const available = await resolvedProviderModels(runtime);
   const enabledModelLabels = new Map(enabledModels.map((model) => [modelRefValue(model), model.label]));
-  for (const model of available) {
-    const auth = await runtime.getAuth(model);
-    if (!auth) throw new Error(`Provider disconnected while preparing Pi: ${model.provider}`);
+  for (const { model, auth } of available) {
     // Ambient host credentials have no safe file representation. Do not advertise them in Pi.
     if (unsupportedAuth(model, auth)) continue;
     const baseUrl = endpoint(model, auth).href.replace(/\/$/, "");
@@ -105,9 +123,7 @@ export async function createPiCliConfiguration(runtime: Runtime, enabledModels: 
 /** Resolve current endpoints on each CONNECT, including OAuth endpoint overrides. */
 export async function piCliCredentialHosts(runtime: Runtime): Promise<string[]> {
   const hosts = new Set<string>();
-  for (const model of await bridgedModels(runtime)) {
-    const auth = await runtime.getAuth(model);
-    if (!auth) throw new Error(`Provider disconnected while resolving Pi endpoints: ${model.provider}`);
+  for (const { model, auth } of await resolvedProviderModels(runtime)) {
     if (!unsupportedAuth(model, auth)) hosts.add(endpoint(model, auth).hostname);
   }
   return [...hosts];
