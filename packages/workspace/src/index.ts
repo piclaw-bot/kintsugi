@@ -16,6 +16,7 @@ import { createWorkspaceContainerLifecycle, workspaceConfigurationLabel } from "
 import { Type } from "typebox";
 import { Value } from "typebox/value";
 import { applySeedConfigManifest } from "./seed-config.ts";
+export { registerSeededPiAuth } from "./seed-config.ts";
 import type { WorkspaceCreationContext, WorkspaceDockerMount, WorkspaceDockerPlan, WorkspaceInitInstruction } from "./types.ts";
 export type { WorkspaceCreationContext, WorkspaceDockerMount, WorkspaceDockerPlan, WorkspaceInitInstruction, WorkspaceInitInstructionMap } from "./types.ts";
 

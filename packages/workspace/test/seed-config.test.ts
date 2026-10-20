@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { addWorkspaceTemplate, createWorkspaceTemplateSecret, createWorkspaceTemplateSshKey, listWorkspaceTemplates, revealWorkspaceTemplateSecrets, revealWorkspaceTemplateSshKeys, getConfiguration } from "@kintsugi/workspace-templates";
 import type { WorkspaceDockerPlan } from "../src/types.ts";
-import { applySeedConfigManifest } from "../src/seed-config.ts";
+import { applySeedConfigManifest, registerSeededPiAuth } from "../src/seed-config.ts";
 
 let directory: string;
 let host: string;
@@ -134,12 +134,16 @@ for (const enabled of [undefined, false]) {
   });
 }
 
-test("authorized provider seeding copies the requested host files", async () => {
+test("authorized provider seeding copies the requested host files, rewriting credentials on the host", async () => {
+  registerSeededPiAuth(auth => ({ ...auth, anthropic: "placeholder" }));
   await mkdir(join(host, "pi-config"));
-  for (const name of ["auth.json", "models.json", "models-store.json"]) await writeFile(join(host, "pi-config", name), `fixture-${name}`);
+  await writeFile(join(host, "pi-config", "auth.json"), JSON.stringify({ anthropic: "real", xai: "kept" }));
+  for (const name of ["models.json", "models-store.json"]) await writeFile(join(host, "pi-config", name), `fixture-${name}`);
   const plan = emptyPlan(true);
   await applySeedConfigManifest({ version: 1, seedPiConfig: { authJson: join(nested, "auth.json"), modelsJson: join(nested, "models.json"), modelsStoreJson: join(nested, "models-store.json") } }, plan, hostRuntime(), join(directory, "seed-config"));
   expect(plan.containerFiles).toHaveLength(3);
+  expect(plan.containerFiles.map(file => file.source)).not.toContain(join(host, "pi-config", "auth.json"));
   await installPlan(plan);
-  for (const name of ["auth.json", "models.json", "models-store.json"]) expect(await readFile(join(nested, name), "utf8")).toBe(`fixture-${name}`);
+  expect(JSON.parse(await readFile(join(nested, "auth.json"), "utf8"))).toEqual({ anthropic: "placeholder", xai: "kept" });
+  for (const name of ["models.json", "models-store.json"]) expect(await readFile(join(nested, name), "utf8")).toBe(`fixture-${name}`);
 });

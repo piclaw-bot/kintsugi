@@ -1,8 +1,8 @@
 import { Type } from "typebox";
 import { Value } from "typebox/value";
-import { shellQuote } from "@kintsugi/core";
+import { isJsonObject, shellQuote, type JsonObject } from "@kintsugi/core";
 import { registerWorkspaceResponseTransform, registerWorkspaceSubscriptionSecrets } from "@kintsugi/proxy-egress/server";
-import { execWorkspaceCommand, listWorkspaces } from "@kintsugi/workspace";
+import { execWorkspaceCommand, listWorkspaces, registerSeededPiAuth } from "@kintsugi/workspace";
 import type { ModelRuntime } from "@earendil-works/pi-coding-agent";
 import { anthropicUsageSource } from "./anthropic-subscription-usage.ts";
 import { SubscriptionUsageError } from "./subscription-usage.ts";
@@ -13,6 +13,22 @@ import { codexAccountId } from "./codex-token.ts";
 const codexToken = "kintsugi-subscription-codex-access";
 const codexAccount = "kintsugi-subscription-codex-account";
 const anthropicToken = "kintsugi-subscription-anthropic-access";
+// A nested installation's Pi gets these instead. Pi only treats Anthropic tokens
+// with this prefix as subscriptions, and reads the Codex account from the JWT.
+const nestedAnthropicToken = "sk-ant-oat01-kintsugi-nested-anthropic-access";
+const nestedCodexToken = placeholderJwt({
+  "https://api.openai.com/profile": { email: "subscription@kintsugi.local" },
+  "https://api.openai.com/auth": { chatgpt_account_id: codexAccount },
+}, "kintsugi-nested-codex-access");
+const neverExpires = 4070908800000;
+const nestedPiCredentials: JsonObject = {
+  anthropic: { type: "oauth", access: nestedAnthropicToken, refresh: "", expires: neverExpires },
+  "openai-codex": { type: "oauth", access: nestedCodexToken, refresh: "", expires: neverExpires, accountId: codexAccount },
+};
+
+function placeholderJwt(claims: JsonObject, signature: string): string {
+  return [Buffer.from(JSON.stringify({ alg: "none" })).toString("base64url"), Buffer.from(JSON.stringify(claims)).toString("base64url"), signature].join(".");
+}
 
 export function registerSubscriptionCli(getRuntime: () => Promise<ModelRuntime>): void {
   async function subscriptionToken(provider: string): Promise<string> {
@@ -64,7 +80,24 @@ export function registerSubscriptionCli(getRuntime: () => Promise<ModelRuntime>)
       return codexAccountId(token);
     } },
     anthropicSubscription: { placeholder: anthropicToken, hosts: ["api.anthropic.com"], value: "", resolve: () => subscriptionToken("anthropic") },
+    nestedCodexSubscription: { placeholder: nestedCodexToken, hosts: ["chatgpt.com", "api.openai.com"], value: "", resolve: () => subscriptionToken("openai-codex") },
+    nestedAnthropicSubscription: { placeholder: nestedAnthropicToken, hosts: ["api.anthropic.com"], value: "", resolve: () => subscriptionToken("anthropic") },
   });
+  registerSeededPiAuth(seededPiAuth);
+}
+
+/** A nested installation copies Pi's auth.json once, but Anthropic and OpenAI
+ * rotate refresh tokens: whichever installation refreshes first would sign the
+ * other out. Subscriptions get placeholders instead, so only this installation
+ * refreshes and its workspace proxy supplies the current token.
+ */
+export function seededPiAuth(auth: JsonObject): JsonObject {
+  const seeded = { ...auth };
+  for (const [provider, placeholder] of Object.entries(nestedPiCredentials)) {
+    const credential = auth[provider];
+    if (isJsonObject(credential) && credential.type === "oauth") seeded[provider] = placeholder;
+  }
+  return seeded;
 }
 
 /** Codex 0.154+ checks that its selected account appears in accounts/check.
@@ -90,10 +123,10 @@ export async function maskCodexAccountDiscovery(response: Response, accountId: s
 // Only placeholders enter the sandbox. Pi owns refresh tokens and refresh serialization.
 // Far-future timestamps keep the CLIs from trying to refresh these non-credentials.
 export function subscriptionCliFiles(): Array<{ provider: string; path: string; content: string; marker: string }> {
-  const idToken = [Buffer.from(JSON.stringify({ alg: "none" })).toString("base64url"), Buffer.from(JSON.stringify({
+  const idToken = placeholderJwt({
     email: "subscription@kintsugi.local",
     "https://api.openai.com/auth": { chatgpt_account_id: codexAccount },
-  })).toString("base64url"), "kintsugi"].join(".");
+  }, "kintsugi");
   return [
     { provider: "openai-codex", path: ".codex/auth.json", marker: codexToken, content: JSON.stringify({
       auth_mode: "chatgpt", OPENAI_API_KEY: null,
@@ -103,7 +136,7 @@ export function subscriptionCliFiles(): Array<{ provider: string; path: string; 
     { provider: "anthropic", path: ".claude/.credentials.json", marker: anthropicToken, content: JSON.stringify({
       // An empty refresh token means revoked/expired to Claude Code. Null means
       // there is no local refresh credential; Kintsugi owns token refresh instead.
-      claudeAiOauth: { accessToken: anthropicToken, refreshToken: null, expiresAt: 4070908800000, scopes: ["user:inference", "user:profile"] },
+      claudeAiOauth: { accessToken: anthropicToken, refreshToken: null, expiresAt: neverExpires, scopes: ["user:inference", "user:profile"] },
     }) },
   ];
 }

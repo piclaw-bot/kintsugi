@@ -1,6 +1,7 @@
 import { expect, spyOn, test } from "bun:test";
 import { createWorkspaceSecretContext } from "@kintsugi/proxy-egress/server";
-import { maskCodexAccountDiscovery, registerSubscriptionCli, subscriptionCliFiles } from "../../src/server/subscription-cli.ts";
+import { maskCodexAccountDiscovery, registerSubscriptionCli, seededPiAuth, subscriptionCliFiles } from "../../src/server/subscription-cli.ts";
+import { codexAccountId } from "../../src/server/codex-token.ts";
 import { anthropicUsageSource } from "../../src/server/anthropic-subscription-usage.ts";
 import { forgetSubscriptionInference, providersInLastInferenceWindow } from "../../src/server/recent-subscription-activity.ts";
 
@@ -132,4 +133,34 @@ test("Codex placeholders use legacy OAuth when both OpenAI subscriptions are con
   await context.hooks.onResponse!(new Response("ok"), new Request("https://api.openai.com/v1/responses", { method: "POST", headers: { authorization: `Bearer ${token}` } }));
   expect(providersInLastInferenceWindow()).toContain("openai-codex");
   forgetSubscriptionInference("openai-codex");
+});
+
+test("a nested installation's Pi gets subscription placeholders the parent's proxy keeps current", async () => {
+  const codexToken = `header.${Buffer.from(JSON.stringify({ "https://api.openai.com/auth": { chatgpt_account_id: "account-123" } })).toString("base64url")}.signature`;
+  // SAFETY: registerSubscriptionCli only calls getAuth on the runtime.
+  registerSubscriptionCli(async () => ({ getAuth: async (provider: string) => ({ source: "OAuth", auth: { apiKey: provider === "anthropic" ? "sk-ant-oat01-real" : codexToken } }) }) as any);
+  const seeded = seededPiAuth({
+    anthropic: { type: "oauth", access: "sk-ant-oat01-real", refresh: "real-refresh", expires: 1 },
+    "openai-codex": { type: "oauth", access: codexToken, refresh: "real-refresh", expires: 1, accountId: "account-123" },
+    xai: { type: "oauth", access: "xai-access", refresh: "xai-refresh", expires: 1 },
+    openai: { type: "api_key", key: "sk-openai" },
+  });
+  // Far-future expiry and no refresh token: Pi never refreshes these itself.
+  expect(seeded).toEqual({
+    anthropic: { type: "oauth", access: expect.stringContaining("sk-ant-oat"), refresh: "", expires: 4070908800000 },
+    "openai-codex": { type: "oauth", access: expect.any(String), refresh: "", expires: 4070908800000, accountId: "kintsugi-subscription-codex-account" },
+    xai: { type: "oauth", access: "xai-access", refresh: "xai-refresh", expires: 1 },
+    openai: { type: "api_key", key: "sk-openai" },
+  });
+  // SAFETY: The equality check above proves both subscriptions carry string access tokens.
+  const { anthropic, "openai-codex": codex } = seeded as Record<"anthropic" | "openai-codex", { access: string }>;
+
+  const context = await createWorkspaceSecretContext("nested-pi-seed-test");
+  // SAFETY: The workspace secret context always returns a rewritten Request for matched hosts.
+  const anthropicRequest = await context.hooks.onRequest!(new Request("https://api.anthropic.com/v1/messages", { headers: { authorization: `Bearer ${anthropic.access}` } })) as Request;
+  expect(anthropicRequest.headers.get("authorization")).toBe("Bearer sk-ant-oat01-real");
+  // SAFETY: The workspace secret context always returns a rewritten Request for matched hosts.
+  const codexRequest = await context.hooks.onRequest!(new Request("https://chatgpt.com/backend-api/codex/responses", { headers: { authorization: `Bearer ${codex.access}`, "chatgpt-account-id": codexAccountId(codex.access) } })) as Request;
+  expect(codexRequest.headers.get("authorization")).toBe(`Bearer ${codexToken}`);
+  expect(codexRequest.headers.get("chatgpt-account-id")).toBe("account-123");
 });
