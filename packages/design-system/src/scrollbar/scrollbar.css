@@ -5,7 +5,10 @@
   position: fixed; inset: auto; margin: 0; padding: 0; border: 0;
   background: transparent; overflow: visible; touch-action: none;
   cursor: default; user-select: none; box-sizing: border-box;
+  transition: opacity 200ms, display 200ms allow-discrete, overlay 200ms allow-discrete;
 }
+/* Fade out when hidden; showing stays instant. */
+.scrollbar:not(:popover-open) { opacity: 0; }
 .scrollbar > span { position: absolute; background: var(--text-muted); border-radius: var(--radius-round); pointer-events: none; }
 .scrollbar--vertical > span { right: 2px; top: var(--scrollbar-offset); width: 4px; height: var(--scrollbar-size); }
 .scrollbar--horizontal > span { bottom: 2px; left: var(--scrollbar-offset); height: 4px; width: var(--scrollbar-size); }

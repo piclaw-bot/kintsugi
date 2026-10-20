@@ -4,13 +4,16 @@ import { scrollGeometry, setScrollPosition } from "./scroll-geometry.ts";
 /** Two reusable top-layer overlays follow the hovered native scroll viewport.
  * No wrappers or children are inserted into feature layouts (including editors).
  * Touch, keyboard and scrollIntoView stay native; horizontal-only regions
- * translate vertical mouse-wheel input.
+ * translate vertical mouse-wheel input. Touch scrolling (including momentum)
+ * reveals the scrolled viewport's tracks until scrolling settles.
  */
 export class ScrollbarController extends Controller<HTMLElement> {
   private viewport: HTMLElement | null = null;
   private tracks: HTMLElement[] = [];
   private frame = 0;
   private drag: { axis: number; pointer: number; origin: number; position: number } | null = null;
+  private touching = false;
+  private settle = 0;
 
   connect(): void {
     for (const axis of [0, 1]) {
@@ -26,6 +29,8 @@ export class ScrollbarController extends Controller<HTMLElement> {
   }
   disconnect(): void {
     cancelAnimationFrame(this.frame);
+    clearTimeout(this.settle);
+    this.settle = 0;
     this.tracks.forEach(track => track.remove());
     this.tracks = [];
     this.viewport = null;
@@ -35,9 +40,30 @@ export class ScrollbarController extends Controller<HTMLElement> {
   // Bound to pointermove, not pointerover: scrolling content under a stationary
   // cursor must not change which viewport owns the visible tracks.
   hover(event: PointerEvent): void {
-    if (this.drag) return;
-    if (event.pointerType === "touch") { this.leave(); return; }
+    // Touch tracks follow scrolling instead of the pointer.
+    if (this.drag || event.pointerType === "touch") return;
+    clearTimeout(this.settle);
+    this.settle = 0;
     this.viewport = this.findViewport(event.target, true) ?? document.documentElement;
+    if (!this.frame) this.update();
+  }
+  touchStart(): void {
+    this.touching = true;
+    if (!this.settle) this.hide();
+  }
+  touchEnd(): void {
+    this.touching = false;
+  }
+  // Scroll events don't bubble; this is bound in the capture phase on document.
+  // Only scrolling during or straight after a touch counts, so programmatic
+  // scrolling (e.g. following a streaming transcript) stays quiet.
+  scroll(event: Event): void {
+    if (this.drag || (!this.touching && !this.settle)) return;
+    const target = event.target === document ? document.documentElement : event.target;
+    if (!(target instanceof HTMLElement)) return;
+    this.viewport = target;
+    clearTimeout(this.settle);
+    this.settle = window.setTimeout(() => { this.settle = 0; this.hide(); }, 700);
     if (!this.frame) this.update();
   }
   wheel(event: WheelEvent): void {
@@ -68,9 +94,16 @@ export class ScrollbarController extends Controller<HTMLElement> {
     return includeEmpty ? nearest : null;
   }
 
-  leave(): void {
+  // Lifting a finger also fires pointerleave; momentum scrolling keeps its tracks.
+  leave(event?: PointerEvent): void {
+    if (event?.pointerType === "touch") return;
+    this.hide();
+  }
+  private hide(): void {
     if (this.drag) return;
     this.viewport = null;
+    clearTimeout(this.settle);
+    this.settle = 0;
     cancelAnimationFrame(this.frame);
     this.frame = 0;
     this.tracks.forEach(track => track.togglePopover(false));
@@ -78,7 +111,7 @@ export class ScrollbarController extends Controller<HTMLElement> {
   private readonly update = (): void => {
     this.frame = 0;
     const viewport = this.viewport;
-    if (!viewport?.isConnected) { this.leave(); return; }
+    if (!viewport?.isConnected) { this.hide(); return; }
     const root = viewport === document.documentElement;
     const rect = root ? { left: 0, top: 0, right: innerWidth, bottom: innerHeight } : viewport.getBoundingClientRect();
     let left = Math.max(0, rect.left + viewport.clientLeft), top = Math.max(0, rect.top + viewport.clientTop);
@@ -138,6 +171,6 @@ export class ScrollbarController extends Controller<HTMLElement> {
     if (!this.drag || event.pointerId !== this.drag.pointer) return;
     this.drag = null;
     const under = document.elementFromPoint(event.clientX, event.clientY);
-    if (!under?.closest(".scrollbar") && !this.viewport?.contains(under)) this.leave();
+    if (!under?.closest(".scrollbar") && !this.viewport?.contains(under)) this.hide();
   }
 }
