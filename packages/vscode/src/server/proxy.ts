@@ -204,8 +204,9 @@ export async function patchVSCodeWorkspaceAppResponse(app: WorkspaceAppHost, res
     });
     if (themeDefaults) {
       configurationDefaults["workbench.colorTheme"] = themeDefaults.colorTheme;
-      // These are defaults for our selected base theme. An explicitly chosen editor theme keeps its palette.
-      const scope = `[${themeDefaults.colorTheme}]`;
+      // Current VS Code renames "Default Dark/Light Modern" to "Dark/Light Modern".
+      // Match both identities across workspace image versions, without colouring unrelated user-selected themes.
+      const scope = `[${themeDefaults.colorTheme}][${themeDefaults.colorTheme.replace("Default ", "")}]`;
       configurationDefaults["workbench.colorCustomizations"] = { [scope]: themeDefaults.colorCustomizations };
       configurationDefaults["editor.tokenColorCustomizations"] = { [scope]: { textMateRules: themeDefaults.tokenColors } };
       configurationDefaults["editor.semanticTokenColorCustomizations"] = { [scope]: { rules: themeDefaults.semanticColors } };
