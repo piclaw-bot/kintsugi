@@ -158,9 +158,16 @@ describe("HTTP contracts", () => {
     const { app, registry } = createTestApp({ provision: async (id, options) => { seen.push({ id, options }); } });
     await registry.seed([]);
 
-    const response = await app.fetch(postJson("/workspaces", {
+    const refused = await app.fetch(postJson("/workspaces", {
       source: { type: "workspace-template", workspaceTemplate: "sample-project" },
       agent: { initialPrompt: "Add tests", model: "openai::gpt", thinkingLevel: "medium" },
+    }));
+    expect(refused.status).toBe(400);
+    expect(registry.list()).toHaveLength(0);
+
+    const response = await app.fetch(postJson("/workspaces", {
+      source: { type: "workspace-template", workspaceTemplate: "sample-project" },
+      agent: { initialPrompt: "Add tests" },
     }));
     const body = Value.Parse(workspaceCreatedResponseSchema, await response.json());
     const entry = registry.get(body.workspace.id)!;

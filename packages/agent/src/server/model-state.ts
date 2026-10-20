@@ -1,6 +1,6 @@
 import type { ModelThinkingLevel } from "@earendil-works/pi-ai";
 import { getAgentEnabledModels } from "./model-preferences.ts";
-import { createPiModelRuntime, modelUnavailableReason, providerAvailability, modelThinkingLevels, parseModelRef, usesProviderSubscription, getAgentModelThinkingLevel, type ModelRef } from "@kintsugi/llm/server";
+import { createPiModelRuntime, modelUnavailableReason, providerAvailability, modelThinkingLevels, usesProviderSubscription, anthropicSubscriptionUnavailableReason, getAgentModelThinkingLevel, type ModelRef } from "@kintsugi/llm/server";
 
 export interface AgentModelOptionView {
   provider: string;
@@ -19,16 +19,27 @@ export function selectAvailableEnabledModel(models: readonly AgentModelOptionVie
   return fallback ? { provider: fallback.provider, id: fallback.id } : undefined;
 }
 
-export async function resolveNewWorkspaceAgentModel(selectedModel?: string): Promise<ModelRef | undefined> {
-  const requested = selectedModel ? parseModelRef(selectedModel) : undefined;
-  return selectAvailableEnabledModel(await enabledModelOptionViews(), requested);
+export async function resolveNewWorkspaceAgentModel(): Promise<ModelRef | undefined> {
+  return selectAvailableEnabledModel(await enabledModelOptionViews());
+}
+
+/** Anthropic permits Claude subscriptions only in Claude Code. */
+async function subscriptionOnlyProvider(runtime: Pick<Awaited<ReturnType<typeof createPiModelRuntime>>, "listCredentials">): Promise<string | undefined> {
+  return await usesProviderSubscription(runtime, "anthropic") ? "anthropic" : undefined;
+}
+
+/** Why any catalogue model, enabled or not, can't run; undefined when it can. */
+export async function catalogueModelUnavailableReason(model: ModelRef): Promise<string | undefined> {
+  const runtime = await createPiModelRuntime();
+  if (!runtime.getModel(model.provider, model.id)) return "Not in the provider’s catalogue";
+  if (model.provider === await subscriptionOnlyProvider(runtime)) return anthropicSubscriptionUnavailableReason;
+  return modelUnavailableReason((await providerAvailability(runtime, [model.provider])).get(model.provider)!, model, runtime);
 }
 
 /** Omit current to select the saved default; null represents a session without a model. */
 export async function enabledModelOptionViews(current?: ModelRef | null, runtime?: Pick<Awaited<ReturnType<typeof createPiModelRuntime>>, "getAvailable" | "checkAuth" | "getModel" | "listCredentials">): Promise<AgentModelOptionView[]> {
   runtime ??= await createPiModelRuntime();
-  // Anthropic permits Claude subscriptions only in Claude Code.
-  const hiddenProvider = await usesProviderSubscription(runtime, "anthropic") ? "anthropic" : undefined;
+  const hiddenProvider = await subscriptionOnlyProvider(runtime);
   const models = (await getAgentEnabledModels()).filter((model) => model.provider !== hiddenProvider);
   const availability = await providerAvailability(runtime, models.map((model) => model.provider));
   return models.map((model) => {

@@ -3,10 +3,10 @@ import { reconcileAgentModelPreferences } from "@kintsugi/agent/server/model-pre
 import { Type } from "typebox";
 import { Value } from "typebox/value";
 import { invalidArguments, type JsonObject } from "@kintsugi/core";
-import { renderReadOnlyLaunchModelSettings, renderModelsDialog, parseModelRef, modelRefValue, setAgentModelPreference } from "@kintsugi/llm/server";
+import { renderReadOnlyLaunchModelSettings, renderModelsDialog, parseModelRef, setAgentModelPreference } from "@kintsugi/llm/server";
 import { turboStream, turboStreamResponse, type AgentWorkspaceParameters, type WorkspaceAgentLaunch } from "@kintsugi/shared";
 import { listStagedAttachments } from "@kintsugi/prompt/server";
-import { resolveNewWorkspaceAgentModel } from "@kintsugi/agent/server/model-state";
+import { catalogueModelUnavailableReason } from "@kintsugi/agent/server/model-state";
 import { renderLaunchComposerSettings } from "./render-composer.ts";
 import { ensureDefaultWorkspaceAgent } from "./agent-store.ts";
 import { refreshConfiguredAgentRuntimes } from "./runtime.ts";
@@ -18,6 +18,14 @@ function stringParameter(parameters: JsonObject, name: string): string {
   if (value === undefined || value === null) return "";
   if (!Value.Check(stringSchema, value)) throw invalidArguments(`agent.${name} must be a string`);
   return value.trim();
+}
+
+/** An explicit API model may be any catalogue model, not just an enabled one, but is never quietly swapped for the default. */
+async function requireRunnableModel(value: string): Promise<void> {
+  const requested = parseModelRef(value);
+  if (!requested) throw invalidArguments("agent.model must look like provider::model");
+  const reason = await catalogueModelUnavailableReason(requested);
+  if (reason) throw invalidArguments(`${value} can't run: ${reason}`);
 }
 
 export async function prepareAgentLaunch(parameters: JsonObject = {}): Promise<{ agent: AgentWorkspaceParameters } | undefined> {
@@ -32,12 +40,11 @@ export async function prepareAgentLaunch(parameters: JsonObject = {}): Promise<{
   if (initialPromptMode) agent.initialPromptMode = "composer";
   if (!Object.values(agent).some(Boolean)) return undefined;
   if (!agent.initialPromptMode && (agent.initialPrompt || agent.attachmentDraft)) {
-    const model = await resolveNewWorkspaceAgentModel(agent.model);
-    if (!model) {
+    if (agent.model) await requireRunnableModel(agent.model);
+    else if (!await hasAvailableBuiltinAgentModel()) {
       agent.initialPromptMode = "composer";
-      agent.model = "";
       agent.thinkingLevel = "";
-    } else if (agent.model) agent.model = modelRefValue(model);
+    }
   }
   return { agent };
 }

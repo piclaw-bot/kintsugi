@@ -55,6 +55,12 @@ test("agent launch owns validation of its parameters", async () => {
   await expect(prepareAgentLaunch({ initialPromptMode: "run-anything" })).rejects.toMatchObject({ code: "invalid_arguments" });
 });
 
+test("launching with a model that can't run is refused instead of using the default", async () => {
+  await expect(prepareAgentLaunch({ initialPrompt: "Start", model: "xai::no-such-model" })).rejects.toMatchObject({ code: "invalid_arguments", message: "xai::no-such-model can't run: Not in the provider’s catalogue" });
+  await expect(prepareAgentLaunch({ initialPrompt: "Start", model: "xai::grok-4.7" })).rejects.toMatchObject({ code: "invalid_arguments", message: "xai::grok-4.7 can't run: Model provider not connected" });
+  await expect(prepareAgentLaunch({ initialPrompt: "Start", model: "grok-4.7" })).rejects.toMatchObject({ code: "invalid_arguments" });
+});
+
 test("explicit composer drafts preserve native settings", async () => {
   expect(await prepareAgentLaunch({
     initialPrompt: "  Investigate later  ", initialPromptMode: "composer",
