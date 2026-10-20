@@ -122,10 +122,10 @@ test("restores persisted pinned image metadata after it was pruned", async () =>
   f.images.clear();
   f.registry.set(`${postgres}@${digestA}`, digestA);
   f.before(async (args) => {
-    if (args[0] === "agents-in-the-cloud-image-transfer" && !f.images.has(args[2]!)) throw new Error("image metadata is missing");
+    if (args[0] === "kintsugi-image-transfer" && !f.images.has(args.at(-1)!)) throw new Error("image metadata is missing");
   });
 
-  const restarted = createImagePreloader(f.run, f.docker, undefined, undefined, f.build, f.inWorkspace);
+  const restarted = createImagePreloader(f.run, f.docker, undefined, undefined, f.build, storage);
   const images = await restarted.load(path);
   expect(images).toEqual([{ requested: "postgres:17", reference: `${postgres}@${digestA}` }]);
   expect(f.images.get(`${postgres}@${digestA}`)).toBe(digestA);
