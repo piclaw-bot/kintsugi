@@ -1,3 +1,4 @@
+import { detailsClosingPattern, detailsOpeningPattern } from "./details.ts";
 import { renderMarkdown, renderProvisionalMarkdown } from "./markdown.ts";
 
 interface Fence {
@@ -26,6 +27,7 @@ export function streamingMarkdownStableBoundary(source: string): number {
   let boundary = 0;
   let fence: Fence | undefined;
   let math: "$$" | "\\[" | undefined;
+  let details = 0;
   const lines = source.match(/[^\r\n]*(?:\r\n|\r|\n|$)/g)?.filter(Boolean) ?? [];
   let offset = 0;
 
@@ -38,17 +40,38 @@ export function streamingMarkdownStableBoundary(source: string): number {
     else {
       const wasInFence = fence !== undefined;
       fence = nextFence(fence, line);
-      if (!wasInFence && !fence) math = nextDisplayMath(undefined, line);
+      if (!wasInFence && !fence) {
+        // Container contents stay mutable until the message is finalized, and so does everything
+        // after them. Stopping here also keeps nested `<details>` lines out of the count below.
+        if (containerLinePattern.test(line)) return boundary;
+        math = nextDisplayMath(undefined, line);
+        details = nextDetailsDepth(details, line);
+      }
     }
 
     // A trailing space may become an indented continuation, not a blank line.
     // Wait on a final CR as well: the next delta may complete a CRLF pair.
     if (!terminated || (lineWithEnding.endsWith("\r") && offset === source.length)) continue;
-    if (!/^[ \t]*$/.test(line) || fence || math) continue;
+    if (!/^[ \t]*$/.test(line) || fence || math || details) continue;
     const candidate = source.slice(boundary, lineStart);
     if (isIndependentCompletedBlock(candidate)) boundary = offset;
   }
   return boundary;
+}
+
+/** List items, quotes and indented code. */
+const containerLinePattern = /^(?: {4}|\t| {0,3}(?:[-+*]|\d{1,9}[.)])(?:[ \t]|$)| {0,3}>)/;
+
+/**
+ * A disclosure's contents render inside it, so an open top-level `<details>` keeps its blocks
+ * mutable. Like an unclosed fence, one that never closes stays mutable to the end.
+ */
+function nextDetailsDepth(depth: number, line: string): number {
+  const text = line.match(/^ {0,3}(<.*)$/)?.[1];
+  if (text === undefined) return depth;
+  if (detailsOpeningPattern.test(text)) return depth + 1;
+  if (depth && detailsClosingPattern.test(text)) return depth - 1;
+  return depth;
 }
 
 function nextDisplayMath(open: "$$" | "\\[" | undefined, line: string): "$$" | "\\[" | undefined {
@@ -115,7 +138,6 @@ function isIndependentCompletedBlock(block: string): boolean {
   // Deliberately conservative for literal brackets and inline links; fenced code
   // has no reference semantics and can still be committed independently.
   if (outsideFenceLines.some((line) => line.includes("["))) return false;
-  if (outsideFenceLines.some((line) => /^(?: {4}|\t| {0,3}(?:[-+*]|\d{1,9}[.)])(?:[ \t]|$)| {0,3}>)/.test(line))) return false;
   return !outsideFenceLines.some((line, index) => index > 0 && /^\s*\|?(?:\s*:?-+:?\s*\|)+\s*:?-+:?\s*\|?\s*$/.test(line));
 }
 

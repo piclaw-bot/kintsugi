@@ -4,7 +4,7 @@ import type { ContentRowContent } from "./content-row-html.ts";
 
 /** Package-internal anatomy shared by Content row and Disclosure. */
 export function contentRowClasses(content: ContentRowContent, single: boolean, primary: boolean): string {
-  return classNames("content-row", `content-row--${content.kind}`, `content-row--${content.width ?? "fit"}`, single && "content-row--single", content.tone === "danger" && "is-danger", primary && "content-row__primary");
+  return classNames("content-row", `content-row--${content.kind}`, `content-row--${content.width ?? "fit"}`, single && "content-row--single", content.tone === "muted" && "is-muted", content.tone === "danger" && "is-danger", primary && "content-row__primary");
 }
 
 export function contentRowContentHtml(options: ContentRowContent): string {

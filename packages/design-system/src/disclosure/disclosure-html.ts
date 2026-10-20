@@ -21,8 +21,16 @@ export interface DisclosureOptions {
 
 /** Native disclosure composed with either Content row presentation and one shared gutter. */
 export function disclosureHtml(options: DisclosureOptions): string {
+  return `${disclosureOpeningHtml(options)}${options.bodyHtml}${disclosureClosingHtml}`;
+}
+
+/** Everything before a disclosure's contents, for callers that render the contents separately. */
+export function disclosureOpeningHtml(options: Omit<DisclosureOptions, "bodyHtml">): string {
   const id = options.element?.id === undefined ? "" : ` id="${escapeHtml(options.element.id)}"`;
   const content: ContentRowContent = { ...options.summary, leadingHtml: `${Icons.Disclosure}${options.summary.leadingHtml ?? ""}` };
   const summary = `<summary class="${contentRowClasses(content, true, true)}"${attributesHtml(options.summary.attributesHtml)}>${contentRowContentHtml(content)}</summary>`;
-  return `<details${id} class="disclosure"${options.open ? " open" : ""}${attributesHtml(options.element?.attributesHtml)}>${summary}<div class="disclosure-content"${attributesHtml(options.bodyAttributesHtml)}>${options.bodyHtml}</div></details>`;
+  return `<details${id} class="disclosure"${options.open ? " open" : ""}${attributesHtml(options.element?.attributesHtml)}>${summary}<div class="disclosure-content"${attributesHtml(options.bodyAttributesHtml)}>`;
 }
+
+/** Everything after the contents opened by `disclosureOpeningHtml`. */
+export const disclosureClosingHtml = "</div></details>";

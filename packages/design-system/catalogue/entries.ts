@@ -548,6 +548,12 @@ export const entries: CatalogueEntry[] = [
           '</div></div>').join("") + '</div>',
       },
       {
+        title: "Tones · muted for secondary rows, brightening on hover · danger",
+        render: () => '<div class="action-list">' +
+          contentRowHtml({ kind: "compact", tone: "muted", element: { tag: "button", attributesHtml: 'type="button"' }, label: { kind: "text", text: "Why not Redis?" } }) +
+          contentRowHtml({ kind: "compact", tone: "danger", element: { tag: "button", attributesHtml: 'type="button"' }, label: { kind: "text", text: "Delete workspace" } }) + '</div>',
+      },
+      {
         title: "Label-only multiline · centered beside a tall visual",
         render: () => contentRowHtml({ kind: "multiline", element: { tag: "button", attributesHtml: 'type="button"' }, label: { kind: "text", text: "Connect a provider" }, leadingHtml: '<span aria-hidden="true" style="display: grid; place-items: center; width: 34px; height: 34px">' + Icons.Cloud + '</span>' }),
       },

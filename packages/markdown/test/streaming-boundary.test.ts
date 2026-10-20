@@ -27,6 +27,14 @@ describe("streaming Markdown source boundaries", () => {
     expect(streamingMarkdownStableBoundary("Alpha\r\rTail")).toBe(7);
   });
 
+  test("keeps an open details block mutable until it closes", () => {
+    const open = "Intro\n\n<details>\n<summary>Why</summary>\n\nReason\n\n";
+    expect(streamingMarkdownStableBoundary(open)).toBe("Intro\n\n".length);
+    expect(streamingMarkdownStableBoundary(`${open}\`\`\`\n</details>\n\`\`\`\n\n`)).toBe("Intro\n\n".length);
+    const closed = `${open}</details>\n\n`;
+    expect(streamingMarkdownStableBoundary(`${closed}Tail`)).toBe(closed.length);
+  });
+
   test("keeps reference uses and definitions in a shared mutable suffix", () => {
     const prefix = "Independent introduction.\n\n";
     for (const suffix of [

@@ -7,12 +7,19 @@
 .markdown h3 { margin: 20px 0 8px; font-size: 1.1em; }
 .markdown :is(p, ul, ol, blockquote) { margin: 0 0 var(--markdown-block-spacing, 12px); }
 .markdown :is(p, ul, ol):last-child { margin-bottom: 0; }
+/* A disclosure explains the block above it, so it sits close to that block and apart from the next. */
+.markdown :is(p, ul, ol, blockquote):has(+ .disclosure) { margin-bottom: 0; }
+.markdown .disclosure { margin-bottom: var(--markdown-block-spacing, 12px); }
+.markdown .disclosure:last-child { margin-bottom: 0; }
 .markdown :is(ul, ol) { padding-left: 1.35em; }
 .markdown table { width: 100%; border-collapse: collapse; font-size: .95em; }
 .markdown th, .markdown td { padding: 6px 8px; border: 1px solid var(--line); text-align: left; vertical-align: top; }
 .markdown th { background: var(--panel); font-weight: var(--weight-semibold); }
 .markdown tbody tr:nth-child(even) { background: color-mix(in srgb, var(--panel) 45%, transparent); }
 .markdown li { margin-bottom: 3px; }
+/* Items of a loose list, written with blank lines between them, are spaced like paragraphs. */
+.markdown li:has(> p) { margin-bottom: var(--markdown-block-spacing, 12px); }
+.markdown li:has(> p):last-child { margin-bottom: 0; }
 .markdown code { font-family: var(--font-mono); }
 .markdown hr { margin: 24px 0; border: 0; border-top: 1px solid var(--line-strong); }
 /* Give short fences breathing room, then grow to their longest line within the pane. */

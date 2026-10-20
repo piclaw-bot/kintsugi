@@ -3,6 +3,7 @@ import { copyButtonHtml } from "@kintsugi/design-system/copy-button";
 import { buttonHtml } from "@kintsugi/design-system/button";
 import MarkdownIt from "markdown-it";
 import { installMath } from "./math.ts";
+import { installDetails } from "./details.ts";
 import { kintsugiFileHref, workspaceFileImageSrc } from "./kintsugi-markdown.ts";
 import { escapeHtml, isWorkspaceAppPort, isWorkspaceLoopbackHost, workspacePortAppKey, workspaceProxyUrl } from "@kintsugi/shared";
 import { renderMarkdownDiff } from "@kintsugi/syntax/markdown-diff";
@@ -24,6 +25,7 @@ const markdown = new MarkdownIt({
   typographer: false,
 });
 installMath(markdown);
+installDetails(markdown);
 const defaultValidateLink = markdown.validateLink.bind(markdown);
 markdown.validateLink = (url) => /^file:\/\//i.test(url)
   ? kintsugiFileHref("", url) !== undefined

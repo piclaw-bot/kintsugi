@@ -20,7 +20,8 @@ interface ContentRowSlots {
   leadingHtml?: string;
   /** Trusted trailing status or metadata. */
   trailingHtml?: string;
-  tone?: "default" | "danger";
+  /** Muted for secondary rows such as explanations; it brightens on hover like any row. */
+  tone?: "default" | "muted" | "danger";
   /** Fit the contents by default; fill the allocated lane for collection rows. */
   width?: "fit" | "fill";
 }

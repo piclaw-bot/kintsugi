@@ -85,6 +85,7 @@
 .content-row__metadata { display: flex; align-items: center; gap: 6px; flex: 0 0 auto; }
 /* A hidden update target must not reserve a metadata slot or its flex gap. */
 .content-row__metadata:has(> [hidden]:only-child) { display: none; }
+.content-row.is-muted { color: var(--text-muted); }
 .content-row.is-danger { color: var(--danger); }
 
 /* Multiline is an intrinsic-height soft rectangle, never an automatically shaped pill. */

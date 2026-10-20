@@ -179,8 +179,12 @@
 /* display: contents preserves DOM ancestry: the last stable block is not the
    message's last block while the mutable tail has content. Keep its normal gap
    so committing the tail or finalizing cannot change already-visible spacing. */
-.agent-stream-markdown > div:first-child:has(+ div:not(:empty)) > :is(p, ul, ol):last-child {
+.agent-stream-markdown > div:first-child:has(+ div:not(:empty)) > :is(p, ul, ol, .disclosure):last-child {
   margin-bottom: var(--markdown-block-spacing, 12px);
+}
+/* Likewise for a disclosure still in the tail, which sits close to the block it explains. */
+.agent-stream-markdown > div:first-child:has(+ div > .disclosure:first-child) > :is(p, ul, ol, blockquote):last-child {
+  margin-bottom: 0;
 }
 
 .agent-tool { margin: 0; border: 0; border-radius: 0; background: transparent; overflow: visible; }
