@@ -26,7 +26,8 @@ async function fixture() {
     tools: (agent) => [defineWorkspaceTool({
       name: "present", label: "Present", description: "Present work",
       parameters: Type.Object({ kind: Type.Literal("browser") }, { additionalProperties: false }),
-      execute: async () => { invocations.push(agent.agentId); return { content: [{ type: "text", text: agent.workspaceId }], details: {} }; },
+      requiresAgentIdentity: true,
+      execute: async (_id, _input, _signal, _update, caller) => { expect(caller).toEqual({ agentId: agent.agentId }); invocations.push(caller!.agentId); return { content: [{ type: "text", text: agent.workspaceId }], details: {} }; },
     }), ...(agent.workspaceId === "workspace-b" ? [defineWorkspaceTool({
       name: "scoped_probe", label: "Probe", description: "Scoped test capability", parameters: Type.Object({}),
       execute: async () => ({ content: [{ type: "text", text: "settings" }], details: {} }),

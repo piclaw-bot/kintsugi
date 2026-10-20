@@ -1,10 +1,11 @@
 import { createNativePlanExtension } from "./durable-plan.ts";
+import { createNativeAgentIdentityResolver } from "./durable-agent-identity.ts";
 import { createHistorySearchTool } from "./history-search.ts";
 import { agentDelegation } from "./delegation.ts";
 import { durableTiming, type WriteDurableTiming } from "./durable-timing.ts";
 import { durableSubscriptionActivity } from "./durable-accounting.ts";
 import type { Models } from "@earendil-works/pi-ai";
-import { createRegistry, defineExtension, type AgentChange, type Harness, type HarnessOptions } from "@earendil-works/pi-durable";
+import { createRegistry, defineExtension, type AgentChange, type Harness, type HarnessOptions, type ConversationId } from "@earendil-works/pi-durable";
 import { CodemodeSandbox } from "@earendil-works/pi-codemode";
 import { formatSkillsForPrompt } from "@earendil-works/pi-coding-agent";
 import { createPiModelRuntime } from "@kintsugi/llm/server";
@@ -24,9 +25,9 @@ import type { WorkspaceAgentToolOptions } from "@kintsugi/agent/server/tools";
 const codemodeSandbox = new CodemodeSandbox({ memoryLimitBytes: 256 * 1024 * 1024 });
 
 /** Workspace-scoped code, including the task definitions needed to recover bash and code mode scripts. */
-export function createDurableWorkspaceRegistry(workspaceId: string, models: Pick<Models, "getModel">, options: WorkspaceAgentToolOptions = {}) {
+export function createDurableWorkspaceRegistry(workspaceId: string, models: Pick<Models, "getModel">, options: WorkspaceAgentToolOptions = {}, resolveAgentId?: (conversationId: ConversationId) => Promise<string>) {
   const registry = createRegistry();
-  registry.install(defineExtension({ name: "kintsugi.workspace-tools", tools: createDurableWorkspaceTools(workspaceId, models, options) }));
+  registry.install(defineExtension({ name: "kintsugi.workspace-tools", tools: createDurableWorkspaceTools(workspaceId, models, options, resolveAgentId) }));
   registry.install(createDurableBashExtension(workspaceId));
   registry.install(createWorkspaceCodemodeExtension(workspaceId, codemodeSandbox));
   return registry;
@@ -35,7 +36,7 @@ export function createDurableWorkspaceRegistry(workspaceId: string, models: Pick
 /** No AgentSession, delegation coordinator, or host-local filesystem environment. */
 export async function createDurableHarnessOptions(workspaceId: string, options: WorkspaceAgentToolOptions, writeTiming: WriteDurableTiming, harness: () => Harness): Promise<HarnessOptions> {
   const models = await createPiModelRuntime();
-  const registry = createDurableWorkspaceRegistry(workspaceId, models, options);
+  const registry = createDurableWorkspaceRegistry(workspaceId, models, options, createNativeAgentIdentityResolver(workspaceId, harness));
   registry.install(defineExtension({ name: "kintsugi.history-search", tools: [createHistorySearchTool(workspaceId, harness)] }));
   registry.install(createNativePlanExtension(workspaceId, harness));
   const delegation = agentDelegation?.create(models, harness);

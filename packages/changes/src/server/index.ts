@@ -1,3 +1,7 @@
+import { registerWorkspaceAgentTool } from "@kintsugi/agent/server/tools";
+import { createCodeReviewTool } from "./review-tool.ts";
+import { reviewDeliveries } from "./review-delivery.ts";
+import { handleReviewDelivery, reviewDeliveryOpenApiPaths } from "./review-web.ts";
 import { maxChangesTextBytes, maxChangesTextLines } from "../editing.ts";
 import { changesEdits, EditError } from "./editing.ts";
 import { CommentConflict, InvalidComment, placeReviewComments, reviewComments } from "./comments.ts";
@@ -86,9 +90,12 @@ export const kintsugiServerModule: WorkspaceModule = {
     identity: () => "workspace",
     async render({ workspaceId }) { return renderChanges(workspaceId, (await current(workspaceId)).snapshot); },
   }],
-  commands: [{ id: "changes.open", execute: () => ({ createdWorkView: reference }) }],
+  commands: [{ id: "changes.open", execute: () => ({ createdWorkView: reference }) }, { id: "review.open", execute: () => ({ createdWorkView: reference }) }],
+  openApiPaths: reviewDeliveryOpenApiPaths,
   staticFiles: { "/deletion.css": { url: new URL("../client/deletion.css", import.meta.url), contentType: "text/css; charset=utf-8" }, "/changes.css": { url: new URL("../client/style.css", import.meta.url), contentType: "text/css; charset=utf-8" } },
   routes: [{ async handle(request, url) {
+    const review = await handleReviewDelivery(request, url, async workspaceId => (await current(workspaceId)).snapshot);
+    if (review) return review;
     const editRoute = matchRoute(url, /^\/workspaces\/([^/]+)\/changes\/edit\/(begin|save|cancel)$/);
     if (editRoute) {
       if (request.method !== "POST") return textResponse("Method not allowed", { status: 405 });
@@ -254,6 +261,7 @@ export const kintsugiServerModule: WorkspaceModule = {
   } }],
   initialize(context) {
     invalidateWorkspace = context.invalidateWorkspace;
+    registerWorkspaceAgentTool("code_review", workspaceId => createCodeReviewTool(workspaceId, reviewDeliveries, () => reviewComments.list(workspaceId)));
     context.events.on("workspace_agent_turn_finished", async ({ workspaceId }) => {
       // Do not scan repositories for workspaces whose Changes view has never been opened.
       const pending = states.get(workspaceId);
@@ -271,13 +279,13 @@ export const kintsugiServerModule: WorkspaceModule = {
       const uncopied = reviewComments.list(workspaceId).filter(comment => comment.copiedRevision !== comment.revision);
       if (uncopied.length) issues.push({ kind: "uncopied_review_comments", message: `${uncopied.length} review comments haven’t been copied. Deleting this workspace will delete them.`, count: uncopied.length });
     });
-    context.onWorkspaceRemoved(workspaceId => { states.delete(workspaceId); changesEdits.delete(workspaceId); clearDeletionReview(workspaceId); reviewComments.delete(workspaceId); });
+    context.onWorkspaceRemoved(workspaceId => { states.delete(workspaceId); changesEdits.delete(workspaceId); clearDeletionReview(workspaceId); reviewComments.delete(workspaceId); reviewDeliveries.delete(workspaceId); });
   },
   attachToWorkspace() {
     // Attaching a closed view must not put repository capture on the workspace's critical path.
     return {
       workViews: [{ reference, sourceKey: "changes:workspace", label: "Changes", kind: "contextual", iconHtml: Icons.Changes, availability: { phase: "live" }, initiallyOpen: false }],
-      commands: [{ id: "changes.open", label: "Changes", description: "Compare local commits and uncommitted changes.", scope: "workspace", surfaces: { ui: { placement: "work-launcher", iconHtml: Icons.Changes, label: "Changes" }, shortcut: { defaultBinding: "Meta+Alt+KeyC" } } }],
+      commands: [{ id: "review.open", label: "Review comments", description: "Review changes and explicitly send saved comments to the selected Agent.", scope: "workspace" }, { id: "changes.open", label: "Changes", description: "Compare local commits and uncommitted changes.", scope: "workspace", surfaces: { ui: { placement: "work-launcher", iconHtml: Icons.Changes, label: "Changes" }, shortcut: { defaultBinding: "Meta+Alt+KeyC" } } }],
     };
   },
 };

@@ -1,5 +1,6 @@
 import { createChangesEditController, syncFileEditButtons } from "./editing-controller.ts";
 import { showButtonConfirmation } from "@kintsugi/design-system/button-confirmation/client";
+import { createReviewSendController } from "./review-send-controller.ts";
 import { createReviewCopyController } from "./review-copy-controller.ts";
 import { exportReviewComments, type CommentAnnotation, type CommentPlacement } from "../comments.ts";
 import type { ChangesAnnotation, MediaAnnotation, RevertAnnotation } from "../reverting.ts";
@@ -589,6 +590,7 @@ export const kintsugiClientModule: WorkspaceClientModule = {
     application.register("changes", createChangesController(Controller));
     application.register("changes-edit", createChangesEditController(Controller));
     application.register("review-copy", createReviewCopyController(Controller));
+    application.register("review-send", createReviewSendController(Controller));
     application.register("changes-diff-endpoints", createDiffEndpointsController(Controller));
     hooks.onBecomeVisible(({ pane }) => {
       // Let Stimulus connect newly inserted views before requesting the refresh.

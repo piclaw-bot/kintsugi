@@ -48,7 +48,7 @@ export function createAgentMcpServer(options: AgentMcpServerOptions) {
             const message = update.content.filter((item) => item.type === "text").map((item) => item.text).join("\n");
             const current = ++progress;
             updates = updates.then(() => extra.sendNotification({ method: "notifications/progress", params: { progressToken, progress: current, message } }));
-          });
+          }, { agentId: identity.agentId });
           await updates;
           return { content: result.content };
         } catch (error) {

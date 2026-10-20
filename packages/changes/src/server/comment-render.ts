@@ -1,3 +1,4 @@
+import { renderReviewSend } from "./review-web.ts";
 import { buttonHtml } from "@kintsugi/design-system/button";
 import { buttonConfirmationHtml } from "@kintsugi/design-system/button-confirmation";
 import { destructiveConfirmationHtml } from "@kintsugi/design-system/destructive-confirmation";
@@ -25,7 +26,7 @@ export function renderCopyCommentButton(): string {
 export function renderCommentActions(workspaceId: string, snapshotId: string, comments: readonly CommentPlacement[]): string {
   const caption = `Delete ${comments.length} ${comments.length === 1 ? "comment" : "comments"}`;
   const remove = comments.length ? `<form method="post" action="/workspaces/${encodeURIComponent(workspaceId)}/changes/comments/delete-many" data-action="submit->changes#deleteComments"><input type="hidden" name="versions" value="${escapeHtml(JSON.stringify(comments.map(({ id, revision }) => ({ id, revision }))))}">${destructiveConfirmationHtml({ id: domId("changes", snapshotId, "delete_comments"), trigger: { type: "button", variant: "danger", content: { kind: "caption", caption } }, confirmCaption: "Delete comments", cancelCaption: "Cancel" })}</form>` : "";
-  return `<div id="${commentsActionsId(snapshotId)}" class="changes-comment-actions">${comments.length ? `${renderCopyComments(workspaceId, snapshotId, comments)}${remove}` : ""}</div>`;
+  return `<div id="${commentsActionsId(snapshotId)}" class="changes-comment-actions">${renderReviewSend(workspaceId, snapshotId, comments.length > 0)}${comments.length ? `${renderCopyComments(workspaceId, snapshotId, comments)}${remove}` : ""}</div>`;
 }
 
 export function renderOrphanComments(snapshotId: string, comments: readonly CommentPlacement[]): string {

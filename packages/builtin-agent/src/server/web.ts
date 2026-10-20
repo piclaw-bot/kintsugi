@@ -1,3 +1,4 @@
+import { registerAgentRequestReceiptChecker } from "@kintsugi/agent/server/request-receipts";
 import { registerPlanAgentResolver } from "@kintsugi/agent/server/plan";
 import { KintsugiCoreError as PlanCoreError } from "@kintsugi/core";
 import { registerWorkspaceAgentTool } from "@kintsugi/agent/server/tools";
@@ -13,7 +14,7 @@ import { resolveNewWorkspaceAgentModel } from "@kintsugi/agent/server/model-stat
 import { renderAgentPane } from "./render-composer.ts";
 import { agentKey } from "@kintsugi/agent/server/render-context";
 import { handleAgentRequest } from "./routes.ts";
-import { refreshWorkspaceCompletionCatalogs, closeWorkspaceAgent, getWorkspaceAgentController, getWorkspaceAgentPresentation, restoreWorkspaceAgentRuntime } from "./runtime.ts";
+import { refreshWorkspaceCompletionCatalogs, closeWorkspaceAgent, getWorkspaceAgentController, getWorkspaceAgentPresentation, restoreWorkspaceAgentRuntime, knownWorkspaceAgentRequest } from "./runtime.ts";
 import { removeClosedWorkspaceAgent, createNextWorkspaceAgent, listWorkspaceAgents, untitledAgentTitle, type WorkspaceAgentInfo } from "./agent-store.ts";
 
 const toolAbortRequestSchema = { type: "object", properties: { note: { type: "string", description: "Optional user note returned in the tool result" } } };
@@ -165,6 +166,12 @@ export const builtinAgentWorkspaceModule: WorkspaceModule = {
     registerPlanAgentResolver("builtin", async (workspaceId, agentId) => {
       try { const agent = await resolveAgent(workspaceId, agentId); return { id: agent.agentId, title: agent.title, readOnly: agent.readOnly }; }
       catch (error) { if (error instanceof PlanCoreError && error.code === "agent_not_found") return undefined; throw error; }
+    });
+    registerAgentRequestReceiptChecker("builtin", async (workspaceId, agentId, requestId) => {
+      let agent;
+      try { agent = await resolveAgent(workspaceId, agentId); }
+      catch (error) { if (error instanceof KintsugiCoreError && error.code === "agent_not_found") return undefined; throw error; }
+      return knownWorkspaceAgentRequest(agent, requestId, { events: agentEvents });
     });
     registerWorkspaceAgentTool("list_credentials", workspaceId => createCredentialCatalogueTool(workspaceId));
     // SAFETY: The module boundary validates or constructs this value with the asserted domain shape.

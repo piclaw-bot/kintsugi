@@ -11,6 +11,7 @@
     "@kintsugi/workspace": "workspace:*",
     "@hotwired/turbo": "8.0.13",
     "@pierre/diffs": "1.5.2",
-    "typebox": "^1.0.57"
+    "typebox": "^1.0.57",
+    "@kintsugi/agent": "workspace:*"
   }
 }

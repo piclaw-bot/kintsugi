@@ -8,6 +8,7 @@ import { createModels, fauxAssistantMessage, fauxProvider, fauxToolCall } from "
 import { createReadTool, createWriteTool, createEditTool } from "@earendil-works/pi-coding-agent";
 import { createRegistry, defineExtension } from "@earendil-works/pi-durable";
 import { Type } from "typebox";
+import { createNativeAgentIdentityResolver } from "../../src/server/durable-agent-identity.ts";
 import { createDurableWorkspaceTools, durableWorkspaceTool } from "../../src/server/durable-tools.ts";
 import { openDurableWorkspace, type DurableWorkspace } from "../../src/server/durable-workspace.ts";
 import { defineWorkspaceTool, type WorkspaceTool } from "@kintsugi/agent/server/workspace-tool";
@@ -27,7 +28,7 @@ async function directory() {
   return path;
 }
 
-async function runTool(tool: WorkspaceTool<any, any>, args: Record<string, JsonValue>) {
+async function runTool(tool: WorkspaceTool<any, any>, args: Record<string, JsonValue>, verifyIdentity = false) {
   const path = await directory();
   const models = createModels();
   const faux = fauxProvider({ tokensPerSecond: 100_000 });
@@ -37,7 +38,7 @@ async function runTool(tool: WorkspaceTool<any, any>, args: Record<string, JsonV
     fauxAssistantMessage("Done"),
   ]);
   const registry = createRegistry();
-  registry.install(defineExtension({ name: "workspace-tools", tools: [durableWorkspaceTool(tool)] }));
+  registry.install(defineExtension({ name: "workspace-tools", tools: [durableWorkspaceTool(tool, "unsafe", verifyIdentity ? id => createNativeAgentIdentityResolver("test-workspace", () => workspace.harness)(id) : undefined)] }));
   const workspace = await openDurableWorkspace(path, "test-workspace", { models, registry });
   workspaces.push(workspace);
   const conversation = await workspace.agent({ agentId: "tab", label: "Agent 1", title: "Tools" }, {
@@ -134,4 +135,16 @@ test("SDK snapshot updates and final details are committed without repeating out
   }), {});
   expect(result.content).toEqual([{ type: "text", text: "finished" }]);
   expect(journal).toContain('"step":3');
+});
+
+test("scoped workspace tools receive committed native identity, never model-supplied identity", async () => {
+  const tool = defineWorkspaceTool({ name: "identity_probe", label: "Probe", description: "Verified identity", requiresAgentIdentity: true,
+    parameters: Type.Object({ agentId: Type.Optional(Type.String()) }),
+    async execute(_id, input, _signal, _update, identity) { return { content: [{ type: "text" as const, text: JSON.stringify({ verified: identity?.agentId, supplied: input.agentId }) }], details: {} }; },
+  });
+  const verified = await runTool(tool, { agentId: "foreign-agent" }, true);
+  expect(verified.result).toMatchObject({ isError: false, content: [{ type: "text", text: JSON.stringify({ verified: "tab", supplied: "foreign-agent" }) }] });
+  const unavailable = await runTool(tool, { agentId: "foreign-agent" });
+  expect(unavailable.result.isError).toBe(true);
+  expect(JSON.stringify(unavailable.result)).toContain("Verified Agent identity is unavailable");
 });

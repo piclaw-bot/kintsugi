@@ -130,6 +130,7 @@
     "packages/changes": {
       "name": "@kintsugi/changes",
       "dependencies": {
+        "@kintsugi/agent": "workspace:*",
         "@hotwired/turbo": "8.0.13",
         "@kintsugi/core": "workspace:*",
         "@kintsugi/design-system": "workspace:*",

@@ -171,3 +171,8 @@
 .changes-media :is(video, audio) { display: block; max-width: 100%; }
 .changes-media video { max-height: 480px; }
 .changes-media > .changes-image-canvas { max-width: 640px; }
+
+.changes-review-send { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-width: 0; }
+.changes-review-send-preview { width: 100%; min-height: 240px; max-height: 50dvh; resize: vertical; font-family: var(--font-code); font-size: var(--text-code); }
+.changes-review-delivery-status { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: var(--text-code); color: var(--text-muted); }
+.changes-review-send [role="alert"] { color: var(--danger); margin: 0; }

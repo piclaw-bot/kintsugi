@@ -1,7 +1,7 @@
 import { awaitWithContext } from "@earendil-works/chord/context";
 import { copyJson } from "@earendil-works/chord";
 import { createReadTool, createWriteTool, createEditTool, type ReadToolOptions } from "@earendil-works/pi-coding-agent";
-import { defineTool, type ToolRegistration } from "@earendil-works/pi-durable";
+import { defineTool, type ToolRegistration, type ConversationId } from "@earendil-works/pi-durable";
 import type { Models } from "@earendil-works/pi-ai";
 import { workspaceRoot } from "@kintsugi/workspace";
 import type { TSchema } from "typebox";
@@ -16,6 +16,7 @@ import type { WorkspaceTool } from "@kintsugi/agent/server/workspace-tool";
 export function durableWorkspaceTool<TParams extends TSchema>(
   tool: WorkspaceTool<TParams, unknown>,
   replay: "safe" | "unsafe" = "unsafe",
+  resolveAgentId?: (conversationId: ConversationId) => Promise<string>,
 ): ToolRegistration<TParams> {
   return defineTool({
     name: tool.name,
@@ -30,6 +31,8 @@ export function durableWorkspaceTool<TParams extends TSchema>(
       let updates = Promise.resolve();
       const failures: unknown[] = [];
       try {
+        if (tool.requiresAgentIdentity && !resolveAgentId) throw new Error("Verified Agent identity is unavailable");
+        const identity = tool.requiresAgentIdentity ? { agentId: await resolveAgentId!(api.conversationId) } : undefined;
         const operation = Promise.resolve(tool.execute(api.callId, args, context.abortSignal, (partial) => {
           if (context.abortSignal?.aborted) return;
           const snapshot = copyJson(partial, { omitUndefinedProperties: true });
@@ -38,7 +41,7 @@ export function durableWorkspaceTool<TParams extends TSchema>(
             // propagate it before returning the tool result, never fire-and-forget.
             failures.push(error);
           });
-        }));
+        }, identity));
         // A capability may itself await workspace deletion, which joins this
         // invocation. Cancel the waiter, not the external effect, to break that
         // cycle. Unsafe effects retain native interrupted/uncertain semantics.
@@ -85,7 +88,7 @@ export function createDurableReadTool(cwd: string, models: Pick<Models, "getMode
 }
 
 /** File/image and presentation capabilities ready for the native Durable registry. */
-export function createDurableWorkspaceTools(workspaceId: string, models: Pick<Models, "getModel">, options: WorkspaceAgentToolOptions = {}): ToolRegistration<any>[] {
+export function createDurableWorkspaceTools(workspaceId: string, models: Pick<Models, "getModel">, options: WorkspaceAgentToolOptions = {}, resolveAgentId?: (conversationId: ConversationId) => Promise<string>): ToolRegistration<any>[] {
   const operations = workspaceFileToolOptions(workspaceId);
   return [
     // Durable 1.0's built-in read rejects images. Use the SDK's context-free
@@ -93,7 +96,7 @@ export function createDurableWorkspaceTools(workspaceId: string, models: Pick<Mo
     createDurableReadTool(workspaceRoot, models, operations.read),
     durableWorkspaceTool(createWriteTool(workspaceRoot, operations.write)),
     durableWorkspaceTool(createEditTool(workspaceRoot, operations.edit)),
-    ...createKintsugiControlTools(workspaceId, { ...options, embeds: true }).map((tool) => durableWorkspaceTool(tool)),
+    ...createKintsugiControlTools(workspaceId, { ...options, embeds: true }).map((tool) => durableWorkspaceTool(tool, "unsafe", resolveAgentId)),
     // Install createDurableBashExtension alongside these tools; it owns both
     // the receipt-backed bash task and its tool registration.
   ];
