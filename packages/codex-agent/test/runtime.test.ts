@@ -133,6 +133,17 @@ test("failed recovery remains visible and a later acquisition can retry it", () 
   await agents.disposeAll();
 `));
 
+test("prompt admission does not read the rollout before Codex completes the turn", () => scenario(`
+  const id = await agents.create("workspace");
+  const runtime = await agents.ready("workspace", id);
+  await runtime.send(input, "first");
+  expect(requests.filter(value => value.method === "thread/read")).toHaveLength(0);
+  connections[0].notification({ method: "turn/completed", params: { threadId: "thread-1", turn: turns[0] } });
+  await new Promise(resolve => setTimeout(resolve, 0));
+  expect(requests.filter(value => value.method === "thread/read")).toHaveLength(1);
+  await agents.disposeAll();
+`));
+
 test("reveal resolves nested activity to its owning turn, but not final answers", () => scenario(`
   const id = await agents.create("workspace");
   const runtime = await agents.ready("workspace", id);

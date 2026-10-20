@@ -162,8 +162,6 @@ export class CodexRuntime {
       }
       submission.accepted = true;
       this.save();
-      const turnId = active?.id ?? this.state.activeTurn?.id ?? this.state.turns.at(-1)?.id;
-      if (turnId) await this.refreshTurnItems(turnId, !this.state.activeTurn);
       this.changed();
     });
   }
