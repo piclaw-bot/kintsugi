@@ -100,3 +100,17 @@
 .file-editor-diagram-pane { grid-template-rows: auto minmax(0, 1fr); }
 .file-editor-diagram-pane > .file-editor-toolbar { flex-wrap: wrap; gap: 6px; }
 .file-editor-diagram-pane .file-editor-toolbar-actions { flex-wrap: wrap; flex-shrink: 1; min-width: 0; }
+
+.file-editor-rendered-table { padding: 0; }
+.delimited-preview { display: flex; flex-direction: column; min-height: 0; height: 100%; }
+.delimited-preview-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; padding: 8px 12px; border-bottom: 1px solid var(--line); color: var(--text-muted); font-size: var(--text-code); }
+.delimited-preview-toolbar label { display: flex; align-items: center; gap: 8px; white-space: nowrap; }
+.delimited-preview-toolbar input { min-width: 0; max-width: 100%; }
+.delimited-preview-grid { flex: 1; min-height: 0; overflow: auto; }
+.delimited-preview table { border-collapse: separate; border-spacing: 0; min-width: 100%; width: max-content; font-size: var(--text-code); }
+.delimited-preview :is(th, td) { padding: 6px 10px; max-width: 400px; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; white-space: pre-wrap; overflow-wrap: anywhere; }
+.delimited-preview th { background: var(--bg); color: var(--text-muted); }
+.delimited-preview thead th { position: sticky; top: 0; z-index: 2; }
+.delimited-preview tbody th, .delimited-preview thead th:first-child { position: sticky; left: 0; }
+.delimited-preview thead th:first-child { z-index: 3; }
+.delimited-preview tr[hidden] { display: none; }

@@ -1,3 +1,4 @@
+import { isDelimitedPath } from "../delimited.ts";
 import { contentRowHtml } from "@kintsugi/design-system/content-row";
 import { actionLinkHtml } from "@kintsugi/design-system/action-link";
 import { buttonHtml } from "@kintsugi/design-system/button";
@@ -206,10 +207,10 @@ function fileConflictDialog(): string {
   });
 }
 
-function markdownDisplayToggle(): string {
+function markdownDisplayToggle(kind: "Markdown" | "Table"): string {
   return toggleHtml({
     variant: "text",
-    label: "Markdown display mode",
+    label: `${kind} display mode`,
     name: "markdown-display-mode",
     value: "source",
     element: {
@@ -219,7 +220,7 @@ function markdownDisplayToggle(): string {
     },
     options: [
       { label: "Source", value: "source" },
-      { label: "Rendered", value: "rendered" },
+      { label: kind === "Table" ? "Table" : "Rendered", value: "rendered" },
     ],
   });
 }
@@ -262,12 +263,13 @@ export function renderFilesEditorFrame(workspaceId: string, view: FilesView, pre
       <div class="file-editor-diagram-preview" data-files-diagram-target="preview"><p class="empty-state">Loading diagram…</p></div>
     </section></turbo-frame>`;
   }
-  const markdown = /\.(?:md|markdown)$/i.test(view.path);
+  const delimited = isDelimitedPath(view.path);
+  const rendered = delimited || /\.(?:md|markdown)$/i.test(view.path);
   const editorId = `${frameId}_${Bun.hash(view.path).toString(16)}`;
   return `<turbo-frame id="${frameId}" class="files-editor-frame" data-controller="file-editor-navigation" data-file-editor-navigation-editor-value="${escapeHtml(editorId)}" data-file-editor-navigation-request-value="${filesNavigationRequest(workspaceId, view.id)}" data-file-editor-navigation-line-value="${view.line ?? 0}" data-file-editor-navigation-column-value="${view.column ?? 0}"><section class="file-editor-pane" id="${escapeHtml(editorId)}" data-turbo-permanent data-controller="file-editor" data-file-editor-workspace-id-value="${escapeHtml(workspaceId)}" data-file-editor-path-value="${escapeHtml(view.path)}" data-file-editor-content-url-value="${escapeHtml(contentUrl)}" data-file-editor-line-value="${view.line ?? 0}" data-file-editor-column-value="${view.column ?? 0}">
-    <header class="file-editor-toolbar work-view-toolbar"><span class="file-editor-path" title="${escapeHtml(view.path)}">${escapeHtml(view.path)}</span><span class="file-editor-toolbar-actions">${markdown ? markdownDisplayToggle() : ""}<span class="file-editor-status" data-file-editor-target="status">Loading…</span>${refreshButton()}${displayMenu(workspaceId, view.id)}${selectedFileActions(workspaceId, view)}${filesNavigatorToggle("expand")}</span></header>
+    <header class="file-editor-toolbar work-view-toolbar"><span class="file-editor-path" title="${escapeHtml(view.path)}">${escapeHtml(view.path)}</span><span class="file-editor-toolbar-actions">${rendered ? markdownDisplayToggle(delimited ? "Table" : "Markdown") : ""}<span class="file-editor-status" data-file-editor-target="status">Loading…</span>${refreshButton()}${displayMenu(workspaceId, view.id)}${selectedFileActions(workspaceId, view)}${filesNavigatorToggle("expand")}</span></header>
     <div class="file-editor-host" data-file-editor-target="host"><div class="file-editor-loading" data-file-editor-target="loading" role="status"><i class="status-spinner sm" aria-hidden="true"></i><span>Loading file…</span></div></div>
-    ${markdown ? `<div class="file-editor-rendered-markdown markdown" data-file-editor-target="renderedMarkdown" hidden></div>` : ""}
+    ${rendered ? `<div class="file-editor-rendered-markdown${delimited ? " file-editor-rendered-table" : " markdown"}" data-file-editor-target="renderedMarkdown" hidden></div>` : ""}
     ${fileConflictDialog()}
   </section></turbo-frame>`;
 }

@@ -1,3 +1,4 @@
+import { renderDelimitedRequest } from "./delimited-preview.ts";
 import type { JsonValue } from "@kintsugi/core";
 import { Icons } from "@kintsugi/design-system/icons";
 import { renderMarkdown } from "@kintsugi/markdown";
@@ -111,15 +112,21 @@ const filesWorkspaceModule: WorkspaceModule = {
     { id: "files.create", execute: ({ workspaceId }) => ({ createdWorkView: { type: "files", id: createFilesView(workspaceId).id } }) },
     { id: "files.open", execute: ({ workspaceId }) => ({ createdWorkView: { type: "files", id: listFilesViews(workspaceId)[0]!.id } }) },
   ],
+  openApiPaths: {
+    "/workspaces/{id}/files-view/render-table": {
+      post: { summary: "Preview supplied UTF-8 CSV/TSV text without reading or saving files (2 MB, 500 rows, 80 columns)", parameters: [{ name: "id", in: "path", required: true, schema: { type: "string" } }, { name: "path", in: "query", required: true, schema: { type: "string" }, description: "Filename determines CSV or tab-separated parsing" }], requestBody: { required: true, content: { "text/plain": { schema: { type: "string", maxLength: 2000000 } } } }, responses: { "200": { description: "Server-rendered, escaped table preview" }, "413": { description: "Input exceeds the byte limit" }, "422": { description: "Malformed delimited text" } } },
+    },
+  },
   staticFiles: { "/files.css": { url: new URL("../client/style.css", import.meta.url), contentType: "text/css; charset=utf-8" } },
   routes: [{
     async handle(request, url, context) {
       try {
-        let match = matchRoute(url, /^\/workspaces\/([^/]+)\/files-view\/(open|content|render-markdown)$/);
+        let match = matchRoute(url, /^\/workspaces\/([^/]+)\/files-view\/(open|content|render-markdown|render-table)$/);
         if (match) {
           const workspaceId = match[0]!;
           if (match[1] === "open") return request.method === "GET" ? await openFileInFiles(workspaceId, parseWorkspaceFileTarget(url.searchParams), context.openWorkView, url.searchParams.get("filesView") ?? undefined) : textResponse("Method not allowed", { status: 405 });
           if (match[1] === "content") return await fileContentEndpoint(workspaceId, request, url);
+          if (match[1] === "render-table") return request.method === "POST" ? await renderDelimitedRequest(request, url.searchParams.get("path") ?? "") : textResponse("Method not allowed", { status: 405 });
           return await renderMarkdownEndpoint(workspaceId, request, url);
         }
 

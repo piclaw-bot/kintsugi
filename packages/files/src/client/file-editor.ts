@@ -1,5 +1,6 @@
 /// <reference lib="dom" />
 
+import { isDelimitedPath } from "../delimited.ts";
 import { setToggleValue, type ToggleChangeEvent } from "@kintsugi/design-system/toggle/client";
 import { errorMessage, type WorkspaceClientControllerConstructor } from "@kintsugi/shared";
 import { closeBrackets, closeBracketsKeymap } from "@codemirror/autocomplete";
@@ -305,8 +306,9 @@ export function createFileEditorController(Controller: WorkspaceClientController
       const { signal } = this.connection;
       this.setMarkdownRenderBusy(true);
       try {
-        const renderMarkdownUrl = `/workspaces/${encodeURIComponent(this.workspaceIdValue)}/files-view/render-markdown?${new URLSearchParams({ path: this.pathValue })}`;
-        const response = await fetch(renderMarkdownUrl, {
+        const renderer = isDelimitedPath(this.pathValue) ? "render-table" : "render-markdown";
+        const renderPreviewUrl = `/workspaces/${encodeURIComponent(this.workspaceIdValue)}/files-view/${renderer}?${new URLSearchParams({ path: this.pathValue })}`;
+        const response = await fetch(renderPreviewUrl, {
           method: "POST",
           signal,
           headers: { "content-type": "text/plain; charset=utf-8", "accept": "text/html" },
