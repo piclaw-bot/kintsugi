@@ -1,4 +1,4 @@
-import { runCommand, commandSignal, withCommandSignal } from "./command-scope.ts";
+import { runCommand, commandSignal, withCommandSignal, CommandOutputLimitError } from "./command-scope.ts";
 import { KintsugiCoreError } from "./errors.ts";
 
 export interface CommandResult {
@@ -10,7 +10,7 @@ export interface CommandResult {
 export type CommandBufferResult = Omit<CommandResult, "stdout"> & { stdout: Buffer };
 
 export type CommandInput = string | Uint8Array;
-type CommandOptions = { stdin?: CommandInput };
+type CommandOptions = { stdin?: CommandInput; maxOutputBytes?: number };
 
 export async function runDocker(args: string[], options: CommandOptions = {}): Promise<CommandResult> {
   const result = await runDockerBuffer(args, options);
@@ -25,13 +25,17 @@ export async function runDockerBuffer(args: string[], options: CommandOptions = 
 export async function withManagedDockerCommand<T>(args: string[], execute: (args: string[]) => Promise<T>): Promise<T> {
   const signal = commandSignal();
   const execution = signal && args[0] === "exec" ? cancellableExec(args) : undefined;
+  let overflow = false;
   try {
     return await execute(execution?.args ?? args);
+  } catch (error) {
+    overflow = error instanceof CommandOutputLimitError;
+    throw error;
   } finally {
-    if (execution && signal?.aborted) {
+    if (execution && (signal?.aborted || overflow)) {
       // Killing a Docker CLI does not kill the process inside the container.
       await withCommandSignal(AbortSignal.timeout(10_000), async () => {
-        const stopped = await runCommand(["docker", "exec", "--user", "root", execution.container, "sh", "-c", `touch ${execution.pidFile}.cancel; if test -f ${execution.pidFile}; then kill -9 -"$(cat ${execution.pidFile})" 2>/dev/null || true; rm -f ${execution.pidFile}; fi`]);
+        const stopped = await runCommand(["docker", "exec", "--user", "root", execution.container, "sh", "-c", `touch ${execution.pidFile}.cancel; if test -f ${execution.pidFile}; then kill -9 -"$(cat ${execution.pidFile})" 2>/dev/null || true; rm -f ${execution.pidFile}; fi`], { maxOutputBytes: 65536 });
         if (stopped.exitCode !== 0) throw new Error(`Could not stop cancelled workspace command: ${stopped.stderr}`);
       });
     }

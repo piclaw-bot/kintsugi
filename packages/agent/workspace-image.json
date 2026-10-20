@@ -1,0 +1,17 @@
+{
+  "files": [
+    {
+      "from": "workspace-image/ast-grep/LICENSE",
+      "to": "/opt/kintsugi/ast-grep/LICENSE",
+      "mode": "0644"
+    },
+    {
+      "from": "workspace-image/ast-grep/sgconfig.yml",
+      "to": "/opt/kintsugi/ast-grep/sgconfig.yml",
+      "mode": "0644"
+    }
+  ],
+  "run": [
+    "set -eux; version=0.51.0; case \"$(dpkg --print-architecture)\" in amd64) arch=x64; sha256=bbd6f6ea8b2e3ef0a662948a10f8120a3ee7f16a785fabdd68316f102b0ad125 ;; arm64) arch=arm64; sha256=f801dc707f52595ee0afd70f02fec6df0dc0daa0beffdc6234cda807d3f028e7 ;; *) echo \"unsupported ast-grep architecture\" >&2; exit 1 ;; esac; archive=/tmp/kintsugi-ast-grep.tgz; curl -fsSL \"https://registry.npmjs.org/@ast-grep/cli-linux-${arch}-gnu/-/cli-linux-${arch}-gnu-${version}.tgz\" -o \"$archive\"; printf \"%s  %s\\n\" \"$sha256\" \"$archive\" | sha256sum -c -; mkdir -p /tmp/kintsugi-ast-grep; tar -xzf \"$archive\" -C /tmp/kintsugi-ast-grep --no-same-owner package/ast-grep; install -m 0755 /tmp/kintsugi-ast-grep/package/ast-grep /opt/kintsugi/ast-grep/ast-grep; /opt/kintsugi/ast-grep/ast-grep --version; ln -s /opt/kintsugi/ast-grep/ast-grep /usr/local/bin/ast-grep; printf 'console.log(1);\\n' | /usr/bin/prlimit --as=268435456 --cpu=10 -- /opt/kintsugi/ast-grep/ast-grep run --config /opt/kintsugi/ast-grep/sgconfig.yml --custom-languages=ignore --threads=1 --lang javascript --pattern 'console.log($X)' --json=stream --stdin | grep -Fq '\"text\":\"console.log(1)\"'; rm -rf /tmp/kintsugi-ast-grep \"$archive\""
+  ]
+}

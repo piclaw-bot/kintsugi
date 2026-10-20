@@ -1,3 +1,4 @@
+import { createCodeSearchTool, createCodeRewriteTool } from "./structural-code.ts";
 import { planWorkViews, planCommands, planPresentation, planLauncher, planChannel, planOpenApiPaths, handlePlanRequest } from "./plan-web.ts";
 import { agentPlanStore, createAgentPlanTool } from "./plan.ts";
 import { dockerHostKintsugiDataPath, getKintsugiRuntimeContext, type KintsugiEventBus } from "@kintsugi/core";
@@ -50,6 +51,8 @@ export const agentWorkspaceModule: WorkspaceModule = {
   routes: [{ handle: handleUsageRequest }, { handle: handlePlanRequest }],
   initialize(context) {
     registerSessionShareMountEvents(context.events);
+    registerWorkspaceAgentTool("code_search", workspaceId => createCodeSearchTool(workspaceId));
+    registerWorkspaceAgentTool("code_rewrite", workspaceId => createCodeRewriteTool(workspaceId));
     registerWorkspaceAgentTool("plan", (workspaceId, options) => options.agentId ? createAgentPlanTool(workspaceId, options.agentId) : undefined);
     context.onWorkspaceRemoved(workspaceId => agentPlanStore().delete(workspaceId));
     context.events.on("agent_system_prompt_prepare", ({ lines }) => { lines.push("Your persistent plan is editable by the user in the Plan Work pane. Use the plan tool to read it and keep it current; at most one item may be in progress. Saving a plan is not permission to start additional work. Read its current revision before replacing it."); });

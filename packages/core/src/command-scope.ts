@@ -25,19 +25,31 @@ export async function waitForCommand<T>(work: Promise<T>): Promise<T> {
   finally { signal.removeEventListener("abort", abort); }
 }
 
-/** Kill the process group and reap it before reporting cancellation. */
-export async function runCommand(args: string[], options: { stdin?: string | Uint8Array; env?: Record<string, string | undefined>; cwd?: string } = {}): Promise<{ exitCode: number; stdout: Buffer; stderr: string }> {
+export class CommandOutputLimitError extends Error {
+  constructor(limit: number) { super(`Command output exceeded ${limit} bytes on a pipe`); }
+}
+
+/** Kill the process group and reap it before reporting cancellation or output overflow. */
+export async function runCommand(args: string[], options: { stdin?: string | Uint8Array; env?: Record<string, string | undefined>; cwd?: string; maxOutputBytes?: number } = {}): Promise<{ exitCode: number; stdout: Buffer; stderr: string }> {
   const signal = commandSignal();
   signal?.throwIfAborted();
-  const proc = Bun.spawn(args, { ...options, stdin: "pipe", stdout: "pipe", stderr: "pipe", detached: true });
+  const { maxOutputBytes, ...spawnOptions } = options;
+  if (maxOutputBytes !== undefined && (!Number.isSafeInteger(maxOutputBytes) || maxOutputBytes < 1)) throw new RangeError("Output limit must be a positive byte count");
+  const proc = Bun.spawn(args, { ...spawnOptions, stdin: "pipe", stdout: "pipe", stderr: "pipe", detached: true });
+  async function capture(stream: ReadableStream<Uint8Array>): Promise<Buffer> {
+    if (maxOutputBytes === undefined) return Buffer.from(await new Response(stream).arrayBuffer());
+    const chunks: Uint8Array[] = []; let size = 0;
+    for await (const chunk of stream) { size += chunk.byteLength; if (size > maxOutputBytes) throw new CommandOutputLimitError(maxOutputBytes); chunks.push(chunk); }
+    return Buffer.concat(chunks);
+  }
   const abort = () => killCommandGroup(proc.pid);
   signal?.addEventListener("abort", abort, { once: true });
   try {
     if (options.stdin !== undefined) proc.stdin.write(options.stdin);
     proc.stdin.end();
-    const [stdout, stderr, exitCode] = await Promise.all([new Response(proc.stdout).arrayBuffer(), new Response(proc.stderr).text(), proc.exited]);
+    const [stdout, stderr, exitCode] = await Promise.all([capture(proc.stdout), capture(proc.stderr), proc.exited]);
     signal?.throwIfAborted();
-    return { exitCode, stdout: Buffer.from(stdout), stderr };
+    return { exitCode, stdout, stderr: stderr.toString("utf8") };
   } catch (error) {
     abort();
     await proc.exited;

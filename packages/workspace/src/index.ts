@@ -55,7 +55,7 @@ export const workspaceVSCodePort = 24800;
 interface WorkspaceListResult { workspaces: Array<{ id: string; title: string | null; parked?: boolean; init?: WorkspaceInitInstruction; imageOutdated?: boolean }> }
 export interface WorkspaceExecResult { exitCode: number; stdout: string; stderr: string; durationMs: number }
 type WorkspaceExecBufferResult = Omit<WorkspaceExecResult, "stdout"> & { stdout: Buffer }
-export interface WorkspaceCommandOptions { workdir?: string; user?: "agent" | "root"; stdin?: CommandInput }
+export interface WorkspaceCommandOptions { workdir?: string; user?: "agent" | "root"; stdin?: CommandInput; maxOutputBytes?: number }
 interface DeleteWorkspaceOptions { force?: boolean; events?: KintsugiEventBus }
 
 function namespace(): string { return process.env.ATELIER_NAMESPACE || "host"; }
@@ -278,14 +278,18 @@ export async function execWorkspaceCommand(id: string, command: string[], option
   if (command.length === 0) throw invalidArguments("command is required");
   const resolved = await resolveWorkspace(id);
   const startedAt = Date.now();
-  const result = await runDocker(workspaceExecDockerArgs(resolved, command, options), { stdin: options.stdin });
+  const capture: Pick<WorkspaceCommandOptions, "stdin" | "maxOutputBytes"> = { stdin: options.stdin };
+  if (options.maxOutputBytes !== undefined) capture.maxOutputBytes = options.maxOutputBytes;
+  const result = await runDocker(workspaceExecDockerArgs(resolved, command, options), capture);
   return { ...result, durationMs: Date.now() - startedAt };
 }
 export async function execWorkspaceCommandBuffer(id: string, command: string[], options: WorkspaceCommandOptions = {}): Promise<WorkspaceExecBufferResult> {
   if (command.length === 0) throw invalidArguments("command is required");
   const resolved = await resolveWorkspace(id);
   const startedAt = Date.now();
-  const result = await runDockerBuffer(workspaceExecDockerArgs(resolved, command, options), { stdin: options.stdin });
+  const capture: Pick<WorkspaceCommandOptions, "stdin" | "maxOutputBytes"> = { stdin: options.stdin };
+  if (options.maxOutputBytes !== undefined) capture.maxOutputBytes = options.maxOutputBytes;
+  const result = await runDockerBuffer(workspaceExecDockerArgs(resolved, command, options), capture);
   return { ...result, durationMs: Date.now() - startedAt };
 }
 export async function execWorkspaceShell(id: string, script: string, options: WorkspaceCommandOptions = {}): Promise<WorkspaceExecResult> { return await execWorkspaceCommand(id, ["sh", "-lc", script], options); }

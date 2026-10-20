@@ -1,0 +1,133 @@
+#!/usr/bin/env bun
+// Bounded workspace-only ast-grep execution. The host supplies root and binary;
+// model arguments cannot select either. No project config or native plugin is loaded.
+import { constants } from "node:fs";
+import { access, open, lstat, realpath, rename, rm } from "node:fs/promises";
+import { basename, dirname, isAbsolute, join, resolve } from "node:path";
+
+const fileLimit = 1024 * 1024, stdoutLimit = 2 * 1024 * 1024, stderrLimit = 65536;
+const hash = bytes => new Bun.CryptoHasher("sha256").update(bytes).digest("hex");
+async function sourceFile(path) {
+  const file = await open(path, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
+  try {
+    const stat = await file.stat();
+    if (!stat.isFile() || stat.size > fileLimit) throw Error("Rewrites require a regular UTF-8 file of at most 1 MiB");
+    const buffer = Buffer.alloc(fileLimit + 1); let length = 0;
+    while (length < buffer.length) { const { bytesRead } = await file.read(buffer, length, buffer.length - length, length); if (!bytesRead) break; length += bytesRead; }
+    if (length > fileLimit) throw Error("Source exceeds the 1 MiB rewrite limit");
+    const bytes = buffer.subarray(0, length);
+    new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+    if (bytes.includes(0)) throw Error("Only UTF-8 text can be rewritten");
+    return { bytes, revision: hash(bytes), mode: stat.mode & 0o777, inode: stat.ino };
+  } finally { await file.close(); }
+}
+async function boundedInput() {
+  const chunks = []; let total = 0;
+  for await (const chunk of Bun.stdin.stream()) { total += chunk.byteLength; if (total > 131072) throw Error("Code arguments exceed 128 KiB"); chunks.push(chunk); }
+  const input = JSON.parse(Buffer.concat(chunks).toString("utf8"));
+  const keys = ["pattern", "lang", "path", "limit", "rewrite", "dry_run", "expected_revision"];
+  if (!input || typeof input !== "object" || Array.isArray(input) || Object.keys(input).some(key => !keys.includes(key))) throw Error("Invalid code arguments");
+  for (const [key, maximum] of [["pattern", 4096], ["lang", 40], ["path", 4096], ["rewrite", 8192], ["expected_revision", 64]]) {
+    if (input[key] !== undefined && (typeof input[key] !== "string" || input[key].length > maximum || input[key].includes("\0"))) throw Error("Invalid " + key);
+  }
+  if (!input.pattern || !input.lang || !/^[a-zA-Z0-9_+-]+$/.test(input.lang)) throw Error("pattern and lang are required");
+  if (input.limit !== undefined && (!Number.isInteger(input.limit) || input.limit < 1 || input.limit > 100)) throw Error("limit must be between 1 and 100");
+  if (input.dry_run !== undefined && typeof input.dry_run !== "boolean") throw Error("dry_run must be boolean");
+  return input;
+}
+async function command(args, cwd, input) {
+  const child = Bun.spawn(["/usr/bin/prlimit", "--as=268435456", "--cpu=10", "--nofile=128", "--", ...args], { cwd, stdin: input === undefined ? "ignore" : "pipe", stdout: "pipe", stderr: "pipe" });
+  let truncated = false, stderrTruncated = false, timedOut = false;
+  const kill = () => { if (child.exitCode === null) child.kill("SIGKILL"); };
+  const timer = setTimeout(() => { timedOut = true; kill(); }, 15000);
+  async function capture(stream, maximum, diagnostic = false) {
+    const chunks = []; let count = 0;
+    for await (const chunk of stream) {
+      const remaining = maximum - count;
+      if (remaining > 0) { const part = chunk.subarray(0, remaining); chunks.push(part); count += part.byteLength; }
+      if (chunk.byteLength > remaining) { truncated = true; if (diagnostic) stderrTruncated = true; kill(); }
+    }
+    return Buffer.concat(chunks).toString("utf8");
+  }
+  try {
+    if (input !== undefined) { child.stdin.write(input); child.stdin.end(); }
+    const [stdout, stderr, code] = await Promise.all([capture(child.stdout, stdoutLimit), capture(child.stderr, stderrLimit, true), child.exited]);
+    return { stdout, stderr, code, truncated, stderrTruncated, timedOut };
+  } finally { clearTimeout(timer); if (child.exitCode === null) { kill(); await child.exited; } }
+}
+function matchesFrom(result) {
+  let text = result.stdout;
+  if (result.truncated && !text.endsWith("\n")) text = text.slice(0, text.lastIndexOf("\n") + 1);
+  return text.split("\n").filter(line => line.trim()).map(line => {
+    const match = JSON.parse(line), range = match.range;
+    if (typeof match.file !== "string" || typeof match.text !== "string" || !Number.isInteger(range?.start?.line) || !Number.isInteger(range?.start?.column) || range.start.line < 0 || range.start.column < 0) throw Error("Invalid ast-grep match");
+    return match;
+  });
+}
+async function apply(path, original, matches) {
+  await access(path, constants.W_OK);
+  const edits = matches.map(match => {
+    const offset = match.replacementOffsets;
+    if (typeof match.replacement !== "string" || !Number.isInteger(offset?.start) || !Number.isInteger(offset?.end) || offset.start < 0 || offset.end <= offset.start || offset.end > original.bytes.length) throw Error("Invalid rewrite offsets");
+    if (!original.bytes.subarray(offset.start, offset.end).equals(Buffer.from(match.text))) throw Error("Rewrite offsets do not match the captured source");
+    return { ...offset, bytes: Buffer.from(match.replacement) };
+  }).sort((a, b) => a.start - b.start);
+  const parts = []; let position = 0, size = original.bytes.length;
+  for (const edit of edits) {
+    if (edit.start < position) throw Error("Overlapping rewrites are not applied. Narrow the pattern");
+    size += edit.bytes.length - (edit.end - edit.start);
+    if (size > 2 * fileLimit) throw Error("Rewritten output exceeds 2 MiB");
+    parts.push(original.bytes.subarray(position, edit.start), edit.bytes); position = edit.end;
+  }
+  parts.push(original.bytes.subarray(position)); const next = Buffer.concat(parts);
+  if (next.equals(original.bytes)) return { applied: false, revision: original.revision };
+  const temporary = join(dirname(path), `.${basename(path)}.kintsugi-code-${crypto.randomUUID()}`);
+  let file;
+  try {
+    file = await open(temporary, constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL | constants.O_NOFOLLOW, original.mode);
+    await file.writeFile(next); await file.chmod(original.mode); await file.sync(); await file.close(); file = undefined;
+    const current = await sourceFile(path);
+    if (current.inode !== original.inode || current.mode !== original.mode || current.revision !== original.revision) throw Error("Source changed during the rewrite. Preview it again");
+    await rename(temporary, path);
+    return { applied: true, revision: hash(next) };
+  } finally { if (file) await file.close(); await rm(temporary, { force: true }); }
+}
+async function run(rootInput, binary, config) {
+  const input = await boundedInput();
+  const root = await realpath(rootInput), requested = resolve(root, input.path || ".");
+  if (requested !== root && !requested.startsWith(root + "/")) throw Error("Code paths must stay inside the workspace root");
+  const path = await realpath(requested);
+  if (path !== root && !path.startsWith(root + "/")) throw Error("Code paths must not follow symlinks outside the workspace root");
+  const stat = await lstat(path), rewrite = input.rewrite !== undefined, dryRun = input.dry_run !== false;
+  if (!stat.isFile() && !stat.isDirectory()) throw Error("Only regular files and directories can be searched");
+  if (!dryRun && (!rewrite || !stat.isFile() || !/^[a-f0-9]{64}$/.test(input.expected_revision || ""))) throw Error("Apply requires one file and expected_revision from its dry-run preview");
+  const source = rewrite && stat.isFile() ? await sourceFile(path) : undefined;
+  if (!dryRun && source.revision !== input.expected_revision) throw Error("Source revision changed. Preview this file again");
+  const args = [binary, "run", "--config", config, "--custom-languages=ignore", "--threads=1", "--lang", input.lang === "jsx" ? "javascript" : input.lang, "--pattern", input.pattern, "--json=stream", "--color=never"];
+  if (rewrite) args.push("--rewrite", input.rewrite);
+  if (source) args.push("--stdin"); else args.push("--", path);
+  const result = await command(args, root, source?.bytes);
+  if (result.stderrTruncated) throw Error("ast-grep diagnostics exceeded 64 KiB; no rewrite was applied");
+  if (result.timedOut) throw Error("Code operation exceeded the 15 second deadline; no rewrite was applied");
+  if (!result.truncated && result.code !== 0 && !(result.code === 1 && !result.stdout.trim() && !result.stderr.trim())) throw Error("ast-grep failed (" + result.code + "): " + result.stderr.slice(0, 4000));
+  const all = matchesFrom(result), limit = input.limit ?? 100;
+  const truncated = result.truncated || all.length > limit;
+  if (!dryRun && truncated) throw Error("Rewrite results were truncated. Narrow the pattern before applying");
+  const matches = all.slice(0, limit).map(match => {
+    const item = { file: source ? path : match.file, line: match.range.start.line + 1, column: match.range.start.column + 1,
+      text: match.text.slice(0, 2000), textTruncated: match.text.length > 2000 || (match.replacement?.length ?? 0) > 2000 };
+    if (rewrite) item.replacement = match.replacement?.slice(0, 2000);
+    return item;
+  });
+  const payload = { ok: true, dry_run: dryRun, applied: false, revision: source?.revision,
+    truncated: truncated || matches.some(match => match.textTruncated), diagnostics: result.stderr.slice(0, 4000), matches };
+  while (JSON.stringify(payload).length > 30000 && payload.matches.length) { payload.matches.pop(); payload.truncated = true; }
+  if (!dryRun && payload.truncated) throw Error("Rewrite preview exceeds the output budget. Narrow the pattern before applying");
+  if (!dryRun) Object.assign(payload, await apply(path, source, all));
+  return payload;
+}
+try {
+  const [operation, root, binary, config] = process.argv.slice(2);
+  if (operation !== "run" || !root || !isAbsolute(root) || !binary || !config) throw Error("Usage: kintsugi-code run ROOT BINARY CONFIG");
+  console.log(JSON.stringify(await run(root, binary, config)));
+} catch (error) { console.log(JSON.stringify({ ok: false, error: String(error.message).slice(0, 4000) })); process.exitCode = 1; }

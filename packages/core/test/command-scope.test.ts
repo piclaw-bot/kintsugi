@@ -64,3 +64,15 @@ test("an already-cancelled waiter still observes the shared operation's rejectio
   const work = Promise.reject(new Error("shared operation failed"));
   await expect(withCommandSignal(signal, () => waitForCommand(work))).rejects.toThrow("cancelled");
 });
+
+test("bounded commands reject stdout and stderr overflow and reap the producer", async () => {
+  for (const pipe of ["stdout", "stderr"]) {
+    await expect(runCommand(["bun", "-e", `process.${pipe}.write("x".repeat(1000000)); setInterval(()=>{},1000)`], { maxOutputBytes: 4096 })).rejects.toThrow("output exceeded 4096 bytes");
+  }
+});
+test("bounded pipes preserve exact small binary stdout, stderr and exit status", async () => {
+  const result = await runCommand(["bun", "-e", 'process.stdout.write(new Uint8Array([0,255,10])); process.stderr.write("note"); process.exitCode=7'], { maxOutputBytes: 100 });
+  expect(result.stdout).toEqual(Buffer.from([0, 255, 10]));
+  expect(result.stderr).toBe("note"); expect(result.exitCode).toBe(7);
+  await expect(runCommand(["true"], { maxOutputBytes: 0 })).rejects.toThrow("positive byte count");
+});

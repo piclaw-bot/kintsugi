@@ -48,6 +48,7 @@ test("publishes package-owned workspace helpers as executable tools", async () =
   try {
     await prepareWorkspaceToolsMount({ kintsugiDataDir: root, dockerHostKintsugiDataDir: root, dockerBridgeHost: "unused" });
     for (const [packageName, name] of [
+      ["agent", "kintsugi-code"],
       ["builtin-agent", "kintsugi-agent-bash"],
       ["desktop", "kintsugi-desktop"],
       ["vscode", "kintsugi-start-vscode"],
