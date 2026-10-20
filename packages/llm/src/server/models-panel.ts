@@ -340,12 +340,15 @@ function renderConnectionStep(provider: Pick<ProviderChoice, "provider" | "label
   bodyHtml: string;
   actionsHtml?: string;
   attributesHtml?: string;
-  /** Signing in again inside the provider's card, which already names the provider. */
+  /** About the provider account itself, which its card shows once connected. */
+  noticeHtml?: string;
+  /** Signing in again inside the provider's card, which already names the provider and shows its notice. */
   reconnect?: boolean;
 }): string {
   return connectFrame(host, `<div id="model_connection_step" class="model-provider-connection${options.reconnect ? " model-provider-connection--reconnect" : ""}"${options.attributesHtml ? ` ${options.attributesHtml}` : ""}>
     ${options.reconnect ? "" : providerHeading(provider)}
     <div class="model-connection-content">
+      ${options.reconnect ? "" : options.noticeHtml ?? ""}
       ${options.bodyHtml}
     </div>
     <div class="model-setup-actions">${options.actionsHtml ?? backToChoices(host)}</div>
@@ -573,7 +576,6 @@ function oauthBrowserRedirectBody(flow: PendingOAuthFlow): string {
   const promptForm = localhost ? oauthPromptForm(flow) : oauthPromptForm(flow, `Paste the code from the ${flow.label} page here`);
   return `<div class="settings-oauth-card">
     ${localhost ? "<p>After signing in, copy the localhost URL here—even if that page won’t load.</p>" : ""}
-    ${flow.provider === "anthropic" ? warningBannerHtml(anthropicSubscriptionNotice) : ""}
     ${oauthAuthenticationAction(flow, flow.authUrl ?? "#", false, flow.provider === "anthropic" ? "Open Anthropic auth page" : localhost ? undefined : `Open ${flow.label} page to get the code`)}
     ${promptForm}
     ${!prompt && flow.redirectSubmitted ? oauthStatus("pending", `Waiting for ${flow.label}`, localhost ? "Confirming the pasted redirect URL." : "Confirming the pasted code.") : ""}
@@ -628,6 +630,7 @@ function renderOAuthConnectionStep(flow: PendingOAuthFlow): string {
   const alternateLogin = oauthAlternateLoginAction(flow);
   return renderConnectionStep(flow, flow.host, {
     bodyHtml: `${flow.status !== "complete" ? openAISignInNotice(flow.provider) : ""}${body}`,
+    noticeHtml: flow.provider === "anthropic" && flow.status !== "complete" ? warningBannerHtml(anthropicSubscriptionNotice) : undefined,
     actionsHtml: alternateLogin ? `<div class="model-setup-choices">${action}${alternateLogin}</div>` : action,
     reconnect: flow.reconnect,
     attributesHtml: `data-controller="oauth-flow" data-oauth-flow-status-url-value="${oauthFlowPath(flow, "status")}?revision=${flow.revision}" data-oauth-flow-active-value="${flow.status === "pending" && !(flow.prompt && !flow.authUrl && !flow.verificationUri)}" data-oauth-flow-poll-ms-value="${pollMs}"`,
