@@ -74,26 +74,23 @@ test("attachment failure delivers its diagnostic before closing", () => scenario
   expect(detachCount).toBe(0);
 `));
 
-test("missing execution closes with the ended code without attaching or printing errors", () => scenario(`
+test("missing execution reported by the bridge closes with the ended code without printing errors", () => scenario(`
   const closed = [];
   socket.close = (...args) => closed.push(args);
-  const connection = createObservableTerminalSocket(options, { sessionExists: async () => false });
-  await connection.open(socket);
-  expect(callbacks).toBeUndefined();
+  const connection = createObservableTerminalSocket({ ...options, reportSessionMissing: true });
+  connection.open(socket);
+  callbacks.onExit(44, "session-missing");
   expect(output).toEqual([]);
   expect(closed).toEqual([[4404, "session-missing"]]);
 `));
 
 test("execution removed while attached delivers final output then signals ended", () => scenario(`
-  let exists = true;
   const closed = [];
   socket.close = (...args) => closed.push(args);
-  const connection = createObservableTerminalSocket(options, { sessionExists: async () => exists });
-  await connection.open(socket);
+  const connection = createObservableTerminalSocket({ ...options, reportSessionMissing: true });
+  connection.open(socket);
   callbacks.onData(new TextEncoder().encode("last output"));
-  exists = false;
-  callbacks.onExit(0);
-  await Bun.sleep(0);
+  callbacks.onExit(44, "session-missing");
   expect(output).toEqual(["last output"]);
   expect(closed).toEqual([[4404, "session-missing"]]);
 `));
@@ -101,20 +98,26 @@ test("execution removed while attached delivers final output then signals ended"
 test("attachment exit with an existing execution remains reconnectable", () => scenario(`
   const closed = [];
   socket.close = (...args) => closed.push(args);
-  const connection = createObservableTerminalSocket(options, { sessionExists: async () => true });
+  const connection = createObservableTerminalSocket({ ...options, reportSessionMissing: true });
   await connection.open(socket);
   callbacks.onExit(1);
   await Bun.sleep(0);
   expect(closed).toEqual([[undefined, undefined]]);
 `));
 
-test("disconnect during the existence check never attaches a leaked client", () => scenario(`
-  let resolveExists;
-  const connection = createObservableTerminalSocket(options, { sessionExists: () => new Promise(resolve => resolveExists = resolve) });
-  const opening = connection.open(socket);
+test("disconnect before open never attaches a leaked client", () => scenario(`
+  const connection = createObservableTerminalSocket(options);
   connection.close();
-  resolveExists(true);
-  await opening;
+  connection.open(socket);
   expect(callbacks).toBeUndefined();
   expect(output).toEqual([]);
+`));
+
+test("attachment exit after disconnect does not close an already closed socket", () => scenario(`
+  const connection = createObservableTerminalSocket(options);
+  connection.open(socket);
+  connection.close();
+  callbacks.onExit(44, "session-missing");
+  expect(output).toEqual([]);
+  expect(detachCount).toBe(1);
 `));

@@ -1,12 +1,22 @@
-import { shellQuote } from "@kintsugi/core";
 import { observableTerminalEnvironment } from "./constants.ts";
 
+// Reserved by the workspace bridge, never a foreground program's exit status.
+const sessionMissingExitCode = 44;
 const terminalBridgeSource = String.raw`
 // Runs under Bun inside the workspace. Docker transports pipes, not a PTY:
 // stdin is newline-delimited input/resize commands; stdout is raw PTY output.
 // Owning the PTY here makes stdin EOF detach tmux even if Kintsugi disappears.
 import { createInterface } from "node:readline";
-const { args, cols, rows } = JSON.parse(process.argv[1]);
+const { args, cols, rows, sessionCheckArgs, missingExitCode } = JSON.parse(process.argv[1]);
+function sessionExists() {
+  const check = Bun.spawnSync(["tmux", ...sessionCheckArgs], { stdout: "ignore", stderr: "pipe" });
+  if (check.exitCode === 0) return true;
+  const diagnostic = new TextDecoder().decode(check.stderr);
+  if (check.exitCode === 1 && /can't find session:|no server running|error connecting to .*\(No such file or directory\)/.test(diagnostic)) return false;
+  throw new Error(diagnostic || "tmux session check failed with exit code " + check.exitCode);
+}
+// Checking here avoids a separate Docker execution before every attachment.
+if (sessionCheckArgs && !sessionExists()) process.exit(missingExitCode);
 const terminal = new Bun.Terminal({
   name: "xterm-256color",
   cols,
@@ -36,11 +46,12 @@ input.on("line", (line) => {
 });
 input.on("close", close);
 void child.exited.then((exitCode) => {
+  const missing = sessionCheckArgs && !closed && !sessionExists();
   if (!closed) terminal.close();
   closed = true;
   input.close();
   process.stdin.destroy();
-  process.exitCode = exitCode;
+  process.exitCode = missing ? missingExitCode : exitCode;
 });
 `;
 
@@ -52,7 +63,7 @@ export interface ObservableTerminalConnection {
 
 export interface ObservableTerminalEvents {
   onData(data: Uint8Array): void;
-  onExit(exitCode: number): void;
+  onExit(exitCode: number, reason?: "session-missing"): void;
 }
 
 export interface HostObservableTerminalAttachOptions {
@@ -72,6 +83,8 @@ export interface ObservableTerminalAttachOptions extends HostObservableTerminalA
   containerName: string;
   user?: string;
   workdir?: string;
+  /** Detect missing sessions inside the same workspace bridge used to attach. */
+  reportSessionMissing?: boolean;
 }
 
 function tmuxAttachArgs(options: HostObservableTerminalAttachOptions): string[] {
@@ -94,9 +107,9 @@ function tmuxAttachArgs(options: HostObservableTerminalAttachOptions): string[] 
   // Tell tmux that the Gespenst client accepts OSC 8. Pi probes this client
   // feature before emitting file:// hyperlinks; RGB alone is not enough.
   if (!options.readonly) {
-    const socket = options.socketName ? `-L ${shellQuote(options.socketName)} ` : "";
-    args.push("if-shell", `tmux ${socket}show-options -g terminal-features | grep -Fq 'xterm-256color:hyperlinks'`, "", "set-option -gas terminal-features ,xterm-256color:hyperlinks", ";");
-    args.push("if-shell", `tmux ${socket}show-options -g terminal-features | grep -Fq 'xterm-256color:clipboard'`, "", "set-option -gas terminal-features ,xterm-256color:clipboard", ";");
+    // tmux can check its own options without spawning shells, grep, and more tmux clients.
+    args.push("if-shell", "-F", "#{m:*xterm-256color:hyperlinks*,#{terminal-features}}", "", "set-option -gas terminal-features ,xterm-256color:hyperlinks", ";");
+    args.push("if-shell", "-F", "#{m:*xterm-256color:clipboard*,#{terminal-features}}", "", "set-option -gas terminal-features ,xterm-256color:clipboard", ";");
   }
   args.push("attach-session");
   if (options.readonly) args.push("-r");
@@ -111,6 +124,10 @@ export function buildAttachArgs(options: ObservableTerminalAttachOptions): strin
   for (const [key, value] of Object.entries(env)) args.push("-e", `${key}=${value}`);
   args.push(options.containerName, "bun", "-e", terminalBridgeSource, JSON.stringify({
     args: tmuxAttachArgs(options), cols: options.cols, rows: options.rows,
+    sessionCheckArgs: options.reportSessionMissing
+      ? ["-N", ...(options.socketName ? ["-L", options.socketName] : []), "has-session", "-t", `=${options.session}`]
+      : undefined,
+    missingExitCode: sessionMissingExitCode,
   }));
   return args;
 }
@@ -168,7 +185,7 @@ export function attachObservableTerminal(options: ObservableTerminalAttachOption
       events.onData(new TextEncoder().encode(`\r\n${stderr.replace(/\r?\n/g, "\r\n")}`));
     }
     closed = true;
-    events.onExit(exitCode);
+    events.onExit(exitCode, options.reportSessionMissing && exitCode === sessionMissingExitCode ? "session-missing" : undefined);
   })();
   const send = (message: { type: "input"; data: string } | { type: "resize"; cols: number; rows: number }): void => {
     if (!closed) subprocess.stdin.write(`${JSON.stringify(message)}\n`);

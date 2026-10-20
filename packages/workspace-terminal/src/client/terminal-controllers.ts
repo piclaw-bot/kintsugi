@@ -63,6 +63,7 @@ function createTerminalViewController(Controller: WorkspaceClientControllerConst
         this.viewer = createObservableTerminalViewer({
           host: this.hostTarget,
           mode: "interactive",
+          connectBeforeRender: true,
           websocketUrl: observableWebSocketUrl(`/workspaces/${encodeURIComponent(this.workspaceIdValue)}/views/${encodeURIComponent(terminalViewKey(this.idValue))}/ws`),
           fontFamily: style.getPropertyValue("--font-mono"),
           fontSize: Number.parseFloat(style.getPropertyValue("--text-code")),

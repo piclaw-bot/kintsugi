@@ -3,7 +3,7 @@ import { createObservableTerminalSocket, terminalSocketDimensions } from "@kints
 import type { WorkspaceServerSocketHandler } from "@kintsugi/shared";
 import { workspaceContainerName, workspaceRoot } from "@kintsugi/workspace";
 import { terminalIdFromViewKey } from "../shared.ts";
-import { listWorkspaceTerminals, tmuxSessionExists } from "./workspace-terminals.ts";
+import { listWorkspaceTerminals } from "./workspace-terminals.ts";
 
 export function createTerminalSocketHandler(): WorkspaceServerSocketHandler {
   return async (url) => {
@@ -17,9 +17,11 @@ export function createTerminalSocketHandler(): WorkspaceServerSocketHandler {
     return createObservableTerminalSocket({
       containerName: workspaceContainerName(workspaceId),
       session: terminal.tmuxSession,
+      requireExistingServer: true,
+      reportSessionMissing: true,
       ...terminalSocketDimensions(url),
       user: "agent",
       workdir: workspaceRoot,
-    }, { sessionExists: () => tmuxSessionExists(workspaceId, terminal.tmuxSession) });
+    });
   };
 }

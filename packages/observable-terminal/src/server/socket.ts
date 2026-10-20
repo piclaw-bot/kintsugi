@@ -17,7 +17,6 @@ export function terminalSocketDimensions(url: URL) {
 
 /** Own one attachment per socket, including final-output ordering and detach. */
 export function createObservableTerminalSocket(options: ObservableTerminalAttachOptions, events: {
-  sessionExists?: () => Promise<boolean>;
   onProgress?: (progress: ObservableTerminalProgressMessage) => void;
   onClose?: () => void;
 } = {}) {
@@ -25,25 +24,13 @@ export function createObservableTerminalSocket(options: ObservableTerminalAttach
   let closed = false;
   const decoder = new TextDecoder();
   return {
-    async open(socket: TerminalSocket): Promise<void> {
+    open(socket: TerminalSocket): void {
       try {
-        if (events.sessionExists && !(await events.sessionExists())) {
-          if (!closed) socket.close(terminalSessionMissingCloseCode, "session-missing");
-          return;
-        }
         if (closed) return;
         terminal = attachObservableTerminal(options, {
           onData: (chunk) => socket.send(chunk),
-          onExit: () => {
-            if (!events.sessionExists) { socket.close(); return; }
-            void events.sessionExists().then((exists) => {
-              if (!closed) socket.close(exists ? undefined : terminalSessionMissingCloseCode, exists ? undefined : "session-missing");
-            // External workspace process failures can reject with arbitrary values.
-            // oxlint-disable-next-line anti-slop/no-unknown-parameters
-            }).catch((error: unknown) => {
-              console.error("Could not check ended terminal session", error);
-              if (!closed) socket.close();
-            });
+          onExit: (_exitCode, reason) => {
+            if (!closed) socket.close(reason === "session-missing" ? terminalSessionMissingCloseCode : undefined, reason);
           },
         });
       } catch (error) {

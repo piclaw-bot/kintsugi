@@ -37,8 +37,8 @@ describe("observable terminal normalization", () => {
       "bind-key", "-n", "S-PPage", "copy-mode -e ; send-keys -X page-up", ";",
       "bind-key", "-T", "copy-mode", "S-PPage", "send-keys -X page-up", ";",
       "bind-key", "-T", "copy-mode", "S-NPage", "send-keys -X page-down", ";",
-      "if-shell", "tmux -L 'isolated' show-options -g terminal-features | grep -Fq 'xterm-256color:hyperlinks'", "", "set-option -gas terminal-features ,xterm-256color:hyperlinks", ";",
-      "if-shell", "tmux -L 'isolated' show-options -g terminal-features | grep -Fq 'xterm-256color:clipboard'", "", "set-option -gas terminal-features ,xterm-256color:clipboard", ";",
+      "if-shell", "-F", "#{m:*xterm-256color:hyperlinks*,#{terminal-features}}", "", "set-option -gas terminal-features ,xterm-256color:hyperlinks", ";",
+      "if-shell", "-F", "#{m:*xterm-256color:clipboard*,#{terminal-features}}", "", "set-option -gas terminal-features ,xterm-256color:clipboard", ";",
       "attach-session", "-t", "s",
     ]);
   });
@@ -74,6 +74,36 @@ describe("observable terminal normalization", () => {
     expect(bridge.cols).toBe(120);
     expect(bridge.rows).toBe(30);
   });
+});
+
+test("a missing session is reported without starting a replacement tmux server", async () => {
+  const args = buildAttachArgs({ containerName: "unused", session: "missing", socketName: `missing-${crypto.randomUUID()}`, cols: 80, rows: 24, reportSessionMissing: true, requireExistingServer: true });
+  // Run the same bridge locally against an isolated, nonexistent tmux server.
+  const process = Bun.spawn(args.slice(args.indexOf("unused") + 1), { stdout: "pipe", stderr: "pipe" });
+  const [code, output, error] = await Promise.all([process.exited, new Response(process.stdout).text(), new Response(process.stderr).text()]);
+  expect({ code, output, error }).toEqual({ code: 44, output: "", error: "" });
+});
+
+test("interactive attachment setup configures features inside tmux without duplicating them on reconnect", async () => {
+  const socketName = `terminal-features-${crypto.randomUUID()}`;
+  const run = async (args: string[]) => {
+    const process = Bun.spawn(["tmux", "-L", socketName, ...args], { stdout: "pipe", stderr: "pipe" });
+    const [code, output, error] = await Promise.all([process.exited, new Response(process.stdout).text(), new Response(process.stderr).text()]);
+    expect({ code, error }).toEqual({ code: 0, error: "" });
+    return output;
+  };
+  await run(["new-session", "-d", "-s", "shell", "sleep 30"]);
+  try {
+    const args = buildAttachArgs({ containerName: "unused", session: "shell", cols: 80, rows: 24 });
+    const bridge = JSON.parse(args.at(-1)!);
+    const prelude = bridge.args.slice(0, bridge.args.indexOf("attach-session") - 1);
+    await run(prelude);
+    const first = await run(["show-options", "-g", "terminal-features"]);
+    expect(first).toContain("xterm-256color:hyperlinks");
+    expect(first).toContain("xterm-256color:clipboard");
+    await run(prelude);
+    expect(await run(["show-options", "-g", "terminal-features"])).toBe(first);
+  } finally { await run(["kill-server"]); }
 });
 
 test("receipt UUID sessions attach read-only to an existing server using a window target", async () => {
