@@ -12,6 +12,12 @@ Kintsugi adds the following to upstream AgentsInTheCloud:
 
 **Kintsugi accepts direct pull requests**, without a prior issue or invitation. We respect [upstream’s separate contribution policy](https://github.com/lucasmeijer/AgentsInTheCloud#contributing); this fork welcomes external PRs for review and possible merge. See [Contributing](CONTRIBUTING.md) for scope, verification and attribution guidance.
 
+### Plans, credentials and history
+
+- Editable per-Agent plans in a Work pane, shared with the agent through the `plan` tool. Live updates preserve drafts; saving does not start work.
+- An instance credential catalogue with explicit template grants, write-only values and proxy-side substitution. Agents receive only granted metadata and placeholders.
+- Native FTS search over committed history and completed output, with bounded saved-log indexing and source references.
+
 ### Workspace controls and safety
 
 - Workspace Properties with usage/peaks, desired/effective limits, OOM/restart diagnostics, live RAM/additional-swap/CPU edits and staged network settings.
@@ -41,7 +47,7 @@ The name comes from **金継ぎ**, the Japanese art of repairing pottery with go
 
 ## Installation
 
-The current release is [v0.3.8](https://github.com/rcarmo/kintsugi/releases/tag/v0.3.8); see the [release notes](https://github.com/rcarmo/kintsugi/releases/tag/v0.3.8). Releases publish app, System and workspace images and advance `latest`; `stable` is promoted separately. Publishing does not update or restart an installation.
+The current release is [v0.3.9](https://github.com/rcarmo/kintsugi/releases/tag/v0.3.9); see the [release notes](https://github.com/rcarmo/kintsugi/releases/tag/v0.3.9). Releases publish app, System and workspace images and advance `latest`; `stable` is promoted separately. Publishing does not update or restart an installation.
 
 Use a dedicated Linux server with Docker. The installer defaults to `ghcr.io/rcarmo/kintsugi` and `ghcr.io/rcarmo/kintsugi-system`; matching images must be available before installation.
 
