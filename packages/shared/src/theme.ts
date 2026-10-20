@@ -3,11 +3,11 @@ import { Value } from "typebox/value";
 
 /** App-wide Themes shared across open pages. design-system.css defines each one as a [data-theme] rule. */
 export const kintsugiThemes = [
-  { id: "daylight", label: "Daylight", appearance: "light" },
-  { id: "cappuccino", label: "Cappuccino", appearance: "dark" },
-  { id: "tokyo-night", label: "Tokyo Night", appearance: "dark" },
-  { id: "midnight", label: "Midnight", appearance: "dark" },
-  { id: "nord", label: "Nord", appearance: "dark" },
+  { id: "daylight", label: "Daylight", appearance: "light", background: "#f3f5f9" },
+  { id: "cappuccino", label: "Cappuccino", appearance: "dark", background: "#2b2018" },
+  { id: "tokyo-night", label: "Tokyo Night", appearance: "dark", background: "#1a1b26" },
+  { id: "midnight", label: "Midnight", appearance: "dark", background: "#0d1117" },
+  { id: "nord", label: "Nord", appearance: "dark", background: "#2e3440" },
 ] as const;
 
 export type KintsugiTheme = (typeof kintsugiThemes)[number]["id"];
