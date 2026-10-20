@@ -22,14 +22,18 @@ test("steering retains image blocks and their session references", () => {
 
 test("canonical local command output replaces its streamed synthetic reply and cannot answer the next turn", () => {
   const command = { type: "user", uuid: "command", timestamp, message: { content: "/code-review" } };
-  const output = { type: "system", subtype: "local_command", uuid: "output", timestamp, content: "<local-command-stdout>Review complete</local-command-stdout>" };
+  const output = { type: "system", subtype: "local_command", uuid: "00000000-0000-0000-0000-000000000001", timestamp, content: "<local-command-stdout>Review complete</local-command-stdout>" };
   const state = new ClaudeState();
   state.hydrate(claudeRows(JSON.stringify(command)));
-  // SAFETY: This fixture supplies the synthetic envelope fields consumed by receive; no transport or inference runs.
-  state.receive({ type: "assistant", uuid: "output", parent_tool_use_id: null, session_id: "fixture", message: { id: "synthetic", model: "<synthetic>", content: [{ type: "text", text: "Review complete" }] } } as unknown as Parameters<ClaudeState["receive"]>[0]);
-  expect(state.rows.at(-1)).toMatchObject({ kind: "output", uuid: "output", text: "Review complete" });
+  state.receive({ type: "assistant", uuid: "00000000-0000-0000-0000-000000000001", parent_tool_use_id: null, session_id: "fixture", message: {
+    id: "synthetic", type: "message", role: "assistant", model: "<synthetic>",
+    container: null, context_management: null, diagnostics: null, stop_reason: "end_turn", stop_sequence: null, stop_details: null,
+    content: [{ type: "text", text: "Review complete", citations: null }],
+    usage: { input_tokens: 0, output_tokens: 0, cache_creation_input_tokens: null, cache_read_input_tokens: null, cache_creation: null, server_tool_use: null, service_tier: null, inference_geo: null, fallback_credit: null, iterations: null, output_tokens_details: null, speed: null },
+  } });
+  expect(state.rows.at(-1)).toMatchObject({ kind: "output", uuid: "00000000-0000-0000-0000-000000000001", text: "Review complete" });
   state.merge(claudeRows([command, output, { type: "user", uuid: "next", timestamp, message: { content: "Next task" } }].map(row => JSON.stringify(row)).join("\n")));
-  expect(state.rows.filter(row => row.uuid === "output")).toHaveLength(1);
+  expect(state.rows.filter(row => row.uuid === "00000000-0000-0000-0000-000000000001")).toHaveLength(1);
   const items = projectClaudeTranscript(state, false);
   expect(items.filter(item => item.type === "text")).toMatchObject([{ text: "Review complete", final: true }]);
   expect(items.at(-1)).toMatchObject({ type: "working", items: [], hasFinalAnswer: false });

@@ -23,7 +23,7 @@ export function createAgentThinkingController(Controller: StimulusControllerCons
     }
 
     expand(event?: Event): void {
-      const interactive = event?.target instanceof Element ? event.target.closest("a, button") : null;
+      const interactive = event?.target instanceof Element ? event.target.closest("a, button, summary") : null;
       if (interactive && interactive !== this.moreTarget) return;
       if (!this.element.classList.contains("truncated")) return;
       this.expanded = true;
