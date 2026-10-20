@@ -308,7 +308,7 @@ export const kintsugiClientModule: WorkspaceClientModule = {
         finally { this.sending = false; }
       }
       async sendPrompt(event: CustomEvent<AgentComposerSendPromptDetail>): Promise<void> {
-        if (this.sending) return;
+        if (this.sending) { event.detail.onComplete?.(new Error("The composer is already sending a prompt")); return; }
         const status = this.element.querySelector<HTMLElement>('[data-agent-attachments-target="status"]')!;
         const data = new FormData();
         data.set("text", event.detail.text);
@@ -319,8 +319,9 @@ export const kintsugiClientModule: WorkspaceClientModule = {
         try {
           await this.deliver(data);
           this.sent();
+          event.detail.onComplete?.();
         }
-        catch (error) { this.failed(); status.textContent = errorMessage(error); status.hidden = false; }
+        catch (error) { this.failed(); status.textContent = errorMessage(error); status.hidden = false; event.detail.onComplete?.(error instanceof Error ? error : new Error(String(error))); }
         finally { this.sending = false; }
       }
       /** The terminal replaces the transcript before anything else moves; the composer empties at once. */

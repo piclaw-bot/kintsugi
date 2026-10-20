@@ -7,7 +7,7 @@ describe("shared agent package", () => {
   test("provides shared support without registering an agent type", () => {
     expect(agent.agentWorkspaceModule.id).toBe("agent");
     expect(agent.agentWorkspaceModule.agentType).toBeUndefined();
-    expect(agent.agentWorkspaceModule.cableChannels).toBeUndefined();
+    expect(agent.agentWorkspaceModule.cableChannels?.map(channel => channel.name)).toEqual(["agent-plan"]);
     expect("durableWorkspaceOwner" in agent).toBe(false);
     expect("nativeAgentLaunch" in agent).toBe(false);
     expect("configureAgentDelegation" in agent).toBe(false);

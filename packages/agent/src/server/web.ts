@@ -1,3 +1,5 @@
+import { planWorkViews, planCommands, planPresentation, planLauncher, planChannel, planOpenApiPaths, handlePlanRequest } from "./plan-web.ts";
+import { agentPlanStore, createAgentPlanTool } from "./plan.ts";
 import { dockerHostKintsugiDataPath, getKintsugiRuntimeContext, type KintsugiEventBus } from "@kintsugi/core";
 import { markdownMathStaticFiles } from "@kintsugi/markdown/assets";
 import type { WorkspaceModule } from "@kintsugi/shared";
@@ -33,16 +35,24 @@ export const agentWorkspaceModule: WorkspaceModule = {
   id: "agent",
   staticFiles: {
     "/agent-usage.css": { url: new URL("../client/usage.css", import.meta.url), contentType: "text/css; charset=utf-8" },
+    "/agent-plan.css": { url: new URL("../client/plan.css", import.meta.url), contentType: "text/css; charset=utf-8" },
     "/agent.css": { url: new URL("../client/style.css", import.meta.url), contentType: "text/css; charset=utf-8" },
     "/agent-tree.css": { url: new URL("../client/tree.css", import.meta.url), contentType: "text/css; charset=utf-8" },
     ...observableTerminalStaticFiles,
     ...markdownMathStaticFiles,
   },
+  workViews: planWorkViews,
+  commands: planCommands,
+  cableChannels: [planChannel],
+  attachToWorkspace: () => ({ workViews: [planPresentation], commands: [planLauncher] }),
   renderWorkspacePaneActions: renderUsagePaneAction,
-  openApiPaths: usageOpenApiPaths,
-  routes: [{ handle: handleUsageRequest }],
+  openApiPaths: { ...usageOpenApiPaths, ...planOpenApiPaths },
+  routes: [{ handle: handleUsageRequest }, { handle: handlePlanRequest }],
   initialize(context) {
     registerSessionShareMountEvents(context.events);
+    registerWorkspaceAgentTool("plan", (workspaceId, options) => options.agentId ? createAgentPlanTool(workspaceId, options.agentId) : undefined);
+    context.onWorkspaceRemoved(workspaceId => agentPlanStore().delete(workspaceId));
+    context.events.on("agent_system_prompt_prepare", ({ lines }) => { lines.push("Your persistent plan is editable by the user in the Plan Work pane. Use the plan tool to read it and keep it current; at most one item may be in progress. Saving a plan is not permission to start additional work. Read its current revision before replacing it."); });
     context.registerSocketHandler(createAgentTermSocketSession);
     context.registerWorkspaceAppResolver(async (app, requestUrl) => {
       if (app.appKey === "file") return {

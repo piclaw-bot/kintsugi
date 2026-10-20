@@ -1,3 +1,4 @@
+import { registerPlanAgentResolver } from "@kintsugi/agent/server/plan";
 import { registerAgentTurnSettler } from "@kintsugi/agent/server";
 import { renderWorkspaceCompletionCatalog } from "@kintsugi/agent/server/completion-catalog";
 import { agentAttachmentDraftId, listStagedAttachments, renderComposerBody, renderFloatingStack, renderOpenComposerButton, agentComposerActions, composerAttachmentAttributes } from "@kintsugi/prompt/server";
@@ -34,6 +35,10 @@ export function createCliAgentModule(adapter: CliAgentAdapter): WorkspaceModule 
     },
     initialize(context) {
       events = context.events;
+      registerPlanAgentResolver(adapter.id, async (workspaceId, agentId) => {
+        const agent = agents.list(workspaceId).find(agent => agent.id === agentId);
+        return agent ? { id: agent.id, title: agent.title } : undefined;
+      });
       context.registerSocketHandler(cliSocketHandler(adapter.id, agents));
       if (adapter.turnSettled) registerAgentTurnSettler(agents.settleTurn);
       context.events.on("workspace_agent_turn_finished", ({ workspaceId, agentId }) => {

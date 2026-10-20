@@ -119,3 +119,33 @@ test("native-prompt credentials omit MCP guidance while preserving tools and sur
   const forged = `${Buffer.from(JSON.stringify({ ...identity, instructionDelivery: undefined })).toString("base64url")}.${token.split(".")[1]}`;
   expect(f.credentials.authenticate(forged)).toBeUndefined();
 });
+
+test("plan tools use authenticated MCP Agent identity and reject cross-Agent target fields", async () => {
+  const previous = process.env.ATELIER_DATA_DIR;
+  const f = await fixture(); process.env.ATELIER_DATA_DIR = f.directory;
+  const { createAgentPlanTool, agentPlanStore } = await import("../../src/server/plan.ts");
+  const endpoint = createAgentMcpServer({ authenticate: f.credentials.authenticate, instructions: () => "Plan fixture", tools: identity => [createAgentPlanTool(identity.workspaceId, identity.agentId)] });
+  const server = Bun.serve({ port: 0, fetch: request => endpoint.fetch(request) });
+  const clients: Client[] = [];
+  try {
+    async function connect(token: string) {
+      const client = new Client({ name: "plan-fixture", version: "1.0" }); clients.push(client);
+      await client.connect(new StreamableHTTPClientTransport(new URL("/mcp", server.url), { requestInit: { headers: { Authorization: `Bearer ${token}` } } }));
+      return client;
+    }
+    const first = await connect(f.token);
+    const secondIdentity = { ...f.identity, agentId: crypto.randomUUID() };
+    const second = await connect(f.credentials.issue(secondIdentity));
+    await first.callTool({ name: "plan", arguments: { action: "write", markdown: "- [-] Agent A only" } });
+    await second.callTool({ name: "plan", arguments: { action: "write", markdown: "- [x] Agent B only" } });
+    expect(agentPlanStore().read(f.identity.workspaceId, f.identity.agentId).markdown).toBe("- [-] Agent A only");
+    expect(agentPlanStore().read(secondIdentity.workspaceId, secondIdentity.agentId).markdown).toBe("- [x] Agent B only");
+    await expect(first.callTool({ name: "plan", arguments: { action: "reset", agentId: secondIdentity.agentId } })).rejects.toThrow("Invalid tool arguments");
+    f.credentials.revoke(f.identity);
+    await expect(first.callTool({ name: "plan", arguments: { action: "reset" } })).rejects.toThrow();
+    expect(agentPlanStore().read(f.identity.workspaceId, f.identity.agentId).markdown).toBe("- [-] Agent A only");
+  } finally {
+    await Promise.all(clients.map(client => client.close())); await endpoint.revoke({ workspaceId: f.identity.workspaceId }); server.stop(true);
+    if (previous === undefined) delete process.env.ATELIER_DATA_DIR; else process.env.ATELIER_DATA_DIR = previous;
+  }
+});

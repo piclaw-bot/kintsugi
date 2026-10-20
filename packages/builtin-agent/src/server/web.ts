@@ -1,3 +1,5 @@
+import { registerPlanAgentResolver } from "@kintsugi/agent/server/plan";
+import { KintsugiCoreError as PlanCoreError } from "@kintsugi/core";
 import { registerWorkspaceAgentTool } from "@kintsugi/agent/server/tools";
 import { createCredentialCatalogueTool } from "./credential-catalogue.ts";
 import { KintsugiCoreError, createKeyedOperationQueue, type KintsugiEventBus } from "@kintsugi/core";
@@ -160,6 +162,10 @@ export const builtinAgentWorkspaceModule: WorkspaceModule = {
     launch: nativeAgentLaunch,
   },
   initialize(context) {
+    registerPlanAgentResolver("builtin", async (workspaceId, agentId) => {
+      try { const agent = await resolveAgent(workspaceId, agentId); return { id: agent.agentId, title: agent.title, readOnly: agent.readOnly }; }
+      catch (error) { if (error instanceof PlanCoreError && error.code === "agent_not_found") return undefined; throw error; }
+    });
     registerWorkspaceAgentTool("list_credentials", workspaceId => createCredentialCatalogueTool(workspaceId));
     // SAFETY: The module boundary validates or constructs this value with the asserted domain shape.
     const events = context.events as KintsugiEventBus;

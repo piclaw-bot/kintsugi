@@ -386,7 +386,7 @@ export const mobileComposerMediaQuery = "(max-width: 700px)";
 
 /** Asks an Agent's composer to send a prompt without touching its draft. */
 export const agentComposerSendPromptEvent = "agent-composer:send-prompt";
-export interface AgentComposerSendPromptDetail { text: string }
+export interface AgentComposerSendPromptDetail { text: string; requestId?: string; onComplete?: (error?: Error) => void }
 
 /** Scrolling over an embedded frame, which never reaches this document. A
  * synthetic wheel event would do, but iOS Chrome scrolls for those. */

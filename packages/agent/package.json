@@ -22,6 +22,7 @@
     "./server/slash-commands": "./src/server/slash-commands.ts",
     "./server/slug-suggestion": "./src/server/slug-suggestion.ts",
     "./server/system-prompt": "./src/server/system-prompt.ts",
+    "./server/plan": "./src/server/plan.ts",
     "./server/tools": "./src/server/tools.ts",
     "./server/transcript": "./src/server/transcript.ts",
     "./server/transcript-contributions": "./src/server/transcript-contributions.ts",

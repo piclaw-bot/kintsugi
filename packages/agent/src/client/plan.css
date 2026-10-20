@@ -1,0 +1,12 @@
+.agent-plan-pane { height: 100%; min-height: 0; min-width: 0; display: flex; flex-direction: column; background: var(--bg); }
+.agent-plan-status { flex: none; padding: .5rem .75rem; color: var(--text-muted); font-size: var(--text-code); border-bottom: 1px solid var(--line); overflow-wrap: anywhere; }
+.agent-plan-content { flex: 1; min-height: 0; min-width: 0; }
+.agent-plan-editor { height: 100%; min-height: 0; min-width: 0; display: flex; flex-direction: column; }
+.agent-plan-editor[hidden] { display: none; }
+.agent-plan-toolbar { flex: none; display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; padding: .5rem .75rem; }
+.agent-plan-toolbar strong { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.agent-plan-toolbar progress { width: 5rem; accent-color: var(--accent); }
+.agent-plan-text.textarea { flex: 1; min-height: 5rem; width: 100%; resize: none; border-radius: 0; border-inline: none; padding: .75rem; font-family: var(--font-mono); font-size: var(--text-code); line-height: 1.65; tab-size: 2; }
+.agent-plan-footer { flex: none; padding: .5rem .75rem; }
+.agent-plan-footer p { margin: 0 0 .5rem; color: var(--text-muted); font-size: var(--text-code); }
+.agent-plan-actions { display: flex; flex-wrap: wrap; gap: .5rem; }

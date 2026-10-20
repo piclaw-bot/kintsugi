@@ -4,6 +4,7 @@ import { Type, type TSchema } from "typebox";
 import { defineWorkspaceTool, type WorkspaceTool } from "./workspace-tool.ts";
 
 export interface WorkspaceAgentToolOptions {
+  agentId?: string;
   events?: KintsugiEventBus;
   /** Only Kintsugi's own transcript renders artifact-preview: URLs. */
   embeds?: boolean;
@@ -14,7 +15,7 @@ export interface WorkspacePresenterDeps {
   presentWorkView(reference: WorkspaceWorkViewReference): Promise<void>;
 }
 
-type WorkspaceAgentToolFactory = (workspaceId: string, options: WorkspaceAgentToolOptions) => WorkspaceTool<any, any>;
+type WorkspaceAgentToolFactory = (workspaceId: string, options: WorkspaceAgentToolOptions) => WorkspaceTool<any, any> | undefined;
 
 export interface WorkspacePresenterDefinition<Params extends { kind: string } = { kind: string }> {
   kind: Params["kind"];
@@ -102,6 +103,6 @@ export function createDeleteCurrentWorkspaceTool(workspaceId: string, deleteCurr
 
 export function createKintsugiControlTools(workspaceId: string, options: WorkspaceAgentToolOptions = {}): WorkspaceTool<any, any>[] {
   const present = createPresentTool(workspaceId, options);
-  const external = [...registeredWorkspaceAgentTools.values()].map((factory) => factory(workspaceId, options));
+  const external = [...registeredWorkspaceAgentTools.values()].flatMap((factory) => { const tool = factory(workspaceId, options); return tool ? [tool] : []; });
   return [...(present ? [present] : []), ...external];
 }

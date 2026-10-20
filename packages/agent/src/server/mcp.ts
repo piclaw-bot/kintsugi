@@ -16,7 +16,7 @@ function credentialStore() { return credentials ??= createAgentMcpCredentials();
 let events: KintsugiEventBus | undefined;
 const mcp = createAgentMcpServer({
   authenticate: (token) => credentialStore().authenticate(token),
-  tools: ({ workspaceId }) => createKintsugiControlTools(workspaceId, { events }),
+  tools: ({ workspaceId, agentId }) => createKintsugiControlTools(workspaceId, { events, agentId }),
   instructions: ({ workspaceId, agentId }) => agentInstructions(workspaceId, agentId),
 });
 export function configureAgentMcp(eventBus: KintsugiEventBus): void {
