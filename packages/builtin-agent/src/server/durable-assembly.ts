@@ -1,3 +1,4 @@
+import { createHistorySearchTool } from "./history-search.ts";
 import { agentDelegation } from "./delegation.ts";
 import { durableTiming, type WriteDurableTiming } from "./durable-timing.ts";
 import { durableSubscriptionActivity } from "./durable-accounting.ts";
@@ -34,6 +35,7 @@ export function createDurableWorkspaceRegistry(workspaceId: string, models: Pick
 export async function createDurableHarnessOptions(workspaceId: string, options: WorkspaceAgentToolOptions, writeTiming: WriteDurableTiming, harness: () => Harness): Promise<HarnessOptions> {
   const models = await createPiModelRuntime();
   const registry = createDurableWorkspaceRegistry(workspaceId, models, options);
+  registry.install(defineExtension({ name: "kintsugi.history-search", tools: [createHistorySearchTool(workspaceId, harness)] }));
   const delegation = agentDelegation?.create(models, harness);
   if (delegation) registry.install(delegation.extension);
   registry.install(durableSubscriptionActivity(models));
