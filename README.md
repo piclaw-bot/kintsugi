@@ -37,6 +37,8 @@ Kintsugi adds the following to upstream AgentsInTheCloud:
 
 - A configurable Gitea HTTPS connection, including custom ports and installation subpaths, with credentials restricted to its exact origin.
 - An embedded Draw.io editor and diagram previews with page tabs.
+- CSV/TSV table previews with filtering and source editing.
+- Read-only Work panes for DOCX, Excel/ODS and PPTX files.
 - Extended Copilot quota reporting and corrected Copilot/Codex calendar-month pacing, plus OpenCode Go five-hour/weekly usage and monthly-exhaustion availability checks.
 - Opt-in [Graphite token-consumption telemetry](#token-consumption-telemetry) with per-provider/model counts, cache percentages and available cost estimates, using PiClaw-compatible metric paths.
 - Classifier-only provider credentials for code mode and Pi, and microphone release when dictation stops, adapted from Larry Hudson’s fork.
@@ -47,7 +49,7 @@ The name comes from **金継ぎ**, the Japanese art of repairing pottery with go
 
 ## Installation
 
-The current release is [v0.3.9](https://github.com/rcarmo/kintsugi/releases/tag/v0.3.9); see the [release notes](https://github.com/rcarmo/kintsugi/releases/tag/v0.3.9). Releases publish app, System and workspace images and advance `latest`; `stable` is promoted separately. Publishing does not update or restart an installation.
+The current release is [v0.3.10](https://github.com/rcarmo/kintsugi/releases/tag/v0.3.10); see the [release notes](https://github.com/rcarmo/kintsugi/releases/tag/v0.3.10). Releases publish app, System and workspace images and advance `latest`; `stable` is promoted separately. Publishing does not update or restart an installation.
 
 Use a dedicated Linux server with Docker. The installer defaults to `ghcr.io/rcarmo/kintsugi` and `ghcr.io/rcarmo/kintsugi-system`; matching images must be available before installation.
 
