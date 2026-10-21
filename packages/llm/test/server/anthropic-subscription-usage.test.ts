@@ -95,6 +95,20 @@ test("unified rate limit headers become the main windows with an account-wide de
   expect([rejected.allowed, rejected.limitReached, rejected.windows[0]!.usedPercent]).toEqual([false, true, 100]);
 });
 
+test("extra usage status shows as an account detail", () => {
+  const extraUsage = (status?: string, reason?: string) => anthropicUsageFromHeaders(new Headers({
+    ...unified,
+    ...(status && { "anthropic-ratelimit-unified-overage-status": status }),
+    ...(reason && { "anthropic-ratelimit-unified-overage-disabled-reason": reason }),
+  }), checkedAt)!.details?.[0]?.value;
+  expect(extraUsage()).toBeUndefined();
+  // Real header shape from an account whose extra usage ran out of credits.
+  expect(extraUsage("rejected", "out_of_credits")).toBe("Off, out of credits");
+  expect(extraUsage("rejected")).toBe("Off");
+  expect(extraUsage("allowed")).toBe("On");
+  expect(extraUsage("allowed_warning")).toBe("On, nearly used up");
+});
+
 test("responses without unified headers carry no usage, malformed ones are rejected", () => {
   expect(anthropicUsageFromHeaders(new Headers({ "anthropic-ratelimit-requests-remaining": "10" }), checkedAt)).toBeNull();
   expect(anthropicUsageFromHeaders(new Headers({ ...unified, "anthropic-ratelimit-unified-status": "allowed_warning", "anthropic-ratelimit-unified-weekly-utilization": "x" }), checkedAt)!.allowed).toBe(true);

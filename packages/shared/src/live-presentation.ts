@@ -65,18 +65,52 @@ export function liveRegionDigests(regions: readonly LiveRegion[], digests: Recor
   return digests;
 }
 
-function regionStreams(regions: readonly LiveRegion[], previous: Map<string, string>, snapshot: boolean, shown: LiveRegionDigests = {}): string {
+/** What a client last received for a target: its markup, the parent region it was mounted
+ * in, and for a region with children, which of its elements the page holds as permanent. */
+interface SentRegion { html: string; parent?: string; islands?: ReadonlySet<string> }
+
+function permanentIslands(html: string): Set<string> {
+  const ids = new Set<string>();
+  new HTMLRewriter().on("[id][data-turbo-permanent]", { element(element) { ids.add(element.getAttribute("id")!); } }).transform(html);
+  return ids;
+}
+
+function sentRegion(region: LiveRegion, parent: string | undefined): SentRegion {
+  return { html: region.html, parent, islands: region.children ? permanentIslands(region.html) : undefined };
+}
+
+/** `forced` regions are sent even when unchanged: the client lacks them or just lost them.
+ * A morph leaves elements that are already permanent on the page untouched, so regions
+ * mounted in those aren't resent after it: resending would reset client-owned state in
+ * rows that didn't change. */
+function regionStreams(regions: readonly LiveRegion[], previous: Map<string, SentRegion>, forced: boolean, shown: LiveRegionDigests = {}, parent?: string): string {
   let html = "";
   for (const region of regions) {
     const before = previous.get(region.target);
-    const changed = snapshot || before !== region.html;
-    if (snapshot && shown[region.target] === liveRegionDigest(region.html)) previous.set(region.target, region.html);
+    // A region whose mount moved to another parent starts out empty there.
+    const moved = before !== undefined && before.parent !== parent;
+    const changed = forced || moved || before?.html !== region.html;
+    let sent = false;
+    if (forced && shown[region.target] === liveRegionDigest(region.html)) previous.set(region.target, sentRegion(region, parent));
     else if (changed) {
-      const append = !snapshot && region.appendOnly && before !== undefined && region.html.startsWith(before);
-      html += turboStream(append ? "append" : region.action ?? "update", region.target, append ? region.html.slice(before.length) : region.html, append || region.morph === false ? {} : { method: "morph" });
-      previous.set(region.target, region.html);
+      const append = !forced && !moved && region.appendOnly && before !== undefined && region.html.startsWith(before.html);
+      html += turboStream(append ? "append" : region.action ?? "update", region.target, append ? region.html.slice(before.html.length) : region.html, append || region.morph === false ? {} : { method: "morph" });
+      previous.set(region.target, sentRegion(region, parent));
+      sent = true;
     }
-    if (region.children) html += regionStreams(region.children, previous, changed, shown);
+    if (!region.children) continue;
+    // Initial snapshots send every child. After an update, only children mounted in islands
+    // that were already permanent on the page, and still are, keep their content (Turbo
+    // checks the existing element). Every other child is resent, which is merely cautious
+    // for an append.
+    const kept = new Set<string>();
+    if (sent && !moved && region.morph !== false && before?.islands) {
+      const now = previous.get(region.target)!.islands!;
+      for (const id of before.islands) if (now.has(id)) kept.add(id);
+    }
+    for (const child of region.children) {
+      html += regionStreams([child], previous, forced || (sent && !kept.has(child.target)), shown, region.target);
+    }
   }
   return html;
 }
@@ -85,7 +119,7 @@ function regionStreams(regions: readonly LiveRegion[], previous: Map<string, str
  * Invalidation coalesces; no snapshots, promises or event history are queued. */
 export function createLivePresentation(render: () => readonly LiveRegion[], intervalMs = 0) {
   const listeners = new Set<(html: string) => void>();
-  const previous = new Map<string, string>();
+  const previous = new Map<string, SentRegion>();
   let timer: ReturnType<typeof setTimeout> | undefined;
   let disposed = false;
 

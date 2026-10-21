@@ -32,3 +32,53 @@ test("regions a page didn't place, or that changed since, are sent", () => {
   expect(published[0]).toContain("Send");
 });
 
+function published(regions: () => readonly LiveRegion[]) {
+  const presentation = createLivePresentation(regions);
+  const sent: string[] = [];
+  presentation.subscribe(html => sent.push(html));
+  return { sent, flush: () => { presentation.flush(); return sent.at(-1) ?? ""; } };
+}
+
+test("adding a row sends the collection and the new row, not the rows a client already shows", () => {
+  let rows = ["<p>First</p>"];
+  const live = published(() => [transcript(rows)]);
+  rows = ["<p>First</p>", "<p>Second</p>"];
+  const html = live.flush();
+  expect(html).toContain('target="transcript"');
+  expect(html).toContain('target="row-1"');
+  expect(html).not.toContain('target="row-0"');
+});
+
+test("a morphed parent resends children whose mounts aren't permanent", () => {
+  let label = "Working";
+  const live = published(() => [{ target: "turn", html: `<span>${label}</span><div id="items"></div>`, children: [{ target: "items", html: "<p>Item</p>" }] }]);
+  label = "Completed";
+  const html = live.flush();
+  expect(html).toContain('target="turn"');
+  expect(html).toContain('target="items"');
+});
+
+test("a destructive parent update resends every child", () => {
+  let rows = ["<p>First</p>"];
+  const live = published(() => [{ ...transcript(rows), morph: false }]);
+  rows = ["<p>First</p>", "<p>Second</p>"];
+  expect(live.flush()).toContain('target="row-0"');
+});
+
+test("a region that moves to another parent is sent to its new mount", () => {
+  let inFirst = true;
+  const row = { target: "row", html: "<p>Row</p>" };
+  const live = published(() => [
+    { target: "first", html: inFirst ? '<div id="row" data-turbo-permanent></div>' : "", children: inFirst ? [row] : [] },
+    { target: "second", html: inFirst ? "" : '<div id="row" data-turbo-permanent></div>', children: inFirst ? [] : [row] },
+  ]);
+  inFirst = false;
+  expect(live.flush()).toContain('target="row"');
+});
+
+test("a mount that only now becomes permanent is emptied by the morph, so its child is resent", () => {
+  let permanent = "";
+  const live = published(() => [{ target: "turn", html: `<div id="items"${permanent}></div>`, children: [{ target: "items", html: "<p>Item</p>" }] }]);
+  permanent = " data-turbo-permanent";
+  expect(live.flush()).toContain('target="items"');
+});

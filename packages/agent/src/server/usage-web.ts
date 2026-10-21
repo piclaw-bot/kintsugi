@@ -143,7 +143,7 @@ function renderUsageLimits({ reported, error, windows }: ProviderUsageOverview):
   if (!reported) return "<p>Disconnected.</p>";
   if (reported.allowances) return renderCopilotAllowances({ reported, windows });
   const { used, unused } = shownUsageWindows(windows);
-  return `${reported.limitReached || reported.allowed === false ? '<p class="usage-error" role="status">Subscription limit reached.</p>' : ""}${used.map((window) => renderUsageWindow(window)).join("")}${unused.length ? disclosureHtml({ summary: { kind: "compact", label: { kind: "text", text: `Unused limits (${unused.length})` } }, open: !used.length, bodyHtml: `<div class="usage-section">${unused.map((window) => renderUsageWindow(window)).join("")}</div>` }) : ""}${used.length || unused.length || reported.balance ? "" : '<p>No limits reported.</p>'}`;
+  return `${reported.limitReached || reported.allowed === false ? '<p class="usage-error" role="status">Subscription limit reached.</p>' : ""}${used.map((window) => renderUsageWindow(window)).join("")}${unused.length ? disclosureHtml({ summary: { kind: "compact", label: { kind: "text", text: `Unused limits (${unused.length})` } }, open: !used.length, bodyHtml: `<div class="usage-section">${unused.map((window) => renderUsageWindow(window)).join("")}</div>` }) : ""}${(reported.details ?? []).map(detail => `<p class="usage-caption">${escapeHtml(detail.label)}: ${escapeHtml(detail.value)}</p>`).join("")}${used.length || unused.length || reported.balance ? "" : '<p>No limits reported.</p>'}`;
 }
 
 function money(amount: number, currency: string): string {

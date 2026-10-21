@@ -10,6 +10,9 @@ interface TranscriptGeometry {
   latestTop: number;
 }
 
+/** Transcript content dispatches this, bubbling, when the reader expands it in place. */
+export const transcriptExpandEvent = "agent-transcript:expand";
+
 /** Show the end of the answer, scrolling back only as far as its prompt requires.
  * A prompt taller than the viewport opens at its beginning instead. */
 export function latestExchangeTop(transcript: HTMLElement, content: HTMLElement, bottomTop: number): number {
@@ -39,6 +42,13 @@ export class TranscriptNavigation {
   private readonly reducedMotion = matchMedia("(prefers-reduced-motion: reduce)");
   private selectionAwaitingSnapshot = false;
   private touch?: { x: number; y: number };
+  // Where the reader last was: the scroll position and, while paused, the
+  // distance from there to the end. Reaching the end resumes following only
+  // when the reader went there: scrolled down and got nearer the end. Content
+  // shrinking below brings the end nearer without scrolling down; scroll
+  // anchoring for content growing above scrolls down without nearing the end.
+  private lastScrollTop = 0;
+  private lastDistanceToEnd = Infinity;
   private readonly resizeObserver: ResizeObserver;
   private readonly composerOpener: HTMLElement | null;
   private layoutBottom?: number;
@@ -58,6 +68,8 @@ export class TranscriptNavigation {
     transcript.addEventListener("touchcancel", this.touchEnded, { passive: true });
     transcript.addEventListener("keydown", this.keydown);
     transcript.addEventListener("pointerdown", this.pointerDown);
+    transcript.addEventListener("click", this.clicked);
+    transcript.addEventListener(transcriptExpandEvent, this.expanded);
     transcript.addEventListener("scrollbar:drag-start", this.scrollbarDrag);
     window.visualViewport?.addEventListener("resize", this.layoutChanged);
     document.addEventListener(layoutBeforeEvent, this.layoutBefore);
@@ -78,14 +90,15 @@ export class TranscriptNavigation {
     cancelAnimationFrame(this.frame);
     this.frame = 0;
     this.stopMotion();
-    if (!this.following) this.transcript.scrollTop = bottom - this.transcript.clientHeight;
+    if (!this.following) this.scrollTo(bottom - this.transcript.clientHeight);
     else this.pendingPosition = "instant";
     this.reconcile();
   };
 
   setVisible(visible: boolean): void {
     this.visible = visible;
-    if (visible) this.layoutChanged();
+    // Hidden panes get no scroll events, so the last position may be stale.
+    if (visible) { this.rememberPosition(); this.layoutChanged(); }
     else { this.touch = undefined; this.stopMotion(); }
   }
 
@@ -94,6 +107,7 @@ export class TranscriptNavigation {
     this.stopMotion();
     this.floor = 0;
     this.readingAnchor = undefined;
+    this.rememberPosition();
     this.transcript.style.removeProperty("--agent-follow-floor");
     this.pendingPosition = busy ? "instant" : "prompt";
     this.selectionAwaitingSnapshot = true;
@@ -128,6 +142,8 @@ export class TranscriptNavigation {
   reveal(target: HTMLElement): void {
     this.pause();
     target.scrollIntoView({ block: "center" });
+    // Revealing a target near the end isn't the reader scrolling there.
+    this.rememberPosition();
   }
 
   private pause(): void {
@@ -136,7 +152,13 @@ export class TranscriptNavigation {
     this.selectionAwaitingSnapshot = false;
     this.following = false;
     this.renderMode();
+    this.rememberPosition();
     this.layoutChanged();
+  }
+
+  private rememberPosition(): void {
+    this.lastScrollTop = this.transcript.scrollTop;
+    this.lastDistanceToEnd = this.visible ? this.geometry().latestTop - this.lastScrollTop : Infinity;
   }
 
   private renderMode(): void {
@@ -233,11 +255,11 @@ export class TranscriptNavigation {
 
     if (this.pendingPosition === "prompt") {
       this.pendingPosition = undefined;
-      this.transcript.scrollTop = latestExchangeTop(this.transcript, this.content, geometry.latestTop);
+      this.scrollTo(latestExchangeTop(this.transcript, this.content, geometry.latestTop));
     } else if (!this.following && geometry.contentEnd < this.transcript.scrollTop + geometry.threshold) {
       // A wider pane (for example fullscreen) can reflow the entire transcript
       // above a paused viewport. Do not protect an empty viewport with reserve.
-      this.transcript.scrollTop = geometry.latestTop;
+      this.scrollTo(geometry.latestTop);
     } else if (this.following) {
       // Follow visible content, not scrollHeight (which includes our reserve).
       // Keep the opener's 8px clearance as new content arrives; elsewhere
@@ -256,7 +278,7 @@ export class TranscriptNavigation {
   private moveTo(top: number, instant: boolean): void {
     if (instant || this.reducedMotion.matches) {
       this.stopMotion();
-      this.transcript.scrollTop = top;
+      this.scrollTo(top);
       return;
     }
     this.motionForward = top >= this.transcript.scrollTop;
@@ -279,10 +301,10 @@ export class TranscriptNavigation {
     if (this.motionForward && distance < 0) {
       this.stopMotion();
     } else if (this.reducedMotion.matches || Math.abs(distance) <= 2) {
-      this.transcript.scrollTop = target;
+      this.scrollTo(target);
       this.stopMotion();
     } else {
-      this.transcript.scrollTop += distance * (1 - Math.exp(-elapsed / 85));
+      this.scrollTo(this.transcript.scrollTop + distance * (1 - Math.exp(-elapsed / 85)));
       this.motionFrame = requestAnimationFrame(this.glide);
     }
     this.reserve(geometry);
@@ -294,10 +316,20 @@ export class TranscriptNavigation {
     this.motionTime = 0;
   }
 
+  private scrollTo(top: number): void {
+    this.transcript.scrollTop = top;
+    this.lastScrollTop = this.transcript.scrollTop;
+  }
+
   private readonly scrolled = (): void => {
-    // Reaching the end by hand resumes following; scroll-to-bottom shows only away from it.
+    const top = this.transcript.scrollTop;
+    const distanceToEnd = this.following ? Infinity : this.geometry().latestTop - top;
+    const towardEnd = top > this.lastScrollTop && distanceToEnd < this.lastDistanceToEnd;
+    this.lastScrollTop = top;
+    this.lastDistanceToEnd = distanceToEnd;
+    // Reaching the end by going there resumes following; scroll-to-bottom shows only away from it.
     // A scroll event from showing the pane must not override its pending selection position.
-    if (!this.following && !this.pendingPosition && !this.motionFrame && this.transcript.scrollTop >= this.geometry().latestTop - 2) {
+    if (towardEnd && !this.following && !this.pendingPosition && !this.motionFrame && distanceToEnd <= 2) {
       this.following = true;
       this.renderMode();
     }
@@ -348,6 +380,22 @@ export class TranscriptNavigation {
 
   private readonly scrollbarDrag = (): void => this.pause();
 
+  // Expanding content in place, like truncated thinking, is reading it.
+  private readonly expanded = (): void => this.pause();
+
+  // Opening a disclosure means reading it: keep it where it is rather than
+  // following its newly revealed content to the end. Controls inside a summary
+  // and cancelled clicks don't open it.
+  private readonly clicked = (event: MouseEvent): void => {
+    if (event.defaultPrevented || !(event.target instanceof Element)) return;
+    const summary = event.target.closest("summary");
+    const details = summary?.parentElement;
+    if (!(details instanceof HTMLDetailsElement) || details.open || !this.content.contains(details)) return;
+    const control = event.target.closest("a, button, input, select, textarea");
+    if (control && summary!.contains(control)) return;
+    this.pause();
+  };
+
   private readonly pointerDown = (event: PointerEvent): void => {
     if (event.pointerType !== "mouse" || event.button !== 0) return;
     if (event.target !== this.transcript && event.target !== this.content && event.target !== this.content.parentElement) return;
@@ -371,6 +419,8 @@ export class TranscriptNavigation {
     this.transcript.removeEventListener("touchcancel", this.touchEnded);
     this.transcript.removeEventListener("keydown", this.keydown);
     this.transcript.removeEventListener("pointerdown", this.pointerDown);
+    this.transcript.removeEventListener("click", this.clicked);
+    this.transcript.removeEventListener(transcriptExpandEvent, this.expanded);
     this.transcript.removeEventListener("scrollbar:drag-start", this.scrollbarDrag);
     window.visualViewport?.removeEventListener("resize", this.layoutChanged);
     document.removeEventListener(layoutBeforeEvent, this.layoutBefore);

@@ -104,7 +104,17 @@ export function anthropicUsageFromHeaders(headers: Headers, checkedAt: Date): Su
     if (reset !== null && (resetHeader!.trim() === "" || !Number.isInteger(reset) || reset <= 0 || reset > 8640000000000)) throw unrecognizedHeaders();
     return [{ count, unit: name[2]!, feature: name[3], usedPercent: used * 100, resetsAt: reset === null ? null : new Date(reset * 1000).toISOString() }];
   }));
-  return { plan: null, checkedAt: checkedAt.toISOString(), allowed: status !== "rejected", limitReached: status === "rejected", windows };
+  return { plan: null, checkedAt: checkedAt.toISOString(), allowed: status !== "rejected", limitReached: status === "rejected", windows, details: extraUsage(headers) };
+}
+
+/** Extra usage is billed per token once plan limits run out. Anthropic says whether it's
+ * available ("allowed", "allowed_warning" or "rejected") and, when it isn't, why, such as "out_of_credits". */
+function extraUsage(headers: Headers): SubscriptionUsage["details"] {
+  const status = headers.get("anthropic-ratelimit-unified-overage-status");
+  if (status === null) return undefined;
+  const reason = headers.get("anthropic-ratelimit-unified-overage-disabled-reason");
+  const value = status === "allowed" ? "On" : status === "allowed_warning" ? "On, nearly used up" : status === "rejected" ? (reason ? `Off, ${reason}` : "Off") : status;
+  return [{ label: "Extra usage", value: value.replaceAll("_", " ") }];
 }
 
 /** The cheapest request that returns the unified limit headers; count_tokens does not. */

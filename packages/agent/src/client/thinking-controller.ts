@@ -1,3 +1,4 @@
+import { transcriptExpandEvent } from "./transcript-navigation.ts";
 import type { WorkspaceClientControllerConstructor as StimulusControllerConstructor } from "@kintsugi/shared";
 
 export function createAgentThinkingController(Controller: StimulusControllerConstructor) {
@@ -35,6 +36,7 @@ export function createAgentThinkingController(Controller: StimulusControllerCons
       this.moreTarget.hidden = true;
       this.element.removeAttribute("role");
       this.element.removeAttribute("tabindex");
+      this.element.dispatchEvent(new Event(transcriptExpandEvent, { bubbles: true }));
     }
 
     keydown(event: KeyboardEvent): void {

@@ -28,6 +28,9 @@
   --composer-button-gap: 6px;
   position: relative; z-index: 2;
   pointer-events: none;
+  /* iOS flashes its tap highlight over the text field and leaves it at the old position when the
+     keyboard or an attachment moves the composer; buttons show their own pressed state. */
+  -webkit-tap-highlight-color: transparent;
 }
 /* The text field, with prompt template buttons wrapping under it, beside the buttons
    pinned to the bottom right. The field grows line by line (sized by the

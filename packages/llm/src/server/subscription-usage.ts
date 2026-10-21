@@ -28,6 +28,8 @@ export type SubscriptionUsage = {
   resets?: { available: number };
   /** Prepaid money rather than allowance windows; amounts are in currency units. */
   balance?: { currency: string; available: number; monthSpend: number | null };
+  /** Provider facts outside allowance windows, including extra-usage availability. */
+  details?: { label: string; value: string }[];
   /** Account snapshots, distinct from per-call charges or session usage. */
   allowances?: ReportedAllowance[];
   windows: { periodBasis?: "calendar-month-estimate"; limitName: string; meteredFeature: string | null; kind: "primary" | "secondary"; usedPercent: number; durationSeconds: number | null; resetsAt: string | null }[];
