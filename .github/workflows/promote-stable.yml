@@ -106,6 +106,7 @@ jobs:
             # Registries may briefly return the old tag or 404 after a successful write.
             matched=false
             for attempt in 1 2 3 4 5 6; do
+              echo "Verifying $repository:stable ($attempt/6)"
               if manifest=$(docker buildx imagetools inspect "$repository:stable" --format '{{json .Manifest}}' 2> inspect.error); then
                 actual=$(printf '%s' "$manifest" | jq -er '.digest')
                 if [ "$actual" = "$expected" ]; then matched=true; break; fi
