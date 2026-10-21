@@ -1,3 +1,4 @@
+import { createAgentMessageTimeController } from "./message-time-controller.ts";
 import { createAgentPlanController } from "./plan-controller.ts";
 import { createAgentToolAbortController } from "./tool-abort-controller.ts";
 import { createAgentFooterController } from "./footer-controller.ts";
@@ -22,6 +23,7 @@ export const agentClientModule: WorkspaceClientModule = {
   id: "agent",
   install({ application, Controller, hooks }) {
     for (const [name, controller] of Object.entries(createUsageControllers(Controller))) application.register(name, controller);
+    application.register("agent-message-time", createAgentMessageTimeController(Controller));
     application.register("agent-plan", createAgentPlanController(Controller));
     application.register("agent-footer", createAgentFooterController(Controller));
     application.register("agent-elapsed", createAgentElapsedController(Controller));

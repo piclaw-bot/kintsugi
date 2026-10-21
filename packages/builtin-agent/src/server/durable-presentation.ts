@@ -104,7 +104,7 @@ export class DurableAgentPresentation {
 
   transcriptRegion(): LiveRegion {
     this.assertOpen();
-    return this.renderer.renderTranscript(this.ctx, this.items, this.modelContext);
+    return this.renderer.renderTranscript(this.ctx, this.items, this.modelContext, this.busy);
   }
 
   subscribeLivePresentation(listener: AgentLivePresentationListener, shown?: LiveRegionDigests): AgentLivePresentationSubscription {

@@ -1,6 +1,6 @@
 import { escapeHtml, liveCollection, type LiveRegion } from "@kintsugi/shared";
 import { commentaryContext, ids, type AgentRenderContext } from "@kintsugi/agent/server/render-context";
-import { renderModelContextEntries, renderTranscriptItem, renderWorkingSection, workingCommentaryItems, type AgentModelContextView } from "@kintsugi/agent/server/render-transcript";
+import { renderIdleSeparator, renderModelContextEntries, renderTranscriptItem, renderWorkingSection, workingCommentaryItems, type AgentModelContextView } from "@kintsugi/agent/server/render-transcript";
 import type { TranscriptItem, WorkingTranscriptItem } from "@kintsugi/agent/server/transcript";
 
 export class LiveTranscriptRenderer {
@@ -33,8 +33,8 @@ export class LiveTranscriptRenderer {
     });
   }
 
-  renderTranscript(ctx: AgentRenderContext, items: TranscriptItem[], modelContext: AgentModelContextView): LiveRegion {
-    const region = liveCollection(ids.transcript(ctx), [{ id: `${ids.transcript(ctx)}_context`, html: renderModelContextEntries(ctx, modelContext) }, ...this.rows(ctx, items)]);
+  renderTranscript(ctx: AgentRenderContext, items: TranscriptItem[], modelContext: AgentModelContextView, busy = false): LiveRegion {
+    const region = liveCollection(ids.transcript(ctx), [{ id: `${ids.transcript(ctx)}_context`, html: renderModelContextEntries(ctx, modelContext) }, ...this.rows(ctx, items), { id: `${ids.transcript(ctx)}_idle`, html: renderIdleSeparator(items, busy) }]);
     // Notices are browser-owned ephemeral messages, never snapshot state.
     region.html += this.noticesMount(ctx);
     return region;

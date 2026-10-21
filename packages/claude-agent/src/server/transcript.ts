@@ -34,6 +34,7 @@ export function projectClaudeTranscript(state: Pick<ClaudeState, "rows" | "strea
     turn = undefined;
   };
   const activity = (item: TranscriptItem, timestamp: number) => {
+    item.timestamp = timestamp;
     if (!turn) { items.push(item); return; }
     turn.working.items.push(item);
     turn.endedAt = Math.max(turn.endedAt, timestamp);
@@ -59,6 +60,7 @@ export function projectClaudeTranscript(state: Pick<ClaudeState, "rows" | "strea
   let answering = false;
   const begin = (prompt: TranscriptItem, uuid: string, timestamp: number) => {
     finish();
+    prompt.timestamp = timestamp;
     turn = { prompt, command: prompt.type === "user" && prompt.text.startsWith("/"), working: { type: "working", key: `${uuid}:working`, startedAt: timestamp, items: compaction ? [compaction] : [] }, endedAt: timestamp, interrupted: false };
     compaction = undefined;
     answering = true;
@@ -94,7 +96,7 @@ export function projectClaudeTranscript(state: Pick<ClaudeState, "rows" | "strea
     } else if (row.kind === "assistant") {
       answering = row.content.some(block => block.type === "tool_use");
       if (row.error) {
-        const error: TranscriptItem = { type: "error", key: `${row.uuid}:error`, text: claudeText(row.content) || "Claude could not reply." };
+        const error: TranscriptItem = { type: "error", key: `${row.uuid}:error`, timestamp: row.timestamp, text: claudeText(row.content) || "Claude could not reply." };
         if (!turn) { items.push(error); return; }
         turn.error = error;
         turn.endedAt = Math.max(turn.endedAt, row.timestamp);

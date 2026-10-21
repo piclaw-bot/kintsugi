@@ -27,7 +27,7 @@ export function createNativeAgentRendering<Runtime extends NativeAgentRuntime>(o
   function transcriptHtml(runtime: Runtime) {
     const ctx = renderContext(runtime);
     // A harness may still be connecting; its prompt loads when the entry opens, so connecting doesn't change the transcript.
-    return renderLazyTranscriptEntry(ctx, "system-prompt", "System prompt") + renderTranscript(ctx, transcriptItems(runtime), { systemPrompt: "", tools: [] });
+    return renderLazyTranscriptEntry(ctx, "system-prompt", "System prompt") + renderTranscript(ctx, transcriptItems(runtime), { systemPrompt: "", tools: [] }, runtime.isBusy);
   }
   function liveRegions(runtime: Runtime): LiveRegion[] {
     const ctx = renderContext(runtime);

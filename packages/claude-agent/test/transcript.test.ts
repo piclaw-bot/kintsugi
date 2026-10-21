@@ -26,8 +26,8 @@ test("groups a prompt's thinking, tool calls and steering into one turn with its
   )), false);
   expect(items.map(item => item.type)).toEqual(["user", "working", "text"]);
   const [prompt, working, final] = items;
-  expect(prompt).toMatchObject({ key: "prompt", text: "Run date" });
-  expect(final).toMatchObject({ key: "msg_2:0", text: "It is Monday.", final: true });
+  expect(prompt).toMatchObject({ key: "prompt", text: "Run date", timestamp: Date.parse(time(0)) });
+  expect(final).toMatchObject({ key: "msg_2:0", text: "It is Monday.", final: true, timestamp: Date.parse(time(4)) });
   if (working?.type !== "working") throw new Error("Expected a working section");
   expect(working).toMatchObject({ startedAt: Date.parse(time(0)), completedAt: Date.parse(time(4)), hasFinalAnswer: true, live: false });
   expect(working.items.map(item => [item.type, item.key])).toEqual([["thinking", "msg_1:0"], ["tool", "tool:toolu_1"], ["user", "steer"]]);

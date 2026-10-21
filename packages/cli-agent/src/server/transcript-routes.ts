@@ -52,7 +52,7 @@ export function cliTranscriptChannel(adapter: CliAgentAdapter, agents: Pick<CliA
     const [records, catalog] = idle ? await Promise.all([adapter.loadTranscript!(workspaceId, agentId), renderWorkspaceCompletionCatalog(workspaceId, "cli")]) : [];
     const available = records?.some((record) => record.kind === "user") ?? false;
     const ctx = context(workspaceId, agentId, adapter.id);
-    const transcript = turboStream("replace", ids.transcript(ctx), renderTranscriptContent(ctx, available, includeTranscript && available ? renderReadOnlyTranscript(ctx, records!) : ""));
+    const transcript = turboStream("replace", ids.transcript(ctx), renderTranscriptContent(ctx, available, includeTranscript && available ? renderReadOnlyTranscript(ctx, records!, { idle: true }) : ""));
     return catalog === undefined ? transcript : `${transcript}${turboStream("update", cliCompletionCatalogId(workspaceId, agentId), catalog)}`;
   }
   return {

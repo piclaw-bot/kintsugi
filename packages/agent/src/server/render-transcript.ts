@@ -20,8 +20,27 @@ export interface AgentModelContextView {
   tools: AgentToolDefinitionView[];
 }
 
-export function renderTranscript(ctx: AgentRenderContext, items: TranscriptItem[], modelContext: AgentModelContextView): string {
-  return `${renderModelContextEntries(ctx, modelContext)}${items.map((item) => renderTranscriptItem(ctx, item)).join("")}<div class="agent-notices" id="${ids.notices(ctx)}"></div>`;
+export function renderTranscript(ctx: AgentRenderContext, items: TranscriptItem[], modelContext: AgentModelContextView, busy = false): string {
+  return `${renderModelContextEntries(ctx, modelContext)}${items.map((item) => renderTranscriptItem(ctx, item)).join("")}${renderIdleSeparator(items, busy)}<div class="agent-notices" id="${ids.notices(ctx)}"></div>`;
+}
+
+/** Presentation only: never append a synthetic message or persist an idle boundary. */
+export function renderIdleSeparator(items: readonly TranscriptItem[], busy: boolean): string {
+  if (busy) return "";
+  const latest = (items: readonly TranscriptItem[]): number => {
+    let last = 0;
+    for (const item of items) {
+      if (item.type === "inherited-context" || item.type === "extension" || (item.type === "user" && item.pending)) continue;
+      // Some native harnesses expose only turn-level dates, not per-message dates.
+      const timestamp = item.type === "working" ? latest(item.items) || item.completedAt || item.stoppedAt : item.timestamp;
+      if (timestamp !== undefined && Number.isFinite(timestamp) && timestamp > last && timestamp <= 8.64e15) last = timestamp;
+    }
+    return last;
+  };
+  const timestamp = latest(items);
+  if (!timestamp) return "";
+  const iso = new Date(timestamp).toISOString();
+  return `<div class="agent-idle-separator" role="separator" aria-label="Last message: ${iso}"><time datetime="${iso}" title="${iso}" data-controller="agent-message-time" data-agent-message-time-timestamp-value="${timestamp}">${iso}</time></div>`;
 }
 
 export function renderModelContextEntries(ctx: AgentRenderContext, modelContext: AgentModelContextView): string {

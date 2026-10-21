@@ -280,3 +280,8 @@
 .agent-body-controls { position: absolute; z-index: 3; top: 4px; right: 12px; }
 
 .agent-tool-abort-actions { display: flex; justify-content: flex-end; margin-top: 16px; }
+
+/* An idle tail boundary, not a transcript row or a saved conversation event. */
+.agent-idle-separator { display: flex; align-items: center; gap: 12px; margin-top: 24px; color: var(--text-muted); font-size: var(--text-code); }
+.agent-idle-separator::before, .agent-idle-separator::after { content: ""; flex: 1; min-width: 12px; border-top: 1px solid var(--line); }
+.agent-idle-separator time { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
