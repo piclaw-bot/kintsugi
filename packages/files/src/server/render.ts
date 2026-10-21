@@ -277,9 +277,9 @@ export function renderFilesEditorFrame(workspaceId: string, view: FilesView, pre
 export function filesWorkViewPresentation(view: FilesView): WorkspaceWorkViewPresentation {
   return {
     sourceKey: `files:${view.id}`,
-    label: view.path ? posix.basename(view.path) : "Files",
+    label: view.path ? posix.basename(view.path) : view.viewer === "office" ? "Office" : "Files",
     reference: { type: "files", id: view.id },
-    kind: "contextual", iconHtml: Icons.Files,
+    kind: view.viewer === "office" ? "resource" : "contextual", iconHtml: Icons.Files,
     initiallyOpen: view.id !== defaultFilesViewId,
     availability: { phase: "live" },
   };

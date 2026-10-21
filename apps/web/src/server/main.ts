@@ -34,7 +34,7 @@ import { createWebApp, type WebApp } from "./app.ts";
 import { parseAssetManifest } from "./asset-manifest.ts";
 import { createCableServer } from "./cable.ts";
 import { createCableSseTransport } from "./cable-sse.ts";
-import { legacyStaticFiles } from "./static-files.ts";
+import { clientEntrypoints, legacyStaticFiles } from "./static-files.ts";
 import { workspaceModules } from "./workspace-modules.generated.ts";
 import { prepareWorkspaceForUse, recoverWorkspaces } from "./workspace-recovery.ts";
 import { createFileWorkspaceActivityStore, createFileWorkspaceAttentionStore, createFileWorkspaceDeletionStore, createWorkspaceRegistry } from "./workspace-registry.ts";
@@ -179,7 +179,7 @@ function requestAcceptsGzip(request: Request): boolean {
 async function serveStatic(pathname: string, request: Request): Promise<Response | undefined> {
   if (pathname === "/design-system-catalogue.html") return response(await designSystemCatalogueHtml({ reloadUrl: devReloadFile ? "/__kintsugi_dev_reload" : undefined }));
   let assetCacheControl = "public, max-age=31536000, immutable";
-  if (pathname === "/design-system.js") {
+  if (pathname === "/design-system.js" || clientEntrypoints[pathname]?.bundle) {
     const manifest = parseAssetManifest(await Bun.file(new URL("../../public/assets-manifest.json", import.meta.url)).text());
     pathname = manifest[pathname]!;
     assetCacheControl = "no-store";

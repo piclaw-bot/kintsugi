@@ -12,10 +12,13 @@ function workspaceModuleStaticFiles(): Record<string, StaticFileEntry> {
   return Object.fromEntries(workspaceModules.flatMap((module) => Object.entries(module.staticFiles ?? {})));
 }
 
-export const clientEntrypoints = {
+const moduleFiles = workspaceModuleStaticFiles();
+
+export const clientEntrypoints: StaticFileRegistry = {
   "/workspace.js": { url: new URL("../client/workspace.ts", import.meta.url), contentType: "text/javascript; charset=utf-8" },
   "/design-system.js": { url: new URL("../../../../packages/design-system/catalogue/client.ts", import.meta.url), contentType: "text/javascript; charset=utf-8" },
-} satisfies Record<string, StaticFileEntry>;
+  ...Object.fromEntries(Object.entries(moduleFiles).filter(([, entry]) => entry.bundle)),
+};
 
 export const fingerprintedStaticFiles: StaticFileRegistry = {
   "/brand/artwork.png": { url: new URL("../../public/brand/artwork.png", import.meta.url), contentType: "image/png" },
@@ -29,7 +32,7 @@ export const fingerprintedStaticFiles: StaticFileRegistry = {
   "/style.css": { url: new URL("../../public/style.css", import.meta.url), contentType: "text/css; charset=utf-8" },
   ...designSystemStaticFiles,
   ...workspaceProvisioningStaticFiles,
-  ...workspaceModuleStaticFiles(),
+  ...Object.fromEntries(Object.entries(moduleFiles).filter(([, entry]) => !entry.bundle)),
 };
 
 export const legacyStaticFiles: StaticFileRegistry = {

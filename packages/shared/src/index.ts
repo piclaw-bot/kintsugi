@@ -170,6 +170,8 @@ export interface WorkspaceAttachment {
 export interface StaticFileContribution {
   url: URL;
   contentType: string;
+  /** Browser entry point; classic IIFEs can run in opaque-origin sandboxes without CORS authority. */
+  bundle?: "esm" | "iife";
 }
 
 export interface WorkspaceModuleCommandResult {

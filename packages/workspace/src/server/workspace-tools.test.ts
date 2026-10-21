@@ -51,6 +51,7 @@ test("publishes package-owned workspace helpers as executable tools", async () =
       ["agent", "kintsugi-code"],
       ["builtin-agent", "kintsugi-agent-bash"],
       ["desktop", "kintsugi-desktop"],
+      ["files", "kintsugi-office-read"],
       ["vscode", "kintsugi-start-vscode"],
       ["workspace-terminal", "pbcopy"],
       ["workspace-image", "chromium"],

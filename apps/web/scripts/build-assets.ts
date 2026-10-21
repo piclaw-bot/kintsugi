@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { mkdir, readdir, rename, rm } from "node:fs/promises";
-import { basename, extname, join } from "node:path";
+import { basename, dirname, extname, join } from "node:path";
 import { gzipSync } from "node:zlib";
 import { parseAssetManifest, type AssetManifest } from "../src/server/asset-manifest.ts";
 import type { StaticFileEntry } from "../src/server/static-files.ts";
@@ -68,10 +68,15 @@ async function buildClientEntrypoints(): Promise<void> {
     const build = await Bun.build({
       entrypoints: [entry.url.pathname],
       outdir: stagingDir.pathname,
-      format: "esm",
+      format: entry.bundle ?? "esm",
       target: "browser",
-      splitting: true,
+      splitting: entry.bundle !== "iife",
       minify: true,
+      // JSZip's pre-browserified entry retains a dynamic require fallback that Bun's
+      // IIFE output cannot supply. Bundle its reviewed CommonJS source instead.
+      plugins: [{ name: "jszip-browser-source", setup(builder) {
+        builder.onResolve({ filter: /^jszip$/ }, args => ({ path: Bun.resolveSync("jszip/lib/index.js", dirname(args.importer)) }));
+      } }],
       define: {
         ATELIER_GHOSTTY_WASM_URL: JSON.stringify(requiredAssetPath("/ghostty-vt.wasm")),
         ATELIER_GHOSTTY_CALLBACKS_WASM_URL: JSON.stringify(requiredAssetPath("/ghostty-callbacks.wasm")),

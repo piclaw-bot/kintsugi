@@ -1,0 +1,153 @@
+#!/usr/bin/python3
+"""Read one bounded workspace file; validate actual ZIP expansion before browser parsing."""
+import io
+import os
+import stat
+import struct
+import sys
+import zipfile
+import zlib
+import xml.etree.ElementTree as ET
+
+MAX_FILE = 16 * 1024 * 1024
+MAX_ENTRY = 16 * 1024 * 1024
+MAX_EXPANDED = 64 * 1024 * 1024
+MAX_ENTRIES = 5000
+ZIP_KINDS = {"docx": "word/document.xml", "pptx": "ppt/presentation.xml", "xlsx": "xl/workbook.xml", "xlsm": "xl/workbook.xml", "xlsb": "xl/workbook.bin", "ods": "content.xml"}
+KINDS = set(ZIP_KINDS) | {"xls", "csv", "tsv"}
+class PreviewError(Exception):
+    pass
+
+def validate_zip(data, kind):
+    if not data.startswith(b"PK\x03\x04"):
+        raise PreviewError("This file is not a supported Office ZIP archive.")
+    archive = zipfile.ZipFile(io.BytesIO(data))
+    entries = archive.infolist()
+    if len(entries) > MAX_ENTRIES:
+        raise PreviewError("Office previews allow at most 5,000 ZIP entries.")
+    names = set()
+    total = 0
+    presentation = None
+    mimetype = None
+    for entry in entries:
+        name = entry.orig_filename
+        parts = name.rstrip("/").split("/")
+        if not name or "\0" in name or "\\" in name or name.startswith("/") or any(part in ("", ".", "..") for part in parts) or name in names:
+            raise PreviewError("The Office archive has unsafe or duplicate entry names.")
+        names.add(name)
+        if stat.S_IFMT(entry.external_attr >> 16) == stat.S_IFLNK or entry.flag_bits & 1:
+            raise PreviewError("Encrypted archives and ZIP symlinks cannot be previewed.")
+        if entry.file_size > MAX_ENTRY or entry.file_size < 0 or entry.compress_size < 0 or entry.compress_size > len(data):
+            raise PreviewError("An Office ZIP entry exceeds 16 MiB.")
+        if total + entry.file_size > MAX_EXPANDED:
+            raise PreviewError("Office ZIP expansion exceeds 64 MiB.")
+        if entry.is_dir() and entry.file_size:
+            raise PreviewError("Office ZIP directories must not contain data.")
+        if entry.compress_type not in (zipfile.ZIP_STORED, zipfile.ZIP_DEFLATED):
+            raise PreviewError("This Office ZIP compression method is unsupported.")
+        start = entry.header_offset
+        if start < 0 or start + 30 > len(data) or data[start:start + 4] != b"PK\x03\x04":
+            raise PreviewError("An Office ZIP local header is invalid.")
+        flags, method = struct.unpack_from("<HH", data, start + 6)
+        length, extra = struct.unpack_from("<HH", data, start + 26)
+        start += 30 + length + extra
+        end = start + entry.compress_size
+        if flags & 1 or method != entry.compress_type or start > len(data) or end > len(data):
+            raise PreviewError("An Office ZIP payload is invalid.")
+        payload = memoryview(data)[start:end]
+        actual = 0
+        crc = 0
+        captured = bytearray()
+        capture = (kind == "pptx" and name == "ppt/presentation.xml") or (kind == "ods" and name == "mimetype")
+        def consume(chunk):
+            nonlocal actual, total, crc
+            actual += len(chunk)
+            total += len(chunk)
+            if actual > MAX_ENTRY or total > MAX_EXPANDED:
+                raise PreviewError("Actual Office ZIP expansion exceeds the preview limits.")
+            crc = zlib.crc32(chunk, crc)
+            if capture:
+                if len(captured) + len(chunk) > 1024 * 1024:
+                    raise PreviewError("Office presentation metadata exceeds 1 MiB.")
+                captured.extend(chunk)
+        if method == zipfile.ZIP_STORED:
+            consume(payload)
+        else:
+            decoder = zlib.decompressobj(-15)
+            for offset in range(0, len(payload), 65536):
+                chunk = payload[offset:offset + 65536]
+                while chunk:
+                    consume(decoder.decompress(chunk, 65536))
+                    chunk = decoder.unconsumed_tail
+                    if decoder.unused_data:
+                        raise PreviewError("An Office ZIP stream contains trailing compressed data.")
+            while not decoder.eof:
+                pending = decoder.decompress(b"", 65536)
+                if not pending:
+                    break
+                consume(pending)
+            if not decoder.eof or decoder.unused_data:
+                raise PreviewError("An Office ZIP stream is incomplete.")
+        if actual != entry.file_size or crc & 0xffffffff != entry.CRC:
+            raise PreviewError("Office ZIP sizes or checksums do not match the actual data.")
+        if name == "ppt/presentation.xml":
+            presentation = bytes(captured)
+        elif kind == "ods" and name == "mimetype":
+            mimetype = bytes(captured)
+    if ZIP_KINDS[kind] not in names:
+        raise PreviewError("The archive does not contain the expected Office document.")
+    if kind == "ods" and mimetype != b"application/vnd.oasis.opendocument.spreadsheet":
+        raise PreviewError("This is not an OpenDocument spreadsheet.")
+    if kind == "pptx":
+        root = ET.fromstring(presentation)
+        ns = "{http://schemas.openxmlformats.org/presentationml/2006/main}"
+        size = root.find(ns + "sldSz")
+        if size is None or any(not 0 < int(size.get(axis, "0")) <= 40 * 914400 for axis in ("cx", "cy")):
+            raise PreviewError("Slide dimensions exceed the 40-inch preview limit.")
+        slides = root.find(ns + "sldIdLst")
+        if slides is not None and len(slides) > 200:
+            raise PreviewError("Presentations are limited to 200 slides per preview.")
+    archive.close()
+
+def main():
+    if len(sys.argv) != 3 or sys.argv[2] not in KINDS:
+        raise PreviewError("Choose a supported Office document.")
+    path, kind = sys.argv[1:]
+    if not os.path.isabs(path) or os.path.realpath(path) != path:
+        raise PreviewError("Office previews need a direct regular file, not a symlink.")
+    descriptor = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+    with os.fdopen(descriptor, "rb") as file:
+        info = os.fstat(file.fileno())
+        if not stat.S_ISREG(info.st_mode):
+            raise PreviewError("Only regular files can be previewed.")
+        maximum = 2_000_000 if kind in ("csv", "tsv") else MAX_FILE
+        if info.st_size > maximum:
+            raise PreviewError("This file exceeds the Office preview size limit.")
+        data = file.read(maximum + 1)
+        if len(data) > maximum:
+            raise PreviewError("This file grew beyond the Office preview size limit.")
+    if kind in ZIP_KINDS:
+        validate_zip(data, kind)
+    sys.stdout.buffer.write(data)
+
+if __name__ == "__main__":
+    try:
+        main()
+    except FileNotFoundError:
+        sys.stderr.write("File not found.\n")
+        sys.exit(44)
+    except IsADirectoryError:
+        sys.stderr.write("Only regular files can be previewed.\n")
+        sys.exit(45)
+    except PermissionError:
+        sys.stderr.write("This Office file cannot be read.\n")
+        sys.exit(45)
+    except OSError as error:
+        sys.stderr.write("This Office file cannot be read: " + str(error.strerror)[:500] + "\n")
+        sys.exit(45)
+    except (PreviewError, zipfile.BadZipFile, zlib.error, ET.ParseError, ValueError) as error:
+        sys.stderr.write(str(error)[:1000] + "\n")
+        sys.exit(47)
+    except MemoryError:
+        sys.stderr.write("Office parsing exceeded its memory limit.\n")
+        sys.exit(48)

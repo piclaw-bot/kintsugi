@@ -1,3 +1,6 @@
+import { registerWorkspaceAgentTool } from "@kintsugi/agent/server/tools";
+import { officeFileKind } from "../office-format.ts";
+import { createOpenOfficeTool, handleOfficeRequest, officeCommands, officeCommandContributions, officeOpenApiPaths, openOfficeView, renderOfficeWorkPane } from "./office.ts";
 import { renderDelimitedRequest } from "./delimited-preview.ts";
 import type { JsonValue } from "@kintsugi/core";
 import { Icons } from "@kintsugi/design-system/icons";
@@ -40,6 +43,8 @@ async function filesEndpoint(workspaceId: string, url: URL): Promise<Response> {
 
 export async function openFileInFiles(workspaceId: string, target: WorkspaceFileTarget, openWorkView: WorkspaceModuleRouteContext["openWorkView"], requestedViewId?: string): Promise<Response> {
   const path = requestedEditableFilePath(target.path);
+  const kind = officeFileKind(path);
+  if (kind && kind !== "csv" && kind !== "tsv") return await openWorkView(workspaceId, openOfficeView(workspaceId, path));
   const viewId = requestedViewId ?? defaultFilesViewId;
   setFilesViewFile(workspaceId, viewId, path, target);
   return await openWorkView(workspaceId, { type: "files", id: viewId }, { select: requestedViewId === undefined });
@@ -99,6 +104,7 @@ const filesWorkspaceModule: WorkspaceModule = {
     identity: (reference: FilesWorkViewReference) => reference.id,
     render: async ({ workspaceId, reference }: { workspaceId: string; reference: FilesWorkViewReference }) => {
       const view = filesView(workspaceId, reference.id);
+      if (view.viewer === "office" && (!view.path || officeFileKind(view.path))) return renderOfficeWorkPane(workspaceId, view);
       try {
         return renderFilesWorkViewBody(workspaceId, view, view.path ? await filePreviewKind(workspaceId, view.path) : undefined);
       } catch (error) {
@@ -111,16 +117,24 @@ const filesWorkspaceModule: WorkspaceModule = {
   commands: [
     { id: "files.create", execute: ({ workspaceId }) => ({ createdWorkView: { type: "files", id: createFilesView(workspaceId).id } }) },
     { id: "files.open", execute: ({ workspaceId }) => ({ createdWorkView: { type: "files", id: listFilesViews(workspaceId)[0]!.id } }) },
+    ...officeCommands,
   ],
   openApiPaths: {
+    ...officeOpenApiPaths,
     "/workspaces/{id}/files-view/render-table": {
       post: { summary: "Preview supplied UTF-8 CSV/TSV text without reading or saving files (2 MB, 500 rows, 80 columns)", parameters: [{ name: "id", in: "path", required: true, schema: { type: "string" } }, { name: "path", in: "query", required: true, schema: { type: "string" }, description: "Filename determines CSV or tab-separated parsing" }], requestBody: { required: true, content: { "text/plain": { schema: { type: "string", maxLength: 2000000 } } } }, responses: { "200": { description: "Server-rendered, escaped table preview" }, "413": { description: "Input exceeds the byte limit" }, "422": { description: "Malformed delimited text" } } },
     },
   },
-  staticFiles: { "/files.css": { url: new URL("../client/style.css", import.meta.url), contentType: "text/css; charset=utf-8" } },
+  staticFiles: {
+    "/files.css": { url: new URL("../client/style.css", import.meta.url), contentType: "text/css; charset=utf-8" },
+    "/office-frame.js": { url: new URL("../client/office-frame.ts", import.meta.url), contentType: "text/javascript; charset=utf-8", bundle: "iife" },
+    "/office-licenses.txt": { url: new URL("../../office-licenses.txt", import.meta.url), contentType: "text/plain; charset=utf-8" },
+  },
   routes: [{
     async handle(request, url, context) {
       try {
+        const office = await handleOfficeRequest(request, url, context);
+        if (office) return office;
         let match = matchRoute(url, /^\/workspaces\/([^/]+)\/files-view\/(open|content|render-markdown|render-table)$/);
         if (match) {
           const workspaceId = match[0]!;
@@ -145,6 +159,7 @@ const filesWorkspaceModule: WorkspaceModule = {
     },
   }],
   initialize(context) {
+    registerWorkspaceAgentTool("open_office_viewer", workspaceId => createOpenOfficeTool(workspaceId, async reference => { await context.presentWorkView(workspaceId, reference); context.invalidateWorkspace(workspaceId); }));
     context.events.on("workspace_agent_turn_finished", ({ workspaceId }) => {
       filesDiskChanged(workspaceId);
       context.invalidateWorkspace(workspaceId);
@@ -155,6 +170,7 @@ const filesWorkspaceModule: WorkspaceModule = {
     return {
       workViews: listFilesViews(workspaceId).map(filesWorkViewPresentation),
       commands: [
+        ...officeCommandContributions,
         { id: "files.create", label: "New Files", scope: "workspace", surfaces: { ui: { placement: "work-launcher", shortcutCommandId: "files.open", iconHtml: Icons.Files, label: "Files" } } },
         { id: "files.open", label: "Open Files", description: "Open the existing Files view, or create one if none exists.", scope: "workspace", surfaces: { shortcut: { defaultBinding: "Meta+Alt+KeyF" } } },
       ],

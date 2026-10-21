@@ -30,6 +30,13 @@
     "@codemirror/state": "6.7.1",
     "@codemirror/view": "6.43.6",
     "@lezer/highlight": "1.2.3",
-    "typebox": "^1.0.57"
+    "typebox": "^1.0.57",
+    "@hotwired/stimulus": "github:hotwired/dev-builds#339df548999c34d440e04c24b59ad9dc57ce3eb1",
+    "@kintsugi/agent": "workspace:*",
+    "chart.js": "4.5.1",
+    "docx-preview": "0.4.1",
+    "jszip": "3.10.2",
+    "pptxviewjs": "1.1.9",
+    "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz"
   }
 }

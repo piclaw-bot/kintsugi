@@ -8,10 +8,13 @@ const filesViewSchema = Type.Object({
   path: Type.Optional(Type.String({ pattern: "^/" })),
   line: Type.Optional(Type.Number()),
   column: Type.Optional(Type.Number()),
+  // An optional field keeps Office views readable by older Files implementations.
+  viewer: Type.Optional(Type.Literal("office")),
 });
 const filesViewsSchema = Type.Array(filesViewSchema);
 
 export type FilesView = Static<typeof filesViewSchema>;
+export type FilesWorkViewReference = { type: "files"; id: string };
 export const defaultFilesViewId = "workspace";
 const navigationRequests = new Map<string, string>();
 export function filesNavigationRequest(workspaceId: string, id: string): string { return navigationRequests.get(`${workspaceId}:${id}`) ?? ""; }
@@ -58,6 +61,15 @@ export function createFilesView(workspaceId: string): FilesView {
   views.push(view);
   filesViews.write(workspaceId, views);
   return view;
+}
+
+export function createOfficeView(workspaceId: string, path?: string): FilesView {
+  const views = listFilesViews(workspaceId);
+  const existing = path ? views.find(view => view.viewer === "office" && view.path === path) : undefined;
+  if (existing) return existing;
+  const view: FilesView = { id: crypto.randomUUID(), viewer: "office" };
+  if (path) view.path = path;
+  views.push(view); filesViews.write(workspaceId, views); return view;
 }
 
 export function closeFilesView(workspaceId: string, id: string): void {

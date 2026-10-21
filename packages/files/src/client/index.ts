@@ -1,5 +1,6 @@
 /// <reference lib="dom" />
 
+import { createOfficePaneController } from "./office-pane-controller.ts";
 import { createTablePreviewController } from "./table-preview-controller.ts";
 import { isWorkspacePaneVisible, type WorkspaceClientController, type WorkspaceClientControllerConstructor, type WorkspaceClientModule } from "@kintsugi/shared";
 import { installFileEditorControllers } from "./editor-controllers.ts";
@@ -287,6 +288,7 @@ const filesClientModule: WorkspaceClientModule = {
     application.register("files-view", createFilesViewController(Controller));
     application.register("files-diagram", createFilesDiagramController(Controller));
     application.register("table-preview", createTablePreviewController(Controller));
+    application.register("office-pane", createOfficePaneController(Controller));
     installFileEditorControllers(application, Controller);
     hooks.registerCommand({
       id: "files.focus-filter",
