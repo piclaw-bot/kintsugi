@@ -29,6 +29,7 @@
         "@kintsugi/claude-agent": "workspace:*",
         "@kintsugi/claude-cli-agent": "workspace:*",
         "@kintsugi/cli-agent": "workspace:*",
+        "@kintsugi/codemode": "workspace:*",
         "@kintsugi/codex-agent": "workspace:*",
         "@kintsugi/codex-cli-agent": "workspace:*",
         "@kintsugi/core": "workspace:*",
@@ -103,7 +104,6 @@
       "dependencies": {
         "@earendil-works/chord": "catalog:",
         "@earendil-works/pi-ai": "catalog:",
-        "@earendil-works/pi-codemode": "catalog:",
         "@earendil-works/pi-coding-agent": "catalog:",
         "@earendil-works/pi-durable": "catalog:",
         "@kintsugi/agent": "workspace:*",
@@ -123,6 +123,7 @@
         "web-push": "3.6.7",
       },
       "devDependencies": {
+        "@earendil-works/pi-codemode": "catalog:",
         "@types/proper-lockfile": "4.1.4",
         "@types/web-push": "3.6.4",
       },
@@ -182,6 +183,22 @@
         "@kintsugi/llm": "workspace:*",
         "@kintsugi/observable-terminal": "workspace:*",
         "@kintsugi/prompt": "workspace:*",
+        "@kintsugi/shared": "workspace:*",
+        "@kintsugi/workspace": "workspace:*",
+        "typebox": "^1.0.57",
+      },
+    },
+    "packages/codemode": {
+      "name": "@kintsugi/codemode",
+      "dependencies": {
+        "@earendil-works/chord": "catalog:",
+        "@earendil-works/pi-ai": "catalog:",
+        "@earendil-works/pi-codemode": "catalog:",
+        "@earendil-works/pi-durable": "catalog:",
+        "@kintsugi/agent": "workspace:*",
+        "@kintsugi/builtin-agent": "workspace:*",
+        "@kintsugi/core": "workspace:*",
+        "@kintsugi/design-system": "workspace:*",
         "@kintsugi/shared": "workspace:*",
         "@kintsugi/workspace": "workspace:*",
         "typebox": "^1.0.57",
@@ -740,6 +757,8 @@
     "@kintsugi/claude-cli-agent": ["@kintsugi/claude-cli-agent@workspace:packages/claude-cli-agent"],
 
     "@kintsugi/cli-agent": ["@kintsugi/cli-agent@workspace:packages/cli-agent"],
+
+    "@kintsugi/codemode": ["@kintsugi/codemode@workspace:packages/codemode"],
 
     "@kintsugi/codex-agent": ["@kintsugi/codex-agent@workspace:packages/codex-agent"],
 

@@ -35,7 +35,8 @@
     "./client/transcript-navigation": "./src/client/transcript-navigation.ts",
     "./server/read-only-transcript": "./src/server/read-only-transcript.ts",
     "./server/render-markup": "./src/server/render-markup.ts",
-    "./server/request-receipts": "./src/server/request-receipts.ts"
+    "./server/request-receipts": "./src/server/request-receipts.ts",
+    "./server/background-activity": "./src/server/background-activity.ts"
   },
   "dependencies": {
     "@wasm-fmt/biome_fmt": "0.2.9",

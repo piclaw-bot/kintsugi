@@ -1,6 +1,6 @@
 import { disclosureHtml } from "@kintsugi/design-system/disclosure";
 import { contentRowHtml } from "@kintsugi/design-system/content-row";
-import { agentToolPresentations } from "./tool-presentations.ts";
+import { agentToolPresentation } from "./tool-presentations.ts";
 import { copyButtonHtml } from "@kintsugi/design-system/copy-button";
 import { buttonGroupHtml } from "@kintsugi/design-system/button-group";
 import { buttonHtml } from "@kintsugi/design-system/button";
@@ -14,7 +14,7 @@ import { parseDiffFromFile, processPatch, type FileDiffMetadata } from "@pierre/
 import { diffStats, type DiffOperation } from "./diff.ts";
 import { embeddedBashCommand, formatBashCommandForDisplay, formatCodemodeScriptForDisplay, highlightedBashCommandHtml } from "./embedded-code.ts";
 import { domId, escapeHtml } from "@kintsugi/shared";
-import { isBashTool, formatDuration, toolOutcomeLabel, type ToolView } from "./transcript.ts";
+import { isBashTool, formatCost, formatDuration, formatTokens, toolOutcomeLabel, type ToolView } from "./transcript.ts";
 import { agentPath, ids, sessionImageUrl, transcriptItemPath, type AgentRenderContext } from "./render-context.ts";
 import { codeBlockHtml, detailFullscreen, fullscreenAttributes, transcriptRowContent } from "./render-markup.ts";
 
@@ -47,6 +47,8 @@ function bashSummary(tool: ToolView): string {
 function toolSummaryHtml(tool: ToolView): string {
   if (isBashTool(tool.name)) return bashSummary(tool);
   if (tool.name === "codemode") return codemodeSummary(tool);
+  // Code mode's `models.*` calls name the model they run.
+  if (codemodeModelCall.test(tool.name) && Value.Check(modelCallArgumentsSchema, tool.args)) return tool.args.model.id;
   if (tool.name === "read") {
     const image = tool.resultImages?.[0];
     const imageMeta = image ? [image.width && image.height ? `${image.width}×${image.height}` : "", image.mimeType ?? ""].filter(Boolean).join(" · ") : "";
@@ -64,7 +66,7 @@ function toolSummaryHtml(tool: ToolView): string {
 }
 
 function toolSummaryText(tool: ToolView): string {
-  return [tool.name || "tool", toolSummaryHtml(tool)].filter(Boolean).join(" · ");
+  return [codemodeCallName(tool.name) || "tool", toolSummaryHtml(tool)].filter(Boolean).join(" · ");
 }
 
 interface ToolPresentation {
@@ -86,7 +88,11 @@ function lazyTranscriptItemFrame(ctx: AgentRenderContext, key: string): string {
   return `<turbo-frame ${tailFrameAttributes(ctx, key)} data-turbo-permanent data-agent-lazy-detail-target="frame" data-src="${escapeHtml(transcriptItemPath(ctx, key))}"></turbo-frame>`;
 }
 
-export function renderToolCard(ctx: AgentRenderContext, key: string, tool: ToolView, options: { open?: boolean; live?: boolean } = {}): string {
+/**
+ * A tool call's row, opening to its detail. A `nested` call, such as a script's, has no detail route: its detail is
+ * inline and never paginated.
+ */
+export function renderToolCard(ctx: AgentRenderContext, key: string, tool: ToolView, options: { open?: boolean; live?: boolean; nested?: boolean } = {}): string {
   const liveDuration = isBashTool(tool.name) && tool.status === "running" && tool.issuedAt !== undefined && !ctx.readOnly;
   const timeout = numberArg(toolArgs(tool), "timeout") ?? 600;
   const label = {
@@ -106,11 +112,12 @@ export function renderToolCard(ctx: AgentRenderContext, key: string, tool: ToolV
     return `<div class="agent-tool agent-tool-summary-only ${toolClass(tool.name)} active">${contentRowHtml({ ...content, element: { tag: "div" }, primary: false })}</div>`;
   }
   const open = Boolean(options.open || active);
-  const lazy = !options.live && !active && !options.open;
+  const lazy = !options.nested && !options.live && !active && !options.open;
   return `<div class="agent-tool ${toolClass(tool.name)}${active ? " active" : ""}${tool.status === "error" ? " error" : ""}">${disclosureHtml({
     element: lazy ? { attributesHtml: 'data-controller="agent-lazy-detail" data-action="toggle->agent-lazy-detail#load"' } : undefined,
     summary: content, open,
-    bodyHtml: lazy ? lazyTranscriptItemFrame(ctx, key) : `<turbo-frame ${tailFrameAttributes(ctx, key)} class="agent-tool-detail-host">${renderToolDetail(ctx, key, tool, 100)}</turbo-frame>`,
+    bodyHtml: options.nested ? renderToolDetail(ctx, key, tool, Number.MAX_SAFE_INTEGER)
+      : lazy ? lazyTranscriptItemFrame(ctx, key) : `<turbo-frame ${tailFrameAttributes(ctx, key)} class="agent-tool-detail-host">${renderToolDetail(ctx, key, tool, 100)}</turbo-frame>`,
   })}</div>`;
 }
 
@@ -248,7 +255,7 @@ function renderBashDetail(ctx: AgentRenderContext, key: string, tool: ToolView, 
   return `<div class="agent-tool-detail agent-bash-detail">${commandHtml}${renderBashResultViews(ctx, key, tool, count)}</div>`;
 }
 
-// Code mode: the script, a row per tool call it made, and its output, like pi's codemode row.
+// Code mode: the script, a row per tool call it made, and its result.
 
 /** One call of the result's `details.calls`, as pi's coding agent and pi-durable both record them. */
 const codemodeCallSchema = Type.Object({
@@ -292,6 +299,7 @@ function codemodeCalls(tool: ToolView): ToolView[] {
 function codemodeCallName(name: string): string {
   return name.replace(/^pi\.codemode\./, "");
 }
+const codemodeModelCall = /^pi\.codemode\.models\./;
 
 function codemodeOutput(tool: ToolView): { text: string; wallMs?: number } {
   const text = trimResult(tool);
@@ -310,13 +318,6 @@ function codemodeSummary(tool: ToolView): string {
   ]);
 }
 
-function nestedCallSummary(call: ToolView): string {
-  const args = Value.Check(modelCallArgumentsSchema, call.args) ? call.args.model.id
-    : isJsonObject(call.args) ? genericToolSummary(call) : Value.Check(toolStringArgumentSchema, call.args) ? truncateOneLine(call.args, 120) : "";
-  // Duration and outcome come before the arguments, which are often long enough to be cut off.
-  return summaryHtml([codemodeCallName(call.name), call.durationMs === undefined ? "" : formatDuration(call.durationMs), toolOutcomeLabel(call.details, call.status === "error"), args]);
-}
-
 /** A finished call whose result was not recorded: its arguments and error. */
 function renderNestedCallRecord(call: ToolView): string {
   const command = isBashTool(call.name) ? stringArg(toolArgs(call), "command") : undefined;
@@ -329,23 +330,33 @@ function renderNestedCallRecord(call: ToolView): string {
   return `<div class="agent-tool-detail">${args}${error}</div>`;
 }
 
-function renderNestedCall(ctx: AgentRenderContext, key: string, call: ToolView): string {
-  const callKey = `${key}/${call.callId}`;
-  const label = transcriptRowContent({ kind: "text", text: nestedCallSummary(call) }, {
-    leadingHtml: `<span class="agent-tool-status">${statusHtml(call.status, ctx.readOnly)}</span>`,
-  });
-  // Otherwise a call shows like a top-level one: bash with its live terminal, then its output and
-  // exit code. Nested calls have no detail route, so their output is never paginated.
-  const body = call.resultUnavailable ? renderNestedCallRecord(call) : renderToolDetail(ctx, callKey, call, Number.MAX_SAFE_INTEGER);
-  return `<div class="agent-tool agent-codemode-call ${toolClass(call.name)}${call.status === "error" ? " error" : ""}" id="${ids.item(ctx, callKey)}">${disclosureHtml({ summary: label, bodyHtml: body })}</div>`;
+
+/** What a script's calls did: how many, how many still run, and what the agents they ran used. */
+function executionSummary(calls: readonly ToolView[]): string {
+  const running = calls.filter(call => call.status === "running" || call.status === "streaming").length;
+  const failed = calls.filter(call => call.status === "error").length;
+  const agents = calls.filter(call => call.childAgentId !== undefined).length;
+  const usage = calls.flatMap(call => call.usage ? [call.usage] : []);
+  return summaryHtml([
+    "Execution",
+    `${calls.length} tool ${calls.length === 1 ? "call" : "calls"}`,
+    running ? `${running} running` : "",
+    failed ? `${failed} failed` : "",
+    agents ? `${agents} ${agents === 1 ? "agent" : "agents"}` : "",
+    usage.length ? `${formatTokens(usage.reduce((sum, item) => sum + item.outputTokens, 0))} tok` : "",
+    usage.length ? formatCost(usage.reduce((sum, item) => sum + item.cost, 0)) : "",
+  ]);
 }
 
-function renderCodemodeScript(code: string, streaming: boolean): string {
+/** One part of a script's card, such as its source or result, behind a row of its own. */
+function codemodeSectionHtml(className: string, label: string, open: boolean, bodyHtml: string): string {
+  return `<div class="agent-codemode-section ${className}">${disclosureHtml({ summary: { kind: "compact", width: "fill", label: { kind: "text", text: label } }, open, bodyHtml })}</div>`;
+}
+
+/** A JavaScript script, highlighted, beside its readable version when there is one. */
+export function scriptSourceRegion(code: string, readable: string | undefined): string {
   const bodyClass = "agent-tool-code agent-tool-region-body";
-  // Like bash commands: keep the source layout while it streams, so lines do not jump.
-  const formatted = streaming ? undefined : formatCodemodeScriptForDisplay(code);
-  return readableSourceRegion("Script", "script", "agent-tool-region agent-codemode-script", codeBlockHtml(code, "codemode.js", bodyClass),
-    formatted === undefined ? undefined : codeBlockHtml(formatted, "codemode.js", bodyClass));
+  return readableSourceRegion("Script", "script", "agent-tool-region agent-script", codeBlockHtml(code, "script.js", bodyClass), readable === undefined ? undefined : codeBlockHtml(readable, "script.js", bodyClass));
 }
 
 /** Text output, or the object or array it holds, such as a script's return value, as indented and highlighted JSON. */
@@ -361,16 +372,25 @@ function outputHtml(output: string, textClass: string, codeClass: string): strin
     : `<pre class="${textClass}">${escapeHtml(output)}</pre>`;
 }
 
+/**
+ * A script's card: its source, the calls it made, and its result, each behind a row. Only the result starts open; while
+ * the script streams its source does, and while it runs its calls do.
+ */
 function renderCodemodeDetail(ctx: AgentRenderContext, key: string, tool: ToolView): string {
-  const script = renderCodemodeScript(stringArg(toolArgs(tool), "code") ?? "", tool.status === "streaming");
+  const code = stringArg(toolArgs(tool), "code") ?? "";
+  // Like bash commands: keep the source layout while it streams, so lines do not jump.
+  const script = codemodeSectionHtml("agent-codemode-script", "Script", tool.status === "streaming",
+    `<div class="agent-tool-detail">${scriptSourceRegion(code, tool.status === "streaming" ? undefined : formatCodemodeScriptForDisplay(code))}</div>`);
   const calls = codemodeCalls(tool);
-  const callsHtml = calls.length ? `<section class="agent-tool-region agent-codemode-calls"><div class="agent-region-header">Tool calls</div><div class="agent-codemode-call-list">${calls.map((call) => renderNestedCall(ctx, key, call)).join("")}</div></section>` : "";
+  const execution = calls.length ? codemodeSectionHtml("agent-codemode-execution", executionSummary(calls), tool.status === "running",
+    `<div class="agent-codemode-call-list">${calls.map((call) => renderToolCard(ctx, `${key}/${call.callId}`, call, { nested: true })).join("")}</div>`) : "";
   const done = tool.status === "ok" || tool.status === "error";
   const output = done ? codemodeOutput(tool).text : "";
   const images = done ? toolResultImagesHtml(ctx, tool) : "";
   const outputBody = !output ? "" : tool.status === "error" ? `<pre class="agent-tool-error-output">${escapeHtml(output)}</pre>` : outputHtml(output, "agent-tool-result agent-tool-region-body", "agent-tool-code agent-tool-region-body");
-  const outputRegion = outputBody || images ? fullscreenSourceRegion("Output", `<section class="agent-tool-region agent-codemode-output"><div class="agent-region-header">Output</div>${outputBody ? copyableToolBody(outputBody, "output") : ""}${images}</section>`, `${outputBody}${images}`) : "";
-  return `<div class="agent-tool-detail agent-codemode-detail">${script}${callsHtml}${outputRegion}</div>`;
+  const resultSection = outputBody || images ? codemodeSectionHtml("agent-codemode-result", "Result", true,
+    `<div class="agent-tool-detail">${fullscreenSourceRegion("Result", `${outputBody ? copyableToolBody(outputBody, "result") : ""}${images}`, `${outputBody}${images}`)}</div>`) : "";
+  return `<div class="agent-codemode-detail">${script}${execution}${resultSection}</div>`;
 }
 
 function fullscreenSourceRegion(title: string, inlineHtml: string, fullHtml: string): string {
@@ -439,8 +459,9 @@ function renderGenericDetail(ctx: AgentRenderContext, tool: ToolView): string {
 }
 
 export function renderToolDetail(ctx: AgentRenderContext, key: string, tool: ToolView, count: number): string {
-  const custom = agentToolPresentations?.get(tool.name)?.detail(ctx, tool);
+  const custom = agentToolPresentation(tool.name)?.detail(ctx, tool);
   if (custom !== undefined) return custom;
+  if (tool.resultUnavailable) return renderNestedCallRecord(tool);
   if (isBashTool(tool.name)) return renderBashDetail(ctx, key, tool, count);
   if (tool.name === "codemode") return renderCodemodeDetail(ctx, key, tool);
   if (tool.name === "read") return renderReadDetail(ctx, key, tool, count);
@@ -676,7 +697,7 @@ function getEditOperations(args: JsonObject | undefined): DiffOperation[] {
 function genericToolSummary(tool: ToolView): string {
   const args = toolArgs(tool);
   if (!args) return "";
-  const custom = agentToolPresentations?.get(tool.name)?.summary(tool);
+  const custom = agentToolPresentation(tool.name)?.summary(tool);
   if (custom !== undefined) return custom;
   const direct = stringArg(args, "command", "path", "file_path");
   if (direct) return truncateOneLine(direct, 120);

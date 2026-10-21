@@ -1,0 +1,21 @@
+{
+  "name": "@kintsugi/codemode",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./server": "./src/server/index.ts"
+  },
+  "dependencies": {
+    "@kintsugi/agent": "workspace:*",
+    "@kintsugi/builtin-agent": "workspace:*",
+    "@kintsugi/core": "workspace:*",
+    "@kintsugi/design-system": "workspace:*",
+    "@kintsugi/shared": "workspace:*",
+    "@kintsugi/workspace": "workspace:*",
+    "@earendil-works/chord": "catalog:",
+    "@earendil-works/pi-ai": "catalog:",
+    "@earendil-works/pi-codemode": "catalog:",
+    "@earendil-works/pi-durable": "catalog:",
+    "typebox": "^1.0.57"
+  }
+}

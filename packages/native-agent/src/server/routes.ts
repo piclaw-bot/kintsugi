@@ -9,6 +9,8 @@ import { suggestAgentSlug } from "@kintsugi/agent/server/slug-suggestion";
 import { agentAttachmentDraftId, deliverAttachmentDraft, removeStagedAttachments } from "@kintsugi/prompt/server";
 import { findTranscriptItem } from "@kintsugi/agent/server/transcript";
 import { renderModelContextDetailFrame, renderTranscriptItemDetailFrame } from "@kintsugi/agent/server/render-transcript";
+import { renderBackgroundGone, renderBackgroundInlineDetail, renderBackgroundPage } from "@kintsugi/agent/server/background-activity";
+import { ids } from "@kintsugi/agent/server/render-context";
 import { response, textResponse } from "@kintsugi/shared/http";
 import { turboStream, workspaceModuleModalFrameId, turboStreamResponse } from "@kintsugi/shared";
 import type { NativeAgentRuntime, NativeAgents } from "./agents.ts";
@@ -93,6 +95,28 @@ export function createNativeAgentRoutes<Runtime extends NativeAgentRuntime, Comm
     if (operation === "completions/slash-command-expand" && request.method === "POST") {
       const text = String(field("text") ?? "");
       return textResponse(verbatim(runtime, text) ? text.trim() : await expandSlashCommand(workspaceId, text));
+    }
+    const background = operation.match(/^background\/([^/]+)(?:\/(.+))?$/);
+    if (background && rendering.background) {
+      const key = decodeURIComponent(background[1]!);
+      const path = background[2];
+      const ctx = rendering.renderContext(runtime);
+      const activity = rendering.background.activities(runtime).find(activity => activity.key === key);
+      if (path === "stop" && request.method === "POST" && rendering.background.stop) {
+        if (activity?.stoppable) await rendering.background.stop(runtime, activity);
+        return success();
+      }
+      if (path === undefined && request.method === "GET") {
+        // Turbo names the frame it loads into: a drill-in page, or an inline row.
+        const page = request.headers.get("turbo-frame") === ids.backgroundPage(ctx);
+        if (!activity) return response(renderBackgroundGone(ctx, key, page));
+        const detail = await rendering.background.detail(runtime, activity, ctx);
+        return response(page ? renderBackgroundPage(ctx, activity, detail) : renderBackgroundInlineDetail(ctx, activity, detail));
+      }
+      if (path !== undefined && activity) {
+        const handled = await rendering.background.route?.(runtime, activity, path, url, ctx);
+        if (handled) return handled;
+      }
     }
     if (operation.startsWith("transcript-items/") && request.method === "GET") {
       const key = decodeURIComponent(operation.slice("transcript-items/".length));

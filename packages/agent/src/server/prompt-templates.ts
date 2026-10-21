@@ -12,6 +12,8 @@ export interface PromptTemplate {
   prompt: string;
   composerButton?: boolean;
   shortcut?: string;
+  /** The body is a code mode script the builtin agent runs as its own call, instead of a prompt. */
+  codemode?: boolean;
 }
 
 interface PromptFrontmatter {
@@ -19,6 +21,7 @@ interface PromptFrontmatter {
   argumentHint?: string;
   composerButton?: boolean;
   shortcut?: string;
+  codemode?: boolean;
 }
 
 interface ParsedPromptFrontmatter {
@@ -49,6 +52,7 @@ function parseFrontmatter(markdown: string): ParsedPromptFrontmatter {
     if ((key === "composer-button" || key === "quick-launch") && (value === "true" || value === "false")) frontmatter.composerButton = value === "true";
     // Older prompt files named this setting "hotkey".
     if ((key === "shortcut" || key === "hotkey") && /^[A-Za-z]$/.test(value)) frontmatter.shortcut = value.toLowerCase();
+    if (key === "codemode" && (value === "true" || value === "false")) frontmatter.codemode = value === "true";
   }
   return { frontmatter, body };
 }
@@ -131,6 +135,7 @@ export async function loadPromptTemplatesFromRoot(root: string): Promise<PromptT
         prompt: body,
         composerButton: frontmatter.composerButton,
         shortcut: frontmatter.shortcut,
+        codemode: frontmatter.codemode,
       });
     }
   }
@@ -146,11 +151,32 @@ export async function listPromptTemplates(workspaceId: string): Promise<PromptTe
   return await loadPromptTemplatesFromRoot(workspaceWorkHostPath(workspaceId));
 }
 
+/** Templates for agents without code mode, which leave code mode templates out. */
+export async function listPromptOnlyTemplates(workspaceId: string): Promise<PromptTemplate[]> {
+  return (await listPromptTemplates(workspaceId)).filter((template) => !template.codemode);
+}
+
+function matchTemplate(text: string, templates: readonly PromptTemplate[]): { template: PromptTemplate; argumentsText: string } | undefined {
+  const match = text.trim().match(/^(\/[^\s]+)(?:\s+([\s\S]*))?$/);
+  const template = match && templates.find((candidate) => candidate.trigger === match[1]);
+  return template ? { template, argumentsText: match[2] ?? "" } : undefined;
+}
+
+/** Code mode templates stay as typed: the builtin agent runs them when it reads the message. */
 export function expandPromptTemplateText(text: string, templates: readonly PromptTemplate[]): string {
-  const trimmed = text.trim();
-  const match = trimmed.match(/^(\/[^\s]+)(?:\s+([\s\S]*))?$/);
-  if (!match) return text;
-  const template = templates.find((candidate) => candidate.trigger === match[1]);
-  if (!template) return text;
-  return expandBody(template.prompt, splitArgs(match[2] ?? ""));
+  const matched = matchTemplate(text, templates);
+  if (!matched || matched.template.codemode) return text;
+  return expandBody(matched.template.prompt, splitArgs(matched.argumentsText));
+}
+
+/**
+ * The script a message runs when it is a code mode template's trigger, with its arguments as `args` and
+ * `argumentsText`. A leading `// @options:` line stays first, where code mode reads it.
+ */
+export function codemodeTemplateScript(text: string, templates: readonly PromptTemplate[]): string | undefined {
+  const matched = matchTemplate(text, templates);
+  if (!matched?.template.codemode) return undefined;
+  const preamble = `const args = ${JSON.stringify(splitArgs(matched.argumentsText))};\nconst argumentsText = ${JSON.stringify(matched.argumentsText.trim())};\n`;
+  const options = matched.template.prompt.match(/^\/\/ *@options:.*\n/)?.[0] ?? "";
+  return `${options}${preamble}${matched.template.prompt.slice(options.length)}`;
 }

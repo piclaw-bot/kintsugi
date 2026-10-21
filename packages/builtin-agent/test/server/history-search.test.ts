@@ -9,7 +9,7 @@ import { createModels, fauxAssistantMessage, fauxProvider, fauxToolCall } from "
 import { createRegistry, defineExtension, AssistantEntry, UserEntry, ToolResultEntry, type ConversationId } from "@earendil-works/pi-durable";
 import { openDurableWorkspace, WorkspaceAgents, type DurableWorkspace } from "../../src/server/durable-workspace.ts";
 import { searchCommittedHistory, stripTerminalEscapes, createHistorySearchTool } from "../../src/server/history-search.ts";
-import { codemodeCallEntry } from "../../src/server/durable-codemode.ts";
+import { codemodeCallEntry } from "../../src/server/codemode-call.ts";
 const context = BACKGROUND_CONTEXT;
 const directories: string[] = [], workspaces: DurableWorkspace[] = [];
 afterEach(async () => {

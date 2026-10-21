@@ -8,6 +8,46 @@
   height: 100%; min-height: 0; display: grid; grid-template-rows: minmax(0, 1fr) auto;
   background: var(--bg); position: relative; container-type: inline-size;
 }
+/* Background activity: a fixed bar above the transcript, and drill-in pages over the whole pane. */
+.agent-composer-pane { grid-template-rows: auto minmax(0, 1fr) auto; }
+.agent-background { max-height: 40vh; overflow-y: auto; padding: 4px var(--agent-inline-gutter); border-bottom: 1px solid var(--line); }
+.agent-background:empty { padding: 0; border: 0; }
+/* Leave room for the pane's notification control, which sits over its top edge. */
+.agent-composer-pane:has(> .agent-body-controls) > .agent-background { padding-inline-end: calc(var(--agent-inline-gutter) + 44px); }
+.agent-background-meta { color: var(--text-faint); font-size: var(--text-code); white-space: nowrap; }
+.agent-background-activity { padding-inline-start: calc(var(--agent-background-depth) * 20px); }
+.agent-background-chevron { display: inline-flex; color: var(--text-faint); }
+/* A finished activity's answer takes the room its name leaves, cut short to one line. */
+.agent-background-activity--result .content-row__content { flex: 0 1 auto; max-width: 60%; }
+.agent-background-activity--result .content-row__metadata { flex: 1 1 0; min-width: 0; justify-content: flex-end; }
+.agent-background-result { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-faint); font-size: var(--text-code); }
+.agent-background-meta .status-indicator { vertical-align: middle; }
+.agent-background-stop { display: flex; justify-content: flex-end; margin: 6px 0; }
+.agent-background-gone, .agent-background-report { color: var(--text-muted); }
+.agent-background-report { margin-top: 16px; }
+.agent-background-page:not([hidden]) { position: absolute; inset: 0; z-index: 4; background: var(--bg); }
+.agent-background-page > turbo-frame { display: block; height: 100%; }
+.agent-background-page-content { height: 100%; display: grid; grid-template-rows: auto minmax(0, 1fr); }
+.agent-background-page-header { padding: 8px 12px 10px; border-bottom: 1px solid var(--line); }
+.agent-background-page-heading { display: flex; align-items: center; gap: 8px; }
+.agent-background-page-heading .agent-background-stop { margin: 0; }
+.agent-background-page-title { flex: 1; min-width: 0; margin: 0; display: flex; align-items: center; gap: 8px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--text-body); font-weight: var(--weight-semibold); color: var(--text-bright); }
+/* Labelled facts, quieter than the detail beneath them. */
+.agent-background-facts { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 2px 12px; margin: 6px 0 0 44px; font-size: var(--text-code); }
+.agent-background-facts dt { color: var(--text-faint); }
+/* A long fact, such as a task, wraps to a few lines; the transcript has the rest. */
+.agent-background-facts dd { margin: 0; min-width: 0; overflow: hidden; overflow-wrap: anywhere; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; line-clamp: 3; color: var(--text-muted); }
+.agent-background-detail > .agent-background-facts { margin: 4px 0 0; }
+/* A workflow's page: each phase, its agents beneath it. */
+.agent-workflow-phase + .agent-workflow-phase { margin-top: 10px; }
+.agent-workflow-phase-agents { padding-inline-start: 26px; }
+.agent-workflow-phase:last-of-type { margin-bottom: 16px; }
+/* Lazily loaded frames, such as an opened row's detail, need a box of their own to load. */
+.agent-background-activity turbo-frame, .agent-background-script-frame { display: block; }
+.agent-background-script-frame { margin-bottom: 12px; }
+.agent-background-page-body { overflow-y: auto; padding: 12px var(--agent-inline-gutter) 24px; }
+.agent-pane--background-page > :not(.agent-background-page) { visibility: hidden; }
+
 /* This grid item must shrink to the pane, not the transcript's intrinsic width.
    Wide code and tables scroll inside the transcript instead of widening the column. */
 .agent-transcript-region { background-image: var(--transcript-background-image); position: relative; display: flex; min-width: 0; min-height: 0; }
@@ -196,16 +236,19 @@
 .agent-tool-detail { margin: 2px 0 8px; padding: 0; border: 1px solid var(--line); border-radius: var(--radius-control); overflow: hidden; background: var(--panel); }
 .agent-region-header { min-height: 29px; padding: 4px 8px; display: flex; align-items: center; gap: 8px; color: var(--text-bright); background: color-mix(in srgb, var(--bg) 82%, #000 6%); border-bottom: 1px solid color-mix(in srgb, var(--text-bright) 15%, transparent); }
 .agent-region-header > .text-toggle { margin-left: auto; }
+/* In a narrow pane the toggle wraps rather than the region's name. */
+.agent-region-tabs { flex-wrap: wrap; }
+.agent-region-tabs > span { flex: none; }
 .agent-source-region, .agent-tool-region { margin: 0; padding: 0; }
 .agent-tool-region + .agent-tool-region { border-top: 1px solid color-mix(in srgb, var(--text-bright) 15%, transparent); }
 .agent-bash-detail > :is(.agent-tool-region, .agent-detail-fullscreen) + :is(.agent-tool-region, .agent-detail-fullscreen) { border-top: 1px solid color-mix(in srgb, var(--text-bright) 15%, transparent); }
 .agent-tool-detail .agent-tool-code { margin: 0; padding: 8px; max-height: 330px; overflow: auto; border: 0; border-radius: 0; white-space: pre; color: var(--text-bright); background: color-mix(in srgb, var(--bg) 72%, #000 8%); }
 .agent-tool-detail .agent-tool-region-body { padding: 8px; color: var(--text-bright); background: color-mix(in srgb, var(--bg) 58%, #000 12%); font-family: var(--font-mono); font-size: var(--text-code); }
 .agent-bash-command .agent-tool-code { max-height: none; overflow: visible; white-space: pre-wrap; overflow-wrap: anywhere; }
-.agent-codemode-detail > :is(.agent-tool-region, .agent-detail-fullscreen) + :is(.agent-tool-region, .agent-detail-fullscreen) { border-top: 1px solid color-mix(in srgb, var(--text-bright) 15%, transparent); }
-.agent-codemode-script .agent-tool-code { max-height: none; overflow: visible; white-space: pre-wrap; overflow-wrap: anywhere; }
-.agent-codemode-call-list { padding: 4px 8px; }
-.agent-codemode-call + .agent-codemode-call { margin-top: 2px; }
+.agent-codemode-detail { margin: 2px 0 8px; }
+.agent-script .agent-tool-code { max-height: none; overflow: visible; white-space: pre-wrap; overflow-wrap: anywhere; }
+.agent-codemode-call-list { padding: 2px 0 6px; }
+.agent-codemode-call-list > .agent-tool + .agent-tool { margin-top: 2px; }
 .agent-terminal-viewport { overflow: auto; background: color-mix(in srgb, var(--bg) 70%, #000 7%); }
 /* The bash visualizer is display-only: dragging it should scroll the transcript,
    not start a Gespenst text selection (or block touch panning). */

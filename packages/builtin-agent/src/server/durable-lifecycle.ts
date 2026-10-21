@@ -1,6 +1,6 @@
 import { WorkspaceAgents, type DurableAgentRecord } from "./durable-workspace.ts";
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
-import { defineDoc, defineEntry, InboxDoc, LiveDoc, type ConversationId, type Cursor, type Harness, type TaskId, type Tx } from "@earendil-works/pi-durable";
+import { defineDoc, defineEntry, InboxDoc, LiveDoc, type ConversationId, type Cursor, type Harness, type TaskId, type ToolExecutionApi, type Tx } from "@earendil-works/pi-durable";
 
 /** Separate from the identity catalog: existing journals start with open admission. */
 export const WorkspaceAdmission = defineDoc<{
@@ -30,6 +30,14 @@ export const DurableTaskAdmissions = defineDoc<{ requests: Record<string, { conv
  * model payload, like the timing entries.
  */
 export const durableStopEntry = defineEntry<{ at: number }>("kintsugi.stop");
+
+/** Refuses a tool's effect once its conversation is closed, or the work it belongs to was stopped. */
+export async function assertDurableToolAdmission(tx: Tx, api: Pick<ToolExecutionApi, "conversationId" | "taskId">) {
+  const gates = await tx.doc(WorkspaceAdmission);
+  if (gates.deleted || gates.closed.includes(api.conversationId)) throw new Error("Agent is closed");
+  const stopped = new Set(Object.values((await tx.doc(WorkspaceStops)).tasks).flat());
+  for (let id: TaskId | undefined = api.taskId; id !== undefined; id = (await tx.task(id))?.owner) if (stopped.has(id)) throw new Error("This operation was stopped");
+}
 
 /** The same scope is used to offer Stop and to commit it. Child Stop is local. */
 export function durableStopScope(records: readonly DurableAgentRecord[], conversationId: ConversationId, tree: boolean) {

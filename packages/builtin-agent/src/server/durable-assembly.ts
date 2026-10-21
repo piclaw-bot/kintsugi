@@ -1,19 +1,19 @@
-import { createCodemodeWorkerAdmission } from "./codemode-worker-admission.ts";
 import { createNativePlanExtension } from "./durable-plan.ts";
 import { createNativeAgentIdentityResolver } from "./durable-agent-identity.ts";
 import { createHistorySearchTool } from "./history-search.ts";
 import { agentDelegation } from "./delegation.ts";
+import { builtinAgentIntegrations } from "./integrations.ts";
 import { durableTiming, type WriteDurableTiming } from "./durable-timing.ts";
 import { durableSubscriptionActivity } from "./durable-accounting.ts";
 import type { Models } from "@earendil-works/pi-ai";
 import { createRegistry, defineExtension, type AgentChange, type Harness, type HarnessOptions, type ConversationId } from "@earendil-works/pi-durable";
-import { CodemodeSandbox } from "@earendil-works/pi-codemode";
 import { formatSkillsForPrompt } from "@earendil-works/pi-coding-agent";
 import { createPiModelRuntime } from "@kintsugi/llm/server";
 import { workspaceRoot } from "@kintsugi/workspace";
 import { createDurableWorkspaceTools } from "./durable-tools.ts";
 import { createDurableBashExtension } from "./durable-bash.ts";
-import { createWorkspaceCodemodeExtension } from "./durable-codemode.ts";
+import { createCodemodeTemplates } from "./durable-codemode-templates.ts";
+import { listPromptTemplates } from "@kintsugi/agent/server/prompt-templates";
 import { durableJournalInstructions } from "./durable-storage.ts";
 import { formatProjectInstructions, loadWorkspaceAgentsFiles } from "@kintsugi/agent/server/workspace-agents-files";
 import { loadWorkspaceSkills } from "@kintsugi/agent/server/skills";
@@ -21,18 +21,11 @@ import { kintsugiSystemPrompt, prepareAppendedKintsugiInstructions } from "@kint
 import { launchComposerThinkingSettings, resolveNewWorkspaceAgentModel } from "@kintsugi/agent/server/model-state";
 import type { WorkspaceAgentToolOptions } from "@kintsugi/agent/server/tools";
 
-// Bound live workers across workspaces, including cancelled workers still computing.
-const codemodeSandbox = new CodemodeSandbox({
-  memoryLimitBytes: 256 * 1024 * 1024,
-  acquireWorker: createCodemodeWorkerAdmission(2),
-});
-
-/** Workspace-scoped code, including the task definitions needed to recover bash and code mode scripts. */
+/** Workspace-scoped tools and bash recovery; integrations install their own task definitions. */
 export function createDurableWorkspaceRegistry(workspaceId: string, models: Pick<Models, "getModel">, options: WorkspaceAgentToolOptions = {}, resolveAgentId?: (conversationId: ConversationId) => Promise<string>) {
   const registry = createRegistry();
   registry.install(defineExtension({ name: "kintsugi.workspace-tools", tools: createDurableWorkspaceTools(workspaceId, models, options, resolveAgentId) }));
   registry.install(createDurableBashExtension(workspaceId));
-  registry.install(createWorkspaceCodemodeExtension(workspaceId, codemodeSandbox));
   return registry;
 }
 
@@ -44,15 +37,22 @@ export async function createDurableHarnessOptions(workspaceId: string, options: 
   registry.install(createNativePlanExtension(workspaceId, harness));
   const delegation = agentDelegation?.create(models, harness);
   if (delegation) registry.install(delegation.extension);
+  // Such as code mode, whose task definitions must be installed to recover its scripts.
+  for (const integration of builtinAgentIntegrations()) if (integration.extension) registry.install(integration.extension(workspaceId, models));
   registry.install(durableSubscriptionActivity(models));
   registry.install(durableTiming(writeTiming));
+  const templates = createCodemodeTemplates(() => listPromptTemplates(workspaceId), harness);
+  registry.install(templates.extension);
   return {
-    models: delegation?.models ?? models,
+    models: templates.models(delegation?.models ?? models),
     registry,
     // Evict unobserved document caches after a minute; storage and provider caches are unchanged.
     settings: { documentRetentionMs: 60_000, compaction: { enabled: true, keepRecentTokens: 6000 } },
   };
 }
+
+/** Only builtin Agents run code mode templates. */
+const codemodeTemplatesInstructions = "Prompt templates with codemode: true run their JavaScript body as an explicit slash-command call in code mode. Script arguments are available as args and argumentsText; attachments are not accepted. Saving a template never starts work.";
 
 const resourceLoaders = {
   agents: loadWorkspaceAgentsFiles,
@@ -85,6 +85,7 @@ export async function prepareDurableAgent(
     : (await load.thinking(selectedModel ? { provider: selectedModel.provider, id: selectedModel.modelId } : undefined)).selected;
   const instructions = [
     kintsugiSystemPrompt,
+    codemodeTemplatesInstructions,
     durableJournalInstructions(workspaceId, agentId),
     ...appended,
     ...agents.map(formatProjectInstructions),

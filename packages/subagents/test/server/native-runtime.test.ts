@@ -5,10 +5,11 @@ import { join } from "node:path";
 import { awaitWithContext, BACKGROUND_CONTEXT as context } from "@earendil-works/chord/context";
 import { createModels, fauxAssistantMessage, fauxProvider, fauxToolCall, type FauxResponseFactory } from "@earendil-works/pi-ai";
 import type { Context } from "@earendil-works/chord";
-import { createRegistry, defineExtension, LiveDoc, type Harness, type Extension } from "@earendil-works/pi-durable";
+import { configure, createRegistry, defineExtension, LiveDoc, type Harness, type Extension } from "@earendil-works/pi-durable";
 import { openDurableAgentRuntime, type DurableAgentRuntime } from "@kintsugi/builtin-agent/server/durable-runtime";
 import { createNativeDelegationExtension } from "../../src/server/native-runtime.ts";
 import { Delegation, Mailbox } from "../../src/server/native-state.ts";
+import { WorkspaceAgents } from "@kintsugi/builtin-agent/server";
 
 const paths: string[] = [];
 const owners: DurableAgentRuntime[] = [];
@@ -318,4 +319,30 @@ test("Stop also fences a native input admitted by an already-stopped dispatcher"
   expect((await late.status(context)).status).toBe("unanswered");
   faux.setResponses([fauxAssistantMessage("New input still works")]);
   expect((await (await root.submit({ requestId: "fresh-after-stop", text: "New task" })).wait(context)).status).toBe("done");
+});
+
+test("a script's one-shot agent is no part of delegation: not listed, addressed or given a delegation prompt", async () => {
+  const { owner, root, faux } = await setup();
+  // As code mode lists one: a read-only child of the root, marked with the script call that runs it.
+  const oneShot = await owner.harness.commit(async tx => {
+    const created = await tx.createConversation({ ownership: { kind: "ownerless" } });
+    await configure(tx, created.id, { model: { provider: "faux", modelId: "faux-1" }, instructions: "Testing native collaboration." });
+    const record = { agentId: "one-shot", durableId: created.id, parentId: "root", rootId: "root", label: "counter", title: "Count", readOnly: true, oneShotCallId: "call_script/c1" };
+    (await tx.doc(WorkspaceAgents)).agents.push(record);
+    return record;
+  }, context);
+  faux.setResponses([
+    fauxAssistantMessage([fauxToolCall("list_agents", {}), fauxToolCall("send_message", { target: oneShot.agentId, message: "Intrusion" })], { stopReason: "toolUse" }),
+    fauxAssistantMessage("Done"),
+  ]);
+  await (await root.submit({ requestId: "list", text: "List" })).wait(context);
+  const results = (await root.history({}, 100, undefined, context)).items.flatMap(entry => entry.model ?? []).flatMap(message => message.role === "toolResult" ? [message] : []);
+  expect(JSON.stringify(results.find(message => message.toolName === "list_agents")?.content)).toBe(JSON.stringify([{ type: "text", text: JSON.stringify({ agents: [{ agent_name: "/root", agent_status: "running" }] }) }]));
+  expect(JSON.stringify(results.find(message => message.toolName === "send_message"))).toContain("Unknown agent in this delegation tree");
+  let prompt = "";
+  faux.setResponses([request => { const [system] = request.messages; prompt = system?.role === "system" ? JSON.stringify(system.sections) : ""; return fauxAssistantMessage("{}"); }]);
+  const conversation = (await owner.harness.conversation(oneShot.durableId, context))!;
+  await (await conversation.submit({ type: "input", requestId: "script", content: "Count" }, context)).wait(context);
+  expect(prompt).toContain("Testing native collaboration.");
+  expect(prompt).not.toContain("agents-in-the-cloud-delegation");
 });

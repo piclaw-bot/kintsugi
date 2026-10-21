@@ -54,10 +54,18 @@ export const ids = {
   input: (ctx: AgentRenderContext) => `${prefix(ctx)}_input`,
   draftAttachRow: (draftId: string) => domId("agent_draft_attach", draftId),
   notices: (ctx: AgentRenderContext) => `${prefix(ctx)}_notices`,
+  background: (ctx: AgentRenderContext) => `${prefix(ctx)}_background`,
+  backgroundList: (ctx: AgentRenderContext) => `${prefix(ctx)}_background_list`,
+  backgroundDetail: (ctx: AgentRenderContext, key: string) => domId(`${prefix(ctx)}_background_detail`, key),
+  backgroundPage: (ctx: AgentRenderContext) => `${prefix(ctx)}_background_page`,
 };
 
 export function agentPath(ctx: AgentRenderContext, suffix: string): string {
   return `${ctx.transcriptBasePath ?? `/workspaces/${encodeURIComponent(ctx.workspaceId)}/agents/${encodeURIComponent(ctx.agentId)}`}${suffix}`;
+}
+
+export function backgroundActivityPath(ctx: AgentRenderContext, key: string, suffix = ""): string {
+  return agentPath(ctx, `/background/${encodeURIComponent(key)}${suffix}`);
 }
 
 export function transcriptItemPath(ctx: AgentRenderContext, key: string, query = ""): string {

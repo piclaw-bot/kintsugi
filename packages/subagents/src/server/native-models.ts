@@ -1,12 +1,21 @@
 import { isJsonObject } from "@kintsugi/core";
-import type { Models } from "@earendil-works/pi-ai";
-import { GenerationTask, hook, type Harness } from "@earendil-works/pi-durable";
+import type { Message, Models } from "@earendil-works/pi-ai";
+import { GenerationTask, hook, type Harness, type ConversationId } from "@earendil-works/pi-durable";
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
 import { attribution, Delegation, updateReceipt } from "./native-state.ts";
 import { SubagentModelInput } from "./subagent-model-input.ts";
+import { withStreamSimple } from "@kintsugi/builtin-agent/server";
 
 /** Request identity is ephemeral. A history fork may replay an ancestor's message,
  * but must never drain that ancestor's mailbox or rewrite its delivery evidence. */
+export function stampDelegationRequestIdentity(messages: readonly Message[], conversationId: ConversationId): Message[] {
+  return messages.map(message => {
+    const part = attribution(message);
+    if (!part) return message;
+    return { ...message, content: [{ ...part, kintsugiAgentMessage: { ...part.kintsugiAgentMessage, requestConversationId: conversationId } }] };
+  });
+}
+
 export const delegationRequestIdentity = hook(GenerationTask, {
   beforeRequest(request, api) {
     return { messages: request.messages.map(message => {
@@ -51,32 +60,5 @@ export function delegationModels(models: Models, harness: () => Harness): Models
       },
     });
   };
-  // ModelRuntime implements these as prototype methods; spreading it drops them.
-  // Preserve its receiver (provider/auth state) while replacing native chat paths.
-  return {
-    getProviders: models.getProviders.bind(models),
-    getProvider: models.getProvider.bind(models),
-    getModels: models.getModels.bind(models),
-    getModel: models.getModel.bind(models),
-    getModelsOfType: models.getModelsOfType.bind(models),
-    getModelOfType: models.getModelOfType.bind(models),
-    getAllModels: models.getAllModels.bind(models),
-    refresh: models.refresh.bind(models),
-    checkAuth: models.checkAuth.bind(models),
-    getAvailable: models.getAvailable.bind(models),
-    getAvailableOfType: models.getAvailableOfType.bind(models),
-    getAllAvailable: models.getAllAvailable.bind(models),
-    getAuth: models.getAuth.bind(models),
-    login: models.login.bind(models),
-    logout: models.logout.bind(models),
-    stream: models.stream.bind(models),
-    complete: models.complete.bind(models),
-    streamDeferred: models.streamDeferred.bind(models),
-    fetchDeferred: models.fetchDeferred.bind(models),
-    cancelDeferred: models.cancelDeferred.bind(models),
-    generateImages: models.generateImages.bind(models),
-    classify: models.classify.bind(models),
-    streamSimple,
-    completeSimple: (model, request, options) => streamSimple(model, request, options).result(),
-  };
+  return withStreamSimple(models, streamSimple);
 }

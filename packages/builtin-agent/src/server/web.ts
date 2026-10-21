@@ -14,6 +14,9 @@ import { resolveNewWorkspaceAgentModel } from "@kintsugi/agent/server/model-stat
 import { renderAgentPane } from "./render-composer.ts";
 import { agentKey } from "@kintsugi/agent/server/render-context";
 import { handleAgentRequest } from "./routes.ts";
+import { backgroundChannelName, subscribeBackground } from "./background.ts";
+import { Type } from "typebox";
+import { Value } from "typebox/value";
 import { refreshWorkspaceCompletionCatalogs, closeWorkspaceAgent, getWorkspaceAgentController, getWorkspaceAgentPresentation, restoreWorkspaceAgentRuntime, knownWorkspaceAgentRequest } from "./runtime.ts";
 import { removeClosedWorkspaceAgent, createNextWorkspaceAgent, listWorkspaceAgents, untitledAgentTitle, type WorkspaceAgentInfo } from "./agent-store.ts";
 
@@ -107,6 +110,13 @@ export const builtinAgentWorkspaceModule: WorkspaceModule = {
       const runtime = await getWorkspaceAgentPresentation(agent, { events });
       return runtime.subscribeTurnPresentation(identifier.turnId, identifier.branchId, listener);
     },
+  }, {
+    name: backgroundChannelName,
+    subscribe(identifier, listener) {
+      if (identifier.channel !== "module" || identifier.name !== backgroundChannelName) throw new Error("Invalid Background channel identifier");
+      const params = Value.Parse(Type.Object({ agentId: Type.String({ minLength: 1 }) }, { additionalProperties: false }), identifier.params);
+      return subscribeBackground(identifier.workspaceId, params.agentId, listener);
+    },
   }],
   openApiPaths: {
     "/agent-notifications/public-key": { get: {
@@ -143,6 +153,16 @@ export const builtinAgentWorkspaceModule: WorkspaceModule = {
       } },
       parameters: ["id", "agentId", "callId"].map(name => ({ name, in: "path", required: true, schema: { type: "string" } })),
       responses: { "200": { description: "Cancellation requested; aborted is false if the call is no longer active. HTML clients receive a Turbo Stream.", content: { "application/json": { schema: { type: "object", properties: { tool: { type: "object", required: ["callId", "aborted"], properties: { callId: { type: "string" }, aborted: { type: "boolean" } } } } } } } } },
+    } },
+    "/workspaces/{id}/agents/{agentId}/background/{key}": { get: {
+      summary: "A background activity's page in its root Agent's Background bar, such as a subagent's or a script's one-shot agent's live transcript",
+      parameters: ["id", "agentId", "key"].map((name) => ({ name, in: "path", required: true, schema: { type: "string" } })),
+      responses: { "200": { description: "The page, for the pane's background page frame", content: { "text/html": { schema: { type: "string" } } } } },
+    } },
+    "/workspaces/{id}/agents/{agentId}/background/{key}/stop": { post: {
+      summary: "Stop a running background activity",
+      parameters: ["id", "agentId", "key"].map((name) => ({ name, in: "path", required: true, schema: { type: "string" } })),
+      responses: { "204": { description: "Stopping" } },
     } },
     "/workspaces/{id}/agents/{agentId}/reveal/{target}": { get: {
       summary: "Resolve the enclosing turn for a transcript navigation target",

@@ -156,6 +156,88 @@ test("background work keeps Claude from settling until it has reported on it, th
   await agents.disposeAll();
 `));
 
+test("Claude reports background task kinds, progress and Stop capabilities", () => scenario(`
+  const { claudeBackgroundActivities } = await import(${JSON.stringify(join(import.meta.dir, "../src/server/background.ts"))});
+  const id = await agents.create("workspace");
+  const runtime = await agents.ready("workspace", id);
+  const [connection] = connections;
+  const system = (subtype, extra) => ({ type: "system", subtype, uuid: crypto.randomUUID(), session_id: "s", ...extra });
+  const tasks = list => system("background_tasks_changed", { tasks: list });
+  await runtime.send(input, "first");
+  // A task joins the live set before it reports starting.
+  connection.message(tasks([{ task_id: "suite", task_type: "local_bash", description: "Run the suite" }]));
+  connection.message(system("task_started", { task_id: "suite", tool_use_id: "toolu_suite", description: "Run the suite", task_type: "local_bash" }));
+  connection.message(system("task_started", { task_id: "review", tool_use_id: "toolu_review", description: "Review auth", task_type: "local_agent", subagent_type: "general-purpose" }));
+  connection.message(tasks([
+    { task_id: "suite", task_type: "local_bash", description: "Run the suite" },
+    { task_id: "review", task_type: "local_agent", subagent_type: "general-purpose", description: "Review auth" },
+    { task_id: "ci", task_type: "monitor", description: "Watch CI", ambient: true },
+    { task_id: "dream", task_type: "dream", description: "Housekeeping", ambient: true },
+  ]));
+  connection.message(system("task_progress", { task_id: "review", description: "Review auth", usage: { total_tokens: 31400, tool_uses: 12, duration_ms: 90000 }, last_tool_name: "Read" }));
+  expect(claudeBackgroundActivities(runtime).map(({ key, kind, opens, title, progress, details, startedBy }) => ({ key, kind, opens, title, progress, details, startedBy: startedBy?.itemKey }))).toEqual([
+    { key: "suite", kind: "command", opens: "inline", title: "Run the suite", progress: undefined, details: {}, startedBy: "toolu_suite" },
+    { key: "review", kind: "subagent", opens: "drill-in", title: "Review auth", progress: "Using Read", details: { Type: "general-purpose", "Tool uses": "12", Tokens: "31.4k" }, startedBy: "toolu_review" },
+    // Claude won't report on a monitor, but it is running work to look at; other ambient tasks are housekeeping.
+    { key: "ci", kind: "monitor", opens: "inline", title: "Watch CI", progress: undefined, details: {}, startedBy: undefined },
+  ]);
+  connection.message(system("task_progress", { task_id: "review", description: "Review auth", usage: { total_tokens: 40000, tool_uses: 14, duration_ms: 95000 }, summary: "Reading the session store" }));
+  expect(claudeBackgroundActivities(runtime)[1].progress).toBe("Reading the session store");
+  await (await import(${JSON.stringify(join(import.meta.dir, "../src/server/render.ts"))})).rendering.background.stop(runtime, claudeBackgroundActivities(runtime)[0]);
+  expect(connection.calls).toEqual([["stopTask", "suite"]]);
+  // A finished task leaves the list; its report is in the conversation.
+  connection.message(system("task_notification", { task_id: "suite", status: "completed", output_file: "", summary: "Suite passed" }));
+  connection.message(tasks([{ task_id: "review", task_type: "local_agent", subagent_type: "general-purpose", description: "Review auth" }]));
+  expect(claudeBackgroundActivities(runtime).map(activity => activity.key)).toEqual(["review"]);
+  await agents.disposeAll();
+`));
+
+test("workflow progress retains phases and lists only agents that have started", () => scenario(`
+  const { claudeBackgroundActivities } = await import(${JSON.stringify(join(import.meta.dir, "../src/server/background.ts"))});
+  const id = await agents.create("workspace");
+  const runtime = await agents.ready("workspace", id);
+  const [connection] = connections;
+  const system = (subtype, extra) => ({ type: "system", subtype, uuid: crypto.randomUUID(), session_id: "s", ...extra });
+  await runtime.send(input, "first");
+  connection.message(system("background_tasks_changed", { tasks: [{ task_id: "w1", task_type: "local_workflow", description: "review" }] }));
+  connection.message(system("task_started", { task_id: "w1", tool_use_id: "toolu_w1", description: "review", task_type: "local_workflow", workflow_name: "review-changes", prompt: "export const meta = { name: 'review-changes', description: 'Review' }\\nreturn await agent('Find bugs', { label: 'bugs' })" }));
+  const progress = workflow_progress => system("task_progress", { task_id: "w1", description: "Find: bugs", usage: { total_tokens: 900, tool_uses: 3, duration_ms: 5000 }, last_tool_name: "bugs", summary: "Review the diff", ...(workflow_progress && { workflow_progress }) });
+  connection.message(progress([
+    { type: "workflow_phase", index: 1, title: "Find" },
+    { type: "workflow_phase", index: 2, title: "Verify" },
+    { type: "workflow_agent", index: 1, label: "bugs", phaseIndex: 1, phaseTitle: "Find", agentId: "abugs", model: "claude-haiku-5-5", state: "progress", startedAt: 1000, lastToolName: "Bash", lastToolSummary: "git diff", tokens: 900, toolCalls: 3 },
+    { type: "workflow_agent", index: 2, label: "perf", phaseIndex: 1, phaseTitle: "Find", agentId: "aperf", state: "done", startedAt: 1000, tokens: 400, toolCalls: 1, resultPreview: "No slow queries <found>" },
+    // Queued: it has no transcript yet.
+    { type: "workflow_agent", index: 3, label: "style", phaseIndex: 1, phaseTitle: "Find", state: "start", queuedAt: 1000 },
+    // A kind of entry Claude Code may add later.
+    { type: "workflow_log", text: "hello" },
+  ]));
+  // A frame without them changed nothing about the phases and agents.
+  connection.message(progress(undefined));
+  const activities = claudeBackgroundActivities(runtime);
+  expect(activities.map(({ key, kind, opens, title, running, progress, details, parentKey }) => ({ key, kind, opens, title, running, progress, details, parentKey }))).toEqual([
+    { key: "w1", kind: "workflow", opens: "drill-in", title: "review-changes", running: true, progress: undefined, details: { "Tool uses": "3", Tokens: "900" }, parentKey: undefined },
+    { key: "abugs", kind: "workflow agent", opens: "drill-in", title: "bugs", running: true, progress: "Bash: git diff", details: { Phase: "Find", Model: "claude-haiku-5-5", "Tool uses": "3", Tokens: "900" }, parentKey: "w1" },
+    { key: "aperf", kind: "workflow agent", opens: "drill-in", title: "perf", running: false, progress: undefined, details: { Phase: "Find", "Tool uses": "1", Tokens: "400" }, parentKey: "w1" },
+  ]);
+  expect(runtime.tasks[0].workflow.phases).toEqual(["Find", "Verify"]);
+  expect(activities[2].result).toBe("No slow queries <found>");
+  const run = sessions(id) + "/" + runtime.record.sessionId + "/subagents/workflows/wf_1";
+  mkdirSync(run, { recursive: true });
+  const row = (type, uuid, content) => JSON.stringify({ type, uuid, isSidechain: true, timestamp: "2026-10-20T12:00:00.000Z", message: { id: uuid, role: type, content, stop_reason: "end_turn" } });
+  writeFileSync(run + "/agent-abugs.jsonl", [
+    // Claude Code frames the request that started the workflow, and the agent's task, for the model.
+    row("user", "u0", "[Workflow harness — user request] The harness relays the request:\\n  Review my branch\\n  \\n  Carefully"),
+    row("user", "u1", "[Workflow harness — computed task] The computed task text follows:\\n  Find bugs in:\\n  \\n  - auth.ts"),
+    row("assistant", "u2", [{ type: "text", text: "Reading the diff" }]),
+  ].join("\\n"));
+  const { readClaudeSubagentRows } = await import(${JSON.stringify(join(import.meta.dir, "../src/server/rows.ts"))});
+  const { workflowAgentRows } = await import(${JSON.stringify(join(import.meta.dir, "../src/server/workflow.ts"))});
+  const rows = workflowAgentRows(await readClaudeSubagentRows(sessions(id), runtime.record.sessionId, "abugs", true));
+  expect(rows).toMatchObject([{ kind: "user", content: [{ type: "text", text: "Find bugs in:\\n\\n- auth.ts" }] }, { kind: "assistant", content: [{ type: "text", text: "Reading the diff" }] }]);
+  await agents.disposeAll();
+`));
+
 test("stopping interrupts Claude without reporting its abort as a problem", () => scenario(`
   const id = await agents.create("workspace");
   const runtime = await agents.ready("workspace", id);

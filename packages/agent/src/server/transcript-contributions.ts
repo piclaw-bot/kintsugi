@@ -1,4 +1,4 @@
-import type { TranscriptItem } from "./transcript.ts";
+import type { ToolView, TranscriptItem } from "./transcript.ts";
 
 export type AgentTranscriptAnchor = {
   anchor: string;
@@ -11,6 +11,11 @@ export type AgentTranscriptAnchor = {
 export interface AgentTranscriptSnapshot {
   rows: Extract<TranscriptItem, { type: "extension" }>[];
   anchors: AgentTranscriptAnchor[];
+  /**
+   * Calls tools made to other tools, such as a script's, by the calling tool's call ID. An unfinished call is
+   * `running`: the host shows its live progress, or that it was cut off when the calling tool ended first.
+   */
+  nested?: { toolCallId: string; calls: ToolView[] }[];
   /** Entries before this persisted marker are copied context; entries after it are local activity. */
   inheritedContext?: { boundaryEntryId: string; source: string };
 }

@@ -1,3 +1,7 @@
+import { Type } from "typebox";
+import { Value } from "typebox/value";
+import type { Query } from "@anthropic-ai/claude-agent-sdk";
+import type { JsonValue } from "@kintsugi/core";
 import { createHash } from "node:crypto";
 import type { EffortLevel, ModelInfo, SDKMessage, SlashCommand } from "@anthropic-ai/claude-agent-sdk";
 import { createKeyedOperationQueue, invalidArguments, type KintsugiEventBus } from "@kintsugi/core";
@@ -5,15 +9,41 @@ import { createLivePresentation, type WorkspaceAgentInput } from "@kintsugi/shar
 import { createPiModelRuntime, parseModelRef, setAgentModelPreference } from "@kintsugi/llm/server";
 import { publishWorkspaceAgentBusy } from "@kintsugi/agent/server";
 import { createNativeAgents } from "@kintsugi/native-agent/server";
-import { listPromptTemplates } from "@kintsugi/agent/server/prompt-templates";
+import { listPromptOnlyTemplates } from "@kintsugi/agent/server/prompt-templates";
 import { renderSlashCommandCatalog } from "@kintsugi/agent/server/slash-commands";
 import { claudeAgentCommands, claudeNativeCommands, uuidPattern, type ClaudeCommand, type ClaudeCommandResult } from "./commands.ts";
 import { claudeSessionDirectory, hasClaudeSession, listClaudeSessions, readClaudeRows, type ClaudeBlock } from "./rows.ts";
+import { workflowProgress, workflowProgressSchema, type ClaudeWorkflowProgress } from "./workflow.ts";
 import { ClaudeState } from "./state.ts";
 import { openClaudeTransport, type ClaudeTransport } from "./transport.ts";
 import { agentTypeId, label, prepareClaude, settings } from "./setup.ts";
 import { createClaudeStore, type ClaudeAgentRecord } from "./store.ts";
 import { liveRegions } from "./render.ts";
+
+/** A background task of Claude Code's: a command, subagent, monitor, workflow or other kind of work. */
+export interface ClaudeTask {
+  id: string;
+  /** Claude Code's task type, such as `local_bash`, `local_agent`, `monitor` or `local_workflow`. */
+  type: string;
+  description: string;
+  subagentType?: string;
+  parentTaskId?: string;
+  /** Not activity, such as a watcher; Claude won't report on it. */
+  ambient: boolean;
+  toolUseId?: string;
+  startedAt?: number;
+  workflowName?: string;
+  /** A workflow's script. */
+  script?: string;
+  /** Its latest one-line status, such as a subagent's progress summary. */
+  summary?: string;
+  lastToolName?: string;
+  usage?: { tokens: number; toolUses: number };
+  /** A workflow's phases and agents, as its latest progress frame described them. */
+  workflow?: ClaudeWorkflowProgress;
+}
+
+const taskOutputSchema = Type.Object({ output: Type.String(), total_bytes: Type.Number(), truncated: Type.Boolean() });
 
 /** Claude records prompts under the UUID they were sent with, so retries can find them. */
 function promptUuid(requestId: string): string {
@@ -41,7 +71,8 @@ export class ClaudeRuntime {
   /** A turn is running, or a queued prompt will start one. */
   private running = false;
   /** Background commands and subagents Claude is waiting on; it reports on them in a turn of its own once they finish. */
-  private backgroundTasks: string[] = [];
+  tasks: ClaudeTask[] = [];
+  private taskEvents = new Map<string, Partial<ClaudeTask>>();
   private interrupting = false;
   private busy = false;
   private readonly serialize = createKeyedOperationQueue();
@@ -51,7 +82,8 @@ export class ClaudeRuntime {
   /** Claude is in a turn. Background work keeps going after it, without holding up the conversation. */
   get isTurnRunning() { return !this.failure && this.running; }
   /** Not yet settled: Claude is in a turn or will report on background work in one. */
-  get isBusy() { return !this.failure && (this.running || this.backgroundTasks.length > 0); }
+  get isBusy() { return !this.failure && (this.running || this.reportedTasks.length > 0); }
+  private get reportedTasks() { return this.tasks.filter(task => !task.ambient); }
   private changed() {
     if (this.disposed) return;
     const busy = this.isBusy;
@@ -66,7 +98,7 @@ export class ClaudeRuntime {
     this.presentation.invalidate();
   }
   async refreshCompletionCatalog() {
-    const templates = await listPromptTemplates(this.workspaceId);
+    const templates = await listPromptOnlyTemplates(this.workspaceId);
     this.templateNames = new Set(templates.map(template => template.name));
     this.completionCatalog = renderSlashCommandCatalog(templates, [], "cli", [...claudeAgentCommands, ...claudeNativeCommands(this.commands, this.templateNames)]);
     this.presentation.invalidate();
@@ -104,7 +136,7 @@ export class ClaudeRuntime {
       await this.startConnection();
     });
   }
-  private get sessions() { return claudeSessionDirectory(this.workspaceId, this.agentId); }
+  get sessions() { return claudeSessionDirectory(this.workspaceId, this.agentId); }
   /** Saved history alone; showing it needs nothing from the workspace container. */
   private async prepareState() {
     const { sessionId, forkedFrom } = this.record;
@@ -126,7 +158,7 @@ export class ClaudeRuntime {
   }
   private async connect(statePrepared = false) {
     this.running = false;
-    this.backgroundTasks = [];
+    this.tasks = []; this.taskEvents.clear();
     this.interrupting = false;
     try {
       if (!statePrepared) await this.prepareState();
@@ -243,7 +275,20 @@ export class ClaudeRuntime {
       await this.transport!.query.interrupt();
     }
     // Stopped tasks end quietly, without a turn to report on them.
-    await Promise.all(this.backgroundTasks.map(taskId => this.transport!.query.stopTask(taskId)));
+    await Promise.all(this.reportedTasks.map(task => this.transport!.query.stopTask(task.id)));
+  }
+  async stopTask(taskId: string) {
+    await this.activate();
+    this.assertOpen();
+    await this.transport!.query.stopTask(taskId);
+  }
+  /** The end of a background command's or monitor's output. */
+  async taskOutput(taskId: string) {
+    await this.activate();
+    this.assertOpen();
+    // SAFETY: The SDK implements the get_task_output control request, typed as SDKControlGetTaskOutputRequest, but its Query type doesn't declare the method yet. The response is parsed.
+    const query = this.transport!.query as Query & { getTaskOutput(taskId: string): Promise<JsonValue> };
+    return Value.Parse(taskOutputSchema, await query.getTaskOutput(taskId));
   }
   /** The selected entry of Claude Code's own model catalog. */
   get selectedModel(): ModelInfo | undefined {
@@ -306,9 +351,26 @@ export class ClaudeRuntime {
       this.commands = message.commands;
       void this.refreshCompletionCatalog().catch(error => console.error("Could not refresh Claude Code completions", error));
     } else if (message.type === "system" && message.subtype === "background_tasks_changed") {
-      // Ambient tasks, such as watchers, are not work Claude will report back on.
-      this.backgroundTasks = message.tasks.filter(task => !task.ambient).map(task => task.task_id);
-    } else if (message.type === "system" && message.subtype === "task_notification" && message.status !== "stopped" && this.backgroundTasks.includes(message.task_id)) {
+      // The full live set, replacing the last one.
+      const live = new Set(message.tasks.map(task => task.task_id));
+      for (const task of this.tasks) if (!live.has(task.id)) this.taskEvents.delete(task.id);
+      this.tasks = message.tasks.map(task => ({
+        ...this.taskEvents.get(task.task_id),
+        id: task.task_id, type: task.task_type, description: task.description, subagentType: task.subagent_type, parentTaskId: task.parent_task_id, ambient: task.ambient === true,
+      }));
+    } else if (message.type === "system" && (message.subtype === "task_started" || message.subtype === "task_progress")) {
+      const events = this.taskEvents.get(message.task_id) ?? {};
+      if (message.subtype === "task_started") Object.assign(events, { toolUseId: message.tool_use_id, startedAt: Date.now(), workflowName: message.workflow_name, script: message.task_type === "local_workflow" ? message.prompt : undefined });
+      else {
+        Object.assign(events, { summary: message.summary, lastToolName: message.last_tool_name, usage: { tokens: message.usage.total_tokens, toolUses: message.usage.tool_uses } });
+        // SAFETY: Claude Code sends a workflow's phases and agents on its task_progress, but the SDK doesn't declare the field yet. It is parsed.
+        // A frame without it changed nothing about them.
+        const entries = (message as { workflow_progress?: unknown }).workflow_progress;
+        if (entries !== undefined) events.workflow = workflowProgress(Value.Parse(workflowProgressSchema, entries));
+      }
+      this.taskEvents.set(message.task_id, events);
+      this.tasks = this.tasks.map(task => task.id === message.task_id ? { ...task, ...events } : task);
+    } else if (message.type === "system" && message.subtype === "task_notification" && message.status !== "stopped" && this.reportedTasks.some(task => task.id === message.task_id)) {
       // Claude reports on finished background work in its running turn, or else in a turn of its own.
       // Foreground commands notify too, but were never background work.
       this.state.add({ kind: "task", uuid: message.uuid, timestamp: Date.now(), runId: message.run_id ?? message.uuid, summary: message.summary });
@@ -327,6 +389,7 @@ export class ClaudeRuntime {
       // A queued prompt started its own turn.
       this.running = true;
     }
+    if (message.type === "system" && message.subtype === "task_notification" && !this.tasks.some(task => task.id === message.task_id)) this.taskEvents.delete(message.task_id);
     this.state.receive(message);
     this.changed();
   }

@@ -7,8 +7,13 @@
     "./server": "./src/server/index.ts",
     "./server/durable-lifecycle": "./src/server/durable-lifecycle.ts",
     "./server/durable-runtime": "./src/server/durable-runtime.ts",
+    "./server/durable-assembly": "./src/server/durable-assembly.ts",
+    "./server/durable-codemode-templates": "./src/server/durable-codemode-templates.ts",
     "./client": "./src/client/index.ts",
-    "./server/render-composer": "./src/server/render-composer.ts"
+    "./server/render-composer": "./src/server/render-composer.ts",
+    "./server/model-tool-usage": "./src/server/durable-model-tool-usage.ts",
+    "./server/codemode-worker-admission": "./src/server/codemode-worker-admission.ts",
+    "./server/codemode-call": "./src/server/codemode-call.ts"
   },
   "dependencies": {
     "@kintsugi/core": "workspace:*",
@@ -26,7 +31,6 @@
     "@kintsugi/llm": "workspace:*",
     "@kintsugi/prompt": "workspace:*",
     "@earendil-works/pi-durable": "catalog:",
-    "@earendil-works/pi-codemode": "catalog:",
     "@earendil-works/chord": "catalog:",
     "proper-lockfile": "4.1.2",
     "@kintsugi/legacy-converter": "workspace:*",
@@ -34,6 +38,7 @@
   },
   "devDependencies": {
     "@types/web-push": "3.6.4",
-    "@types/proper-lockfile": "4.1.4"
+    "@types/proper-lockfile": "4.1.4",
+    "@earendil-works/pi-codemode": "catalog:"
   }
 }

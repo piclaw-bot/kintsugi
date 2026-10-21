@@ -8,7 +8,7 @@ import { readInitialPromptDraft } from "./initial-prompt-draft.ts";
 import { enabledModelOptionViews, launchComposerThinkingSettings, selectAvailableEnabledModel } from "@kintsugi/agent/server/model-state";
 import { agentKey, agentPath, ids, type AgentRenderContext } from "@kintsugi/agent/server/render-context";
 import { renderAgentNotifications } from "./render-notification.ts";
-import { agentDelegation } from "./delegation.ts";
+import { renderBackgroundControl } from "./background.ts";
 import type { WorkspaceAgentInfo } from "./agent-store.ts";
 import { formatCost, formatTokens } from "@kintsugi/agent/server/transcript";
 
@@ -20,7 +20,6 @@ export interface AgentStatsView {
   outputTokens: number | null;
   cost: number | null;
   descendantCost?: number;
-  isSubagent?: boolean;
   modelName: string | undefined;
   thinkingLevel: string;
   thinkingLevels: string[];
@@ -36,7 +35,7 @@ interface AgentPaneState {
 }
 
 /** The pane's shell; its controller's channel owns the content placed into the mounts. */
-export async function renderAgentPane(ctx: AgentRenderContext, agent: Pick<WorkspaceAgentInfo, "agentId">, state: AgentPaneState, presentation: { moduleChannel?: string; notifications?: boolean; subagents?: boolean; initialPromptDraft?: boolean } = {}): Promise<WorkspaceAgentPane> {
+export async function renderAgentPane(ctx: AgentRenderContext, agent: Pick<WorkspaceAgentInfo, "agentId">, state: AgentPaneState, presentation: { moduleChannel?: string; notifications?: boolean; background?: boolean; initialPromptDraft?: boolean } = {}): Promise<WorkspaceAgentPane> {
   const key = agentKey(agent.agentId);
   const draftId = agentAttachmentDraftId(ctx.workspaceId, ctx.agentId);
   const attachments = state.readOnly ? [] : await listStagedAttachments(draftId);
@@ -45,15 +44,17 @@ export async function renderAgentPane(ctx: AgentRenderContext, agent: Pick<Works
   const attachRowId = ids.attachRow(ctx);
   const html = `<section id="${domId("agent_pane", ctx.workspaceId, agent.agentId)}" data-turbo-permanent class="agent-pane builtin-agent-shell" data-agent-source="${escapeHtml(key)}">
     <div class="agent-pane agent-composer-pane" id="${ids.pane(ctx)}"
-      ${state.readOnly ? "" : `data-controller="agent-pane agent-attachments agent-composer composer-focus"
+      ${state.readOnly ? "" : `data-controller="agent-pane agent-attachments agent-composer composer-focus agent-background"
       data-agent-composer-open-on-create-value="true"
       data-agent-pane-workspace-id-value="${escapeHtml(ctx.workspaceId)}"
       data-agent-pane-agent-id-value="${escapeHtml(ctx.agentId)}"
+      data-agent-background-path-value="${escapeHtml(agentPath(ctx, "/background/"))}"
       ${presentation.moduleChannel ? `data-agent-pane-module-channel-value="${escapeHtml(presentation.moduleChannel)}"` : ""}
       ${composerAttachmentAttributes(draftId, attachRowId, agentComposerActions)}`}>
       ${state.readOnly || presentation.notifications === false ? "" : `<div class="agent-body-controls">${renderAgentNotifications(ctx)}</div>`}
+      <div class="agent-background" id="${ids.background(ctx)}"></div>
       <div class="agent-transcript-region">
-        ${presentation.subagents === false ? "" : await agentDelegation?.renderControl(ctx.workspaceId, ctx.agentId) ?? ""}
+        ${presentation.background === false ? "" : renderBackgroundControl(ctx)}
         <div class="agent-transcript" tabindex="0" role="region" aria-label="Agent transcript" data-agent-pane-target="transcript">
           <div class="agent-transcript-surface"><div class="agent-transcript-content" id="${ids.transcript(ctx)}" data-agent-pane-target="transcriptContent"></div></div>
         </div>
@@ -66,6 +67,7 @@ export async function renderAgentPane(ctx: AgentRenderContext, agent: Pick<Works
         attachments,
         initialText,
       })}
+      ${state.readOnly ? "" : `<section class="agent-background-page" data-agent-background-target="page" data-action="click->agent-background#pageClicked" hidden><turbo-frame id="${ids.backgroundPage(ctx)}" refresh="morph" data-agent-background-target="frame"></turbo-frame></section>`}
     </div>
   </section>`;
   return { html, live: { regions: state.regions, subscriberId: ids.pane(ctx) } };
@@ -164,7 +166,7 @@ ${stats.thinkingLevels.length > 0 ? `<form id="${thinkingLevelFormId}" method="p
 ${meter}
 ${stats.inputTokens === null ? "" : `<span class="agent-stat" data-footer-drop="1" title="Tokens up (input)${stats.nativeBranchUsage ? " on this branch" : ""}">↑ <b>${formatTokens(stats.inputTokens)}</b></span>`}
 ${stats.outputTokens === null ? "" : `<span class="agent-stat" data-footer-drop="1" title="Tokens down (output)${stats.nativeBranchUsage ? " on this branch" : ""}">↓ <b>${formatTokens(stats.outputTokens)}</b></span>`}
-${stats.cost === null ? "" : `<span class="agent-stat" data-footer-drop="2" title="${stats.nativeBranchUsage ? `This branch cost, including compaction and recorded attempts.${stats.descendantCost === undefined ? "" : " Plus all descendant branches, excluding inherited usage."} Updated when usage commits.` : `${stats.isSubagent ? "This agent" : "Root agent"} cost${stats.descendantCost === undefined ? "" : " + all subagents and nested subagents combined"}. Updated at agent turn end.`}"><b>${formatCost(stats.cost)}${stats.descendantCost === undefined ? "" : ` + ${formatCost(stats.descendantCost)}`}</b></span>`}
+${stats.cost === null ? "" : `<span class="agent-stat" data-footer-drop="2" title="${stats.nativeBranchUsage ? `This branch cost, including compaction and recorded attempts.${stats.descendantCost === undefined ? "" : " Plus what its subagents and its scripts' one-shot agents cost, excluding inherited usage."} Updated when usage commits.` : "Agent cost. Updated at agent turn end."}"><b>${formatCost(stats.cost)}${stats.descendantCost === undefined ? "" : ` + ${formatCost(stats.descendantCost)}`}</b></span>`}
 ${selectionForms}
 ${renderSharedComposerSelections({
     modelFormId,

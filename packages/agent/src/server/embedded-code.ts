@@ -447,24 +447,36 @@ export function embeddedBashCommand(command: string, formattedCommand?: string, 
 const codemodeOptionsLine = /^\/\/ @options:[^\n]*\n/;
 const javascriptSyntax = new Bun.Transpiler({ loader: "js" });
 /**
- * A code mode script, readably formatted. Scripts are async function bodies with top-level `await` and `return`, so they
- * are formatted inside a function and taken out again. Undefined when the script does not parse, for example while
- * it streams in, or when formatting changes nothing.
+ * An async function body with top-level `await` and `return`, readably formatted inside a function and taken out
+ * again. Undefined when it does not parse, for example while it streams in.
  */
-export function formatCodemodeScriptForDisplay(code: string): string | undefined {
-  const optionsLine = code.match(codemodeOptionsLine)?.[0] ?? "";
-  const body = code.slice(optionsLine.length);
-  const wrapped = `async function codemode() {\n${body}\n}`;
+function formatAsyncBodyForDisplay(body: string): string | undefined {
+  const wrapped = `async function body() {\n${body}\n}`;
   try {
     javascriptSyntax.transformSync(wrapped);
   } catch {
     return undefined;
   }
-  const formatted = formatJavaScript(wrapped, "codemode.js", { indentStyle: "space", indentWidth: 2 }).trimEnd();
+  const formatted = formatJavaScript(wrapped, "script.js", { indentStyle: "space", indentWidth: 2 }).trimEnd();
   const lines = formatted.split("\n");
   // Taking the body out of the function un-indents it, except for string and template text.
   const inLiteral = javascriptLinesStartingInLiterals(formatted);
-  const inner = lines.slice(1, -1).map((line, index) => inLiteral[index + 1] ? line : line.replace(/^ {2}/, "")).join("\n");
+  return lines.slice(1, -1).map((line, index) => inLiteral[index + 1] ? line : line.replace(/^ {2}/, "")).join("\n");
+}
+
+/** A code mode script, readably formatted. Undefined when the script does not parse, or when formatting changes nothing. */
+export function formatCodemodeScriptForDisplay(code: string): string | undefined {
+  const optionsLine = code.match(codemodeOptionsLine)?.[0] ?? "";
+  const inner = formatAsyncBodyForDisplay(code.slice(optionsLine.length));
+  if (inner === undefined) return undefined;
   const result = `${optionsLine}${inner}`;
+  return result === code.trimEnd() ? undefined : result;
+}
+
+/** A workflow script, readably formatted: a body like code mode's that exports its `meta`. Undefined when it does not parse, or when formatting changes nothing. */
+export function formatWorkflowScriptForDisplay(code: string): string | undefined {
+  const inner = formatAsyncBodyForDisplay(code.replace(/^export (?=const meta\b)/m, ""));
+  if (inner === undefined) return undefined;
+  const result = inner.replace(/^const meta\b/m, "export const meta");
   return result === code.trimEnd() ? undefined : result;
 }

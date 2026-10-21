@@ -39,3 +39,8 @@ export function codeBlockHtml(code: string, filePath: string | undefined, classN
   const languageClass = highlighted.language ? ` language-${escapeHtml(highlighted.language)}` : "";
   return `<pre class="${className}${languageClass}"><code>${highlighted.html}</code></pre>`;
 }
+
+export function transcriptTargetLink(ctx: AgentRenderContext, target: string, label: string): string {
+  const query = new URLSearchParams({ agent: ctx.agentId, agentTarget: target });
+  return `<a href="/workspaces/${encodeURIComponent(ctx.workspaceId)}?${escapeHtml(query.toString())}" class="agent-trace-link" data-action="agent-pane#reveal" data-agent-pane-item-param="${escapeHtml(target)}" data-agent-pane-agent-param="${escapeHtml(ctx.agentId)}">${escapeHtml(label)}</a>`;
+}

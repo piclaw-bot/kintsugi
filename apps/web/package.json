@@ -30,6 +30,7 @@
     "@kintsugi/vscode": "workspace:*",
     "typebox": "^1.0.57",
     "@kintsugi/subagents": "workspace:*",
+    "@kintsugi/codemode": "workspace:*",
     "@kintsugi/desktop": "workspace:*",
     "@kintsugi/llm": "workspace:*",
     "@kintsugi/host": "workspace:*",

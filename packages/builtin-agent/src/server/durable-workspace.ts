@@ -24,9 +24,16 @@ export type DurableAgentRecord = {
   parentId?: string;
   rootId?: string;
   taskName?: string;
+  /** A one-shot agent: the code mode call that runs it. Read-only, and no part of delegation. */
+  oneShotCallId?: string;
   /** Retained branch IDs; durableId is the selected immutable fork. */
   branches?: ConversationId[];
 };
+
+/** A script's one-shot agent: listed with the Agent's children, but read-only and no part of delegation. */
+export function isOneShotAgent(record: Pick<DurableAgentRecord, "oneShotCallId">): boolean {
+  return record.oneShotCallId !== undefined;
+}
 
 const previousWorkspaceAgentsSchema = Type.Object({
   workspaceId: Type.String(),

@@ -1,4 +1,4 @@
-import { durableWorkspaceOwner } from "@kintsugi/builtin-agent/server";
+import { durableWorkspaceOwner, isOneShotAgent } from "@kintsugi/builtin-agent/server";
 import { BACKGROUND_CONTEXT as context } from "@earendil-works/chord/context";
 import { nativeStatus } from "./native-runtime.ts";
 import { Delegation } from "./native-state.ts";
@@ -8,7 +8,8 @@ export async function nativeSnapshot(workspaceId: string) {
   const records = await owner.catalog();
   const agents = await owner.harness.commit(async tx => {
     const agents = [];
-    for (const record of records.filter(item => item.parentId)) agents.push({
+    // A script's one-shot agents are code mode's, not delegation's.
+    for (const record of records.filter(item => item.parentId && !isOneShotAgent(item))) agents.push({
       id: record.agentId, parentId: record.parentId!, rootId: record.rootId!, taskName: record.taskName!,
       status: await nativeStatus(tx, record), task: record.title,
     });

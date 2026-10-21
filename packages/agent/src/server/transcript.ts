@@ -86,6 +86,10 @@ export interface ToolView {
   nested?: ToolView[];
   /** A finished call whose result was not kept, so only its arguments and error can show. */
   resultUnavailable?: boolean;
+  /** The child agent this call runs, such as a script's one-shot agent, whose conversation opens from its row. */
+  childAgentId?: string;
+  /** Inference this call ran beyond the Agent's own, such as a one-shot agent's, once it has finished. */
+  usage?: { outputTokens: number; cost: number };
 }
 
 interface TranscriptItemBase {

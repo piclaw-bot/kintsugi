@@ -1,6 +1,6 @@
-import { attributeModelToolUsage } from "./durable-model-tool-usage.ts";
+import { attributeModelToolUsage } from "@kintsugi/builtin-agent/server/model-tool-usage";
 import type { JsonValue } from "@earendil-works/chord";
-import { defineEntry, type Extension, type JsonObject, type NestedToolExecutionResult } from "@earendil-works/pi-durable";
+import { type Extension, type NestedToolExecutionResult } from "@earendil-works/pi-durable";
 import { CODEMODE_TOOL_NAME, createCodemodeExtension } from "@earendil-works/pi-durable/codemode";
 import { err, FileError, ok, type ExecutionEnv } from "@earendil-works/pi-durable/env";
 import type { CodemodeSandbox } from "@earendil-works/pi-codemode";
@@ -19,17 +19,8 @@ const imageBlockSchema = Type.Object({ type: Type.Literal("image"), data: Type.S
 /** Larger arguments are left out of a call's record. */
 const maxRecordedArgumentsChars = 64 * 1024;
 
-export type CallStart = { phase: "start"; name: string; arguments?: JsonValue };
-export type CallEnd = { phase: "end"; isError: boolean; cancelled: boolean; durationMs?: number; output?: string; error?: string; details?: JsonObject };
-
-/**
- * One call a code mode script made, recorded when it starts and when it ends. A bookkeeping entry
- * without model payload, so it follows branches and survives the script being stopped, unlike the
- * script's own result, which lists no results and, for a stopped script, no calls. `callId` is the
- * code mode call's, `key` the nested call's.
- */
-export type CodemodeCallRecord = { callId: string; key: string } & (CallStart | CallEnd);
-export const codemodeCallEntry = defineEntry<CodemodeCallRecord>("kintsugi.codemode-call");
+export { codemodeCallEntry, type CallStart, type CallEnd } from "@kintsugi/builtin-agent/server/codemode-call";
+import { codemodeCallEntry, type CallStart, type CallEnd } from "@kintsugi/builtin-agent/server/codemode-call";
 
 /** A value as JSON for people to read: image data, which is long and unreadable, shows as its length. */
 function displayJson(value: JsonValue, indent?: number): string {

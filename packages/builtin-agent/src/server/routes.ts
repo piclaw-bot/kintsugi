@@ -5,6 +5,7 @@ import { handleConfigurationRequest } from "./configuration-routes.ts";
 import { handleMessageRequest } from "./message-routes.ts";
 import type { AgentRouteHandler, AgentRouteOptions } from "./route-support.ts";
 import { handleSessionRequest } from "./session-routes.ts";
+import { handleBackgroundRequest } from "./background.ts";
 
 const agentRouteHandlers: readonly AgentRouteHandler[] = [
   handleDurableHistoryRequest,
@@ -13,6 +14,7 @@ const agentRouteHandlers: readonly AgentRouteHandler[] = [
   handleMessageRequest,
   handleSessionRequest,
   handleConfigurationRequest,
+  (request, url) => handleBackgroundRequest(request, url),
 ];
 
 export async function handleAgentRequest(request: Request, url: URL, options: AgentRouteOptions = {}): Promise<Response | undefined> {

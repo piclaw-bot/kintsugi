@@ -1,0 +1,4 @@
+/* A script's tools.agent call: its prompt, Open conversation, then its request and result. */
+.agent-one-shot-prompt { margin: 4px 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.agent-one-shot-prompt-label { color: var(--text-muted); }
+.agent-one-shot-open { padding: 2px 0 6px; }

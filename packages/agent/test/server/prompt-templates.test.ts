@@ -2,7 +2,7 @@ import { mkdtemp, mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { describe, expect, test } from "bun:test";
-import { expandPromptTemplateText, loadPromptTemplatesFromRoot } from "../../src/server/prompt-templates.ts";
+import { codemodeTemplateScript, expandPromptTemplateText, loadPromptTemplatesFromRoot } from "../../src/server/prompt-templates.ts";
 
 describe("prompt templates", () => {
   test("loads .kintsugi and .pi prompt templates", async () => {
@@ -66,5 +66,23 @@ describe("prompt templates", () => {
 
   test("leaves normal prompts unchanged", () => {
     expect(expandPromptTemplateText("please run tests", [])).toBe("please run tests");
+  });
+
+  test("code mode templates keep their trigger and run their script with the arguments", async () => {
+    const root = await mkdtemp(join(tmpdir(), "agents-in-the-cloud-prompts-"));
+    await mkdir(join(root, ".kintsugi/prompts"), { recursive: true });
+    await writeFile(join(root, ".kintsugi/prompts/status.md"), "---\ndescription: Show status\ncodemode: true\ncomposer-button: true\n---\nreturn args;\n");
+    const templates = await loadPromptTemplatesFromRoot(root);
+    expect(templates.find((template) => template.name === "status")).toMatchObject({ codemode: true, composerButton: true, description: "Show status" });
+
+    expect(expandPromptTemplateText("/status one", templates)).toBe("/status one");
+    expect(codemodeTemplateScript('/status one "two words" $1', templates)).toBe('const args = ["one","two words","$1"];\nconst argumentsText = "one \\"two words\\" $1";\nreturn args;\n');
+    expect(codemodeTemplateScript("/land", templates)).toBeUndefined();
+    expect(codemodeTemplateScript("please /status", templates)).toBeUndefined();
+  });
+
+  test("a code mode template's options line stays first", () => {
+    const templates = [{ name: "slow", trigger: "/slow", description: "Slow", prompt: '// @options: {"timeout_ms": 1000}\nreturn 1;', codemode: true }];
+    expect(codemodeTemplateScript("/slow", templates)).toBe('// @options: {"timeout_ms": 1000}\nconst args = [];\nconst argumentsText = "";\nreturn 1;');
   });
 });

@@ -11,7 +11,7 @@ import { createKeyedOperationQueue, invalidArguments, withCommandSignal } from "
 import { execWorkspaceCommand } from "@kintsugi/workspace";
 import { WorkspaceAgents, type DurableAgentRecord } from "./durable-workspace.ts";
 import { workspaceDurableJournalDirectory } from "./durable-storage.ts";
-import { codemodeCallEntry } from "./durable-codemode.ts";
+import { codemodeCallEntry } from "./codemode-call.ts";
 
 const context = BACKGROUND_CONTEXT;
 const savedOutputSchema = Type.Object({ text: Type.String(), truncated: Type.Boolean() });

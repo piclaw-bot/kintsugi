@@ -33,6 +33,9 @@ const roles = tagHighlighter([
   { tag: [tags.operator, tags.punctuation], class: "punctuation" },
 ]);
 
+/** JSON keys, like attribute names, so they stand apart from string values. Elsewhere property names stay plain. */
+const jsonRoles = tagHighlighter([{ tag: tags.propertyName, class: "attribute" }]);
+
 export interface HighlightSpan { from: number; to: number; role: string }
 
 /** Error-tolerant syntax parsing handles complete files and streamed prefixes alike. */
@@ -40,6 +43,6 @@ export function parserHighlightSpans(code: string, language: string): HighlightS
   const parser = parsers.get(language);
   if (!parser) return undefined;
   const spans: HighlightSpan[] = [];
-  highlightTree(parser.parse(code), roles, (from, to, role) => { spans.push({ from, to, role }); });
+  highlightTree(parser.parse(code), language === "json" ? [roles, jsonRoles] : roles, (from, to, role) => { spans.push({ from, to, role }); });
   return spans;
 }

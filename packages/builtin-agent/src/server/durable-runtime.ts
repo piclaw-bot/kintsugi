@@ -279,7 +279,6 @@ export async function openDurableAgentRuntime(
         return Object.values(taskWatch.value.tasks).some(task => scope.has(task.conversationId) && task.kind !== "kintsugi.delegation-anchor");
       },
       subscribeWork(listener: () => void) { workListeners.add(listener); return () => { workListeners.delete(listener); }; },
-      isSubagent: Boolean(identity.parentId),
       subscribeUsage(listener: () => void) { usageListeners.add(listener); return () => { usageListeners.delete(listener); }; },
       async descendantCost() {
         const records = (await harness.snapshot(WorkspaceAgents, context))!.agents;

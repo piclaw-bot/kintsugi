@@ -1,5 +1,5 @@
-import { readdir, stat } from "node:fs/promises";
-import { join } from "node:path";
+import { readdir, realpath, stat } from "node:fs/promises";
+import { join, resolve } from "node:path";
 import { getKintsugiRuntimeContext, isNotFoundError, readTextIfExists } from "@kintsugi/core";
 import { nativeImageTypes, nativeJsonlRows, nativeTimestamp } from "@kintsugi/cli-agent/server";
 import type { SessionImageRef } from "@kintsugi/agent/server/transcript";
@@ -50,10 +50,10 @@ export type ClaudeRow =
   | { kind: "output"; uuid: string; timestamp: number; text: string; error: boolean };
 
 /** Claude Code's native JSONL is untrusted, append-only input. Sidechains belong to its own subagents. */
-export function claudeRows(jsonl: string): ClaudeRow[] {
+export function claudeRows(jsonl: string, sidechain = false): ClaudeRow[] {
   const rows: ClaudeRow[] = [];
   for (const row of nativeJsonlRows(jsonl, rowSchema)) {
-    if (row.isSidechain === true) continue;
+    if ((row.isSidechain === true) !== sidechain) continue;
     const timestamp = nativeTimestamp(row.timestamp);
     if (row.type === "attachment" && row.attachment?.type === "queued_command" && row.uuid) {
       const content = claudeBlocks(row.attachment.prompt ?? "");
@@ -87,6 +87,40 @@ export function claudeSessionDirectory(workspaceId: string, agentId: string): st
 export async function readClaudeRows(directory: string, sessionId: string): Promise<ClaudeRow[] | undefined> {
   const text = await readTextIfExists(join(directory, `${sessionId}.jsonl`));
   return text === undefined ? undefined : claudeRows(text);
+}
+
+/** A subagent's own conversation, saved beside the session that started it. */
+export async function readClaudeSubagentRows(directory: string, sessionId: string, agentId: string, inWorkflow = false): Promise<ClaudeRow[]> {
+  if (![sessionId, agentId].every(id => /^[A-Za-z0-9_-]{1,128}$/.test(id))) throw new Error("Invalid Claude background transcript identity");
+  const subagents = join(directory, sessionId, "subagents");
+  const path = inWorkflow ? await workflowAgentPath(subagents, agentId) : join(subagents, `agent-${agentId}.jsonl`);
+  if (!path) return [];
+  // Its page reloads while it runs; the file is parsed again only once it has grown.
+  const file = await stat(path).catch(error => { if (isNotFoundError(error)) return undefined; throw error; });
+  if (!file) return [];
+  if (!file.isFile() || await realpath(path) !== resolve(path)) throw new Error("Claude background transcripts must be regular, non-symlinked files");
+  const version = `${file.size}:${file.mtimeMs}`;
+  const cached = subagentRows.get(path);
+  if (cached?.version === version) return cached.rows;
+  const limit = 2 * 1024 * 1024;
+  let text = await Bun.file(path).slice(Math.max(0, file.size - limit)).text();
+  if (file.size > limit) text = text.slice(text.indexOf("\n") + 1);
+  const rows = claudeRows(text, true);
+  if (subagentRows.size >= 16) subagentRows.delete(subagentRows.keys().next().value!);
+  subagentRows.set(path, { version, rows });
+  return rows;
+}
+const subagentRows = new Map<string, { version: string; rows: ClaudeRow[] }>();
+
+/** A workflow's agents keep their transcripts in a folder for its run, which only their names identify. */
+async function workflowAgentPath(subagents: string, agentId: string): Promise<string | undefined> {
+  const workflows = join(subagents, "workflows");
+  const runs = await readdir(workflows).catch(error => { if (isNotFoundError(error)) return []; throw error; });
+  for (const run of runs) {
+    const path = join(workflows, run, `agent-${agentId}.jsonl`);
+    if (await Bun.file(path).exists()) return path;
+  }
+  return undefined;
 }
 
 export async function hasClaudeSession(directory: string, sessionId: string): Promise<boolean> {
