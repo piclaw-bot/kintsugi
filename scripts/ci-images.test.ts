@@ -230,3 +230,23 @@ test("default Caddy generation covers the full retained preview pool", async()=>
   const [code,out,err]=await Promise.all([child.exited,new Response(child.stdout).text(),new Response(child.stderr).text()]);
   expect(code).toBe(0);expect(err).toBe("");expect(out).toContain("https://host.local:41000");expect(out).toContain("https://host.local:41009");expect(out).toContain("https://host.local:41999");expect(out).not.toContain("https://host.local:42000");
 });
+
+test("stable promotion is manual, digest-pinned and serialized with image publication", () => {
+  const workflow = Bun.YAML.parse(readFileSync(new URL("../.github/workflows/promote-stable.yml", import.meta.url), "utf8"));
+  expect(Object.keys(workflow.on)).toEqual(["workflow_dispatch"]);
+  expect(Object.keys(workflow.on.workflow_dispatch.inputs).sort()).toEqual(["app_digest", "release_tag", "revision", "system_digest", "workspace_digest"]);
+  for (const name of Object.keys(workflow.on.workflow_dispatch.inputs)) expect(workflow.on.workflow_dispatch.inputs[name].required).toBe(true);
+  expect(workflow.concurrency).toEqual({ group: "native-images-publication", "cancel-in-progress": false });
+  const job = workflow.jobs.promote;
+  expect(job.if).toBe("github.repository == 'rcarmo/kintsugi'");
+  expect(job.permissions).toEqual({ contents: "read", actions: "read", packages: "write" });
+  expect(job.steps.find((step: { name?: string }) => step.name?.startsWith("Require a published release")).run).toContain('.head_branch == $tag');
+  const verification = job.steps.find((step: { name?: string }) => step.name?.startsWith("Verify all native manifests")).run;
+  expect(verification).toContain('grep -qx "ref=$repository@$digest"');
+  expect(verification).toContain('bun scripts/ci-images.ts pair');
+  expect(verification).toContain('com.kintsugi.workspace-image.ref');
+  const promotion = job.steps.find((step: { name?: string }) => step.name?.startsWith("Promote stable only")).run;
+  expect(promotion).toContain('for kind in workspace system app');
+  expect(promotion).toContain('--tag "$repository:stable" "$ref"');
+  expect(promotion).not.toContain(':latest');
+});

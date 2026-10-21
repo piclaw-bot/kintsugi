@@ -81,7 +81,12 @@ is verified before any `latest` tag changes. Tagged source must remain on main;
 only the newest semantic version advances `latest`. Promotion is serialised and never
 cancelled halfway through. **Channel changes are not atomic:** an error after one
 tag advances requires inspection or rerunning the same publication. `stable`
-is never advanced by CI; complete clean-install/update/rollback acceptance first.
+is never advanced automatically. The manual **Promote verified release to stable**
+workflow requires a published release, successful tagged CI at its exact source,
+and all three independently verified manifest digests. It verifies both native
+slices, compatibility and the workspace pin before moving only `stable`, sharing
+the publication lock without rebuilding or deploying. Complete clean-install,
+update and rollback acceptance before promotion.
 
 Automatic publication is enabled in `rcarmo/kintsugi` after successful native
 builds, smoke tests and GHCR publication of all three dual-architecture manifests.

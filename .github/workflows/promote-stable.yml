@@ -1,0 +1,120 @@
+name: Promote verified release to stable
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Published version tag
+        required: true
+        type: string
+      revision:
+        description: Exact verified source commit (40 hex characters)
+        required: true
+        type: string
+      app_digest:
+        description: Verified app manifest digest (sha256:...)
+        required: true
+        type: string
+      system_digest:
+        description: Verified System manifest digest (sha256:...)
+        required: true
+        type: string
+      workspace_digest:
+        description: Verified workspace manifest digest (sha256:...)
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+# Share the automatic publisher's lock; never overlap channel writes.
+concurrency:
+  group: native-images-publication
+  cancel-in-progress: false
+
+jobs:
+  promote:
+    if: github.repository == 'rcarmo/kintsugi'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      actions: read
+      packages: write
+    env:
+      RELEASE_TAG: ${{ inputs.release_tag }}
+      REVISION: ${{ inputs.revision }}
+      APP_DIGEST: ${{ inputs.app_digest }}
+      SYSTEM_DIGEST: ${{ inputs.system_digest }}
+      WORKSPACE_DIGEST: ${{ inputs.workspace_digest }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Validate explicit promotion inputs
+        shell: bash
+        run: |
+          [[ "$RELEASE_TAG" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]
+          [[ "$REVISION" =~ ^[a-f0-9]{40}$ ]]
+          for digest in "$APP_DIGEST" "$SYSTEM_DIGEST" "$WORKSPACE_DIGEST"; do
+            [[ "$digest" =~ ^sha256:[a-f0-9]{64}$ ]]
+          done
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.release_tag }}
+          fetch-depth: 0
+      - name: Require a published release and successful tagged CI at this source
+        run: |
+          test "$(git rev-parse HEAD)" = "$REVISION"
+          git merge-base --is-ancestor "$REVISION" origin/main
+          gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --json isDraft,isPrerelease | jq -e '.isDraft == false and .isPrerelease == false'
+          gh api --method GET "repos/$GITHUB_REPOSITORY/actions/workflows/release.yml/runs" -f head_sha="$REVISION" -f status=success -f per_page=100 > runs.json
+          jq -e --arg revision "$REVISION" --arg tag "$RELEASE_TAG" '.workflow_runs | any(.head_sha == $revision and .head_branch == $tag and .event == "push" and .conclusion == "success")' runs.json
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: 1.4.2
+      - run: bun ci
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+      - name: Verify all native manifests, source labels, compatibility and workspace pin
+        run: |
+          source="https://github.com/$GITHUB_REPOSITORY"
+          for kind in workspace system app; do
+            case "$kind" in
+              workspace) repository=ghcr.io/rcarmo/kintsugi-workspace; digest=$WORKSPACE_DIGEST; label=org.opencontainers.image.source; value=$source ;;
+              system) repository=ghcr.io/rcarmo/kintsugi-system; digest=$SYSTEM_DIGEST; label=org.opencontainers.image.source; value=$source ;;
+              app) repository=ghcr.io/rcarmo/kintsugi; digest=$APP_DIGEST; label=org.opencontainers.image.revision; value=$REVISION ;;
+            esac
+            bun scripts/ci-images.ts verify "$repository:$RELEASE_TAG" "$label" "$value" > "$kind-receipt.txt"
+            grep -qx "ref=$repository@$digest" "$kind-receipt.txt"
+          done
+          app="ghcr.io/rcarmo/kintsugi@$APP_DIGEST"
+          bun scripts/ci-images.ts pair "$app" "ghcr.io/rcarmo/kintsugi-system@$SYSTEM_DIGEST"
+          docker buildx imagetools inspect "$app" --format '{{json .Manifest}}' > app-index.json
+          for slice in $(jq -er '.manifests[].digest' app-index.json); do
+            docker buildx imagetools inspect "ghcr.io/rcarmo/kintsugi@$slice" --format '{{json .Image}}' > app-config.json
+            jq -e --arg pin "ghcr.io/rcarmo/kintsugi-workspace@$WORKSPACE_DIGEST" '.config.Labels["com.kintsugi.workspace-image.ref"] == $pin and (.config.Labels["eagerly-preload"] | fromjson) == [$pin]' app-config.json
+          done
+      - name: Promote stable only, dependencies before app
+        run: |
+          for kind in workspace system app; do
+            ref=$(sed -n 's/^ref=//p' "$kind-receipt.txt")
+            repository=${ref%@*}
+            expected=${ref#*@}
+            docker buildx imagetools create --tag "$repository:stable" "$ref"
+            # Registries may briefly return the old tag or 404 after a successful write.
+            matched=false
+            for attempt in 1 2 3 4 5 6; do
+              if manifest=$(docker buildx imagetools inspect "$repository:stable" --format '{{json .Manifest}}' 2> inspect.error); then
+                actual=$(printf '%s' "$manifest" | jq -er '.digest')
+                if [ "$actual" = "$expected" ]; then matched=true; break; fi
+              elif ! grep -Eqi 'not found|manifest unknown|404' inspect.error; then
+                cat inspect.error >&2
+                exit 1
+              fi
+              sleep 5
+            done
+            test "$matched" = true
+            echo "Promoted $repository:stable at $expected" >> "$GITHUB_STEP_SUMMARY"
+          done
