@@ -104,9 +104,14 @@ describe("title request options", () => {
     expect(request.max_tokens).toBe(64);
   });
 
-  // Haiku 5.5 cannot turn thinking off; at its default effort it spent the whole answer budget thinking.
-  test("use the lowest effort and leave answer room on models that always think", async () => {
+  test("Pi 1.3 uses Haiku 5.5's supported off level for title requests", async () => {
     const request = await titleRequest("claude-haiku-5-5");
+    expect(request.thinking).toEqual({ type: "disabled" });
+    expect(request.max_tokens).toBe(64);
+  });
+
+  test("use the lowest effort and leave answer room on models that always think", async () => {
+    const request = await titleRequest("claude-opus-5-5");
     expect(request.messages.at(-1)?.output_config).toEqual({ effort: "low" });
     expect(request.thinking?.budget_tokens).toBeUndefined();
     expect(request.max_tokens).toBe(512);

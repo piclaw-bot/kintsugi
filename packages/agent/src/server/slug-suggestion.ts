@@ -4,7 +4,7 @@ import { clampThinkingLevel, type Api, type Model, type ThinkingLevel } from "@e
 
 /**
  * A slug needs no reasoning, so thinking is off wherever the model allows it. Models
- * that always think (such as Claude Haiku 5.5) get their lowest level plus room for that
+ * that always think (such as Claude Opus 5.5) get their lowest level plus room for that
  * thinking; otherwise they spend the whole answer budget thinking and return no text.
  */
 export function agentTitleRequestOptions(model: Model<Api>): { maxTokens: number; reasoning?: ThinkingLevel } {

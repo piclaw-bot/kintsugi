@@ -1,3 +1,4 @@
+import { createCodemodeWorkerAdmission } from "./codemode-worker-admission.ts";
 import { createNativePlanExtension } from "./durable-plan.ts";
 import { createNativeAgentIdentityResolver } from "./durable-agent-identity.ts";
 import { createHistorySearchTool } from "./history-search.ts";
@@ -20,9 +21,11 @@ import { kintsugiSystemPrompt, prepareAppendedKintsugiInstructions } from "@kint
 import { launchComposerThinkingSettings, resolveNewWorkspaceAgentModel } from "@kintsugi/agent/server/model-state";
 import type { WorkspaceAgentToolOptions } from "@kintsugi/agent/server/tools";
 
-// Each script runs in its own worker, so one sandbox serves every conversation.
-// The VM shares the server process; the limit keeps a runaway script from taking it down.
-const codemodeSandbox = new CodemodeSandbox({ memoryLimitBytes: 256 * 1024 * 1024 });
+// Bound live workers across workspaces, including cancelled workers still computing.
+const codemodeSandbox = new CodemodeSandbox({
+  memoryLimitBytes: 256 * 1024 * 1024,
+  acquireWorker: createCodemodeWorkerAdmission(2),
+});
 
 /** Workspace-scoped code, including the task definitions needed to recover bash and code mode scripts. */
 export function createDurableWorkspaceRegistry(workspaceId: string, models: Pick<Models, "getModel">, options: WorkspaceAgentToolOptions = {}, resolveAgentId?: (conversationId: ConversationId) => Promise<string>) {
@@ -46,7 +49,8 @@ export async function createDurableHarnessOptions(workspaceId: string, options: 
   return {
     models: delegation?.models ?? models,
     registry,
-    settings: { compaction: { enabled: true, keepRecentTokens: 6000 } },
+    // Evict unobserved document caches after a minute; storage and provider caches are unchanged.
+    settings: { documentRetentionMs: 60_000, compaction: { enabled: true, keepRecentTokens: 6000 } },
   };
 }
 
