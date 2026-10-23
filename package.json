@@ -25,7 +25,7 @@
     "image:publish": "bun run scripts/build-kintsugi-image.ts --push --platform linux/amd64,linux/arm64",
     "check": "bun run generate:workspace-modules && bun run lint && bunx tsc --noEmit -p tsconfig.json",
     "lint": "oxlint .",
-    "test": "bun run generate:workspace-modules && bun test --parallel=4 --parallel-delay=0",
+    "test": "bun run generate:workspace-modules && bun test --parallel=4 --parallel-delay=0 --path-ignore-patterns '**/*.helper.test.ts' --path-ignore-patterns '**/kintsugi-recording.test.ts' && bun test apps/web/test/kintsugi-recording.test.ts packages/observable-terminal/test/server/terminal-process.helper.test.ts packages/workspace-helper/test/authentication.helper.test.ts packages/workspace-helper/test/stat-files.helper.test.ts",
     "test:gateway": "bun run packages/proxy-ingress/scripts/test-workspace-gateway.ts",
     "ci": "bun ci && bun run check && bun run test",
     "web": "bun run --cwd apps/web dev",
