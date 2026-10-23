@@ -101,12 +101,19 @@ jobs:
           if ldd "$browser" | grep 'not found'; then
             bun node_modules/@playwright/test/cli.js install-deps chromium
           fi
-          # Root-owned installer fixtures must not change the runner's home.
-          sudo mkdir -p /root/.cache
-          sudo ln -s "$HOME/.cache/ms-playwright" /root/.cache/ms-playwright
+          # Real helper fixtures drop root to agent; keep their files owned by
+          # that same unprivileged UID without running the whole suite as root.
+          if ! id agent >/dev/null 2>&1; then
+            sudo useradd --non-unique --uid "$(id -u)" --gid "$(id -g)" --no-create-home --home-dir "$HOME" --shell /bin/bash agent
+          fi
+          test "$(id -u agent)" = "$(id -u)"
         if: "steps.changes.outputs.required == 'true'"
       - name: Run the full test suite
-        run: "sudo --preserve-env=PATH \"$(command -v bun)\" run test"
+        run: bun run test
+        if: "steps.changes.outputs.required == 'true'"
+      - name: Verify helper root permission boundaries
+        working-directory: packages/workspace-helper/helper
+        run: "sudo --preserve-env=PATH \"$(command -v go)\" test ./..."
         if: "steps.changes.outputs.required == 'true'"
       - name: Record verification
         if: always()

@@ -32,9 +32,12 @@ test("local terminal processes start a tmux server of their own", async () => {
 test("running a terminal process tells its id while it runs, and releases it", async () => {
   const { directory, processes } = await place();
   let running = "";
-  const result = await runTerminalProcess(processes, { command: "echo done", cwd: directory }, async (id) => {
+  const ready = join(directory, "continue");
+  // Hold the command until the callback observes it; echo alone can already have exited.
+  const result = await runTerminalProcess(processes, { command: `while [ ! -f ${ready} ]; do sleep 0.02; done; echo done`, cwd: directory }, async (id) => {
     running = id;
     expect((await processes.state(id)).state).toBe("running");
+    await Bun.write(ready, "");
   });
   expect(result.output.text).toBe("done");
   expect(await processes.state(running)).toEqual({ state: "missing" });
