@@ -2,8 +2,6 @@ module github.com/rcarmo/kintsugi/images/patched-docker/image-transfer
 
 go 1.26.10
 
-toolchain go1.26.10
-
 require (
 	github.com/containerd/containerd/v2 v2.4.0-beta.0
 	github.com/containerd/errdefs v1.0.0
