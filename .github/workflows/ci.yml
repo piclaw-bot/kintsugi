@@ -109,7 +109,12 @@ jobs:
           test "$(id -u agent)" = "$(id -u)"
         if: "steps.changes.outputs.required == 'true'"
       - name: Run the full test suite
-        run: bun run test
+        run: |
+          bun run generate:workspace-modules
+          # Existing installer fixtures require root; helper integration fixtures
+          # instead need files owned by the unprivileged agent identity.
+          sudo --preserve-env=PATH "$(command -v bun)" run test:parallel
+          bun run test:native
         if: "steps.changes.outputs.required == 'true'"
       - name: Verify helper root permission boundaries
         working-directory: packages/workspace-helper/helper
