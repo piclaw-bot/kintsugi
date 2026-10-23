@@ -91,14 +91,17 @@ function appTerminalProcessesDirectory(): string {
   return kintsugiDataPath(getKintsugiRuntimeContext(), "terminal-processes");
 }
 
-let app: TerminalProcesses | undefined;
+let app: { directory: string; processes: TerminalProcesses } | undefined;
 
 /** Terminal processes on the app's own machine, such as provisioning's. */
 export function appTerminalProcesses(): TerminalProcesses {
-  return app ??= localTerminalProcesses(appTerminalProcessesDirectory());
+  const directory = appTerminalProcessesDirectory();
+  if (app?.directory !== directory) app = { directory, processes: localTerminalProcesses(directory) };
+  return app.processes;
 }
 
 /** Provisioning never outlives the app, so what the last app left is cleared when it starts. */
 export function clearAppTerminalProcesses(): Promise<void> {
+  app = undefined;
   return clearLocalTerminalProcesses(appTerminalProcessesDirectory());
 }

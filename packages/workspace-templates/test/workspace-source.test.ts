@@ -5,6 +5,7 @@ import { chmod, mkdir, mkdtemp, realpath, rm, stat, writeFile } from "node:fs/pr
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { createKintsugiEventBus } from "@kintsugi/core";
+import { clearAppTerminalProcesses } from "@kintsugi/observable-terminal/server";
 import { clearGitHostingCredential, gitHostingProvider, gitHostingProviders, saveGitHostingCredential } from "@kintsugi/git-hosting";
 import { addWorkspaceTemplate, cachedWorkspaceTemplateSourcePath, createWorkspaceTemplateSshKey, deleteWorkspaceTemplateSshKey, setWorkspaceTemplateSeedConfigEnabled, setWorkspaceTemplatePrivileged, type GitWorkspaceTemplateInitInstruction } from "@kintsugi/workspace-templates";
 import { prepareWorkspaceSource, registerWorkspaceTemplateWorkspaceInitEvents } from "../src/workspace-source.ts";
@@ -86,6 +87,7 @@ describe("workspace source preparation", () => {
   });
 
   afterEach(async () => {
+    await clearAppTerminalProcesses();
     await stopWorkspaceTemplateSshAgents();
     for (const provider of gitHostingProviders) clearGitHostingCredential(provider);
     if (previousDataDir === undefined) delete process.env.ATELIER_DATA_DIR;

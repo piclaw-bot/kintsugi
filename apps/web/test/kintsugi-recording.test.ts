@@ -83,6 +83,8 @@ test("a failed scenario preserves diagnostics and rethrows the original failure"
 			},
 			async ({ page }) => {
 				await page.setContent("<main><h1>Failure fixture</h1><p>Diagnostic frame</p></main>");
+				// Let the recording capture a frame before deliberately ending the scenario.
+				await page.waitForTimeout(250);
 				throw originalFailure;
 			},
 		);

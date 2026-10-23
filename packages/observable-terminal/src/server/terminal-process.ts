@@ -216,6 +216,8 @@ if [ "$interactive" = 1 ]; then
 else
   viewers="set-option -t =$session: window-size manual"
 fi
+# Older tmux versions apply history-limit only when a pane is created.
+tmux -N set-option -g history-limit "$history" || exit 1
 if ! pid=$(tmux -N new-session -d -P -F '#{pane_pid}' -s "$session" -x "$cols" -y "$rows" -c "$cwd" "$@" "$pane" \\; \\
   set-option -t "=$session:" status off \\; \\
   $viewers \\; \\
