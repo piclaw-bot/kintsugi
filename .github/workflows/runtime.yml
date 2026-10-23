@@ -60,6 +60,11 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ github.token }}
+      - name: Enable required kernel filesystems for native smoke tests
+        run: |
+          sudo modprobe erofs
+          sudo modprobe loop
+          grep -w erofs /proc/filesystems
       - name: Build and verify every shipped Go binary
         id: image
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7
