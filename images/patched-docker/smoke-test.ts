@@ -18,7 +18,7 @@ const volumes = [cache, `${producer}-data`, `${consumer}-data`];
 const containers: string[] = [];
 const createdVolumes: string[] = [];
 const context = await mkdtemp(join(tmpdir(), "kintsugi-runtime-smoke-"));
-const base = "docker.io/library/golang:1.24.5@sha256:ef5b4be1f94b36c90385abd9b6b4f201723ae28e71acacb76d00687333c17282";
+const base = "docker.io/library/golang:1.26.10@sha256:672c944cfd07599b5f1bb179869270cdc94c6254e41db4d431259693cb286b82";
 
 async function command(args: string[], check = true) {
   const child = Bun.spawn(args, { stdout: "pipe", stderr: "pipe" });
