@@ -1,3 +1,4 @@
+import { exitStatus, type StartWorkspaceProcess, type WorkspaceExecStart, type WorkspaceHelperUser } from "@kintsugi/workspace-helper";
 import { observableTerminalEnvironment } from "./constants.ts";
 
 // Reserved by the workspace bridge, never a foreground program's exit status.
@@ -83,8 +84,9 @@ export interface HostObservableTerminalAttachOptions {
 }
 
 export interface ObservableTerminalAttachOptions extends HostObservableTerminalAttachOptions {
-  containerName: string;
-  user?: string;
+  containerName?: string;
+  start?: StartWorkspaceProcess;
+  user?: WorkspaceHelperUser;
   workdir?: string;
   /** Detect missing sessions inside the same workspace bridge used to attach. */
   reportSessionMissing?: boolean;
@@ -125,6 +127,7 @@ export function buildAttachArgs(options: ObservableTerminalAttachOptions): strin
   const args = ["exec", "-i", "--user", options.user ?? "agent"];
   if (options.workdir) args.push("--workdir", options.workdir);
   for (const [key, value] of Object.entries(env)) args.push("-e", `${key}=${value}`);
+  if (!options.containerName) throw new Error("A container is required for the Docker terminal bridge");
   args.push(options.containerName, "bun", "-e", terminalBridgeSource, JSON.stringify({
     args: tmuxAttachArgs(options), cols: options.cols, rows: options.rows,
     sessionCheckArgs: options.reportSessionMissing
@@ -172,6 +175,7 @@ export function attachHostObservableTerminal(options: HostObservableTerminalAtta
 }
 
 export function attachObservableTerminal(options: ObservableTerminalAttachOptions, events: ObservableTerminalEvents): ObservableTerminalConnection {
+  if (options.start) return attachHelperObservableTerminal(options, events);
   // Killing `docker exec -t` leaves its remote PTY and tmux client alive.
   // Instead, the workspace bridge owns that PTY and hangs it up on stdin EOF.
   const subprocess = Bun.spawn(["docker", ...buildAttachArgs(options)], {
@@ -204,4 +208,40 @@ export function attachObservableTerminal(options: ObservableTerminalAttachOption
       subprocess.stdin.end();
     },
   };
+}
+
+function attachHelperObservableTerminal(options: ObservableTerminalAttachOptions, events: ObservableTerminalEvents): ObservableTerminalConnection {
+  // The helper owns the PTY. If Kintsugi disappears, the call ends and
+  // only this tmux client goes with it, never the session.
+  const client = options.start!(buildAttachStart(options));
+  let closed = false;
+  const output = (async () => {
+    for await (const chunk of client.stdout) events.onData(chunk);
+  })();
+  void (async () => {
+    let exitCode: number;
+    try {
+      await output;
+      exitCode = exitStatus(await client.exited);
+    } catch (error) {
+      if (!closed) events.onData(new TextEncoder().encode(`\r\n${(error instanceof Error ? error.message : String(error)).replace(/\r?\n/g, "\r\n")}`));
+      exitCode = 1;
+    }
+    closed = true;
+    events.onExit(exitCode);
+  })();
+  return {
+    write: (data) => { if (!closed) client.write(data); },
+    resize: (cols, rows) => { if (!closed) client.resize({ cols, rows }); },
+    close: () => {
+      if (closed) return;
+      closed = true;
+      // Hang up this client, never the tmux server or the program in its pane.
+      client.signal("SIGHUP");
+    },
+  };
+}
+
+export function buildAttachStart(options: Omit<ObservableTerminalAttachOptions, "start">): WorkspaceExecStart {
+ return {argv:["tmux",...tmuxAttachArgs(options)], user:options.user ?? "agent",workdir:options.workdir, env:{...observableTerminalEnvironment,...options.env},terminal:{cols:options.cols,rows:options.rows}};
 }

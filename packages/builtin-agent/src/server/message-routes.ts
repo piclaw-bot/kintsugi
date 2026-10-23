@@ -31,6 +31,11 @@ async function submitMessage(workspaceId: string, agentId: string, request: Requ
     return json ? Response.json({ error: { code: "invalid_arguments", message } }, { status: 422 }) : turboStreamResponse("", { status: 422 });
   }
   const text = String(json?.text ?? form?.get("text") ?? "");
+  const mode = json?.mode ?? form?.get("mode") ?? "steer";
+  if (mode !== "send" && mode !== "steer" && mode !== "followUp") {
+    const message = "Mode must be send, steer, or followUp";
+    return json ? Response.json({ error: { code: "invalid_arguments", message } }, { status: 422 }) : turboStreamResponse("", { status: 422 });
+  }
   if (text.trim() === "/new") {
     const runtime = await resolveAgentController(agent, options);
     await runtime.reset();
@@ -83,14 +88,16 @@ async function submitMessage(workspaceId: string, agentId: string, request: Requ
   const runtime = await resolveAgentController(agent, options);
   const model = (await runtime.settings()).model;
   const namingContext = trimmed ? { messages: [...await runtime.userMessages(), trimmed], agentModel: model && { provider: model.provider, id: model.modelId } } : undefined;
-  await runtime.submit({ text: expandedText, requestId, images: images.map(image => ({ type: "image", data: image.data, mimeType: image.mimeType })), attachmentNotes });
+  // A new prompt that finds the agent busy waits its turn; only explicit steering joins the running turn.
+  const submission = await runtime.submit({ text: expandedText, requestId, whenBusy: mode === "steer" ? "steer" : "followUp", images: images.map(image => ({ type: "image", data: image.data, mimeType: image.mimeType })), attachmentNotes });
   if (namingContext) {
     await options.events?.emit("workspace_user_activity", { workspaceId });
     (options.suggestTitleFromPrompt ?? maybeNameAgentFromPrompt)(agent, namingContext.messages, { events: options.events, agentModel: namingContext.agentModel });
   }
   await removeStagedAttachments(attachmentDraft, attachmentIds);
   await removeInitialPromptDraft(workspaceId, agentId);
-  const acceptedHeaders = { "x-kintsugi-attachment-draft-consumed": "true" };
+  // The composer steers a follow-up it sent by this ID.
+  const acceptedHeaders = { "x-kintsugi-attachment-draft-consumed": "true", "x-kintsugi-submission-id": String(submission.id) };
   return json
     ? Response.json({ agent: { agentId, state: "running" } }, { status: 202, headers: acceptedHeaders })
     : turboStreamResponse("", { headers: acceptedHeaders });

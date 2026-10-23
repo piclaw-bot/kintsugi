@@ -29,11 +29,10 @@ export function terminalOutputHasPrintableText(text: string): boolean {
 
 export function createAgentTermController(Controller: StimulusControllerConstructor) {
   return class AgentTermController extends Controller {
-    static values = { workspaceId: String, session: String };
+    static values = { url: String };
     declare readonly element: HTMLElement;
     declare readonly application: StimulusApplication;
-    declare readonly workspaceIdValue: string;
-    declare readonly sessionValue: string;
+    declare readonly urlValue: string;
     private viewer?: ObservableTerminalViewer;
 
     private theme(): ObservableTerminalTheme {
@@ -68,7 +67,7 @@ export function createAgentTermController(Controller: StimulusControllerConstruc
         mode: "fixed-readonly",
         cols: 120,
         rows: 30,
-        websocketUrl: observableWebSocketUrl(`/workspaces/${encodeURIComponent(this.workspaceIdValue)}/agent-term/${encodeURIComponent(this.sessionValue)}/ws?cols=120&rows=30`),
+        websocketUrl: observableWebSocketUrl(`${this.urlValue}?cols=120&rows=30`),
         fontFamily: style.getPropertyValue("--font-mono"),
         fontSize: Number.parseFloat(style.getPropertyValue("--text-code")),
         theme: this.theme(),

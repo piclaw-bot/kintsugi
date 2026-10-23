@@ -3,7 +3,8 @@
 import { Type } from "typebox";
 import { Value } from "typebox/value";
 import { appRepository, imageNamespace } from "../packages/shared/src/publishing.ts";
-import { workloadCgroupArgs } from "@kintsugi/core";
+import { join } from "node:path";
+import { buildGoProgram, workloadCgroupArgs } from "@kintsugi/core";
 import { rmSync } from "node:fs";
 import { arch } from "node:os";
 import { imageHasPlatforms } from "../packages/workspace-image/src/local-images.ts";
@@ -305,6 +306,10 @@ const allBuildArgs = [...defaultBuildArgs, ...options.buildArgs];
 
 // Tooling may come from a different checkout. Stamp the requirement from the image's source tree.
 const compatibility = Value.Parse(Type.Object({ label: Type.String(), version: Type.Integer({ minimum: 0, maximum: 2147483647 }), networkLabel: Type.String(), networkVersion: Type.Integer({ minimum: 0, maximum: 2147483647 }), resourceLabel: Type.String(), resourceVersion: Type.Integer({ minimum: 0, maximum: 2147483647 }), source: Type.String() }), JSON.parse(run(["bun", "-e", 'import {requiredSystemVersion as version,requiredSystemVersionLabel as label,networkPolicyVersionLabel as networkLabel,networkPolicyVersion as networkVersion,resourcePolicyVersionLabel as resourceLabel,resourcePolicyVersion as resourceVersion} from "./packages/shared/src/system-version.ts";import {imageSource as source} from "./packages/shared/src/publishing.ts";process.stdout.write(JSON.stringify({label,version,networkLabel,networkVersion,resourceLabel,resourceVersion,source}));'])));
+for (const platform of requestedPlatforms(options)) {
+  await buildGoProgram(join(process.cwd(), "packages/workspace-helper/helper"), join(process.cwd(), "packages/workspace-helper/dist", platform.replace("/", "-"), "kintsugi-workspace-helper"), platform);
+}
+
 await buildImage(imageRefs, [
   "--label", `org.opencontainers.image.source=${compatibility.source}`,
   "--label", `${compatibility.label}=${compatibility.version}`,

@@ -184,7 +184,7 @@ describe("transcript rendering", () => {
   });
 
   test("running bash starts its live terminal hidden until output is visible", () => {
-    const html = renderBash("sleep 5", { status: "running", tmuxSession: "bash-session" });
+    const html = renderBash("sleep 5", { status: "running", terminalProcessId: "bash-operation" });
     expect(html).toContain("agent-bash-output agent-terminal-awaiting-output");
   });
 

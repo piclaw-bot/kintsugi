@@ -54,7 +54,7 @@ class CountingStorage extends MemoryStorage {
 }
 
 test("Pi 1.3 evicts unused document caches and reloads committed values without losing watched state", async () => {
-  const state = defineDoc<{ count: number }>({ kind: "test.pi13-cache", version: 1, scope: "session", initial: () => ({ count: 0 }) });
+  const state = defineDoc<{ count: number }>({ checkpointWhen: () => false, kind: "test.pi13-cache", version: 1, scope: "session", initial: () => ({ count: 0 }) });
   const storage = new CountingStorage();
   const harness = await Harness.open(storage, { models: createModels(), registry: createRegistry(), settings: { documentRetentionMs: 0 } }, context);
   try {

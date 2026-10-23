@@ -410,7 +410,8 @@ function renderEmbeddedRegion(region: EmbeddedRegion, depth: number): RenderedEm
     return { html: nested?.html ?? highlightedBashShell(displayed), language: "bash", differs: region.kind === "shell-literal" || formatDiffers || (nested?.differs ?? false) };
   }
   const highlighted = highlightCodeHtmlForPath(displayed, region.path);
-  return { html: highlighted.html, language: highlighted.language, differs: region.kind === "shell-literal" || formatDiffers };
+  // Languages without a lexer, like regex, still get their language class for styling.
+  return { html: highlighted.html, language: highlighted.language ?? languageFromPath(region.path), differs: region.kind === "shell-literal" || formatDiffers };
 }
 
 function embeddedBashContent(command: string, depth: number): RenderedEmbedded | undefined {

@@ -25,7 +25,7 @@ import { registerWorkspaceDialogControllers } from "./workspace-dialogs.ts";
 import { registerWorkspaceFullscreenController } from "./workspace-fullscreen.ts";
 import { registerWorkspaceNavigationControllers } from "./workspace-navigation.ts";
 import { createWorkspacePresentationController, installWorkspacePresentationTurboStream } from "./workspace-presentation.ts";
-import { registerWorkspaceResidencyController } from "./workspace-residency.ts";
+import { registerWorkspaceSelectionController } from "./workspace-selection.ts";
 import { registerWorkspaceSettingsControllers } from "./workspace-settings.ts";
 import { registerWorkspaceShortcutsController } from "./workspace-shortcuts.ts";
 
@@ -60,7 +60,7 @@ registerWorkspaceControllers({
   "workspace-presentation": createWorkspacePresentationController(Controller, application, clientHooks),
 });
 registerWorkspaceNavigationControllers();
-registerWorkspaceResidencyController();
+registerWorkspaceSelectionController();
 registerWorkspaceShortcutsController();
 registerWorkspaceFullscreenController();
 registerWorkspaceDialogControllers();

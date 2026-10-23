@@ -42,9 +42,7 @@ function applySlotProgress(tool: ToolView, slot: Pick<ToolSlot, "output" | "deta
   if (isToolViewDetails(details)) {
     tool.details = details;
     if (toolDetailsIndicateError(details)) tool.status = "error";
-    // The receipt operation owns this immutable session on the default
-    // workspace tmux server. Detaching this read-only view never stops it.
-    tool.tmuxSession = details.tmuxSession;
+    tool.terminalProcessId = details.terminalProcessId;
   }
 }
 
@@ -173,6 +171,7 @@ export function projectDurableTranscript(view: ConversationView): TranscriptItem
   const nestedSlots = new Map(live.nestedTools?.map(slot => [slot.callId, slot]));
 
   const nestedCalls = new Map(contribution?.nested?.map(({ toolCallId, calls }) => [toolCallId, calls]));
+  const scriptFiles = new Map(contribution?.scriptFiles?.map(({ toolCallId, file }) => [toolCallId, file]));
 
   /** The calls a tool made to other tools, as an integration recorded them, with live progress while they run. */
   function attachNestedCalls(tool: ToolView) {
@@ -215,7 +214,12 @@ export function projectDurableTranscript(view: ConversationView): TranscriptItem
     for (const item of list) {
       // Tree/rewind actions need native operations, never old SessionManager IDs.
       item.rewindEntryId = undefined;
-      if (item.type === "tool") { updateTools(item.tool); attachNestedCalls(item.tool); }
+      if (item.type === "tool") {
+        updateTools(item.tool);
+        attachNestedCalls(item.tool);
+        const scriptFile = scriptFiles.get(item.tool.callId);
+        if (scriptFile) item.tool.scriptFile = scriptFile;
+      }
       if ((item.type === "text" || item.type === "thinking") && item.key.startsWith(`${partialKey}:`)) item.live = true;
       if (item.type === "working") {
         const measured = timings.get(item.inputEntryIds?.[0] ?? "");
@@ -246,7 +250,7 @@ export function projectDurableTranscript(view: ConversationView): TranscriptItem
   for (const input of inbox.items) {
     if (input.mode === "write") continue;
     const key = `queued-${input.id}`;
-    items.push({ type: "user", key, text: contentText(input.content), images: images(input.content, key), pending: true, queuedSubmissionId: input.mode === "steer" ? String(input.id) : undefined, steering: input.mode === "steer" && Boolean(live.run) });
+    items.push({ type: "user", key, text: contentText(input.content), images: images(input.content, key), queued: { submissionId: String(input.id), mode: input.mode, stranded: !live.run } });
   }
   return contribution ? applyTranscriptContributions(items, contribution) : items;
 }

@@ -10,7 +10,6 @@ import {
   type ObservableTerminalViewer,
 } from "@kintsugi/observable-terminal/client";
 import { focusLikelyOpensSoftwareKeyboard, isTextEntry, isWorkspacePaneVisible, type WorkspaceClientControllerConstructor, type WorkspaceClientModule } from "@kintsugi/shared";
-import { terminalViewKey } from "../shared.ts";
 
 function createTerminalSessionPickerController(Controller: WorkspaceClientControllerConstructor) {
   return class TerminalSessionPickerController extends Controller {
@@ -30,15 +29,14 @@ function createTerminalSessionPickerController(Controller: WorkspaceClientContro
 
 function createTerminalViewController(Controller: WorkspaceClientControllerConstructor) {
   return class TerminalViewController extends createTerminalKeyBarController(Controller) {
-    static values = { workspaceId: String, id: String };
+    static values = { url: String };
     static targets = ["connectionStatus", "host", "stage", "ended"];
     declare readonly endedTarget: HTMLElement;
     declare readonly hostTarget: HTMLElement;
     declare readonly stageTarget: HTMLElement;
     declare readonly connectionStatusTarget: HTMLElement;
     declare readonly element: HTMLElement;
-    declare readonly workspaceIdValue: string;
-    declare readonly idValue: string;
+    declare readonly urlValue: string;
     private readonly touchFocus = new TerminalTouchFocus(() => this.viewer?.focus());
     private pointerDrag?: { id: number; select: boolean };
     private frame?: TerminalFrame;
@@ -64,7 +62,7 @@ function createTerminalViewController(Controller: WorkspaceClientControllerConst
           host: this.hostTarget,
           mode: "interactive",
           connectBeforeRender: true,
-          websocketUrl: observableWebSocketUrl(`/workspaces/${encodeURIComponent(this.workspaceIdValue)}/views/${encodeURIComponent(terminalViewKey(this.idValue))}/ws`),
+          websocketUrl: observableWebSocketUrl(this.urlValue),
           fontFamily: style.getPropertyValue("--font-mono"),
           fontSize: Number.parseFloat(style.getPropertyValue("--text-code")),
           theme: kintsugiObservableTerminalTheme(),

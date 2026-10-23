@@ -55,7 +55,7 @@ const toolViewDetailsSchema = Type.Object({
   exitCode: Type.Optional(Type.Number()),
   patch: Type.Optional(Type.String()),
   displayAnsi: Type.Optional(Type.String()),
-  tmuxSession: Type.Optional(Type.String()),
+  terminalProcessId: Type.Optional(Type.String()),
   workspaceId: Type.Optional(Type.String()),
 });
 
@@ -69,6 +69,9 @@ export function isToolViewDetails(value: unknown): value is ToolViewDetails {
   return isJsonObject(Object.fromEntries(definedEntries));
 }
 
+/** A script file as a code mode call ran it: its contents when the call started. */
+export type ScriptFileView = { path: string; sha256: string; code: string };
+
 export interface ToolView {
   callId: string;
   name: string;
@@ -76,7 +79,8 @@ export interface ToolView {
   status: "streaming" | "running" | "ok" | "error";
   resultText?: string;
   resultImages?: SessionImageRef[];
-  tmuxSession?: string;
+  /** The terminal process a running bash call can be watched in. */
+  terminalProcessId?: string;
   canAbort?: boolean;
   durationMs?: number;
   details?: ToolViewDetails;
@@ -84,6 +88,8 @@ export interface ToolView {
   issuedAt?: number;
   /** Calls this tool made to other tools, such as a code mode script's. */
   nested?: ToolView[];
+  /** The script file a code mode call ran, as it was when the call started. */
+  scriptFile?: ScriptFileView;
   /** A finished call whose result was not kept, so only its arguments and error can show. */
   resultUnavailable?: boolean;
   /** The child agent this call runs, such as a script's one-shot agent, whose conversation opens from its row. */
@@ -115,9 +121,12 @@ export type WorkingTranscriptItem = TranscriptItemBase & {
   items: TranscriptItem[];
 };
 
+/** Input waiting in the inbox. `stranded` when no run will pick it up, as after a turn that ended in an error. */
+export type QueuedInput = { submissionId: string; mode: "steer" | "followUp"; stranded: boolean };
+
 export type TranscriptItem =
   | (TranscriptItemBase & { type: "extension"; render(ctx: AgentRenderContext): string })
-  | (TranscriptItemBase & { type: "user"; text: string; images: SessionImageRef[]; steering?: boolean; pending?: boolean; queuedSubmissionId?: string })
+  | (TranscriptItemBase & { type: "user"; text: string; images: SessionImageRef[]; steering?: boolean; queued?: QueuedInput })
   | (TranscriptItemBase & { type: "inherited-context"; source: string; messageCount: number; items: TranscriptItem[] })
   | WorkingTranscriptItem
   | (TranscriptItemBase & { type: "thinking"; text: string; live?: boolean })
@@ -158,6 +167,11 @@ export function isFinalAssistantMessage(parts: ReadonlyArray<AssistantContentPar
 
 export function finalAssistantText(parts: ReadonlyArray<AssistantContentPart>): string {
   return finalAssistantTextIndexes(parts).map((index) => parts[index]!.text ?? "").join("");
+}
+
+/** A JSON answer's source: models may fence it as a code block. */
+export function unfencedJson(text: string): string {
+  return /^\s*```(?:json)?\s*\n([\s\S]*?)\n?```\s*$/.exec(text)?.[1] ?? text;
 }
 
 /** Run markers keep steering in one block; older unmarked history retains its user boundaries. */

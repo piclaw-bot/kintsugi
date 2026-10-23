@@ -7,11 +7,14 @@ import type { WorkspaceImageConfigureEvent } from "./events.ts";
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { assertStorageSupport, readStorageDriver, KintsugiCoreError, kintsugiDataPath, createProcessFileLock, dockerHostKintsugiDataPath, getKintsugiRuntimeContext, invalidArguments, isJsonObject, readTextIfExists, requireDocker, runDocker, runDockerBuffer, withManagedDockerCommand, withCommandSignal, waitForCommand, shellQuote, writeJsonAtomic, type KintsugiEventBus, type CommandInput, type JsonObject } from "@kintsugi/core";
-import { runHostObservableCommand, stripTerminalControls, tailTerminalText } from "@kintsugi/observable-terminal/server";
+import { runTerminalProcess, tailTerminalOutput, tailTerminalText, terminalOutputDisplayBytes } from "@kintsugi/observable-terminal/server";
+import { terminalProcessSocketPath } from "@kintsugi/observable-terminal/shared";
+import { workspaceTerminalProcesses } from "./terminal-processes.ts";
 import { errorMessage, isWorkspaceAppPort, workspaceGatewayPort, type WorkspaceGateway, type WorkspaceHttpAppBackend, type WorkspaceServerProvisioningHook } from "@kintsugi/shared";
 import { inspectWorkspaceImage, resolveWorkspaceImage } from "@kintsugi/workspace-image";
 import { gitCredentialHelperShellBody } from "@kintsugi/git-hosting";
 import { prepareWorkspaceSystemd } from "./systemd.ts";
+import { closeWorkspaceHelperConnection, refreshWorkspaceHelper, requireRootInWorkspace, runInWorkspace, workspaceParentSocketDirectory } from "./helper.ts";
 import { createWorkspaceContainerLifecycle, workspaceConfigurationLabel } from "./container-lifecycle.ts";
 import { Type } from "typebox";
 import { Value } from "typebox/value";
@@ -22,6 +25,10 @@ export type { WorkspaceCreationContext, WorkspaceDockerMount, WorkspaceDockerPla
 
 import { prepareWorkspaceNetwork, configureWorkspaceDns, revokeWorkspaceNetwork } from "./network.ts";
 export { getNetworkConfiguration, setNetworkConfiguration, getWorkspaceNetworkMode, setWorkspaceNetworkMode, getAppliedWorkspaceNetwork, workspaceNetworkRestartRequired } from "./network.ts";
+export { checkFileInWorkspace, existingFilesInWorkspace, readFileInWorkspace, runInWorkspace, startInWorkspace, statFilesInWorkspace, writeFileInWorkspace } from "./helper.ts";
+export { WorkspaceHelperError, WorkspaceHelperStatus } from "@kintsugi/workspace-helper";
+export { exitStatus as workspaceExitStatus } from "@kintsugi/workspace-helper";
+export { workspaceTerminalProcesses } from "./terminal-processes.ts";
 export { createWorkspaceMetadataState, type WorkspaceMetadataState } from "./metadata-state.ts";
 export { ensureHostInotifyLimit } from "./host-inotify.ts";
 export { createWorkspaceProvisioning, type WorkspaceProvisioning, type WorkspaceProvisionRun } from "./provisioning.ts";
@@ -298,25 +305,18 @@ const workspaceSetupScript = ".kintsugi/setup.sh";
 export const workspaceSetupProvisioningHook: WorkspaceServerProvisioningHook = {
   id: "workspace.setup",
   label: "Run repository setup",
-  recovery: "continue",
+  failurePolicy: "continue",
   async run({ workspaceId: id, events }) {
     if (!(await Bun.file(join(workspaceWorkHostPath(id), workspaceSetupScript)).exists())) {
       await events?.emit("workspace_provision_progress", { workspaceId: id, detail: `No ${workspaceSetupScript}` });
       return;
     }
 
-    const session = `kintsugi-provision-setup-${crypto.randomUUID().slice(0, 8)}`;
-    const result = await withManagedDockerCommand(workspaceExecDockerArgs(id, ["sh", workspaceSetupScript], {}, true), (args) => runHostObservableCommand({
-      session,
-      cwd: "/",
-      command: ["docker", ...args].map(shellQuote).join(" "),
-      onSessionStarted: async () => {
-        await events?.emit("workspace_provision_progress", { workspaceId: id, terminalSession: session });
-      },
-    }));
-    const output = tailTerminalText(stripTerminalControls(result.output));
-    await events?.emit("workspace_provision_progress", { workspaceId: id, output });
-    if (result.exitCode !== 0) throw new KintsugiCoreError("workspace_setup_failed", output || `${workspaceSetupScript} failed with exit code ${result.exitCode}`);
+    const result = await runTerminalProcess(workspaceTerminalProcesses(id), { command: `sh ${shellQuote(workspaceSetupScript)}`, cwd: workspaceRoot }, async (processId) => {
+      await events?.emit("workspace_provision_progress", { workspaceId: id, terminalSocketPath: terminalProcessSocketPath(id, processId) });
+    });
+    await events?.emit("workspace_provision_progress", { workspaceId: id, output: tailTerminalOutput(result.output.ansi, terminalOutputDisplayBytes), terminalSocketPath: undefined });
+    if (result.exitCode !== 0) throw new KintsugiCoreError("workspace_setup_failed", tailTerminalText(result.output.text) || `${workspaceSetupScript} failed with exit code ${result.exitCode}`);
   },
 };
 
@@ -446,6 +446,8 @@ export async function createWorkspace(options: { id: string; events: KintsugiEve
       activePlan.mounts.push({ type: "bind", source: source.dockerHostWorktreePath, target: workspaceRoot });
       activePlan.mounts.push(...await workspaceHomeMounts(id));
       const sockets = kintsugiDataPath(getKintsugiRuntimeContext(), "workspace-sockets", id);
+      await mkdir(join(sockets, "helper"), { recursive: true, mode: 0o700 });
+      activePlan.mounts.push({ type: "bind", source: dockerHostKintsugiDataPath(getKintsugiRuntimeContext(), "workspace-sockets", id, "helper"), target: "/run/kintsugi-helper" });
       await mkdir(sockets, { recursive: true });
       activePlan.mounts.push({ type: "volume", target: "/data" });
       if (await readStorageDriver() === "erofs") activePlan.mounts.push({ type: "bind", source: "/data/erofs-cache", target: "/data/erofs-cache", readonly: true });
@@ -483,8 +485,8 @@ export async function createWorkspace(options: { id: string; events: KintsugiEve
       const log = await ensureWorkspaceStarted(id);
       run.report({ output: log });
     }, "retry");
-    await run.step("workspace.readiness", "Prepare workspace", async () => {
-      await checkWorkspaceReadiness(id, (detail) => run.report({ detail }), (progress) => run.report(progress));
+    await run.step("workspace.preparation", "Prepare workspace", async () => {
+      await prepareWorkspaceRuntime(id, (detail) => run.report({ detail }), (progress) => run.report(progress));
     }, "retry-or-continue");
   } catch (error) {
     // Cancellation hands ownership to deletion, which reviews files before removing them.
@@ -496,6 +498,7 @@ export async function createWorkspace(options: { id: string; events: KintsugiEve
       if (networks.stdout.trim()) await requireDocker(["network", "rm", workspaceNetworkName(id)]);
       await events.emit("workspace_deleted", { workspaceId: id });
       await rm(kintsugiDataPath(getKintsugiRuntimeContext(), "workspace-sockets", id), { recursive: true, force: true });
+      closeWorkspaceHelperConnection(id);
       await Promise.all((plan?.cleanup ?? []).map((cleanup) => cleanup()));
       await deleteWorkspaceWorkDir(id);
     } catch (cleanupError) {
@@ -601,6 +604,7 @@ export async function deleteWorkspace(id: string, options: DeleteWorkspaceOption
   workspaceGatewayCache.delete(workspaceGatewayCacheKey(id));
   await options.events?.emit("workspace_deleted", { workspaceId: id });
   await rm(kintsugiDataPath(getKintsugiRuntimeContext(), "workspace-sockets", id), { recursive: true, force: true });
+  closeWorkspaceHelperConnection(id);
   await deleteWorkspaceWorkDir(id);
   return null;
 }
@@ -623,6 +627,7 @@ function workspaceContainerLifecycle(id: string, checkpointRequired: boolean, re
     directory: kintsugiDataPath(getKintsugiRuntimeContext(), "workspaces", id, "configuration"),
     container: workspaceContainerName(id), checkpointRequired,
     waitForStartup: () => waitForWorkspaceStartup(id),
+    started: () => refreshWorkspaceHelper(id, workspaceContainerName(id)),
     beforeStart: async () => {
       if (await isWorkspaceRunning(id)) return;
       const resourceControl = await workspaceResourceControlAvailable();
@@ -653,6 +658,7 @@ async function checkWorkspaceGateway(id: string): Promise<void> {
 export async function stopWorkspaceContainer(id: string): Promise<void> {
   await validateWorkspaceContainer(id);
   await requireDocker(["stop", "--time", "10", workspaceContainerName(id)]);
+  closeWorkspaceHelperConnection(id);
   workspaceGatewayCache.delete(workspaceGatewayCacheKey(id));
 }
 
@@ -672,8 +678,8 @@ export async function setWorkspaceParked(id: string, parked: boolean, recover = 
   return null;
 }
 
-/** Repeated on resume and app recovery; the persisted list never rereads template settings. */
-export async function checkWorkspaceReadiness(id: string, report: (detail: string) => void = () => {}, activity: (progress: WorkspaceProvisionProgress) => void = () => {}): Promise<void> {
+/** Repeated on resume and app start; the persisted list never rereads template settings. */
+export async function prepareWorkspaceRuntime(id: string, report: (detail: string) => void = () => {}, activity: (progress: WorkspaceProvisionProgress) => void = () => {}): Promise<void> {
   report("Checking workspace gateway");
   await checkWorkspaceGateway(id);
   for (const socket of ["ingress", "egress"]) {

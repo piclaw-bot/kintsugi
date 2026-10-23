@@ -14,12 +14,15 @@ let buildPromise: Promise<void> | undefined;
 let timer: Timer | undefined;
 let serverRestartTimer: Timer | undefined;
 let workspaceImageTimer: Timer | undefined;
+let workspaceHelperTimer: Timer | undefined;
 let browserReloadTimer: Timer | undefined;
 let browserReloadRevision = 0;
 let workspaceImageEnsuring = false;
 let workspaceImageDirty = false;
 let server: ReturnType<typeof Bun.spawn> | undefined;
 let stoppingServer = false;
+let restartQueue = Promise.resolve();
+let restartQueued = false;
 const pendingRestartReasons = new Set<string>();
 const devReloadFile = join("/tmp", `kintsugi-dev-reload-${process.pid}.json`);
 const devReloadTempFile = `${devReloadFile}.tmp`;
@@ -111,7 +114,7 @@ function rememberRestartReason(reason: string, changed: string): void {
 function describeRestartReasons(): string {
   const reasons = [...pendingRestartReasons];
   pendingRestartReasons.clear();
-  if (reasons.length === 0) return "manual restart";
+  if (reasons.length === 0) return "requested during the previous restart";
   const shown = reasons.slice(0, 10);
   const suffix = reasons.length > shown.length ? ` (and ${reasons.length - shown.length} more)` : "";
   return `${shown.join(", ")}${suffix}`;
@@ -166,6 +169,19 @@ function scheduleWorkspaceImageEnsure(): void {
   workspaceImageTimer = setTimeout(() => void ensureWorkspaceImage(), 250);
 }
 
+async function buildWorkspaceHelper(): Promise<void> {
+  console.log("[workspace-helper] building…");
+  const child = Bun.spawn(["bun", join(packagesDir, "workspace-helper/scripts/build.ts")], {cwd, stdout: "inherit", stderr: "inherit"});
+  if (await child.exited !== 0) throw new Error("Workspace helper build failed");
+  console.log("[workspace-helper] ready");
+}
+
+function scheduleWorkspaceHelperBuild(changed: string): void {
+  rememberRestartReason("workspace helper changed", changed);
+  clearTimeout(workspaceHelperTimer);
+  workspaceHelperTimer = setTimeout(() => void (async () => { await buildWorkspaceHelper(); await restartServer(); })(), 250);
+}
+
 function watchRecursive(path: string, onChange: (changed: string) => void): void {
   watch(path, { recursive: true }, (_event, filename) => {
     const changed = filename ? resolve(path, filename.toString()) : path;
@@ -185,7 +201,19 @@ function startServer(): void {
   })();
 }
 
-async function restartServer(): Promise<void> {
+/** Restarts run one at a time, and requests made before a queued restart begins share it. Overlapping restarts would start two servers. */
+function restartServer(): Promise<void> {
+  if (!restartQueued) {
+    restartQueued = true;
+    restartQueue = restartQueue.then(() => {
+      restartQueued = false;
+      return restartServerOnce();
+    });
+  }
+  return restartQueue;
+}
+
+async function restartServerOnce(): Promise<void> {
   const why = describeRestartReasons();
   if (!server) {
     console.log(`[server] starting (${why})`);
@@ -228,6 +256,7 @@ process.on("SIGTERM", shutdown);
 
 await Bun.write(devReloadFile, `${JSON.stringify({ revision: browserReloadRevision })}\n`);
 await runBuild(true);
+await buildWorkspaceHelper();
 await ensureWorkspaceImage();
 
 watchRecursive(resolve(cwd, "src/client"), () => scheduleBuild(false));
@@ -237,6 +266,8 @@ watchRecursive(resolve(cwd, "src/server"), (changed) => {
   else scheduleServerRestart("server source changed", changed);
 });
 watchRecursive(resolve(repoRoot, "packages"), (changed) => {
+  const rel = packageRelativePath(changed);
+  if (rel?.startsWith(`workspace-helper${sep}helper${sep}`) || rel?.startsWith(`workspace-helper${sep}proto${sep}`)) scheduleWorkspaceHelperBuild(changed);
   if (isWorkspaceImageInputChange(changed)) scheduleWorkspaceImageEnsure();
   if (isPackageRuntimeChange(changed)) scheduleBuildThenServerRestart("shared package runtime changed", changed);
 });

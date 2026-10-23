@@ -13,13 +13,9 @@ export function registerAgentEvents(events: KintsugiEventBus): void {
   configureDurableOwnerEvents(events);
   events.on("kintsugi_host_stopping", stopWorkspaceAgentRuntimes);
   events.on("workspace_suspending", ({ workspaceId }) => suspendWorkspaceAgentRuntimes(workspaceId));
-  events.on("workspace_runtime_ready", ({ workspaceId }) => resumeInterruptedAgentSessions([{ id: workspaceId, parked: false }], events));
+  // Runs after host start too, once the helper has been refreshed and the workspace prepared.
+  events.on("workspace_runtime_ready", ({ workspaceId }) => resumeInterruptedAgentSessions(workspaceId, events));
   events.on("workspace_deleting", ({ workspaceId }) => removeWorkspaceAgentRuntimes(workspaceId));
-  events.on("kintsugi_host_started", ({ workspaces }) => {
-    void resumeInterruptedAgentSessions(workspaces, events).catch((error) => {
-      console.error("Could not inspect interrupted Agent sessions after Kintsugi restarted", error);
-    });
-  });
   events.on("workspace_created", async ({ workspaceId, context }) => {
     const agentContext = context?.agent;
     if (!agentContext || (agentContext.agentTypeId && agentContext.agentTypeId !== "builtin")) return;

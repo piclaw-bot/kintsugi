@@ -10,15 +10,14 @@ describe("Kintsugi syntax highlighting", () => {
     expect(result.html).toContain("syntax-keyword");
     expect(highlightCodeHtml({ code: "// meaning", language: "typescript" }).html).toContain("syntax-comment");
   });
-  test("highlights Ruby embedded in HTML templates", () => {
+  test("highlights HTML templates as HTML", () => {
     expect(languageFromPath("app/views/users/show.html.erb")).toBe("erb");
     expect(languageFromPath("app/views/users/show.rhtml")).toBe("erb");
     const result = highlightCodeHtml({
       code: "<% if user.admin? %><strong><%= user.name %></strong><% end %>",
       language: "erb",
     });
-    expect(result.language).toBe("erb");
-    expect(result.html).toContain("syntax-keyword");
+    expect(result.language).toBe("html");
     expect(result.html).toContain("syntax-tag");
   });
 

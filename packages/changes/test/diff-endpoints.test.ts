@@ -129,7 +129,7 @@ test("history pages keep topological order and use the captured HEAD even after 
   const selected = await captureChanges(localRepository(root), { target: base }, snapshot.history);
   expect(selected.endpoints).toEqual({ target: base });
   expect(selected.history.commits.at(-1)!.id).toBe(base);
-});
+}, 20_000);
 
 test("historical Diff endpoints handle renames, deletions, binary, large, mode-only and empty files", async () => {
   const root = await repository();

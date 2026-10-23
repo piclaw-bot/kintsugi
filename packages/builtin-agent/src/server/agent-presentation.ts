@@ -9,7 +9,7 @@ import type { DurableAgentController } from "./durable-runtime.ts";
 import { DurableAgentPresentation } from "./durable-presentation.ts";
 import { enabledModelOptionViews } from "@kintsugi/agent/server/model-state";
 import { renderWorkspaceCompletionCatalog } from "@kintsugi/agent/server/completion-catalog";
-import { renderNotice } from "./render-notice.ts";
+import { renderNotice, renderParkedWorkNotice } from "./render-notice.ts";
 import { ids } from "@kintsugi/agent/server/render-context";
 import { renderAgentPaneComposerFooter, renderPromptActions, type AgentStatsView } from "./render-composer.ts";
 import { notificationControlId, renderNotificationControl } from "./render-notification.ts";
@@ -22,6 +22,7 @@ export class AgentPresentation {
   readonly agentId: string;
   readonly label: string;
   readonly readOnly: boolean;
+  readonly jsonFinalAnswers: boolean;
   private presentation!: DurableAgentPresentation;
   private readonly transcriptListeners = new Map<AgentLivePresentationListener, { unsubscribe(): void }>();
   private unsubscribeWork!: () => void;
@@ -40,11 +41,14 @@ export class AgentPresentation {
   private readonly chrome = createLivePresentation(() => this.chromeRegions(), 50);
   private chromeRegions(): LiveRegion[] {
     return [
-      { target: ids.actions(this), html: renderPromptActions(this, this.isStreaming, this.controller.hasStoppableWork) },
+      { target: ids.actions(this), html: renderPromptActions(this, this.isStreaming, this.controller.hasStoppableWork, "followUp") },
       { target: ids.stats(this), html: renderAgentPaneComposerFooter(this, this.stats()), morph: false },
       { target: ids.completionCatalog(this), html: this.catalog },
       { target: notificationControlId(this), html: renderNotificationControl(this, this.isStreaming), action: "replace" },
-      ...(this.failure ? [{ target: ids.notices(this), html: renderNotice("error", "This Agent view disconnected. Reload to reconnect.") }] : []),
+      { target: ids.notices(this), html: [
+        this.failure ? renderNotice("error", "This Agent view disconnected. Reload to reconnect.") : "",
+        this.controller.hasParkedWork ? renderParkedWorkNotice(this) : "",
+      ].join("") },
     ];
   }
 
@@ -53,11 +57,16 @@ export class AgentPresentation {
     this.agentId = agent.agentId;
     this.label = agent.label;
     this.readOnly = controller.readOnly;
+    this.jsonFinalAnswers = Boolean(agent.oneShot);
   }
   static async create(agent: WorkspaceAgentInfo, controller: DurableAgentController) {
     const runtime = new AgentPresentation(agent, controller, await createPiModelRuntime());
     try {
-      runtime.presentation = await DurableAgentPresentation.attach(controller, { ...agent, branchId: String(controller.id) }, BACKGROUND_CONTEXT, () => runtime.committed());
+      runtime.presentation = await DurableAgentPresentation.attach(controller, {
+        ...agent, branchId: String(controller.id), jsonFinalAnswers: runtime.jsonFinalAnswers,
+        // A one-shot agent takes no input but still runs live; only imported histories render as snapshots.
+        readOnly: agent.readOnly && !agent.oneShot,
+      }, BACKGROUND_CONTEXT, () => runtime.committed());
       runtime.unsubscribeWork = controller.subscribeWork(() => runtime.chrome.invalidate());
       runtime.unsubscribeUsage = controller.subscribeUsage(() => { void runtime.refreshUsage().catch(error => console.error("Could not refresh descendant usage", error)); });
       await runtime.refreshUsage();
@@ -86,7 +95,7 @@ export class AgentPresentation {
   private async attachSelectedBranch() {
     if (this.disposed) return;
     const previous = this.presentation;
-    const next = await DurableAgentPresentation.attach(this.controller, { workspaceId: this.workspaceId, agentId: this.agentId, branchId: String(this.controller.id) }, BACKGROUND_CONTEXT, () => this.committed());
+    const next = await DurableAgentPresentation.attach(this.controller, { workspaceId: this.workspaceId, agentId: this.agentId, branchId: String(this.controller.id), jsonFinalAnswers: this.jsonFinalAnswers }, BACKGROUND_CONTEXT, () => this.committed());
     if (this.disposed) { await next.dispose(); return; }
     this.presentation = next;
     this.observePresentation();

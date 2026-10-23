@@ -3,8 +3,8 @@ import { createHash } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { runDocker, waitForCommand, commandSignal, workloadCgroupArgs, shellQuote, type KintsugiEventBus } from "@kintsugi/core";
-import { runHostObservableCommand, tailTerminalText } from "@kintsugi/observable-terminal/server";
-import { errorMessage } from "@kintsugi/shared";
+import { appTerminalProcesses, runTerminalProcess, tailTerminalOutput, tailTerminalText, terminalOutputDisplayBytes } from "@kintsugi/observable-terminal/server";
+import { appTerminalProcessSocketPath } from "@kintsugi/observable-terminal/shared";
 import { type WorkspaceImageMetadata } from "./metadata.ts";
 import { ensureGeneratedDefaultWorkspaceImage, prepareDefaultWorkspaceImage } from "./default-image.ts";
 export { ensureGeneratedDefaultWorkspaceImage, prepareDefaultWorkspaceImage } from "./default-image.ts";
@@ -19,8 +19,10 @@ interface WorkspaceImageBuildTask {
   tag: string;
   owner?: string;
   modules: string[];
+  /** The build's output once finished, with its terminal colors. */
   output: string;
-  session?: string;
+  /** Where to watch the build while it runs. */
+  terminalSocketPath?: string;
   promise: Promise<void>;
 }
 
@@ -32,7 +34,6 @@ interface ResolveWorkspaceImageOptions {
   buildOutput?: "inherit";
 }
 
-const maxBuildOutputChars = 64 * 1024;
 const buildTasks = new Map<string, WorkspaceImageBuildTask>();
 const defaultImageRefFile = new URL("../../../.kintsugi-default-workspace-image", import.meta.url);
 
@@ -60,7 +61,7 @@ async function reportImageProgress(events: KintsugiEventBus | undefined, workspa
     workspaceId,
     detail: `Image: ${task.tag}${task.modules.length ? ` · Modules: ${task.modules.join(", ")}` : ""}`,
     output: task.output,
-    terminalSession: task.session,
+    terminalSocketPath: task.terminalSocketPath,
   });
 }
 
@@ -97,17 +98,16 @@ function startBuildTask(metadata: WorkspaceImageMetadata, source: WorkspaceImage
         const exitCode = await proc.exited;
         if (exitCode !== 0) throw new Error(`docker build failed with exit code ${exitCode}`);
       } else {
-        const result = await runHostObservableCommand({
-          session: `kintsugi-provision-image-${crypto.randomUUID().slice(0, 8)}`,
+        const result = await runTerminalProcess(appTerminalProcesses(), {
           cwd: contextDir,
           command: `echo "Starting Docker image build..."\nDOCKER_BUILDKIT=1 ${[...dockerCommand, ...args].map(shellQuote).join(" ")}`,
-          onSessionStarted: async (session) => {
-            task.session = session;
-            await reportImageProgress(options.events, options.workspaceId, task);
-          },
+        }, async (id) => {
+          task.terminalSocketPath = appTerminalProcessSocketPath(id);
+          await reportImageProgress(options.events, options.workspaceId, task);
         });
-        task.output = tailTerminalText(result.output.slice(-maxBuildOutputChars));
-        if (result.exitCode !== 0) throw new Error(`docker build failed with exit code ${result.exitCode}`);
+        task.terminalSocketPath = undefined;
+        task.output = tailTerminalOutput(result.output.ansi, terminalOutputDisplayBytes);
+        if (result.exitCode !== 0) throw new Error(`docker build failed with exit code ${result.exitCode}\n\n${tailTerminalText(result.output.text)}`);
       }
     };
     if (source.kind === "repository") await buildRepositoryImage(source.baseImage, tag, build);
@@ -126,9 +126,6 @@ async function waitForBuildTask(task: WorkspaceImageBuildTask, options: ResolveW
   try {
     if (task.owner === options.workspaceId) await task.promise;
     else await waitForCommand(task.promise);
-  } catch (error) {
-    const message = errorMessage(error);
-    throw new Error(`${message}\n\n${task.output}`.trim());
   } finally {
     if (!commandSignal()?.aborted) await reportImageProgress(options.events, options.workspaceId, task);
   }

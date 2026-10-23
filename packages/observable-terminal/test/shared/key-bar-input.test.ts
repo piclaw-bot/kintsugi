@@ -4,6 +4,7 @@ import { controlModifiedTerminalInput, terminalInputForAccessoryKey } from "../.
 describe("terminal mobile accessory keys", () => {
   test("maps each accessory key to terminal input", () => {
     expect(terminalInputForAccessoryKey("escape")).toBe("\x1b");
+    expect(terminalInputForAccessoryKey("tab")).toBe("\t");
     expect(terminalInputForAccessoryKey("up")).toBe("\x1b[A");
     expect(terminalInputForAccessoryKey("down")).toBe("\x1b[B");
     expect(terminalInputForAccessoryKey("left")).toBe("\x1b[D");

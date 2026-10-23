@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { parseWorkspaceFileTarget, workspaceFileOpenUrl } from "../src/file-target.ts";
+import { fileReferencesIn, parseFileReference, parseWorkspaceFileTarget, workspaceFileOpenUrl } from "../src/file-target.ts";
 
 test("file links use the neutral endpoint and retain path and cursor information", () => {
   const url = new URL(workspaceFileOpenUrl("work 1", "/tmp/a b#c%.ts", { line: 42, column: 3 }), "http://localhost");
@@ -24,4 +24,13 @@ test("invalid cursor positions are omitted", () => {
     expect(target.line).toBeUndefined();
     expect(target.column).toBeUndefined();
   }
+});
+
+test("file references are file-shaped paths with optional positions, in prose or on their own", () => {
+  expect([...fileReferencesIn("See src/a.ts:4:2 and (../b.md).")]).toEqual([
+    { path: "src/a.ts", line: 4, column: 2, start: 4, end: 16 },
+    { path: "../b.md", line: undefined, column: undefined, start: 22, end: 29 },
+  ]);
+  expect(parseFileReference("docs/todo.md:3")).toMatchObject({ path: "docs/todo.md", line: 3 });
+  for (const text of ["see a.ts", "Makefile", "a.ts()", "https://example.com/a.ts"]) expect(parseFileReference(text)).toBeUndefined();
 });

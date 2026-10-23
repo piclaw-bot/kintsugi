@@ -8,6 +8,7 @@ const terminalAccessoryButtons = [
   { key: "right", label: "→", ariaLabel: "Right arrow" },
   { key: "control", label: "Ctrl", ariaLabel: "Control for next keystroke" },
   { key: "escape", label: "Esc", ariaLabel: "Escape" },
+  { key: "tab", label: "Tab", ariaLabel: "Tab" },
 ] as const;
 
 export function renderTerminalKeyBar(controller: string): string {

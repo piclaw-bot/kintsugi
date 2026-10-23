@@ -52,6 +52,24 @@ TimeoutStopSec=30s
 [Install]
 WantedBy=multi-user.target
 `,
+    "kintsugi-helper.service": `[Unit]
+Description=Kintsugi workspace helper
+[Service]
+# The helper passes this environment on to the processes it runs.
+EnvironmentFile=/.kintsugi/environment
+WorkingDirectory=/work
+# Comes from the tools mount, so it matches the app rather than the image.
+ExecStart=/opt/kintsugi/bin/kintsugi-workspace-helper
+Restart=always
+RestartSec=1s
+# Processes the app started, such as servers, outlive a helper restart.
+KillMode=process
+# Those processes, agents included, count against this unit. systemd's default
+# is 15% of the workspace's process limit; the workloads cgroup is the budget.
+TasksMax=infinity
+[Install]
+WantedBy=multi-user.target
+`,
     "docker.socket": `[Unit]
 Description=Kintsugi Docker API socket
 [Socket]

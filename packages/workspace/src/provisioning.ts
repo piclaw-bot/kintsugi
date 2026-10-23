@@ -1,10 +1,12 @@
 import { KintsugiCoreError, invalidArguments, withCommandSignal, type KintsugiEventBus } from "@kintsugi/core";
-import { errorMessage, type WorkspaceProvisionRecovery } from "@kintsugi/shared";
+import { errorMessage, type WorkspaceProvisionFailurePolicy } from "@kintsugi/shared";
 
 export interface WorkspaceProvisionProgress {
   detail?: string;
+  /** The step's output so far, or once it finished; it may have terminal colors. */
   output?: string;
-  terminalSession?: string;
+  /** Where to watch the terminal process the step runs, while it runs. */
+  terminalSocketPath?: string;
 }
 export type WorkspaceProvisionStepStatus = "running" | "done" | "failed" | "warning";
 export interface WorkspaceProvisionStep extends WorkspaceProvisionProgress {
@@ -32,7 +34,7 @@ declare module "@kintsugi/core" {
 export interface WorkspaceProvisionRun {
   readonly signal: AbortSignal;
   step<T>(id: string, label: string, work: () => Promise<T> | T): Promise<T>;
-  step(id: string, label: string, work: () => Promise<void> | void, recovery: WorkspaceProvisionRecovery | undefined): Promise<void>;
+  step(id: string, label: string, work: () => Promise<void> | void, failurePolicy: WorkspaceProvisionFailurePolicy | undefined): Promise<void>;
   report(progress: WorkspaceProvisionProgress): void;
 }
 
@@ -42,7 +44,7 @@ export interface WorkspaceProvisioning {
   resume(workspaceId: string, action: "retry" | "continue"): string;
   delete(workspaceId: string): void;
   cancel(workspaceId: string): Promise<void>;
-  /** Stop admitting runs and wait for executing work; paused recovery is already idle. */
+  /** Stop admitting runs and wait for executing work; a paused failed step is already idle. */
   drain(): Promise<void>;
 }
 
@@ -58,7 +60,7 @@ interface ProvisioningState {
   pending?: { stepId: string; retryable: boolean; continuable: boolean; resolve(action: "retry" | "continue"): void };
 }
 
-/** Owns execution order, progress, and recovery. Consumers render snapshots, not event patches. */
+/** Owns execution order, progress, and failed-step decisions. Consumers render snapshots, not event patches. */
 export function createWorkspaceProvisioning(options: { events?: KintsugiEventBus; onChange?: (workspaceId: string) => void; stepTimeoutMs?: number } = {}): WorkspaceProvisioning {
   const runs = new Map<string, ProvisioningState>();
   const executing = new Set<ProvisioningState>();
@@ -128,7 +130,7 @@ export function createWorkspaceProvisioning(options: { events?: KintsugiEventBus
           Object.assign(active, progress);
           changed();
         },
-        async step<T>(id: string, label: string, operation: () => Promise<T> | T, recovery?: WorkspaceProvisionRecovery): Promise<T> {
+        async step<T>(id: string, label: string, operation: () => Promise<T> | T, failurePolicy?: WorkspaceProvisionFailurePolicy): Promise<T> {
           checkCancelled();
           if (active) throw new Error("Provisioning steps must execute sequentially");
           if (state.steps.some((step) => step.id === id)) throw new Error(`Duplicate provisioning step: ${id}`);
@@ -158,12 +160,12 @@ export function createWorkspaceProvisioning(options: { events?: KintsugiEventBus
                 step.durationMs = Math.round(performance.now() - startedAt);
                 step.status = "failed";
                 step.error = errorMessage(error);
-                if (!recovery) {
+                if (!failurePolicy) {
                   changed();
                   throw error;
                 }
                 const pending = Promise.withResolvers<"retry" | "continue">();
-                state.pending = { stepId: id, retryable: recovery !== "continue", continuable: recovery !== "retry", resolve: pending.resolve };
+                state.pending = { stepId: id, retryable: failurePolicy !== "continue", continuable: failurePolicy !== "retry", resolve: pending.resolve };
                 state.idle.resolve();
                 changed();
                 const action = await pending.promise;
@@ -171,7 +173,7 @@ export function createWorkspaceProvisioning(options: { events?: KintsugiEventBus
                 if (action === "retry") continue;
                 step.status = "warning";
                 changed();
-                // SAFETY: The recovery overload returns void; only that overload can reach continuation.
+                // SAFETY: The failure-policy overload returns void; only that overload can reach continuation.
                 return undefined as T;
               }
             }

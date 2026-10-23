@@ -3,7 +3,7 @@ import { createObservableTerminalSocket, terminalSocketDimensions } from "@kints
 import type { WorkspaceServerSocketHandler } from "@kintsugi/shared";
 import { workspaceContainerName, workspaceRoot } from "@kintsugi/workspace";
 import { terminalIdFromViewKey } from "../shared.ts";
-import { listWorkspaceTerminals } from "./workspace-terminals.ts";
+import { tmuxSessionExists, listWorkspaceTerminals } from "./workspace-terminals.ts";
 
 export function createTerminalSocketHandler(): WorkspaceServerSocketHandler {
   return async (url) => {
@@ -14,6 +14,8 @@ export function createTerminalSocketHandler(): WorkspaceServerSocketHandler {
     if (!terminalId) return undefined;
     const terminal = (await listWorkspaceTerminals(workspaceId)).find((item) => item.id === terminalId);
     if (!terminal) throw new KintsugiCoreError("terminal_not_found", `terminal not found: ${terminalId}`);
+    // Terminal processes have their own route, for every kind of viewer.
+    if (terminal.sessionRelationship === "process") return undefined;
     return createObservableTerminalSocket({
       containerName: workspaceContainerName(workspaceId),
       session: terminal.tmuxSession,
@@ -22,6 +24,6 @@ export function createTerminalSocketHandler(): WorkspaceServerSocketHandler {
       ...terminalSocketDimensions(url),
       user: "agent",
       workdir: workspaceRoot,
-    });
+    }, { ended: async () => !(await tmuxSessionExists(workspaceId, terminal.tmuxSession)) });
   };
 }

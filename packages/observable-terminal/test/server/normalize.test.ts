@@ -10,12 +10,6 @@ describe("observable terminal normalization", () => {
     expect(normalized).not.toContain("1% (1/94)remote:");
   });
 
-  test("removes full and partial dead-pane markers", () => {
-    expect(stripObservablePaneFraming("ok\nPane is dead\n")).toBe("ok");
-    expect(stripObservablePaneFraming("ok\n\u001b[2mPane is dead\u001b[0m\r\n")).toBe("ok");
-    expect(stripObservablePaneFraming("ok\nPane is dea")).toBe("ok");
-  });
-
   test("strips terminal control sequences without leaking their final bytes", () => {
     expect(stripTerminalControls("\u001b[?1h\u001b=ok\u001b>")).toBe("ok");
     expect(stripTerminalControls("a\u001b[2Kb\u001b[39;49mc")).toBe("abc");
@@ -45,15 +39,6 @@ describe("observable terminal normalization", () => {
   test("read-only attachments do not configure scrollback", () => {
     const args = buildAttachArgs({ containerName: "kintsugi-ws", session: "s", cols: 80, rows: 24, readonly: true });
     expect(JSON.parse(args.at(-1)!).args).toEqual(["attach-session", "-r", "-t", "s"]);
-  });
-
-  test("builds fixed-size observable sessions", () => {
-    const command = buildObservableSessionCommand({ session: "s", cwd: "/work", command: "/bin/bash", fixedSize: true });
-    expect(command).not.toContain("set-option -g");
-    expect(command).toContain(`-x ${observableTerminalCols} -y ${observableTerminalRows}`);
-    expect(command).toContain("window-size manual");
-    expect(command).toContain(`resize-window -t 's' -x ${observableTerminalCols} -y ${observableTerminalRows}`);
-    expect(command).toContain("status off");
   });
 
   test("hides tmux dead-pane footer when panes remain on exit", () => {

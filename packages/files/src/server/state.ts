@@ -10,12 +10,16 @@ const filesViewSchema = Type.Object({
   column: Type.Optional(Type.Number()),
   // An optional field keeps Office views readable by older Files implementations.
   viewer: Type.Optional(Type.Literal("office")),
+  back: Type.Optional(Type.Array(Type.String({ pattern: "^/" }))),
+  forward: Type.Optional(Type.Array(Type.String({ pattern: "^/" }))),
 });
 const filesViewsSchema = Type.Array(filesViewSchema);
 
 export type FilesView = Static<typeof filesViewSchema>;
 export type FilesWorkViewReference = { type: "files"; id: string };
 export const defaultFilesViewId = "workspace";
+export type FilesHistoryDirection = "back" | "forward";
+const maxHistoryEntries = 50;
 const navigationRequests = new Map<string, string>();
 export function filesNavigationRequest(workspaceId: string, id: string): string { return navigationRequests.get(`${workspaceId}:${id}`) ?? ""; }
 
@@ -47,12 +51,42 @@ export function filesView(workspaceId: string, id: string): FilesView {
 export function setFilesViewFile(workspaceId: string, id: string, path?: string, position: { line?: number; column?: number } = {}): FilesView {
   const views = listFilesViews(workspaceId);
   const view = requireFilesView(views, id);
-  navigationRequests.set(`${workspaceId}:${id}`, crypto.randomUUID());
+  if (view.path && path && view.path !== path) {
+    view.back = [...(view.back ?? []), view.path].slice(-maxHistoryEntries);
+    view.forward = [];
+  }
+  showFile(workspaceId, view, path, position);
+  filesViews.write(workspaceId, views);
+  return view;
+}
+
+export function navigateFilesViewHistory(workspaceId: string, id: string, direction: FilesHistoryDirection): void {
+  const views = listFilesViews(workspaceId);
+  const view = requireFilesView(views, id);
+  const path = view[direction]?.pop();
+  if (!path) return;
+  const opposite = direction === "back" ? "forward" : "back";
+  if (view.path) view[opposite] = [...(view[opposite] ?? []), view.path].slice(-maxHistoryEntries);
+  showFile(workspaceId, view, path);
+  filesViews.write(workspaceId, views);
+}
+
+/** Drops a deleted file or folder from every Files view's history. */
+export function forgetFilesPath(workspaceId: string, path: string): void {
+  const views = listFilesViews(workspaceId);
+  const kept = (entry: string) => entry !== path && !entry.startsWith(`${path}/`);
+  for (const view of views) {
+    if (view.back) view.back = view.back.filter(kept);
+    if (view.forward) view.forward = view.forward.filter(kept);
+  }
+  filesViews.write(workspaceId, views);
+}
+
+function showFile(workspaceId: string, view: FilesView, path?: string, position: { line?: number; column?: number } = {}): void {
+  navigationRequests.set(`${workspaceId}:${view.id}`, crypto.randomUUID());
   view.path = path;
   view.line = position.line;
   view.column = position.column;
-  filesViews.write(workspaceId, views);
-  return view;
 }
 
 export function createFilesView(workspaceId: string): FilesView {

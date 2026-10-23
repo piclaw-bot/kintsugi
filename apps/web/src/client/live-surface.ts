@@ -119,10 +119,8 @@ class LiveSurfaceController extends Controller<HTMLElement> {
         pending?.resolve();
         subscription?.unsubscribe();
         if (this.kindValue === "workspace" && /^workspace (?:not found|not in registry):/.test(reason)) {
-          const workspaceId = this.workspaceValue;
           pending?.resolve();
           this.element.remove();
-          document.dispatchEvent(new CustomEvent("kintsugi:workspace-removed", { detail: { workspaceId } }));
           return;
         }
       },

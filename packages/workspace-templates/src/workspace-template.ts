@@ -8,7 +8,7 @@ import { Type, type Static } from "typebox";
 import { Value } from "typebox/value";
 import type { WorkspaceInitInstruction } from "@kintsugi/workspace";
 
-export type WorkspaceTemplateSummary = Omit<WorkspaceTemplateRecord, "secrets" | "sshKeys" | "sshKnownHosts" | "environment"> & {
+export type WorkspaceTemplateSummary = Omit<WorkspaceTemplateRecord, "secrets" | "sshKeys" | "sshKnownHosts" | "environment" | "privateNetworkAccess" | "changeBuckets"> & {
   configurationFingerprint?: string;
   /** Adding a template counts as using it, as does creating a workspace from it. */
   lastUsedAt?: number;
@@ -84,6 +84,8 @@ const configurationProperties = {
   sshKeys: Type.Optional(Type.Array(storedWorkspaceTemplateSshKeySchema)),
   sshKnownHosts: Type.Optional(Type.String()),
   environment: Type.Optional(Type.Array(workspaceTemplateEnvironmentVariableSchema)),
+  /** Change bucket lines as typed; absent means the defaults globally and none for a template. */
+  changeBuckets: Type.Optional(Type.String()),
 };
 
 const configurationRecordSchema = Type.Object(configurationProperties);

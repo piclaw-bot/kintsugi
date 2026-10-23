@@ -19,10 +19,11 @@ export const kintsugiClientModule: WorkspaceClientModule = {
     });
     application.register("native-terminal-text-input", createNativeTerminalTextInputController(Controller));
     application.register("cli-terminal", class extends createTerminalKeyBarController(Controller) {
-      static values = { url: String, workspaceId: String, agentId: String, transcriptChannel: String };
+      static values = { url: String, socket: String, workspaceId: String, agentId: String, transcriptChannel: String };
       static targets = ["terminal", "connectionStatus", "form", "input", "transcript", "transcriptContent", "transcriptEnd"];
       declare readonly element: HTMLElement;
       declare readonly urlValue: string;
+      declare readonly socketValue: string;
       declare readonly workspaceIdValue: string;
       declare readonly agentIdValue: string;
       declare readonly transcriptChannelValue: string;
@@ -87,26 +88,34 @@ export const kintsugiClientModule: WorkspaceClientModule = {
         this.resize.observe(stage);
         this.frame.update();
         this.viewer = createObservableTerminalViewer({
-          host: this.terminalTarget, mode: "interactive", websocketUrl: observableWebSocketUrl(`${this.urlValue}/ws`), hideUnfocusedCursor: true,
+          host: this.terminalTarget, mode: "interactive", websocketUrl: observableWebSocketUrl(this.socketValue), hideUnfocusedCursor: true,
           theme: kintsugiObservableTerminalTheme(),
           connectionStatus: this.connectionStatusTarget,
           transformInput: (data) => this.transformAccessoryInput(data),
           nativeTextInput: true,
-          onConnectionStateChange: (state) => { this.connected = state === "connected"; },
+          onConnectionStateChange: (state) => {
+            this.connected = state === "connected";
+            // The server shows why the CLI ended, and stops offering the composer.
+            if (state === "ended") this.visitStream(`${this.urlValue}/tab`);
+          },
           onLink: (link) => {
             if ("url" in link) {
               window.open(link.url, "_blank", "noopener,noreferrer");
               return;
             }
-            const anchor = document.createElement("a");
-            anchor.href = `${workspaceFileOpenUrl(this.workspaceIdValue, link.path, { line: link.line, column: link.column })}&existing=1`;
-            anchor.dataset.turboStream = "true";
-            anchor.hidden = true;
-            this.element.append(anchor);
-            anchor.click();
-            anchor.remove();
+            this.visitStream(`${workspaceFileOpenUrl(this.workspaceIdValue, link.path, { line: link.line, column: link.column })}&existing=1`);
           },
         });
+      }
+      /** Follows a link whose response is a Turbo Stream. */
+      private visitStream(href: string): void {
+        const anchor = document.createElement("a");
+        anchor.href = href;
+        anchor.dataset.turboStream = "true";
+        anchor.hidden = true;
+        this.element.append(anchor);
+        anchor.click();
+        anchor.remove();
       }
       disconnect(): void {
         terminals.delete(this);

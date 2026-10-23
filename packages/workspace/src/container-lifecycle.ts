@@ -16,7 +16,7 @@ const checkpointSchema = Type.Object({
 }, { additionalProperties: false });
 
 /** Configuration is committed before the first start. Recovery replays only file
- * copies, never plan preparation or repository hooks. Runtime readiness is checked
+ * copies, never plan preparation or repository hooks. Runtime preparation runs
  * after every start, independently of the configuration checkpoint. */
 export function createWorkspaceContainerLifecycle(options: {
   directory: string;
@@ -24,6 +24,7 @@ export function createWorkspaceContainerLifecycle(options: {
   checkpointRequired: boolean;
   waitForStartup(): Promise<string>;
   beforeStart?(): Promise<void>;
+  started?(): Promise<void>;
   docker?: typeof requireDocker;
 }) {
   const docker = options.docker ?? requireDocker;
@@ -53,6 +54,7 @@ export function createWorkspaceContainerLifecycle(options: {
           // Existing workspaces predate checkpoints; preserve their normal start path.
           await options.beforeStart?.();
           await docker(["start", options.container]);
+          await options.started?.();
           return "";
         }
         const checkpoint = Value.Parse(checkpointSchema, JSON.parse(text));
@@ -63,6 +65,7 @@ export function createWorkspaceContainerLifecycle(options: {
         }
         await options.beforeStart?.();
         await docker(["start", options.container]);
+        await options.started?.();
         return options.waitForStartup();
       });
     },

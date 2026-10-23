@@ -4,9 +4,9 @@ export function agentComposerTextStorageKey(workspaceId: string, agentId: string
   return `kintsugi.agentComposerText:${JSON.stringify([workspaceId, agentId])}`;
 }
 
-export function agentComposerPrimaryAction(busy: boolean, text: string, attachmentCount: number, hasStoppableWork = busy): "abort" | "send" | "steer" {
+export function agentComposerPrimaryAction(busy: boolean, text: string, attachmentCount: number, hasStoppableWork = busy, busyMode: "steer" | "followUp" = "steer"): "abort" | "send" | "steer" | "followUp" {
   if (hasStoppableWork && !text.trim() && attachmentCount === 0) return "abort";
-  return busy ? "steer" : "send";
+  return busy ? busyMode : "send";
 }
 
 type PromptHistoryState = { prompts: string[]; draft: string; index: number };

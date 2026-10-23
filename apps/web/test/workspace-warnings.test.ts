@@ -52,14 +52,14 @@ test("secrets without values produce no warnings, while annotations are live met
   expect(JSON.stringify(warnings)).not.toContain("never expose this");
 });
 
-test("legacy snapshots do not invent configuration drift; gateway and image issues remain independent", async () => {
+test("legacy snapshots do not invent configuration drift; gateway and image warnings remain independent", async () => {
   const { workspaceTemplate } = await addWorkspaceTemplate("https://github.com/org/example.git");
   const workspace = entry({ type: "project.git", projectId: workspaceTemplate.id, name: workspaceTemplate.name, gitUrl: workspaceTemplate.gitUrl, branch: null, sessionShareKey: workspaceTemplate.sessionShareKey });
   await createWorkspaceTemplateEnvironmentVariable(workspaceTemplate.id, { name: "REGION", value: "eu" });
   expect(await warningsFor(workspace)).toEqual([]);
   workspace.imageOutdated = true;
-  workspace.issues = [{ kind: "readiness", message: "Gateway unavailable" }, { kind: "image", message: "Image inspection failed" }];
-  expect((await warningsFor(workspace)).map((warning) => warning.kind)).toEqual(["readiness", "image"]);
+  workspace.warnings = [{ kind: "preparation", message: "Gateway unavailable" }, { kind: "image", message: "Image inspection failed" }];
+  expect((await warningsFor(workspace)).map((warning) => warning.kind)).toEqual(["preparation", "image"]);
 });
 
 

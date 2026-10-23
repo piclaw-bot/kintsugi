@@ -58,7 +58,7 @@ export function createChangesEditController(Controller: WorkspaceClientControlle
       this.element.addEventListener("changes-edit:guard", this.guardRequested, { signal });
       document.addEventListener("submit", this.beforeSubmit, { capture: true, signal });
       document.addEventListener("turbo:before-visit", this.beforeVisit, { signal });
-      document.addEventListener("workspace-residency:before-select", this.beforeWorkspaceSelection, { signal });
+      document.addEventListener("workspace-selection:before-select", this.beforeWorkspaceSelection, { signal });
       this.element.addEventListener("keydown", this.shortcut, { capture: true, signal });
       window.addEventListener("beforeunload", this.beforeUnload, { signal });
     }
@@ -101,8 +101,7 @@ export function createChangesEditController(Controller: WorkspaceClientControlle
       try {
         const data = new FormData(); data.set("snapshot", this.snapshotIdValue); data.set("path", path);
         // Load first so a failed editor import cannot abandon an acquired lease.
-        const [{ Editor }, { editorThemeCSS }, { parseDiffFromFile }] = await Promise.all([import("@pierre/diffs/edit"), import("@kintsugi/syntax/pierre"), import("@pierre/diffs")]);
-        const tokenCSS = await editorThemeCSS();
+        const [{ Editor }, { parseDiffFromFile }] = await Promise.all([import("@pierre/diffs/edit"), import("@pierre/diffs")]);
         const html = await this.request("begin", data);
         const document = new DOMParser().parseFromString(html, "text/html");
         // SAFETY: The begin endpoint emits our typed edit lease in an HTML data island.
@@ -117,7 +116,6 @@ export function createChangesEditController(Controller: WorkspaceClientControlle
         this.history.set(0, structuredClone(this.ranges));
         let focused = false;
         this.configure!({
-          unsafeCSS: tokenCSS,
           createEditor: (type, options, key) => new Editor(type, { ...options, onAttach: editor => {
             this.editor = editor;
             if (!focused) { focused = true; requestAnimationFrame(() => editor.focus({ lineNumber: model.contents ? "first-visible" : 1, preventScroll: true })); }
@@ -323,7 +321,7 @@ export function createChangesEditController(Controller: WorkspaceClientControlle
     private readonly beforeWorkspaceSelection = (event: Event): void => {
       if (!this.model) return;
       event.preventDefault();
-      // SAFETY: Workspace residency owns this continuation event.
+      // SAFETY: Workspace selection owns this continuation event.
       const resume = (event as CustomEvent<{ resume(): Promise<void> }>).detail.resume;
       this.guard(() => { void resume(); });
     };
@@ -334,7 +332,9 @@ export function createChangesEditController(Controller: WorkspaceClientControlle
       const path = decodeURIComponent(url.pathname);
       const closesChanges = path.startsWith(`/workspaces/${this.workspaceIdValue}/work-views/`) && path.endsWith("/close") && path.includes('"type":"changes"');
       const leavesWorkspace = path.startsWith(`/workspaces/${this.workspaceIdValue}/`) && /\/(park|delete)$/.test(path);
-      if (!closesChanges && !leavesWorkspace) return;
+      // Turbo submits commit links (`data-turbo-stream`) as forms; they replace this comparison.
+      const opensCommitLink = path === `/workspaces/${this.workspaceIdValue}/changes/open`;
+      if (!closesChanges && !leavesWorkspace && !opensCommitLink) return;
       event.preventDefault(); event.stopImmediatePropagation();
       // SAFETY: This listener handles native form submission events.
       const submitter = (event as SubmitEvent).submitter;

@@ -18,6 +18,7 @@
     "@kintsugi/design-system": "workspace:*",
     "@kintsugi/host": "workspace:*",
     "@kintsugi/workspace-templates": "workspace:*",
-    "@kintsugi/git-hosting": "workspace:*"
+    "@kintsugi/git-hosting": "workspace:*",
+    "@kintsugi/workspace-helper": "workspace:*"
   }
 }

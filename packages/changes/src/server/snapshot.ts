@@ -30,6 +30,8 @@ export interface ChangesSnapshot {
   baseLabel: string;
   target?: string;
   targetLabel: string;
+  /** Why the comparison a commit link asked for couldn't be shown. */
+  notice?: string;
 }
 export class InvalidDiffEndpoints extends Error {}
 
@@ -45,6 +47,20 @@ export async function commitHistory(root: Repository, history: ChangesHistory, s
   if (!history.tips.length) return { commits: [], hasMore: false };
   const commits = commitRecords(history, await git(root, ["log", "--topo-order", `--skip=${skip}`, `--max-count=${limit + 1}`, `--format=${commitFormat}`, ...history.tips, "--"]));
   return { commits: commits.slice(0, limit), hasMore: commits.length > limit };
+}
+
+/** Load history pages until each of these snapshots has a row, however deep it is. */
+export async function loadHistoryThrough(root: Repository, history: ChangesHistory, ids: readonly (string | null | undefined)[]): Promise<void> {
+  const commits = history.topology.filter(commit => commit.id !== workingTree && commit.id !== stagedChanges).map(commit => commit.id);
+  for (;;) {
+    // Commits outside the topology never get a row; don't page through all history looking for them.
+    const missing = ids.filter(id => id != null && !history.commits.some(commit => commit.id === id)).map(id => commits.indexOf(id!)).filter(row => row >= 0);
+    if (!missing.length || !history.hasMore) return;
+    const page = await commitHistory(root, history, history.loaded, Math.max(50, Math.max(...missing) + 1 - history.loaded));
+    history.commits.push(...page.commits);
+    history.loaded += page.commits.length;
+    history.hasMore = page.hasMore;
+  }
 }
 
 export async function captureHistory(root: Repository): Promise<ChangesHistory> {

@@ -47,9 +47,9 @@ describe("launch title generation", () => {
       const { app, registry } = createTestApp();
       const { workspace } = await (await app.fetch(postJson("/workspaces", { agent: { initialPrompt: "Build a calendar", model: "provider::model" } }))).json();
       await Bun.sleep(0);
-      expect(registry.get(workspace.id)?.issues).toEqual([{ kind: "naming", message: "Couldn't name this workspace (model authentication is not configured). You can name it with /name in the Kintsugi composer." }]);
+      expect(registry.get(workspace.id)?.warnings).toEqual([{ kind: "naming", message: "Couldn't name this workspace (model authentication is not configured). You can name it with /name in the Kintsugi composer." }]);
       registry.setTitle(workspace.id, "calendar");
-      expect(registry.get(workspace.id)?.issues).toBeUndefined();
+      expect(registry.get(workspace.id)?.warnings).toBeUndefined();
     } finally {
       prepare.mockRestore();
       name.mockRestore();

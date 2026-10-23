@@ -14,7 +14,9 @@ import { parseDiffFromFile, processPatch, type FileDiffMetadata } from "@pierre/
 import { diffStats, type DiffOperation } from "./diff.ts";
 import { embeddedBashCommand, formatBashCommandForDisplay, formatCodemodeScriptForDisplay, highlightedBashCommandHtml } from "./embedded-code.ts";
 import { domId, escapeHtml } from "@kintsugi/shared";
-import { isBashTool, formatCost, formatDuration, formatTokens, toolOutcomeLabel, type ToolView } from "./transcript.ts";
+import { terminalProcessSocketPath } from "@kintsugi/observable-terminal/shared";
+import { terminalOutputHtml } from "@kintsugi/observable-terminal/server";
+import { isBashTool, formatCost, formatDuration, formatTokens, toolOutcomeLabel, type ScriptFileView, type ToolView } from "./transcript.ts";
 import { agentPath, ids, sessionImageUrl, transcriptItemPath, type AgentRenderContext } from "./render-context.ts";
 import { codeBlockHtml, detailFullscreen, fullscreenAttributes, transcriptRowContent } from "./render-markup.ts";
 
@@ -214,9 +216,9 @@ function comparisonHeader(title: string, primaryLabel: string, secondaryLabel = 
 
 function renderBashResultViews(ctx: AgentRenderContext, key: string, tool: ToolView, count: number): string {
   const { display, model, same, resultWindow, modelWindow } = bashViews(tool, count);
-  const result = display ? `<pre class="agent-tool-result agent-tool-region-body agent-tool-ansi">${bashOutputHtml(resultWindow.text)}</pre>` : `<pre class="agent-tool-result agent-tool-region-body">${escapeHtml(resultWindow.text)}</pre>`;
+  const result = display ? `<pre class="agent-tool-result agent-tool-region-body agent-tool-ansi">${terminalOutputHtml(resultWindow.text)}</pre>` : `<pre class="agent-tool-result agent-tool-region-body">${escapeHtml(resultWindow.text)}</pre>`;
   const resultHtml = tailOutput(result, moreLink(ctx, key, count, resultWindow.hidden, "last"), "last");
-  const fullResult = display ? `<pre class="agent-tool-result agent-tool-region-body agent-tool-ansi">${bashOutputHtml(display)}</pre>` : `<pre class="agent-tool-result agent-tool-region-body">${escapeHtml(model || "(no output)")}</pre>`;
+  const fullResult = display ? `<pre class="agent-tool-result agent-tool-region-body agent-tool-ansi">${terminalOutputHtml(display)}</pre>` : `<pre class="agent-tool-result agent-tool-region-body">${escapeHtml(model || "(no output)")}</pre>`;
   if (same) return fullscreenSourceRegion("Result", `<section class="agent-tool-region agent-bash-output"><div class="agent-region-header">Result</div>${copyableToolBody(resultHtml, "result")}</section>`, fullResult);
   const modelHtml = tailOutput(`<pre class="agent-tool-result agent-tool-region-body">${escapeHtml(modelWindow.text)}</pre>`, moreLink(ctx, key, count, modelWindow.hidden, "last"), "last");
   return `<section class="agent-tool-region agent-bash-output">${comparisonHeader("Result", "As emitted")}<div class="agent-region-pane region-primary-pane">${fullscreenSourceRegion("Result", copyableToolBody(resultHtml, "colored result"), fullResult)}</div><div class="agent-region-pane region-model-pane">${fullscreenSourceRegion("As seen by model", copyableToolBody(modelHtml, "model result"), `<pre class="agent-tool-result agent-tool-region-body">${escapeHtml(model || "(no output)")}</pre>`)}</div></section>`;
@@ -249,7 +251,7 @@ function renderBashDetail(ctx: AgentRenderContext, key: string, tool: ToolView, 
   if (tool.status === "streaming") return `<div class="agent-tool-detail">${commandHtml}</div>`;
   if (tool.status === "running") {
     // The viewer owns its generated DOM and the awaiting-output visibility state.
-    const terminal = tool.tmuxSession ? `<section id="${domId(ids.item(ctx, key), "terminal", ctx.workspaceId, tool.tmuxSession)}" data-turbo-permanent class="agent-tool-region agent-bash-output agent-terminal-awaiting-output"><div class="agent-region-header">Live terminal</div><div class="agent-terminal-viewport"><div class="agent-tool-term observable-terminal-host" data-controller="agent-term" data-agent-term-workspace-id-value="${escapeHtml(ctx.workspaceId)}" data-agent-term-session-value="${escapeHtml(tool.tmuxSession)}"></div></div></section>` : "";
+    const terminal = tool.terminalProcessId ? `<section id="${domId(ids.item(ctx, key), "terminal", ctx.workspaceId, tool.terminalProcessId)}" data-turbo-permanent class="agent-tool-region agent-bash-output agent-terminal-awaiting-output"><div class="agent-region-header">Live terminal</div><div class="agent-terminal-viewport"><div class="agent-tool-term observable-terminal-host" data-controller="agent-term" data-agent-term-url-value="${escapeHtml(terminalProcessSocketPath(ctx.workspaceId, tool.terminalProcessId))}"></div></div></section>` : "";
     return `<div class="agent-tool-detail agent-bash-detail">${commandHtml}${terminal}</div>`;
   }
   return `<div class="agent-tool-detail agent-bash-detail">${commandHtml}${renderBashResultViews(ctx, key, tool, count)}</div>`;
@@ -307,11 +309,17 @@ function codemodeOutput(tool: ToolView): { text: string; wallMs?: number } {
   return header ? { text: text.slice(header[0].length).trim(), wallMs: Number(header[2]) * 1000 } : { text };
 }
 
+/** A script file as a call ran it: its path and the start of its contents' hash, like `/work/audit.js @ 3f9c2a1`. */
+function scriptFileLabel(file: ScriptFileView, path = file.path): string {
+  return `${path} @ ${file.sha256.slice(0, 7)}`;
+}
+
 function codemodeSummary(tool: ToolView): string {
   const calls = codemodeCalls(tool);
   const failed = calls.filter((call) => call.status === "error").length;
   const wallMs = tool.status === "ok" || tool.status === "error" ? codemodeOutput(tool).wallMs : undefined;
   return summaryHtml([
+    tool.scriptFile ? scriptFileLabel(tool.scriptFile, tool.scriptFile.path.split("/").at(-1)) : "",
     calls.length ? `${calls.length} tool ${calls.length === 1 ? "call" : "calls"}` : "",
     failed ? `${failed} failed` : "",
     wallMs === undefined ? "" : formatDuration(wallMs),
@@ -377,9 +385,11 @@ function outputHtml(output: string, textClass: string, codeClass: string): strin
  * the script streams its source does, and while it runs its calls do.
  */
 function renderCodemodeDetail(ctx: AgentRenderContext, key: string, tool: ToolView): string {
-  const code = stringArg(toolArgs(tool), "code") ?? "";
+  // A call naming a script file shows the file as the call ran it.
+  const code = tool.scriptFile?.code ?? stringArg(toolArgs(tool), "code") ?? "";
+  const scriptLabel = tool.scriptFile ? `Script · ${scriptFileLabel(tool.scriptFile)}` : "Script";
   // Like bash commands: keep the source layout while it streams, so lines do not jump.
-  const script = codemodeSectionHtml("agent-codemode-script", "Script", tool.status === "streaming",
+  const script = codemodeSectionHtml("agent-codemode-script", scriptLabel, tool.status === "streaming",
     `<div class="agent-tool-detail">${scriptSourceRegion(code, tool.status === "streaming" ? undefined : formatCodemodeScriptForDisplay(code))}</div>`);
   const calls = codemodeCalls(tool);
   const execution = calls.length ? codemodeSectionHtml("agent-codemode-execution", executionSummary(calls), tool.status === "running",
@@ -527,162 +537,6 @@ function toolResultImagesHtml(ctx: AgentRenderContext, tool: ToolView): string {
     const title = images.length === 1 ? baseTitle : `${baseTitle} ${index + 1}`;
     return `<img class="agent-media-img agent-tool-image"${fullscreenAttributes(title, "media")} src="${escapeHtml(sessionImageUrl(ctx, image))}" alt="${escapeHtml(title)}" loading="lazy">`;
   }).join("")}</div>`;
-}
-
-// Keep completed Bash output aligned with the same theme palette as its live terminal.
-const ansi16 = [
-  "var(--panel)", "var(--danger)", "var(--success)", "var(--warning)", "var(--accent)", "var(--decorative)", "var(--accent)", "var(--text-bright)",
-  "var(--line-strong)", "var(--danger)", "var(--success)", "var(--warning)", "var(--accent)", "var(--decorative)", "var(--accent)", "var(--text-bright)",
-];
-
-function ansi256(index: number): string | undefined {
-  if (index >= 0 && index < 16) return ansi16[index];
-  if (index >= 16 && index <= 231) {
-    const n = index - 16;
-    const r = Math.floor(n / 36);
-    const g = Math.floor((n % 36) / 6);
-    const b = n % 6;
-    const level = (v: number) => v === 0 ? 0 : 55 + v * 40;
-    return `rgb(${level(r)},${level(g)},${level(b)})`;
-  }
-  if (index >= 232 && index <= 255) {
-    const v = 8 + (index - 232) * 10;
-    return `rgb(${v},${v},${v})`;
-  }
-  return undefined;
-}
-
-interface AnsiStyle {
-  bold?: boolean;
-  italic?: boolean;
-  underline?: boolean;
-  fg?: string;
-  bg?: string;
-}
-
-function styleAttr(style: AnsiStyle): string {
-  const rules: string[] = [];
-  if (style.bold) rules.push("font-weight:700");
-  if (style.italic) rules.push("font-style:italic");
-  if (style.underline) rules.push("text-decoration:underline");
-  if (style.fg) rules.push(`color:${style.fg}`);
-  if (style.bg) rules.push(`background-color:${style.bg}`);
-  return rules.length ? ` style="${escapeHtml(rules.join(";"))}"` : "";
-}
-
-function ansiToHtml(text: string): string {
-  let html = "";
-  let style: AnsiStyle = {};
-  let open = false;
-  const close = () => {
-    if (open) html += "</span>";
-    open = false;
-  };
-  const openSpan = () => {
-    const attr = styleAttr(style);
-    if (attr) {
-      html += `<span${attr}>`;
-      open = true;
-    }
-  };
-  const setStyle = (next: typeof style) => {
-    close();
-    style = next;
-    openSpan();
-  };
-  for (let i = 0; i < text.length;) {
-    if (text[i] === "\x1b" && text[i + 1] === "]") {
-      const rest = text.slice(i + 2);
-      const bel = rest.indexOf("\x07");
-      const st = rest.indexOf("\x1b\\");
-      const end = bel >= 0 && (st < 0 || bel < st) ? bel + 3 : st >= 0 ? st + 4 : -1;
-      if (end >= 0) {
-        i += end;
-        continue;
-      }
-    }
-    if (text[i] === "\x1b" && /[=>78]/.test(text[i + 1] ?? "")) {
-      i += 2;
-      continue;
-    }
-    if (text[i] === "\x1b" && text[i + 1] === "[") {
-      const end = text.slice(i + 2).search(/[A-Za-z]/);
-      if (end >= 0) {
-        const final = text[i + 2 + end];
-        const raw = text.slice(i + 2, i + 2 + end);
-        i += end + 3;
-        if (final !== "m") continue;
-        const codes = raw === "" ? [0] : raw.split(";").map((part) => part === "" ? 0 : Number(part));
-        let next = { ...style };
-        for (let c = 0; c < codes.length; c++) {
-          const code = Number.isFinite(codes[c]) ? codes[c] : 0;
-          if (code === 0) next = {};
-          else if (code === 1) next.bold = true;
-          else if (code === 3) next.italic = true;
-          else if (code === 4) next.underline = true;
-          else if (code === 22) next.bold = false;
-          else if (code === 23) next.italic = false;
-          else if (code === 24) next.underline = false;
-          else if (code === 39) next.fg = undefined;
-          else if (code === 49) next.bg = undefined;
-          else if (code >= 30 && code <= 37) next.fg = ansi16[code - 30];
-          else if (code >= 90 && code <= 97) next.fg = ansi16[8 + code - 90];
-          else if (code >= 40 && code <= 47) next.bg = ansi16[code - 40];
-          else if (code >= 100 && code <= 107) next.bg = ansi16[8 + code - 100];
-          else if ((code === 38 || code === 48) && codes[c + 1] === 5) {
-            const color = ansi256(codes[c + 2]);
-            if (color && code === 38) next.fg = color;
-            if (color && code === 48) next.bg = color;
-            c += 2;
-          } else if ((code === 38 || code === 48) && codes[c + 1] === 2) {
-            const r = codes[c + 2], g = codes[c + 3], b = codes[c + 4];
-            if ([r, g, b].every((v) => Number.isFinite(v) && v >= 0 && v <= 255)) {
-              const color = `rgb(${r},${g},${b})`;
-              if (code === 38) next.fg = color;
-              else next.bg = color;
-            }
-            c += 4;
-          }
-        }
-        setStyle(next);
-        continue;
-      }
-    }
-    // Drop non-SGR terminal controls but keep newlines/tabs printable.
-    if (text.charCodeAt(i) < 32 && text[i] !== "\n" && text[i] !== "\t") {
-      i++;
-      continue;
-    }
-    html += escapeHtml(text[i]);
-    i++;
-  }
-  close();
-  return html;
-}
-
-function hasAnsiSgr(text: string): boolean {
-  return /\x1b\[[0-9;?]*m/.test(text);
-}
-
-function colorizePlainBuildOutput(text: string): string {
-  const lines = text.split("\n");
-  return lines.map((line) => {
-    const cmake = line.match(/^(\[\s*\d+%\])(\s*)((?:Built|Building|Linking|Generating|Scanning|Consolidate)\b[^:]*)(.*)$/);
-    if (cmake) {
-      return `<span style="color:var(--accent)">${escapeHtml(cmake[1])}</span>${escapeHtml(cmake[2])}<span style="color:var(--success)">${escapeHtml(cmake[3])}</span>${escapeHtml(cmake[4])}`;
-    }
-    const diagnostic = line.match(/^(.*?)(warning|error|fatal error|failed|FAILED)(:?.*)$/i);
-    if (diagnostic) {
-      const color = /warn/i.test(diagnostic[2]) ? "var(--warning)" : "var(--danger)";
-      return `${escapeHtml(diagnostic[1])}<span style="color:${color};font-weight:700">${escapeHtml(diagnostic[2])}</span>${escapeHtml(diagnostic[3])}`;
-    }
-    return escapeHtml(line);
-  }).join("\n");
-}
-
-function bashOutputHtml(text: string): string {
-  if (hasAnsiSgr(text)) return ansiToHtml(text);
-  return colorizePlainBuildOutput(text);
 }
 
 function getEditOperations(args: JsonObject | undefined): DiffOperation[] {

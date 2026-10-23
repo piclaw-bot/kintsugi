@@ -1,4 +1,5 @@
 import type { TerminalBufferRow } from "@gespenst/core";
+import { fileReferencesIn } from "@kintsugi/shared";
 
 export interface TerminalFileLink { path: string; line?: number; column?: number }
 export interface TerminalWebLink { url: string }
@@ -26,20 +27,13 @@ export function terminalUri(uri: string): TerminalLink | undefined {
 // Trailing sentence punctuation and closing brackets belong to the prose, not the URL.
 const webReference = /https?:\/\/[^\s<>"'`]+?(?=[.,;:!?)\]}'"`]*(?:$|[\s<>"'`]))/g;
 
-// File-shaped tokens only; OSC 8 is the unambiguous case. The open endpoint
-// verifies that a plain-text candidate actually names a file.
-const fileReference = /(?:^|[\s([`'"=])((?:\/|\.\.?\/)?(?:[^\s<>:"'`()[\]{},;!?/]+\/)*[^\s<>:"'`()[\]{},;!?/]+\.[a-zA-Z][\w+-]*)(?::(\d+)(?::(\d+))?)?(?=$|[\s.)\]}'"`,;!?])/g;
-
 export function terminalTextLinkAt(text: string, offset: number): TerminalLink | undefined {
   for (const match of text.matchAll(webReference)) {
     if (offset >= match.index && offset < match.index + match[0].length) return terminalUri(match[0]);
   }
-  for (const match of text.matchAll(fileReference)) {
-    const path = match[1]!;
-    const start = match.index + match[0].indexOf(path);
-    const end = start + path.length + (match[2] ? match[2].length + 1 : 0) + (match[3] ? match[3].length + 1 : 0);
-    if (offset < start || offset >= end) continue;
-    return { path, line: positive(match[2]), column: positive(match[3]) };
+  // OSC 8 is the unambiguous case; the open endpoint verifies that a plain-text reference names a file.
+  for (const { path, line, column, start, end } of fileReferencesIn(text)) {
+    if (offset >= start && offset < end) return { path, line, column };
   }
   return undefined;
 }

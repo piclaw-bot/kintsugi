@@ -1,3 +1,4 @@
+import { createAgentTermSocketSession } from "./bash-tool.ts";
 import { createCodeSearchTool, createCodeRewriteTool } from "./structural-code.ts";
 import { planWorkViews, planCommands, planPresentation, planLauncher, planChannel, planOpenApiPaths, handlePlanRequest } from "./plan-web.ts";
 import { agentPlanStore, createAgentPlanTool } from "./plan.ts";
@@ -7,7 +8,6 @@ import type { WorkspaceModule } from "@kintsugi/shared";
 import { observableTerminalStaticFiles } from "@kintsugi/observable-terminal/server";
 import { workspacePortBackend, type WorkspaceDockerMount, type WorkspaceInitInstruction } from "@kintsugi/workspace";
 import { mkdir } from "node:fs/promises";
-import { createAgentTermSocketSession } from "./bash-tmux.ts";
 import { sessionShareDir, sessionShareKeyForInit, sessionShareMountPath } from "./session-share.ts";
 import { createDeleteCurrentWorkspaceTool, registerWorkspaceAgentTool } from "./tools.ts";
 import { usageOpenApiPaths } from "./usage-openapi.ts";

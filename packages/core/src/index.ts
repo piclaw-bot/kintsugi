@@ -82,3 +82,5 @@ export {
   hasGitHubToken,
   setGitHubToken,
 } from "./github-token.ts";
+
+export { buildGoProgram, runGoTests } from "./go.ts";

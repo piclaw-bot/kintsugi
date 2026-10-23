@@ -4,19 +4,20 @@ import { renderWorkspaceCompletionCatalog } from "@kintsugi/agent/server/complet
 import { agentAttachmentDraftId, listStagedAttachments, renderComposerBody, renderFloatingStack, renderOpenComposerButton, agentComposerActions, composerAttachmentAttributes } from "@kintsugi/prompt/server";
 import { dictationComposerController } from "@kintsugi/dictation/server";
 import { observableTerminalStaticFiles, renderTerminalKeyBar, renderTerminalConnectionStatus } from "@kintsugi/observable-terminal/server";
-import { domId, escapeHtml, type WorkspaceModule } from "@kintsugi/shared";
+import { terminalProcessSocketPath } from "@kintsugi/observable-terminal/shared";
+import { domId, escapeHtml, turboStream, turboStreamResponse, type WorkspaceModule } from "@kintsugi/shared";
 import type { KintsugiEventBus } from "@kintsugi/core";
 import type { CliAgentAdapter } from "./adapter.ts";
-import { createCliAgents } from "./agents.ts";
-import { cliSocketHandler } from "./sockets.ts";
+import { createCliAgents, type CliAgentTerminal } from "./agents.ts";
 import { cliComposerRoutes } from "./composer-routes.ts";
 import { cliCompletionCatalogId, cliTranscriptAttributes, cliTranscriptChannel, cliTranscriptRoutes, renderCliTranscriptControls, renderCliTranscriptView } from "./transcript-routes.ts";
 
 export type { CliAgentConnection } from "@kintsugi/agent/server";
 export type { CliAgentSession } from "./adapter.ts";
 
-function terminalStatus(terminal: { ended: boolean; exitCode?: number }): string {
-  return terminal.ended ? `Session ended${terminal.exitCode ? ` (exit ${terminal.exitCode}). See terminal output for details.` : ""}` : "";
+function terminalStatus(terminal: CliAgentTerminal): string {
+  if (terminal.state === "starting" || terminal.state === "running") return "";
+  return terminal.state === "exited" && terminal.exitCode ? `Session ended (exit ${terminal.exitCode}). Its output is below.` : "Session ended";
 }
 
 /** One adapter supplies CLI policy; this module owns the complete terminal-agent lifecycle. */
@@ -27,6 +28,52 @@ export function createCliAgentModule(adapter: CliAgentAdapter): WorkspaceModule 
     if (workspaceNamed) await events.emit("workspace_title_changed", { workspaceId, title });
   });
   function failureStatus(error: string) { return `Could not start ${escapeHtml(adapter.label)}: ${escapeHtml(error)}`; }
+  async function renderTab(workspaceId: string, agentId: string): Promise<string> {
+    const session = await agents.ready(workspaceId, agentId);
+    const terminal = await agents.terminalState(workspaceId, session);
+    const url = `/workspaces/${encodeURIComponent(workspaceId)}/${adapter.id}-agents/${encodeURIComponent(agentId)}`;
+    const draftId = agentAttachmentDraftId(workspaceId, `${adapter.id}:${agentId}`);
+    const rowId = domId("cli_attach", workspaceId, agentId);
+    const composerUrl = `${url}/composer`;
+    const transcriptControls = renderCliTranscriptControls(adapter);
+    const running = terminal.state === "running";
+    const composer = running ? `<div class="composer cli-agent-composer" data-controller="agent-completions ${dictationComposerController}" data-action="agent-composer:send-prompt->cli-terminal#sendPrompt" data-agent-completions-url-value="${escapeHtml(composerUrl)}/completions" data-dictation-composer-workspace-id-value="${escapeHtml(workspaceId)}">
+      <div class="composer-surface">
+        <form id="${domId("cli_composer_form", workspaceId, agentId)}" method="post" action="${escapeHtml(composerUrl)}" data-turbo="false" data-cli-terminal-target="form" data-action="submit->dictation-composer#submit keydown->agent-completions#keydown submit->cli-terminal#submit">
+          ${renderComposerBody({
+            draft: { id: draftId, rowId, attachments: await listStagedAttachments(draftId) },
+            collapsible: true,
+            promptTemplateButtons: true,
+            inputHtml: `<textarea class="composer-input" name="text" rows="2" placeholder="Write your prompt here" aria-label="CLI agent prompt" data-controller="composer-send-hint" data-cli-terminal-target="input" data-agent-completions-target="input" data-action="input->agent-completions#input keydown->cli-terminal#inputKeydown paste->agent-attachments#paste"></textarea>`,
+          })}
+        </form>
+        <div class="agent-completion-menu-host" data-agent-completions-target="menu" hidden></div>
+        <div id="${cliCompletionCatalogId(workspaceId, agentId)}" data-agent-completions-target="catalog" hidden>${await renderWorkspaceCompletionCatalog(workspaceId, "cli")}</div>
+      </div>
+    </div>` : "";
+    // Permanent keeps a live terminal through page renders; an ended one has none, and must be replaceable.
+    return `<section id="${domId("cli_agent", workspaceId, agentId)}"${running ? " data-turbo-permanent" : ""} class="cli-agent-body agent-composer-pane" data-controller="cli-terminal agent-composer composer-focus${composer ? " agent-attachments" : ""}" data-agent-composer-open-on-select-value="false" data-cli-terminal-url-value="${escapeHtml(url)}" data-cli-terminal-socket-value="${escapeHtml(terminalProcessSocketPath(workspaceId, agentId))}" data-cli-terminal-workspace-id-value="${escapeHtml(workspaceId)}" ${cliTranscriptAttributes(adapter, agentId)} ${composerAttachmentAttributes(draftId, rowId, `kintsugi:workspace-pane-visible@window->cli-terminal#refresh kintsugi:workspace-agent-focus->cli-terminal#focus kintsugi:theme-change@document->cli-terminal#theme ${agentComposerActions}`)}>
+      <div class="cli-terminal-status" role="status">${session.error ? failureStatus(session.error) : terminalStatus(terminal)}</div>
+      <div class="cli-agent-stage">
+        ${running ? renderTerminalConnectionStatus("cli-terminal") : ""}
+        ${terminal.state === "exited" && terminal.output.text ? `<pre class="cli-terminal-output">${escapeHtml(terminal.output.text)}</pre>` : ""}
+        ${running ? '<div class="observable-terminal-host" data-cli-terminal-target="terminal" tabindex="0" data-action="pointerdown->cli-terminal#terminalPointer:capture pointermove->cli-terminal#terminalPointer:capture pointerup->cli-terminal#terminalPointer:capture terminal-text-input:input->cli-terminal#sendNativeInput keydown->cli-terminal#resumeInput:capture beforeinput->cli-terminal#resumeInput:capture touchstart->cli-terminal#startTerminalTouch:passive touchmove->cli-terminal#moveTerminalTouch:!passive touchcancel->cli-terminal#cancelTerminalTouch touchend->cli-terminal#finishTerminalTouch:!passive"></div>' : ""}
+        ${renderCliTranscriptView(adapter, workspaceId, agentId)}
+        ${renderFloatingStack({ openComposer: composer ? renderOpenComposerButton() : undefined, ...transcriptControls })}
+      </div>
+      ${running ? renderTerminalKeyBar("cli-terminal") : ""}
+      ${composer}
+    </section>`;
+  }
+
+  /** The tab again, once its terminal has ended under a viewer, so it can show why. */
+  async function tabRoute(request: Request, url: URL): Promise<Response | undefined> {
+    const match = url.pathname.match(/^\/workspaces\/([^/]+)\/([^/]+)-agents\/([^/]+)\/tab$/);
+    if (!match || match[2] !== adapter.id || request.method !== "GET") return undefined;
+    const workspaceId = decodeURIComponent(match[1]!);
+    const agentId = decodeURIComponent(match[3]!);
+    return turboStreamResponse(turboStream("replace", domId("cli_agent", workspaceId, agentId), await renderTab(workspaceId, agentId)));
+  }
   return {
     id: `${adapter.id}-agent`,
     staticFiles: {
@@ -39,7 +86,6 @@ export function createCliAgentModule(adapter: CliAgentAdapter): WorkspaceModule 
         const agent = agents.list(workspaceId).find(agent => agent.id === agentId);
         return agent ? { id: agent.id, title: agent.title } : undefined;
       });
-      context.registerSocketHandler(cliSocketHandler(adapter.id, agents));
       if (adapter.turnSettled) registerAgentTurnSettler(agents.settleTurn);
       context.events.on("workspace_agent_turn_finished", ({ workspaceId, agentId }) => {
         if (agents.list(workspaceId).some((session) => session.id === agentId)) {
@@ -55,7 +101,7 @@ export function createCliAgentModule(adapter: CliAgentAdapter): WorkspaceModule 
       });
     },
     cableChannels: adapter.loadTranscript ? [cliTranscriptChannel(adapter, agents)] : [],
-    routes: [{ handle: cliComposerRoutes(adapter.id, agents) }, { handle: cliTranscriptRoutes(adapter, agents) }],
+    routes: [{ handle: cliComposerRoutes(adapter.id, agents) }, { handle: cliTranscriptRoutes(adapter, agents) }, { handle: tabRoute }],
     agentType: {
       id: adapter.id, label: adapter.label, iconHtml: adapter.iconHtml,
       async create({ workspaceId }) {
@@ -64,40 +110,7 @@ export function createCliAgentModule(adapter: CliAgentAdapter): WorkspaceModule 
       },
       tabs: {
         async list({ workspaceId }) { return agents.list(workspaceId).map(({ id, title }) => ({ id, title })); },
-        async render({ workspaceId, agentId }) {
-          const session = await agents.ready(workspaceId, agentId);
-          const terminal = await agents.terminalState(workspaceId, session);
-          const url = `/workspaces/${encodeURIComponent(workspaceId)}/${adapter.id}-agents/${encodeURIComponent(agentId)}`;
-          const draftId = agentAttachmentDraftId(workspaceId, `${adapter.id}:${agentId}`);
-          const rowId = domId("cli_attach", workspaceId, agentId);
-          const composerUrl = `${url}/composer`;
-          const transcriptControls = renderCliTranscriptControls(adapter);
-          const composer = terminal.exists && !terminal.ended ? `<div class="composer cli-agent-composer" data-controller="agent-completions ${dictationComposerController}" data-action="agent-composer:send-prompt->cli-terminal#sendPrompt" data-agent-completions-url-value="${escapeHtml(composerUrl)}/completions" data-dictation-composer-workspace-id-value="${escapeHtml(workspaceId)}">
-            <div class="composer-surface">
-              <form id="${domId("cli_composer_form", workspaceId, agentId)}" method="post" action="${escapeHtml(composerUrl)}" data-turbo="false" data-cli-terminal-target="form" data-action="submit->dictation-composer#submit keydown->agent-completions#keydown submit->cli-terminal#submit">
-                ${renderComposerBody({
-                  draft: { id: draftId, rowId, attachments: await listStagedAttachments(draftId) },
-                  collapsible: true,
-                  promptTemplateButtons: true,
-                  inputHtml: `<textarea class="composer-input" name="text" rows="2" placeholder="Write your prompt here" aria-label="CLI agent prompt" data-controller="composer-send-hint" data-cli-terminal-target="input" data-agent-completions-target="input" data-action="input->agent-completions#input keydown->cli-terminal#inputKeydown paste->agent-attachments#paste"></textarea>`,
-                })}
-              </form>
-              <div class="agent-completion-menu-host" data-agent-completions-target="menu" hidden></div>
-              <div id="${cliCompletionCatalogId(workspaceId, agentId)}" data-agent-completions-target="catalog" hidden>${await renderWorkspaceCompletionCatalog(workspaceId, "cli")}</div>
-            </div>
-          </div>` : "";
-          return { html: `<section id="${domId("cli_agent", workspaceId, agentId)}" data-turbo-permanent class="cli-agent-body agent-composer-pane" data-controller="cli-terminal agent-composer composer-focus${composer ? " agent-attachments" : ""}" data-agent-composer-open-on-select-value="false" data-cli-terminal-url-value="${escapeHtml(url)}" data-cli-terminal-workspace-id-value="${escapeHtml(workspaceId)}" ${cliTranscriptAttributes(adapter, agentId)} ${composerAttachmentAttributes(draftId, rowId, `kintsugi:workspace-pane-visible@window->cli-terminal#refresh kintsugi:workspace-agent-focus->cli-terminal#focus kintsugi:theme-change@document->cli-terminal#theme ${agentComposerActions}`)}>
-            <div class="cli-terminal-status" role="status">${session.error ? failureStatus(session.error) : terminalStatus(terminal)}</div>
-            <div class="cli-agent-stage">
-              ${terminal.exists ? renderTerminalConnectionStatus("cli-terminal") : ""}
-              ${terminal.exists ? '<div class="observable-terminal-host" data-cli-terminal-target="terminal" tabindex="0" data-action="pointerdown->cli-terminal#terminalPointer:capture pointermove->cli-terminal#terminalPointer:capture pointerup->cli-terminal#terminalPointer:capture terminal-text-input:input->cli-terminal#sendNativeInput keydown->cli-terminal#resumeInput:capture beforeinput->cli-terminal#resumeInput:capture touchstart->cli-terminal#startTerminalTouch:passive touchmove->cli-terminal#moveTerminalTouch:!passive touchcancel->cli-terminal#cancelTerminalTouch touchend->cli-terminal#finishTerminalTouch:!passive"></div>' : ""}
-              ${renderCliTranscriptView(adapter, workspaceId, agentId)}
-              ${renderFloatingStack({ openComposer: composer ? renderOpenComposerButton() : undefined, ...transcriptControls })}
-            </div>
-            ${terminal.exists ? renderTerminalKeyBar("cli-terminal") : ""}
-            ${composer}
-          </section>` };
-        },
+        async render({ workspaceId, agentId }) { return { html: await renderTab(workspaceId, agentId) }; },
         close: ({ workspaceId, agentId }) => agents.close(workspaceId, agentId),
       },
       launch: {

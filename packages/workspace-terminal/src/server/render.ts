@@ -1,5 +1,6 @@
 import { buttonHtml } from "@kintsugi/design-system/button";
 import { renderTerminalConnectionStatus, renderTerminalKeyBar } from "@kintsugi/observable-terminal/server";
+import { terminalProcessSocketPath } from "@kintsugi/observable-terminal/shared";
 import { domId, escapeHtml } from "@kintsugi/shared";
 import { terminalViewKey } from "../shared.ts";
 import type { WorkspaceTerminal } from "./workspace-terminals.ts";
@@ -8,14 +9,14 @@ export function renderTerminalView(workspaceId: string, terminal: WorkspaceTermi
   const base = `/workspaces/${encodeURIComponent(workspaceId)}`;
   const action = (url: string, caption: string, variant: "primary" | "secondary") => `<form method="post" action="${escapeHtml(url)}" data-turbo="true">${buttonHtml({ type: "submit", variant, content: { kind: "caption", caption } })}</form>`;
   const ended = `<div class="terminal-ended" data-terminal-view-target="ended" hidden role="status" aria-live="polite">
-    <strong>This terminal session has ended</strong>
-    <p>The tmux session “${escapeHtml(terminal.tmuxSession)}” no longer exists.</p>
+    <strong>This terminal has ended</strong>
+    <p>${terminal.sessionRelationship === "process" ? "Its program has exited." : `The tmux session “${escapeHtml(terminal.tmuxSession)}” no longer exists.`}</p>
     <div class="terminal-ended-actions">
       ${action(`${base}/work-views/${encodeURIComponent(JSON.stringify({ type: "terminal", terminalId: terminal.id }))}/close`, "Close Terminal view", "secondary")}
     </div>
   </div>`;
   return `<section id="${domId("terminal_view", workspaceId, terminal.id)}" data-turbo-permanent class="terminal-work-view" data-work-view-source="${escapeHtml(terminalViewKey(terminal.id))}">
-    <div class="terminal-view" data-controller="terminal-view" data-action="kintsugi:theme-change@document->terminal-view#theme" data-terminal-view-workspace-id-value="${escapeHtml(workspaceId)}" data-terminal-view-id-value="${escapeHtml(terminal.id)}" data-terminal-id="${escapeHtml(terminal.id)}">
+    <div class="terminal-view" data-controller="terminal-view" data-action="kintsugi:theme-change@document->terminal-view#theme" data-terminal-view-url-value="${escapeHtml(terminal.sessionRelationship === "process" ? terminalProcessSocketPath(workspaceId, terminal.id) : `${base}/views/${encodeURIComponent(terminalViewKey(terminal.id))}/ws`)}" data-terminal-id="${escapeHtml(terminal.id)}">
       ${ended}
       <div class="terminal-stage" data-terminal-view-target="stage">
       ${renderTerminalConnectionStatus("terminal-view")}

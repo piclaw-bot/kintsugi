@@ -6,12 +6,12 @@ import { startNotificationTurn, finishNotificationTurn } from "./turn-notificati
 import { sendTurnNotification } from "./web-push.ts";
 import { durableTimingEntry } from "./durable-timing.ts";
 import { KintsugiCoreError } from "@kintsugi/core";
-import { checkWorkspaceReadiness } from "@kintsugi/workspace";
+import { prepareWorkspaceRuntime } from "@kintsugi/workspace";
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
-import { contentText, getSupportedThinkingLevels } from "@earendil-works/pi-ai";
-import { UserEntry, LiveDoc, InboxDoc, AgentDoc, UsageDoc, defineDoc, type Cursor, type EntryId, type EntryRecord, type EntryDraft, type AgentChange, type Conversation, type ConversationId, type ConversationView, type HarnessOptions, type LiveState } from "@earendil-works/pi-durable";
-import { createDurableHarnessOptions, prepareDurableAgent } from "./durable-assembly.ts";
-import { durableStopScope, commitDurableStop, markGatedDurableWork, settleStoppedDurableWork, WorkspaceAdmission, WorkspaceStops } from "./durable-lifecycle.ts";
+import { contentText, getSupportedThinkingLevels, type SimpleStreamOptions } from "@earendil-works/pi-ai";
+import { UserEntry, LiveDoc, InboxDoc, AgentDoc, UsageDoc, ProviderDoc, defineDoc, type Cursor, type EntryId, type EntryRecord, type EntryDraft, type AgentChange, type Conversation, type ConversationId, type ConversationView, type HarnessOptions, type LiveState } from "@earendil-works/pi-durable";
+import { createDurableHarnessOptions, prepareDurableAgent, type DurableHarnessOptions } from "./durable-assembly.ts";
+import { durableQueueResumeEntry, durableStopScope, commitDurableStop, markGatedDurableWork, settleStoppedDurableWork, WorkspaceAdmission, WorkspaceStops } from "./durable-lifecycle.ts";
 import { durableImageEndpoint } from "./durable-images.ts";
 import { submitDurableInput, type DurableInput } from "./durable-input.ts";
 import { openDurableWorkspace, WorkspaceAgents, type DurableAgentRecord } from "./durable-workspace.ts";
@@ -20,7 +20,7 @@ import type { WorkspaceAgentToolOptions } from "@kintsugi/agent/server/tools";
 
 const context = BACKGROUND_CONTEXT;
 const DurableHistoryLabels = defineDoc<{ labels: Record<string, string[]> }>({
-  kind: "kintsugi.history-labels", version: 1, scope: "session", initial: () => ({ labels: {} }),
+  kind: "kintsugi.history-labels", version: 1, scope: "session", initial: () => ({ labels: {} }), checkpointWhen: () => false,
 });
 type AgentIdentity = Omit<DurableAgentRecord, "durableId">;
 type SettingsChange = Pick<AgentChange, "model"> & { thinkingLevel?: string };
@@ -29,7 +29,7 @@ const dependencies = {
   harness: createDurableHarnessOptions,
   prepare: prepareDurableAgent,
   expand: expandWorkspaceSkillCommand,
-  ready: checkWorkspaceReadiness,
+  ready: prepareWorkspaceRuntime,
   async validateModel(ref: AgentChange["model"]) {
     const selected = ref && { provider: ref.provider, id: ref.modelId };
     const model = selected && (await enabledModelOptionViews(selected)).find(item => item.provider === selected.provider && item.id === selected.id);
@@ -49,7 +49,7 @@ export async function openDurableAgentRuntime(
   options: WorkspaceAgentToolOptions = {},
   load: typeof dependencies = dependencies,
 ) {
-  const harnessOptions: HarnessOptions = await load.harness(workspaceId, options, async (id, entry, context) => {
+  const harnessOptions: DurableHarnessOptions = await load.harness(workspaceId, options, async (id, entry, context) => {
     await workspace.harness.commit(async tx => { await tx.appendEntry(durableTimingEntry, id, entry); }, context);
   }, () => workspace.harness);
   const workspace = await openDurableWorkspace(directory, workspaceId, harnessOptions);
@@ -232,6 +232,13 @@ export async function openDurableAgentRuntime(
       await observe();
       await Promise.all([...selectionListeners].map(listener => listener()));
     }
+    function stopScope() {
+      return new Set(durableStopScope(catalogWatch!.value!.agents, conversation.id, !identity.parentId));
+    }
+    function parkedTasks() {
+      const scope = stopScope();
+      return Object.values(taskWatch.value.tasks).filter(task => scope.has(task.conversationId) && task.blocked === "restart_limit");
+    }
     function assertAdmission() {
       assertOpen();
       if (deleted) throw new Error("Durable workspace is deleted");
@@ -275,8 +282,20 @@ export async function openDurableAgentRuntime(
       subscribeStatus(listener: () => void) { statusListeners.add(listener); return () => { statusListeners.delete(listener); }; },
       settings: () => conversation.agent(context),
       get hasStoppableWork() {
-        const scope = new Set(durableStopScope(catalogWatch!.value!.agents, conversation.id, !identity.parentId));
+        const scope = stopScope();
         return Object.values(taskWatch.value.tasks).some(task => scope.has(task.conversationId) && task.kind !== "kintsugi.delegation-anchor");
+      },
+      /** Whether the crash-loop guard parked any of this Agent's work, after the app crashed in it again and again. */
+      get hasParkedWork() { return parkedTasks().length > 0; },
+      /** Run parked work again; Stop ends it instead. */
+      retryParkedWork() {
+        return command(async () => {
+          const parked = parkedTasks();
+          if (!parked.length) return false;
+          await readyForExecution();
+          for (const task of parked) await harness.retryTask(task.id, context);
+          return true;
+        });
       },
       subscribeWork(listener: () => void) { workListeners.add(listener); return () => { workListeners.delete(listener); }; },
       subscribeUsage(listener: () => void) { usageListeners.add(listener); return () => { usageListeners.delete(listener); }; },
@@ -414,8 +433,34 @@ export async function openDurableAgentRuntime(
       cancelQueuedInput(submissionId: string) {
         return command(async () => {
           const inbox = await harness.snapshot(InboxDoc, conversation.id, context);
-          const input = inbox?.items.find(item => String(item.id) === submissionId && item.mode === "steer");
+          const input = inbox?.items.find(item => String(item.id) === submissionId && item.mode !== "write");
           return input ? await harness.abortSubmission(input.id, context, conversation.id) === "aborted" : false;
+        });
+      },
+      /**
+       * Promote a queued follow-up to steering in place, keeping its submission and queue position. A turn that ends in
+       * an error leaves its queue behind on an idle agent; there, this resumes the queue from its start instead.
+       */
+      steerQueuedInput(submissionId: string) {
+        return command(async () => {
+          const outcome = await harness.commit(async tx => {
+            const input = (await tx.doc(InboxDoc, conversation.id)).items.find(item => String(item.id) === submissionId);
+            if (!input || input.mode === "write") return "gone";
+            // Steering on an idle agent would place this input ahead of older follow-ups.
+            if (!(await tx.doc(LiveDoc, conversation.id)).run) return "stranded";
+            if (input.mode !== "followUp") return "gone";
+            input.mode = "steer";
+            return "steered";
+          }, context);
+          if (outcome === "gone") return false;
+          if (outcome === "stranded") {
+            await load.validateModel((await conversation.agent(context)).model);
+            await readyForExecution();
+            assertAdmission();
+            // An idle conversation with queued items runs a boundary for the next submission, placing queued input in order.
+            await conversation.submit({ type: "write", entry: { kind: durableQueueResumeEntry.kind, model: [] } }, context);
+          }
+          return true;
         });
       },
       /** Cancel one live tool and its owned work, without withdrawing the turn or queued input. */

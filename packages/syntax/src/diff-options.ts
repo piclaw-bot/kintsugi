@@ -1,17 +1,22 @@
-export const kintsugiPierreTheme = "kintsugi";
+import { kintsugiThemeName } from "./theme.ts";
 
 const changedLineCSS = `[data-line-type="change-addition"], [data-line-type="change-deletion"] { --mix-light: 80%; --mix-dark: 80%; }`;
 export const wordDiffCSS = `[data-line-type="change-addition"] [data-diff-span] { background-color: color-mix(in srgb, var(--diffs-addition-base) 20%, transparent); } [data-line-type="change-deletion"] [data-diff-span] { background-color: color-mix(in srgb, var(--diffs-deletion-base) 20%, transparent); }`;
 const changesLayoutCSS = `[data-code] { padding-block: 0; overflow-x: auto; }`;
 
+/** How every Pierre surface highlights code: with Highlights, in the design system's syntax palette. */
+export const pierreHighlightOptions = {
+  preferredHighlighter: "highlights" as const,
+  theme: kintsugiThemeName,
+  themeType: "dark" as const,
+};
+
 function diffOptions(presentation: "changes" | "tool") {
   const changes = presentation === "changes";
   return {
-    preferredHighlighter: "shiki-wasm" as const,
-    theme: kintsugiPierreTheme,
-    themeType: "dark" as const,
+    ...pierreHighlightOptions,
     diffStyle: "unified" as const,
-    overflow: changes ? "wrap" as const : "scroll" as const,
+    overflow: "wrap" as const,
     disableLineNumbers: true,
     disableFileHeader: true,
     hunkSeparators: changes ? "line-info" as const : "simple" as const,

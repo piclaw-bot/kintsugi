@@ -1,7 +1,7 @@
 // @ts-expect-error Turbo ships no TypeScript declarations.
 import { visit } from "@hotwired/turbo";
 import { Controller } from "@hotwired/stimulus";
-import { residencyController } from "./workspace-controller-registry.ts";
+import { workspaceSelectionController } from "./workspace-controller-registry.ts";
 
 export function restoreAppSettingsDestination(): boolean {
   if (location.pathname !== "/settings") return false;
@@ -20,7 +20,7 @@ export class AppSettingsController extends Controller<HTMLElement> {
 
   connect(): void {
     this.opener = document.activeElement instanceof HTMLElement ? document.activeElement : undefined;
-    const workspaceId = residencyController()?.visibleWorkspaceId();
+    const workspaceId = workspaceSelectionController()?.visibleWorkspaceId();
     this.returnUrl = location.pathname.startsWith("/settings") ? workspaceId ? `/workspaces/${encodeURIComponent(workspaceId)}` : "/" : location.href;
     const workspace = document.getElementById("workspace_detail")!;
     workspace.inert = true;
@@ -32,7 +32,7 @@ export class AppSettingsController extends Controller<HTMLElement> {
     document.addEventListener("turbo:before-stream-render", this.beforeStreamRender);
     document.addEventListener("turbo:before-frame-render", this.beforeFrameRender);
     document.addEventListener("turbo:before-visit", this.beforeVisit);
-    document.addEventListener("workspace-residency:before-select", this.beforeSelection);
+    document.addEventListener("workspace-selection:before-select", this.beforeSelection);
     window.addEventListener("popstate", this.historyChanged);
     const content = this.frameTarget.querySelector<HTMLElement>("[data-app-settings-location]")!;
     const url = new URL(content.dataset.appSettingsLocation!, location.href).href;
@@ -46,7 +46,7 @@ export class AppSettingsController extends Controller<HTMLElement> {
     document.removeEventListener("turbo:before-stream-render", this.beforeStreamRender);
     document.removeEventListener("turbo:before-frame-render", this.beforeFrameRender);
     document.removeEventListener("turbo:before-visit", this.beforeVisit);
-    document.removeEventListener("workspace-residency:before-select", this.beforeSelection);
+    document.removeEventListener("workspace-selection:before-select", this.beforeSelection);
     window.removeEventListener("popstate", this.historyChanged);
     const workspace = document.getElementById("workspace_detail")!;
     workspace.inert = false;

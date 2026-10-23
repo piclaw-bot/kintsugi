@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { kintsugiFileHref, workspaceFileImageSrc } from "../src/kintsugi-markdown.ts";
+import { kintsugiFileHref, inlineCodeFileReference, workspaceFileImageSrc } from "../src/kintsugi-markdown.ts";
 
 function target(href: string, sourcePath?: string): URL | undefined {
   const resolved = kintsugiFileHref("workspace", href, sourcePath);
@@ -46,5 +46,14 @@ test("image proxy paths encode filenames and preserve query strings and SVG frag
 test("image file resolution leaves non-file URLs and invalid paths untouched", () => {
   for (const source of ["https://example.com/image.svg", "http://localhost:4000/image.svg", "//example.com/image.png", "data:image/png;base64,aGVsbG8=", "javascript:alert(1)", "file://remote/work/image.svg", "#diagram", "?v=2", "/work/%ZZ.svg", "/work/%00.svg"]) {
     expect(workspaceFileImageSrc("workspace", source)).toBeUndefined();
+  }
+});
+
+test("inline code file references resolve beside the document, then from the workspace", () => {
+  expect(inlineCodeFileReference("src/main.ts:12:3", "/work/docs/guide.md")).toMatchObject({ candidates: ["/work/docs/src/main.ts", "/work/src/main.ts"], line: 12, column: 3 });
+  expect(inlineCodeFileReference("README.md")?.candidates).toEqual(["/work/README.md"]);
+  expect(inlineCodeFileReference("/etc/app.conf")?.candidates).toEqual(["/etc/app.conf"]);
+  for (const code of ["npm install", "foo()", "--flag", "https://example.com/a.ts", "value", "...", "src/", "a = b.c"]) {
+    expect(inlineCodeFileReference(code)).toBeUndefined();
   }
 });

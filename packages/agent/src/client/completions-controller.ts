@@ -37,7 +37,7 @@ export function promptTemplateShortcutConflict(shortcut: string, commands: reado
 }
 
 function visibleWorkspaceCommands(): ShortcutCommand[] {
-  const presentation = document.querySelector<HTMLElement>(".workspace-detail-resident.visible .fixed-workspace-presentation")
+  const presentation = document.querySelector<HTMLElement>(".workspace-detail-mount.visible .fixed-workspace-presentation")
     ?? document.querySelector<HTMLElement>(".fixed-workspace-presentation");
   if (!presentation) return [];
   // SAFETY: The server serializes WorkspaceCommandRegistration values into this dataset.
@@ -50,7 +50,7 @@ function workspacePromptTemplateShortcutConflict(hooks: WorkspaceClientHooks, sh
 
 function activeAgentComposer(): HTMLElement | undefined {
   return [...document.querySelectorAll<HTMLElement>('[data-workspace-pane-role="agent"].is-active .composer[data-controller~="agent-completions"]')]
-    .find((composer) => composer.closest(".workspace-detail-resident")?.classList.contains("visible") ?? true);
+    .find((composer) => composer.closest(".workspace-detail-mount")?.classList.contains("visible") ?? true);
 }
 
 // Prompt templates with shortcuts are workspace shortcuts aimed at the active Agent,

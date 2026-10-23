@@ -24,6 +24,7 @@ export const Icons = {
   Disclosure: '<svg class="disclosure-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg>',
   Exclamation: iconHtml('<path d="M12 4v10"/><circle cx="12" cy="19" r="1" fill="currentColor" stroke="none"/>'),
   ExpandAll: iconHtml('<path d="M7 9l5-5 5 5M7 15l5 5 5-5"/>'),
+  Forward: iconHtml('<path d="m9 18 6-6-6-6"/>'),
   Files: iconHtml('<path d="M4 5h6l2 2h8v12H4z"/>'),
   Keyboard: iconHtml('<rect x="2" y="5" width="20" height="14" rx="2"/><path d="M6 9h.01M10 9h.01M14 9h.01M18 9h.01M6 12h.01M10 12h.01M14 12h.01M18 12h.01M7 16h10"/>'),
   More: iconHtml('<circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/>'),

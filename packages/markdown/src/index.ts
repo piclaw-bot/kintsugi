@@ -1,5 +1,5 @@
 export { registerMarkdownEmbed, type MarkdownEmbedContext } from "./embeds.ts";
-export { renderMarkdown } from "./markdown.ts";
+export { markdownFileReferenceCandidates, renderMarkdown } from "./markdown.ts";
 export {
   StreamingMarkdownRenderer,
   renderStreamingMarkdownSnapshot,

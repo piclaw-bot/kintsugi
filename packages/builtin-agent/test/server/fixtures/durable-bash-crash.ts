@@ -5,10 +5,11 @@ import { createModels, fauxAssistantMessage, fauxProvider, fauxToolCall } from "
 import { createRegistry } from "@earendil-works/pi-durable";
 import { createDurableBashExtension } from "../../../src/server/durable-bash.ts";
 import { openDurableWorkspace } from "../../../src/server/durable-workspace.ts";
-import { localBashOperations } from "./bash-operations.ts";
+import { terminalProcessesIn } from "../../../../observable-terminal/test/support/local-terminal-processes.ts";
 
-const [path, socket] = process.argv.slice(2);
-const operations = localBashOperations(join(path!, "receipts"), socket!);
+/** Hangs around the first start, for the test to SIGKILL: before the command starts, or after. */
+const [path, moment] = process.argv.slice(2);
+const processes = terminalProcessesIn(path!);
 const models = createModels();
 const faux = fauxProvider({ tokensPerSecond: 100_000 });
 models.setProvider(faux.provider);
@@ -16,14 +17,13 @@ faux.setResponses([fauxAssistantMessage([fauxToolCall("bash", {
   command: `echo once >> ${shellQuote(join(path!, "count"))}; sleep 1; echo recovered`, timeout: 10,
 })], { stopReason: "toolUse" })]);
 const registry = createRegistry();
-registry.install(createDurableBashExtension("workspace", async (...args) => {
-  const result = await operations(...args);
-  if (args[0] === "ensure") {
-    // Die after workspace admission, before the host receives its launch receipt.
-    process.stdout.write("launched\n");
+registry.install(createDurableBashExtension("workspace", {
+  ...processes,
+  async start(options) {
+    if (moment === "after-start") await processes.start(options);
+    process.stdout.write("crash now\n");
     await new Promise(() => {});
-  }
-  return result;
+  },
 }));
 const workspace = await openDurableWorkspace(join(path!, "journal"), "workspace", { models, registry });
 const conversation = await workspace.agent({ agentId: "tab", label: "Agent 1", title: "Bash recovery" }, { model: { provider: "faux", modelId: "faux-1" } });

@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { isGitWorkspaceTemplateInit, workspaceTemplateIdFromInit, type WorkspaceTemplateConfiguration } from "@kintsugi/workspace-templates";
-import type { WorkspaceEntry, WorkspaceIssueKind } from "./workspace-registry.ts";
+import type { WorkspaceEntry, WorkspaceWarningKind } from "./workspace-registry.ts";
 
 export interface WorkspaceWarning {
   kind: string;
@@ -10,12 +10,14 @@ export interface WorkspaceWarning {
   action?: { href: string; caption: string };
 }
 
-const issueTitles = {
-  readiness: "Workspace preparation needs attention",
+export const outdatedImageMessage = "New workspaces get a newer image, after an Kintsugi update or a Dockerfile change. Make a new workspace to use it.";
+
+const warningTitles = {
+  preparation: "Workspace preparation needs attention",
   image: "Workspace image needs attention",
   // The naming message explains itself; a title would only add height.
   naming: undefined,
-} satisfies Record<WorkspaceIssueKind, string | undefined>;
+} satisfies Record<WorkspaceWarningKind, string | undefined>;
 
 /** Current warning conditions. Stable state tokens scope acknowledgement to the specific problem. */
 export function workspaceWarnings(entry: WorkspaceEntry, workspaceTemplate: WorkspaceTemplateConfiguration | undefined): WorkspaceWarning[] {
@@ -33,7 +35,7 @@ export function workspaceWarnings(entry: WorkspaceEntry, workspaceTemplate: Work
       add("project-settings-changed", "Template settings have changed", "Secrets and SSH keys already apply to this workspace. Other changes only apply to new workspaces.", configuration.configurationFingerprint!, { href: `/workspace-templates/${encodeURIComponent(workspaceTemplateId)}/settings`, caption: "Template settings" });
     }
   }
-  for (const issue of entry.issues ?? []) add(issue.kind, issueTitles[issue.kind], issue.message, issue.message);
-  if (entry.imageOutdated && !warnings.some((warning) => warning.kind === "image")) add("image", "Workspace image is outdated", "New workspaces get a newer image, after an Kintsugi update or a Dockerfile change. Make a new workspace to use it.", "outdated");
+  for (const warning of entry.warnings ?? []) add(warning.kind, warningTitles[warning.kind], warning.message, warning.message);
+  if (entry.imageOutdated && !warnings.some((warning) => warning.kind === "image")) add("image", "Workspace image is outdated", outdatedImageMessage, "outdated");
   return warnings;
 }

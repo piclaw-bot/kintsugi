@@ -3,6 +3,7 @@ import type { ObservableTerminalViewer } from "./index.ts";
 
 const terminalAccessoryInput = new Map([
   ["escape", "\x1b"],
+  ["tab", "\t"],
   ["up", "\x1b[A"],
   ["down", "\x1b[B"],
   ["right", "\x1b[C"],

@@ -8,7 +8,7 @@ const dictationButtonSelector = '[data-dictation-composer-target="button"]';
 function activeDictationButton(): HTMLButtonElement | null {
   const dialogButton = document.querySelector<HTMLButtonElement>(`dialog[open] ${dictationButtonSelector}`);
   if (dialogButton) return dialogButton;
-  const activeAgentButton = document.querySelector<HTMLButtonElement>(`.workspace-detail-resident.visible [data-workspace-logically-visible="true"] ${dictationButtonSelector}`);
+  const activeAgentButton = document.querySelector<HTMLButtonElement>(`.workspace-detail-mount.visible [data-workspace-logically-visible="true"] ${dictationButtonSelector}`);
   if (activeAgentButton) return activeAgentButton;
   return [...document.querySelectorAll<HTMLButtonElement>(dictationButtonSelector)]
     .find((button) => button.getClientRects().length > 0) ?? null;

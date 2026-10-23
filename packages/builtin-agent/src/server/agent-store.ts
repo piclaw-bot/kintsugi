@@ -13,6 +13,8 @@ export interface WorkspaceAgentInfo {
   path: string;
   storage?: "durable";
   readOnly?: boolean;
+  /** A script's one-shot agent, whose final answer is JSON. */
+  oneShot?: boolean;
 }
 
 export const untitledAgentTitle = "Untitled";

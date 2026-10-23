@@ -288,13 +288,13 @@
   --floating-surface-shadow: 0 22px 56px rgba(0, 0, 0, .135);
 }
 
-/* Shiki fragments emit stable role classes so existing markup recolors instantly. */
+/* Highlighted fragments emit stable role classes so existing markup recolors instantly. */
 .syntax-keyword { color: var(--syntax-keyword); }
 .syntax-string, .syntax-string-expression { color: var(--syntax-string); }
 .syntax-number { color: var(--syntax-number); }
 .syntax-comment { color: var(--syntax-comment); }
 .syntax-function { color: var(--syntax-function); }
-.syntax-variable, .syntax-parameter { color: var(--syntax-variable); }
+.syntax-variable { color: var(--syntax-variable); }
 .syntax-type { color: var(--syntax-type); }
 .syntax-literal { color: var(--syntax-literal); }
 .syntax-attribute, .syntax-link { color: var(--syntax-attribute); }
@@ -361,6 +361,9 @@
   .status-dot.running,
   .status-list__item[aria-busy="true"] .status-list__marker { animation: none !important; }
 }
+
+/* Code and output wrap everywhere, so long lines and values never hide off to the side. */
+pre { white-space: pre-wrap; overflow-wrap: anywhere; }
 
 ::selection { color: var(--text-bright); background: color-mix(in srgb, var(--accent) 32%, transparent); }
 :focus-visible { outline-color: var(--accent); }

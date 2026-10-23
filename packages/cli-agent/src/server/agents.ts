@@ -5,17 +5,19 @@ import { parseModelRef } from "@kintsugi/llm/server";
 import { exportCliHistory } from "./history.ts";
 import { emptyAgentInput } from "./launch-script.ts";
 import { KintsugiCoreError, createKeyedOperationQueue, shellQuote } from "@kintsugi/core";
-import { buildObservableSessionCommand } from "@kintsugi/observable-terminal/server";
+import type { TerminalProcessState } from "@kintsugi/observable-terminal/server";
 import { imageMimeByExtension } from "@kintsugi/shared/file-metadata";
 import { errorMessage, type AgentWorkspaceParameters, type WorkspaceAgentInput } from "@kintsugi/shared";
-import { createWorkspaceMetadataState, execWorkspaceShell, getWorkspaceTitle, setWorkspaceTitle, workspaceRoot } from "@kintsugi/workspace";
+import { createWorkspaceMetadataState, execWorkspaceShell, getWorkspaceTitle, setWorkspaceTitle, workspaceRoot, workspaceTerminalProcesses } from "@kintsugi/workspace";
 import { Type, type Static } from "typebox";
 import { Value } from "typebox/value";
 import type { CliAgentAdapter, CliAgentSession } from "./adapter.ts";
 
 const inputSchema = Type.Object({ text: Type.String(), images: Type.Array(Type.Object({ mimeType: Type.String(), data: Type.String() })), attachmentNotes: Type.Array(Type.String()) });
 const agentSchema = Type.Object({
-  id: Type.String(), title: Type.String(), tmuxSession: Type.String(), input: inputSchema,
+  // An Agent runs as the terminal process with its id. Ones started before
+  // terminal processes ran in this tmux session instead, until they are restored.
+  id: Type.String(), title: Type.String(), tmuxSession: Type.Optional(Type.String()), input: inputSchema,
   // Older CLI tabs have no kind. Reading them must never execute their saved prompts.
   kind: Type.Optional(Type.String()), error: Type.Optional(Type.String()),
   model: Type.Optional(Type.String()), thinkingLevel: Type.Optional(Type.String()),
@@ -24,6 +26,8 @@ const agentSchema = Type.Object({
 const stateSchema = Type.Object({ agents: Type.Array(agentSchema) });
 const previousStateSchema = Type.Object({ sessions: Type.Array(agentSchema) });
 type CliAgentRecord = Static<typeof agentSchema>;
+/** An Agent's terminal: its process, or still being started. */
+export type CliAgentTerminal = { state: "starting" } | TerminalProcessState;
 const turnSettleTimeoutMs = 10_000;
 
 export async function checkedWorkspaceShell(workspaceId: string, command: string, stdin?: string): Promise<void> {
@@ -68,7 +72,7 @@ export function createCliAgents(adapter: CliAgentAdapter, onTitleChanged: (works
   async function launch(workspaceId: string, input: WorkspaceAgentInput, settings: AgentWorkspaceParameters): Promise<string> {
     await adapter.requireSetup();
     const id = crypto.randomUUID();
-    const agent: CliAgentRecord = { id, title: adapter.label, tmuxSession: `${adapter.id}-${id}`, input, kind: adapter.id, model: settings.model, thinkingLevel: settings.thinkingLevel };
+    const agent: CliAgentRecord = { id, title: adapter.label, input, kind: adapter.id, model: settings.model, thinkingLevel: settings.thinkingLevel };
     // Claim before side effects. Recovery must never submit the initial prompt twice.
     store().write(workspaceId, { agents: [...list(workspaceId), agent] });
     await start(workspaceId, agent, settings, input);
@@ -111,10 +115,8 @@ exec curl --noproxy '*' --fail --silent --show-error --max-time 10 -X POST -H ${
       // in an outer shell so installation failures (before any native hook) also
       // finish the pending work. Normal turns still finish through native hooks.
       const exitSignal = `code=$?; if [ "$code" -eq 0 ]; then sh ${shellQuote(turnSignalCommand)} finished; else sh ${shellQuote(turnSignalCommand)} failed; fi`;
-      const command = pendingPrompt
-        ? `/bin/bash -c ${shellQuote(`trap ${shellQuote(exitSignal)} EXIT\n/bin/bash -c ${shellQuote(script)}`)}`
-        : `/bin/bash -c ${shellQuote(script)}`;
-      await checkedWorkspaceShell(workspaceId, buildObservableSessionCommand({ requireExistingServer: true, session: agent.tmuxSession, cwd: workspaceRoot, command, env, remainOnExit: true, passthrough: true, historyLimit: 10000 }));
+      const command = pendingPrompt ? `trap ${shellQuote(exitSignal)} EXIT\n/bin/bash -c ${shellQuote(script)}` : script;
+      await workspaceTerminalProcesses(workspaceId).start({ id, command, cwd: workspaceRoot, env, interactive: true });
       delete agent.error;
       store().write(workspaceId, { agents: list(workspaceId) });
     } catch (error) {
@@ -147,10 +149,16 @@ exec curl --noproxy '*' --fail --silent --show-error --max-time 10 -X POST -H ${
   function restoreWorkspace(workspaceId: string): Promise<void> {
     return serialize(workspaceId, async () => {
       if (!adapter.resumeScript) return;
+      const processes = workspaceTerminalProcesses(workspaceId);
       for (const agent of list(workspaceId)) {
-        // Legacy placeholders are not runnable agents. Existing (including dead)
-        // panes belong to the current runtime and must not be relaunched.
-        if ((agent.kind !== adapter.id && agent.kind !== adapter.legacyId) || (await terminalState(workspaceId, agent)).exists) continue;
+        // Legacy placeholders are not runnable agents.
+        if (agent.kind !== adapter.id && agent.kind !== adapter.legacyId) continue;
+        // Its terminal gone, say after the workspace restarted, the Agent resumes. One that is
+        // running belongs to this runtime, and one that ended stays ended until closed.
+        if (agent.tmuxSession) await retireTmuxSession(workspaceId, agent);
+        const terminal = await terminalState(workspaceId, agent);
+        if (terminal.state !== "lost" && terminal.state !== "missing") continue;
+        await processes.release(agent.id);
         await start(workspaceId, agent, { model: agent.model, thinkingLevel: agent.thinkingLevel });
       }
     });
@@ -211,13 +219,15 @@ exec curl --noproxy '*' --fail --silent --show-error --max-time 10 -X POST -H ${
     await starting.get(id);
     return get(workspaceId, id);
   }
-  async function terminalState(workspaceId: string, agent: CliAgentRecord): Promise<{ starting?: boolean; exists: boolean; ended: boolean; exitCode?: number }> {
-    if (starting.has(agent.id)) return { starting: true, exists: false, ended: false };
-    const result = await execWorkspaceShell(workspaceId, `tmux list-panes -t ${shellQuote(agent.tmuxSession)} -F '#{pane_dead}:#{pane_dead_status}'`);
-    if (result.exitCode === 1) return { exists: false, ended: true };
-    if (result.exitCode !== 0) throw new KintsugiCoreError(`${adapter.id}_session_check_failed`, result.stderr.trim() || `Could not inspect ${adapter.label} terminal`);
-    const [dead, status] = result.stdout.trim().split(":");
-    return { exists: true, ended: dead === "1", exitCode: status ? Number(status) : undefined };
+  async function terminalState(workspaceId: string, agent: CliAgentRecord): Promise<CliAgentTerminal> {
+    if (starting.has(agent.id)) return { state: "starting" };
+    return workspaceTerminalProcesses(workspaceId).state(agent.id);
+  }
+  /** An Agent started before terminal processes: its CLI stops, so that it can resume as a terminal process. */
+  async function retireTmuxSession(workspaceId: string, agent: CliAgentRecord): Promise<void> {
+    await checkedWorkspaceShell(workspaceId, `tmux kill-session -t ${shellQuote(`=${agent.tmuxSession}`)} 2>/dev/null || true`);
+    delete agent.tmuxSession;
+    store().write(workspaceId, { agents: list(workspaceId) });
   }
   async function recordNamingPrompt(workspaceId: string, id: string, text: string): Promise<void> {
     await serialize(workspaceId, async () => {
@@ -246,7 +256,8 @@ exec curl --noproxy '*' --fail --silent --show-error --max-time 10 -X POST -H ${
     await serialize(workspaceId, async () => {
       const agent = get(workspaceId, id);
       await revokeAgentMcp(workspaceId, id);
-      if ((await terminalState(workspaceId, agent)).exists) await checkedWorkspaceShell(workspaceId, `tmux kill-session -t ${shellQuote(agent.tmuxSession)}`);
+      if (agent.tmuxSession) await retireTmuxSession(workspaceId, agent);
+      await workspaceTerminalProcesses(workspaceId).release(id);
       store().write(workspaceId, { agents: list(workspaceId).filter((agent) => agent.id !== id) });
     });
   }

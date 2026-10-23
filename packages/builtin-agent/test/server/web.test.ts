@@ -264,10 +264,11 @@ describe("Workspace Agent-tab provider", () => {
     const draftId = agentAttachmentDraftId("workspace-1", conversation.agentId);
     const attachment = await stageAttachment(draftId, new File(["image"], "reference.png", { type: "image/png" }));
     await stageInitialPrompt("workspace-1", conversation.agentId, "Draft task");
-    const submissions: Array<{ text: string; imageCount: number; requestId?: string }> = [];
+    const submissions: Array<{ text: string; imageCount: number; requestId?: string; whenBusy?: string }> = [];
     const runtime = {
-      async submit(input: { text: string; images?: unknown[]; requestId?: string }): Promise<void> {
-        submissions.push({ text: input.text, imageCount: input.images?.length ?? 0, requestId: input.requestId });
+      async submit(input: { text: string; images?: unknown[]; requestId?: string; whenBusy?: string }) {
+        submissions.push({ text: input.text, imageCount: input.images?.length ?? 0, requestId: input.requestId, whenBusy: input.whenBusy });
+        return { id: 7 };
       },
       userMessages: () => [],
       settings: async () => ({}),
@@ -286,8 +287,10 @@ describe("Workspace Agent-tab provider", () => {
 
     expect(response?.status).toBe(200);
     expect(response?.headers.get("x-kintsugi-attachment-draft-consumed")).toBe("true");
+    expect(response?.headers.get("x-kintsugi-submission-id")).toBe("7");
     expect(html).toBe("");
-    expect(submissions).toEqual([{ text: "", imageCount: 1, requestId: "image-request" }]);
+    // Without a mode, a prompt steers a busy agent, as it did for API callers before follow-ups.
+    expect(submissions).toEqual([{ text: "", imageCount: 1, requestId: "image-request", whenBusy: "steer" }]);
     expect(await readInitialPromptDraft("workspace-1", conversation.agentId)).toBeUndefined();
     expect(await findStagedAttachment(draftId, attachment.id)).toBeUndefined();
   });
@@ -354,8 +357,9 @@ describe("Workspace Agent-tab provider", () => {
     const conversation = await ensureDefaultWorkspaceAgent("workspace-1");
     const submissions: string[] = [];
     const runtime = {
-      async submit(input: { text: string }): Promise<void> {
+      async submit(input: { text: string }) {
         submissions.push(input.text);
+        return { id: 1 };
       },
       userMessages: () => [],
       settings: async () => ({}),
@@ -381,7 +385,7 @@ describe("Workspace Agent-tab provider", () => {
     const conversation = await ensureDefaultWorkspaceAgent("workspace-1");
     const admissions: string[] = [];
     const runtime = {
-      async submit(input: { requestId: string }) { admissions.push(input.requestId); },
+      async submit(input: { requestId: string }) { admissions.push(input.requestId); return { id: admissions.length }; },
       userMessages: () => [],
       settings: async () => ({}),
     };

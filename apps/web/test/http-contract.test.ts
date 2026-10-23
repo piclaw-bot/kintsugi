@@ -121,7 +121,7 @@ describe("HTTP contracts", () => {
     expect(await up.text()).toBe("");
   });
 
-  test("creates a workspace asynchronously and reports readiness through JSON", async () => {
+  test("creates a workspace asynchronously and reports its phase through JSON", async () => {
     const provision = deferred();
     const seen: Array<{ id: string; options: unknown }> = [];
     const { app, registry } = createTestApp({

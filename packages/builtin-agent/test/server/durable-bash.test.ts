@@ -1,134 +1,139 @@
 import { afterEach, expect, test } from "bun:test";
-import { mkdtemp, readFile, rm, mkdir, writeFile, utimes } from "node:fs/promises";
+import { mkdtemp, readFile, rm, utimes } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { shellQuote } from "@kintsugi/core";
+import { terminalProcessSession, type TerminalProcesses } from "@kintsugi/observable-terminal/server";
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
 import { createModels, fauxAssistantMessage, fauxProvider, fauxToolCall } from "@earendil-works/pi-ai";
 import { createRegistry } from "@earendil-works/pi-durable";
-import { createDurableBashExtension, type BashOperationRequest, type BashOperations } from "../../src/server/durable-bash.ts";
+import { Type } from "typebox";
+import { Value } from "typebox/value";
+import { createDurableBashExtension } from "../../src/server/durable-bash.ts";
 import { openDurableWorkspace, type DurableWorkspace } from "../../src/server/durable-workspace.ts";
-import { command, localBashOperations } from "./fixtures/bash-operations.ts";
+import { clearLocalTerminalProcesses, runLocally, terminalProcessesIn } from "../../../observable-terminal/test/support/local-terminal-processes.ts";
 
+// Terminal processes test the command lifecycle itself. These test what the
+// Durable bash tool adds: starting at most once across recovery, Stop, and
+// turning a finished process into a tool result.
 const context = BACKGROUND_CONTEXT;
-const fixtures: Array<{ path: string; socket: string }> = [];
+const fixtures: string[] = [];
 const workspaces: DurableWorkspace[] = [];
 afterEach(async () => {
   await Promise.all(workspaces.splice(0).map((workspace) => workspace.close()));
-  for (const fixture of fixtures.splice(0)) {
-    await command(["tmux", "-S", fixture.socket, "kill-server"]);
-    await rm(fixture.path, { recursive: true, force: true });
+  for (const path of fixtures.splice(0)) {
+    await clearLocalTerminalProcesses(path);
+    await rm(path, { recursive: true, force: true });
   }
 });
+
+/** Terminal processes on this machine, on a tmux server of their own. */
 async function fixture() {
   const path = await mkdtemp(join(tmpdir(), "kintsugi-bash-"));
-  const socket = join(path, "tmux.sock");
-  await command(["tmux", "-S", socket, "new-session", "-d", "-s", "keeper"]);
-  fixtures.push({ path, socket });
-  const root = join(path, "receipts");
-  return { path, socket, root, operations: localBashOperations(root, socket) };
-}
-function request(command: string, cwd: string, timeout = 10_000): BashOperationRequest {
-  return { id: crypto.randomUUID(), command, cwd, deadline: Date.now() + timeout, env: {} };
-}
-async function finish(operations: BashOperations, input: BashOperationRequest) {
-  for (let i = 0; i < 100; i++) {
-    const receipt = await operations("status", input);
-    if (receipt.status !== "running") return receipt;
-    await Bun.sleep(50);
-  }
-  throw new Error("Operation did not settle");
+  fixtures.push(path);
+  return { path, tmuxDirectory: join(path, "tmux"), processes: terminalProcessesIn(path) };
 }
 
-// These are process/receipt protocol tests, not browser or terminal rendering tests.
-test("concurrent create-or-find and response-lost retry execute exactly once and retain the result", async () => {
-  const f = await fixture();
-  const input = request("printf 'effect\\n' >> executions; sleep 0.2; printf 'finished\\n'", f.path);
-  await Promise.all([f.operations("ensure", input, true), f.operations("ensure", input, true)]);
-  const receipt = await finish(f.operations, input);
-  expect(receipt).toMatchObject({ status: "done", exitCode: 0, aborted: false, timedOut: false });
-  expect(await readFile(join(f.path, "executions"), "utf8")).toBe("effect\n");
-  expect(await f.operations("ensure", input, false)).toEqual(receipt);
-  expect(await f.operations("ensure", input, true)).toEqual(receipt);
-  await expect(f.operations("ensure", { ...input, command: "different" }, true)).rejects.toThrow("different input");
-});
+/** The processes, reporting each start once it has happened. */
+function observed(processes: TerminalProcesses) {
+  const started = Promise.withResolvers<string>();
+  return { started: started.promise, processes: { ...processes, async start(options) {
+    await processes.start(options);
+    started.resolve(options.id);
+  } } satisfies TerminalProcesses };
+}
 
-test("missing or reserved receipts on recovery never launch a command", async () => {
-  const f = await fixture();
-  const input = request("touch should-not-exist", f.path);
-  expect(await f.operations("ensure", input, false)).toMatchObject({ status: "uncertain" });
-  await mkdir(join(f.root, input.id));
-  await writeFile(join(f.root, input.id, "intent.json"), JSON.stringify(input));
-  expect(await f.operations("ensure", input, true)).toMatchObject({ status: "uncertain" });
-  expect(await Bun.file(join(f.path, "should-not-exist")).exists()).toBe(false);
-});
-
-test("a lost tmux supervisor is reported as uncertain rather than relaunched", async () => {
-  const f = await fixture();
-  const input = request("echo once >> count; sleep 10", f.path);
-  await f.operations("ensure", input, true);
-  for (let i = 0; i < 100 && !await Bun.file(join(f.path, "count")).exists(); i++) await Bun.sleep(10);
-  expect(await readFile(join(f.path, "count"), "utf8")).toBe("once\n");
-  await command(["tmux", "-S", f.socket, "kill-session", "-t", `kintsugi-agent-${input.id}`]);
-  expect(await f.operations("ensure", input, true)).toMatchObject({ status: "uncertain" });
-  expect(await readFile(join(f.path, "count"), "utf8")).toBe("once\n");
-});
-
-test("deadline is enforced in the workspace without host polling and is never extended on retry", async () => {
-  const f = await fixture();
-  const input = request("sleep 5; touch too-late", f.path, 300);
-  await f.operations("ensure", input, true);
-  await Bun.sleep(700);
-  const receipt = await f.operations("ensure", input, false);
-  expect(receipt).toMatchObject({ status: "done", timedOut: true, aborted: false });
-  expect(await Bun.file(join(f.path, "too-late")).exists()).toBe(false);
-});
-
-test("Stop kills the command group, and Stop before launch fences a delayed admission", async () => {
-  const f = await fixture();
-  const input = request("sleep 2; touch after-stop", f.path);
-  await f.operations("ensure", input, true);
-  await f.operations("stop", input);
-  expect(await finish(f.operations, input)).toMatchObject({ status: "done", aborted: true });
-  const unlaunched = request("touch should-not-start", f.path);
-  expect(await f.operations("stop", unlaunched)).toMatchObject({ status: "done", aborted: true });
-  expect(await f.operations("ensure", unlaunched, true)).toMatchObject({ status: "done", aborted: true });
-  await Bun.sleep(2100);
-  expect(await Bun.file(join(f.path, "after-stop")).exists()).toBe(false);
-  expect(await Bun.file(join(f.path, "should-not-start")).exists()).toBe(false);
-});
-
-async function harness(f: Awaited<ReturnType<typeof fixture>>, operations: BashOperations, bash: string) {
+async function harness(path: string, processes: TerminalProcesses, bash: string, timeout = 5) {
   const models = createModels();
   const faux = fauxProvider({ tokensPerSecond: 100_000 });
   models.setProvider(faux.provider);
-  faux.setResponses([fauxAssistantMessage([fauxToolCall("bash", { command: bash, timeout: 5 })], { stopReason: "toolUse" }), fauxAssistantMessage("Done")]);
+  faux.setResponses([fauxAssistantMessage([fauxToolCall("bash", { command: bash, timeout })], { stopReason: "toolUse" }), fauxAssistantMessage("Done")]);
   const registry = createRegistry();
-  registry.install(createDurableBashExtension("workspace", operations));
+  registry.install(createDurableBashExtension("workspace", processes));
   const options = { models, registry };
-  const path = join(f.path, "journal");
-  const workspace = await openDurableWorkspace(path, "workspace", options);
+  const journal = join(path, "journal");
+  const workspace = await openDurableWorkspace(journal, "workspace", options);
   workspaces.push(workspace);
-  const conversation = await workspace.agent({ agentId: "tab", label: "Agent 1", title: "Bash recovery" }, { model: { provider: "faux", modelId: "faux-1" } });
-  return { workspace, conversation, path, options };
+  const conversation = await workspace.agent({ agentId: "tab", label: "Agent 1", title: "Bash" }, { model: { provider: "faux", modelId: "faux-1" } });
+  return { workspace, conversation, journal, options };
 }
+
+async function toolResults(workspace: DurableWorkspace) {
+  const conversation = await workspace.agent({ agentId: "tab", label: "Agent 1", title: "Bash" });
+  const entries = (await conversation.entries({}, 100, undefined, context)).items;
+  return entries.flatMap((entry) => entry.model ?? []).filter((message) => message.role === "toolResult");
+}
+
+const bashDetails = Type.Object({ displayAnsi: Type.String(), fullOutputPath: Type.String() });
+
+async function run(bash: string, timeout = 5) {
+  const f = await fixture();
+  const { processes, started } = observed(f.processes);
+  const h = await harness(f.path, processes, bash, timeout);
+  const submission = await h.conversation.submit({ type: "input", content: "Run", requestId: "one" }, context);
+  expect((await submission.wait(context)).status).toBe("done");
+  const [result] = await toolResults(h.workspace);
+  return { f, id: await started, result: result! };
+}
+
+test("a finished command becomes the tool result, and its terminal process is released", async () => {
+  const { f, id, result } = await run("printf '\\033[32mgreen\\033[0m\\n'; echo plain; exit 3");
+  expect(result.isError).toBe(false);
+  expect(result.content).toEqual([{ type: "text", text: "green\nplain\n\nCommand exited with code 3" }]);
+  expect(result.details).toMatchObject({ exitCode: 3, aborted: false, timedOut: false, fullOutputPath: f.processes.textFile(id) });
+  expect(Value.Parse(bashDetails, result.details).displayAnsi).toContain("\u001b[32mgreen");
+  expect(await f.processes.state(id)).toEqual({ state: "missing" });
+});
+
+test("output the model doesn't see stays readable at fullOutputPath", async () => {
+  const { result } = await run("seq 1 3000; exit 1");
+  const { fullOutputPath } = Value.Parse(bashDetails, result.details);
+  // One text item: the Harness had nothing of its own to cut.
+  expect(result.content).toHaveLength(1);
+  const [content] = result.content;
+  if (content?.type !== "text") throw new Error("expected a text result");
+  expect(content.text).toStartWith("1005\n");
+  expect(content.text).toEndWith(`3000\n\n[Output truncated: showing the last 9.7KB of output. Full output: ${fullOutputPath}]\n\nCommand exited with code 1`);
+  const lines = (await readFile(fullOutputPath, "utf8")).trimEnd().split("\n");
+  expect(lines).toHaveLength(3000);
+  expect(lines[0]).toBe("1");
+});
+
+test("the tool's timeout is the command's deadline", async () => {
+  const { result } = await run("echo started; sleep 10", 1);
+  expect(result.content).toEqual([{ type: "text", text: "started\nTerminated\n\nCommand timed out after 1 seconds" }]);
+  expect(result.details).toMatchObject({ exitCode: 143, timedOut: true, aborted: false });
+});
+
+test("a command whose terminal disappears is reported as uncertain, not run again", async () => {
+  const f = await fixture();
+  const count = join(f.path, "count");
+  const tmux = (...args: string[]) => runLocally(f.tmuxDirectory)({ argv: ["tmux", ...args], user: "agent" }, {});
+  const processes: TerminalProcesses = { ...f.processes, async start(options) {
+    await f.processes.start(options);
+    // The command says when it has counted itself; then its terminal goes.
+    await tmux("wait-for", "counted");
+    await tmux("kill-session", "-t", `=${terminalProcessSession(options.id)}`);
+  } };
+  const h = await harness(f.path, processes, `echo once >> ${shellQuote(count)}; tmux wait-for -S counted; sleep 10`);
+  const submission = await h.conversation.submit({ type: "input", content: "Run", requestId: "one" }, context);
+  expect((await submission.wait(context)).status).toBe("done");
+  const [result] = await toolResults(h.workspace);
+  expect(result!.isError).toBe(true);
+  expect(result!.content[0]).toEqual({ type: "text", text: "The command's terminal disappeared before it recorded a result. The command was not run again." });
+  expect(await readFile(count, "utf8")).toBe("once\n");
+});
 
 test.each(["shutdown", "stop"] as const)("native Durable %s preserves or cancels the workspace process deliberately", async (action) => {
   const f = await fixture();
-  let admitted!: () => void;
-  const launched = new Promise<void>((resolve) => { admitted = resolve; });
-  const operations: BashOperations = async (...args) => {
-    const receipt = await f.operations(...args);
-    if (args[0] === "ensure") admitted();
-    return receipt;
-  };
+  const { processes, started } = observed(f.processes);
   const count = join(f.path, "count");
-  const h = await harness(f, operations, `echo once >> ${shellQuote(count)}; sleep 1; echo finished`);
+  const h = await harness(f.path, processes, `echo once >> ${shellQuote(count)}; sleep 1; echo finished`);
   const submission = await h.conversation.submit({ type: "input", content: "Run", requestId: "one" }, context);
-  await launched;
+  await started;
   if (action === "stop") await h.conversation.abort(context);
   await h.workspace.close();
-  const reopened = await openDurableWorkspace(h.path, "workspace", h.options);
+  const reopened = await openDurableWorkspace(h.journal, "workspace", h.options);
   workspaces.push(reopened);
   const restored = (await reopened.harness.submission(submission.id, context))!;
   expect((await restored.wait(context)).status).toBe(action === "stop" ? "unanswered" : "done");
@@ -139,14 +144,13 @@ test.each(["shutdown", "stop"] as const)("native Durable %s preserves or cancels
   expect(catalog.tasks).toHaveLength(0);
 });
 
-
-test("SIGKILL after workspace launch but before host receipt reattaches without repeating the effect", async () => {
+test.each(["before-start", "after-start"] as const)("SIGKILL %s recovers without running the command twice", async (moment) => {
   const f = await fixture();
-  const child = Bun.spawn([process.execPath, join(import.meta.dir, "fixtures/durable-bash-crash.ts"), f.path, f.socket], { stdout: "pipe", stderr: "pipe" });
+  const child = Bun.spawn([process.execPath, join(import.meta.dir, "fixtures/durable-bash-crash.ts"), f.path, moment], { stdout: "pipe", stderr: "pipe" });
   try {
     const reader = child.stdout.getReader();
     let output = "";
-    while (!output.includes("launched")) {
+    while (!output.includes("crash now")) {
       const chunk = await reader.read();
       if (chunk.done) throw new Error(await new Response(child.stderr).text());
       output += new TextDecoder().decode(chunk.value);
@@ -161,68 +165,59 @@ test("SIGKILL after workspace launch but before host receipt reattaches without 
     models.setProvider(faux.provider);
     faux.setResponses([fauxAssistantMessage("Recovered")]);
     const registry = createRegistry();
-    registry.install(createDurableBashExtension("workspace", f.operations));
+    registry.install(createDurableBashExtension("workspace", f.processes));
     const workspace = await openDurableWorkspace(join(f.path, "journal"), "workspace", { models, registry });
     workspaces.push(workspace);
     const inspection = await workspace.harness.inspect(context);
     expect(inspection.submissions).toHaveLength(1);
     const submission = (await workspace.harness.submission(inspection.submissions[0]!.id, context))!;
     expect((await submission.wait(context)).status).toBe("done");
-    expect(await readFile(join(f.path, "count"), "utf8")).toBe("once\n");
-    const conversation = await workspace.agent({ agentId: "tab", label: "Agent 1", title: "Bash recovery" });
-    const entries = (await conversation.entries({}, 100, undefined, context)).items;
-    const results = entries.flatMap((entry) => entry.model ?? []).filter((message) => message.role === "toolResult");
+    const results = await toolResults(workspace);
     expect(results).toHaveLength(1);
-    expect(results[0]!.isError).toBe(false);
-    expect(results[0]!.content).toContainEqual({ type: "text", text: expect.stringContaining("recovered") });
+    if (moment === "after-start") {
+      expect(await readFile(join(f.path, "count"), "utf8")).toBe("once\n");
+      expect(results[0]!.isError).toBe(false);
+      expect(results[0]!.content).toContainEqual({ type: "text", text: expect.stringContaining("recovered") });
+    } else {
+      // A start that may or may not have happened is never guessed at.
+      expect(await Bun.file(join(f.path, "count")).exists()).toBe(false);
+      expect(results[0]!.isError).toBe(true);
+      expect(results[0]!.content[0]).toEqual({ type: "text", text: "The command's terminal process is missing, so the command was not run again." });
+    }
   } finally {
     child.kill();
     await child.exited;
   }
 }, 20_000);
 
-test("a result committed while probing a dead supervisor is not reported as uncertain", async () => {
+test("aborting a bash tool stops its command but lets the agent finish the turn", async () => {
   const f = await fixture();
-  const input = request("unused", f.path);
-  const operation = join(f.root, input.id);
-  await mkdir(operation, { recursive: true });
-  await writeFile(join(operation, "intent.json"), JSON.stringify(input));
-  // Deterministic process/protocol fault injection: the supervisor publishes its
-  // receipt and exits exactly when the reader probes pane liveness. Exercise the
-  // real receipt reader with only its subprocess transport replaced.
-  const output = await command(["python3", "-c", `
-import json, pathlib, runpy, subprocess, sys
-script, root, request = sys.argv[1:]
-operation = pathlib.Path(root) / json.loads(request)["id"]
-def tmux(argv, **kwargs):
-    if "display-message" in argv:
-        (operation / "result.json").write_text(json.dumps({"status": "done", "aborted": True}))
-        return subprocess.CompletedProcess(argv, 0, "1\\n", "")
-    return subprocess.CompletedProcess(argv, 0, "", "")
-subprocess.run = tmux
-sys.argv = [script, "status", request, "--root", root]
-runpy.run_path(script, run_name="__main__")
-`, join(import.meta.dir, "../../workspace_tools/kintsugi-agent-bash"), f.root, JSON.stringify(input)]);
-  expect(JSON.parse(output)).toEqual({ status: "done", aborted: true });
-});
-
-test("aborting a bash tool cancels its command group but lets the agent finish the turn", async () => {
-  const f = await fixture();
-  const launched = Promise.withResolvers<void>();
-  let input!: BashOperationRequest;
-  const operations: BashOperations = async (...args) => {
-    const receipt = await f.operations(...args);
-    if (args[0] === "ensure") { input = args[1]; launched.resolve(); }
-    return receipt;
-  };
-  const h = await harness(f, operations, `sleep 3; touch ${shellQuote(join(f.path, "after-abort"))}`);
+  const { processes, started } = observed(f.processes);
+  const h = await harness(f.path, processes, `sleep 3; touch ${shellQuote(join(f.path, "after-abort"))}`);
   const submission = await h.conversation.submit({ type: "input", content: "Run", requestId: "abort-tool" }, context);
-  await launched.promise;
+  const id = await started;
   const inspection = await h.workspace.harness.inspect(context);
   const tool = inspection.tasks.find(({ record }) => record.kind === "pi.tool")!;
   await h.workspace.harness.abortTask(tool.record.id, context);
   expect((await submission.wait(context)).status).toBe("done");
-  expect(await finish(f.operations, input)).toMatchObject({ status: "done", aborted: true });
-  await Bun.sleep(3100);
+  // Released, which kills whatever of the command was left, so it never gets to the touch.
+  expect(await f.processes.state(id)).toEqual({ state: "missing" });
   expect(await Bun.file(join(f.path, "after-abort")).exists()).toBe(false);
 });
+
+// bun test fails on the unhandled rejection; in the app, Bun exits on one.
+test("stopping while the command is starting stops it without an unhandled rejection", async () => {
+  const f = await fixture();
+  let stop!: () => Promise<void>;
+  const processes: TerminalProcesses = { ...f.processes, async start(options) {
+    await f.processes.start(options);
+    // Stop lands after the command started but before the tool waits for it.
+    const stopped = stop();
+    await Bun.sleep(300);
+    void stopped;
+  } };
+  const h = await harness(f.path, processes, "sleep 3");
+  stop = () => h.conversation.abort(context);
+  const submission = await h.conversation.submit({ type: "input", content: "Run", requestId: "one" }, context);
+  expect((await submission.wait(context)).status).toBe("unanswered");
+}, 20_000);

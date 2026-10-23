@@ -3,7 +3,6 @@ import { readSystemVersion } from "../../../../packages/update/src/server/superv
 import { configureAgentMcp, handleAgentMcpRequest } from "@kintsugi/agent/server";
 import { createKintsugiEventBus, getKintsugiRuntimeContext, withCommandSignal, waitForCommand } from "@kintsugi/core";
 import { designSystemCatalogueHtml } from "@kintsugi/design-system/catalogue";
-import { attachHostObservableTerminal, observableTerminalCols, observableTerminalRows, type ObservableTerminalConnection } from "@kintsugi/observable-terminal/server";
 import { deliverAttachmentDraft, removeAttachmentDraft, validDraftId } from "@kintsugi/prompt/server";
 import { requestWorkspaceSshTrust } from "@kintsugi/workspace-templates";
 import {
@@ -19,9 +18,8 @@ import {
 import { proxyAccessSchema, validateProxyAccess, kintsugiName, errorMessage, type WorkspaceAppBackend, type WorkspaceAppRef, type WorkspaceServerAppResolver, type WorkspaceServerProvisioningHook, type WorkspaceServerSocketHandler, type WorkspaceServerSocketSession } from "@kintsugi/shared";
 import { response, textResponse } from "@kintsugi/shared/http";
 import { kintsugiThemes, readThemeSetting } from "@kintsugi/shared/theme";
-import { checkWorkspaceReadiness, createWorkspace, ensureWorkspaceStarted, deleteWorkspace, ensureHostInotifyLimit, isWorkspaceRunning, listWorkspaces, resolveWorkspace, stopWorkspaceContainer, setWorkspaceParked, workspaceImageOutdated, workspacePortBackend, workspaceSetupProvisioningHook } from "@kintsugi/workspace";
+import { prepareWorkspaceRuntime, createWorkspace, ensureWorkspaceStarted, deleteWorkspace, ensureHostInotifyLimit, isWorkspaceRunning, listWorkspaces, resolveWorkspace, stopWorkspaceContainer, setWorkspaceParked, workspaceImageOutdated, workspacePortBackend, workspaceSetupProvisioningHook } from "@kintsugi/workspace";
 import { ensureDefaultWorkspaceImage } from "@kintsugi/workspace-image";
-import type { ServerWebSocket } from "bun";
 import { join } from "node:path";
 import { gzipSync } from "node:zlib";
 import { Type } from "typebox";
@@ -32,11 +30,11 @@ import { connectionModeManaged } from "./settings/connection-mode.ts";
 import { getAgentType, rememberAgentType } from "./agent-types.ts";
 import { createWebApp, type WebApp } from "./app.ts";
 import { parseAssetManifest } from "./asset-manifest.ts";
-import { createCableServer } from "./cable.ts";
+import { createCableServer, type CableSocketData } from "./cable.ts";
 import { createCableSseTransport } from "./cable-sse.ts";
 import { clientEntrypoints, legacyStaticFiles } from "./static-files.ts";
 import { workspaceModules } from "./workspace-modules.generated.ts";
-import { prepareWorkspaceForUse, recoverWorkspaces } from "./workspace-recovery.ts";
+import { prepareWorkspaceForUse, reprovisionWorkspaces } from "./workspace-preparation.ts";
 import { createFileWorkspaceActivityStore, createFileWorkspaceAttentionStore, createFileWorkspaceDeletionStore, createWorkspaceRegistry } from "./workspace-registry.ts";
 
 const requestedPort = Number(process.env.PORT ?? 3000);
@@ -81,8 +79,8 @@ let app: WebApp;
 const workspaceStartupOperations = {
   ensureStarted: ensureWorkspaceStarted,
   stop: stopWorkspaceContainer,
-  checkReadiness: checkWorkspaceReadiness,
-  runtimeReady: (workspaceId: string) => kintsugiEvents.emit("workspace_runtime_ready", { workspaceId }),
+  prepareRuntime: prepareWorkspaceRuntime,
+  runtimePrepared: (workspaceId: string) => kintsugiEvents.emit("workspace_runtime_ready", { workspaceId }),
   imageOutdated: (id: string) => workspaceImageOutdated(id, undefined, kintsugiEvents),
   get provisioning() { return app.provisioning; },
 };
@@ -97,7 +95,7 @@ app = createWebApp({
     await createWorkspace({ id, events: kintsugiEvents, init: options.init, context: options.context, run: options.run });
     for (const hook of provisioningHooks) {
       const work = () => hook.run({ workspaceId: id, creationContext: options.context, events: kintsugiEvents });
-      await options.run.step(hook.id, hook.label, work, hook.recovery);
+      await options.run.step(hook.id, hook.label, work, hook.failurePolicy);
     }
     await options.run.step("workspace.integrations", "Run workspace startup integrations", () => kintsugiEvents.emit("workspace_created", { workspaceId: id, init: options.init, context: options.context }));
     await rememberAgentType(options.context?.agent?.agentTypeId ?? "builtin", kintsugiEvents);
@@ -236,16 +234,8 @@ async function compressDynamicResponse(request: Request, response: Response): Pr
   return new Response(gzipSync(body, { level: 6 }), { status: response.status, statusText: response.statusText, headers });
 }
 
-interface ProvisionTermSocketData {
-  kind: "provision-term";
-  session: string;
-  terminal?: ObservableTerminalConnection;
-}
-
-type ProvisionTermSocket = Pick<ServerWebSocket<undefined>, "send" | "close">;
-
 type WorkspaceModuleSocketData = WorkspaceServerSocketSession & { kind: "workspace-module" };
-type SocketData = WorkspaceModuleSocketData | ProvisionTermSocketData;
+type SocketData = WorkspaceModuleSocketData | CableSocketData;
 
 async function resolveWorkspaceApp(app: WorkspaceAppRef, requestUrl: URL): Promise<WorkspaceAppBackend | undefined> {
   for (const resolver of workspaceAppResolvers) {
@@ -289,43 +279,12 @@ kintsugiEvents.on("workspace_plan_prepare", ({ workspaceId }) => ingressSockets.
 kintsugiEvents.on("workspace_deleted", ({ workspaceId }) => ingressSockets.remove(workspaceId));
 
 async function validateSocket(request: Request, url: URL): Promise<SocketData | undefined> {
-  const provisionMatch = url.pathname.match(/^\/provision-term\/([^/]+)\/ws$/);
-  if (provisionMatch) {
-    const session = decodeURIComponent(provisionMatch[1]);
-    if (!session.startsWith("kintsugi-provision-")) return undefined;
-    return { kind: "provision-term", session };
-  }
+
   for (const handler of socketHandlers) {
     const session = await handler(url, request);
     if (session) return { kind: "workspace-module", ...session };
   }
   return undefined;
-}
-
-function openProvisionTermSocket(ws: ProvisionTermSocket, data: ProvisionTermSocketData): void {
-  void (async () => {
-    let lastError: unknown;
-    for (let attempt = 0; attempt < 30; attempt += 1) {
-      try {
-        data.terminal = attachHostObservableTerminal({ session: data.session, cols: observableTerminalCols, rows: observableTerminalRows, readonly: true, fixedSize: true }, {
-          onData: (chunk) => {
-            try { ws.send(chunk); } catch { /* closed */ }
-          },
-          onExit: () => ws.close(),
-        });
-        return;
-      } catch (error) {
-        lastError = error;
-        await new Promise((resolve) => setTimeout(resolve, 100));
-      }
-    }
-    try { ws.send(`\r\n[provision terminal attach failed: ${errorMessage(lastError)}]\r\n`); } catch { /* closed */ }
-    ws.close();
-  })();
-}
-
-function closeProvisionTermSocket(data: ProvisionTermSocketData): void {
-  data.terminal?.close();
 }
 
 const defaultWorkspaceImage = await ensureDefaultWorkspaceImage({ buildOutput: "inherit" });
@@ -377,14 +336,14 @@ const server = Bun.serve<SocketData>({
   websocket: {
     perMessageDeflate: true,
     open(ws) {
-      if (ws.data.kind === "provision-term") openProvisionTermSocket(ws, ws.data);
+      if (ws.data.kind === "cable") cableServer.open(ws, ws.data);
       else ws.data.open?.(ws);
     },
     message(ws, message) {
       if (ws.data.kind === "workspace-module") ws.data.message?.(ws, message);
     },
     close(ws) {
-      if (ws.data.kind === "provision-term") closeProvisionTermSocket(ws.data);
+      if (ws.data.kind === "cable") cableServer.close(ws);
       else ws.data.close?.(ws);
     },
   },
@@ -405,7 +364,7 @@ void kintsugiEvents.emit("kintsugi_host_started", {
 
 console.log(`${kintsugiName} is available at ${displayUrl(hostname, serverPort)}`);
 
-void recoverWorkspaces(registry, workspaceStartupOperations).catch((error) => console.error("Workspace recovery failed", error));
+void reprovisionWorkspaces(registry, workspaceStartupOperations).catch((error) => console.error("Workspace reprovisioning failed", error));
 
 function resumeWorkspace(id: string): void {
   const entry = registry.get(id);

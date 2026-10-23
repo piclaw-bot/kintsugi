@@ -44,7 +44,7 @@ test("forwarded/public host metadata cannot change the destination identity", ()
 test("TLS termination may supply protocol only through trusted loopback ingress", () => {
   for (const method of ["POST", "GET"]) {
     const headers = { origin: "https://machine.ts.net", "x-forwarded-proto": "https", upgrade: "websocket" };
-    const incoming = request(method, headers, "http://machine.ts.net/host/terminals");
+    const incoming = request(method, headers, "http://machine.ts.net/terminal-processes/demo/ws");
     expect(managementOriginRejection(incoming, "172.17.0.2")?.status).toBe(403);
     expect(managementOriginRejection(incoming, "127.0.0.1")).toBeUndefined();
     for (const protocol of ["https,http", "ftp", "", "HTTPS"]) {
@@ -76,7 +76,7 @@ test("cross-origin HTML form posts never reach management handlers over HTTP", a
   } });
   const origin = `http://127.0.0.1:${server.port}`;
   try {
-    for (const path of ["/workspace-templates", "/workspaces", "/host/terminals", "/settings/theme"]) {
+    for (const path of ["/workspace-templates", "/workspaces", "/host/sample", "/settings/theme"]) {
       for (const foreign of [undefined, "null", "https://artifact.example.com"]) {
         const headers = new Headers({ "content-type": "application/x-www-form-urlencoded" });
         if (foreign) headers.set("origin", foreign);

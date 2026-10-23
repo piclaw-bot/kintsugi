@@ -123,12 +123,13 @@ export async function renderLaunchComposerSettings(options: { frameId: string; f
   });
 }
 
-export function renderPromptActions(ctx: AgentRenderContext | undefined, busy: boolean, hasStoppableWork = busy): string {
-  const initialLabel = busy ? "Steer agent" : "Send prompt";
+/** `busyMode` is what sending does while the agent works: queue a follow-up, or steer the running turn. */
+export function renderPromptActions(ctx: AgentRenderContext | undefined, busy: boolean, hasStoppableWork = busy, busyMode: "steer" | "followUp" = "steer"): string {
+  const initialLabel = busy ? (busyMode === "followUp" ? "Queue follow-up" : "Steer agent") : "Send prompt";
   const activeLabel = busy ? "Agent is working — click to stop" : "Subagents are working — click to stop";
   const state = hasStoppableWork ? "active" : "initial";
   const paneAttrs = ctx
-    ? ` data-agent-pane-target="sendStop" data-agent-busy="${busy}" data-agent-stoppable="${hasStoppableWork}"${hasStoppableWork ? ` data-agent-abort-form-id="${ids.abortForm(ctx)}"` : ""}`
+    ? ` data-agent-pane-target="sendStop" data-agent-busy="${busy}" data-agent-busy-mode="${busyMode}" data-agent-stoppable="${hasStoppableWork}"${hasStoppableWork ? ` data-agent-abort-form-id="${ids.abortForm(ctx)}"` : ""}`
     : "";
   const actionAttrs = hasStoppableWork && ctx ? `form="${ids.abortForm(ctx)}"` : "";
   return activityButtonHtml({

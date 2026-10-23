@@ -2,7 +2,7 @@
 
 import type { TerminalBufferRow, TerminalTheme } from "@gespenst/core";
 import { copyTextToClipboard, errorMessage } from "@kintsugi/shared";
-import { encodeObservableTerminalMessage } from "../shared/index.ts";
+import { encodeObservableTerminalMessage, terminalEndedCloseCode } from "../shared/index.ts";
 import { terminalLinkAt, type TerminalLink } from "./links.ts";
 import { createTerminalConnection, type TerminalConnectionState } from "./connection.ts";
 

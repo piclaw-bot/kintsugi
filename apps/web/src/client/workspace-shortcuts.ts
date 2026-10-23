@@ -6,7 +6,7 @@ import { Controller } from "@hotwired/stimulus";
 import { formatShortcutBinding } from "../shortcut-binding.ts";
 import { submitFormWithFirstButton } from "./form-submission.ts";
 import { clientHooks, type PaletteResult } from "./workspace-client-hooks.ts";
-import { registerWorkspaceControllers, residencyController, workspaceNavigationController } from "./workspace-controller-registry.ts";
+import { controllerForElement, registerWorkspaceControllers, workspaceSelectionController, workspaceNavigationController } from "./workspace-controller-registry.ts";
 
 type WorkspaceCommandRegistration = Omit<WorkspaceClientCommand, "run">;
 
@@ -118,18 +118,11 @@ class KintsugiShortcutsController extends Controller<HTMLElement> {
       run: () => this.openOldestAttentionWorkspace(),
     });
     clientHooks.registerCommand({
-      id: "work-view.open-previous",
-      label: "Open previous Work view",
-      scope: "workspace",
-      binding: "Meta+Alt+BracketLeft",
-      run: () => this.openAdjacentWorkView(-1),
-    });
-    clientHooks.registerCommand({
-      id: "work-view.open-next",
-      label: "Open next Work view",
+      id: "work-pane.toggle",
+      label: "Show or hide Work pane",
       scope: "workspace",
       binding: "Meta+Alt+BracketRight",
-      run: () => this.openAdjacentWorkView(1),
+      run: () => this.toggleWorkPane(),
     });
     clientHooks.registerCommand({
       id: "kintsugi.open-palette",
@@ -203,7 +196,7 @@ class KintsugiShortcutsController extends Controller<HTMLElement> {
     const workspaceId = this.visibleWorkspaceId();
     if (!workspaceId) return null;
     const action = `/workspaces/${CSS.escape(workspaceId)}/delete`;
-    return document.querySelector<HTMLFormElement>(`.workspace-detail-resident.visible form.fixed-shell-delete-workspace[action="${action}"]`);
+    return document.querySelector<HTMLFormElement>(`.workspace-detail-mount.visible form.fixed-shell-delete-workspace[action="${action}"]`);
   }
 
   private deleteVisibleWorkspace(force = false): void {
@@ -225,7 +218,7 @@ class KintsugiShortcutsController extends Controller<HTMLElement> {
   }
 
   private visibleWorkspacePresentation(): HTMLElement | null {
-    return document.querySelector(".workspace-detail-resident.visible .fixed-workspace-presentation");
+    return document.querySelector(".workspace-detail-mount.visible .fixed-workspace-presentation");
   }
 
   private workspaceCommands(): WorkspaceCommandRegistration[] {
@@ -237,18 +230,9 @@ class KintsugiShortcutsController extends Controller<HTMLElement> {
     return [];
   }
 
-  private openAdjacentWorkView(direction: -1 | 1): void {
+  private toggleWorkPane(): void {
     const presentation = this.visibleWorkspacePresentation();
-    if (!presentation) return;
-    if (!presentation.classList.contains("is-work-pane-open")) {
-      presentation.querySelector<HTMLButtonElement>("[data-show-work-pane]")?.click();
-      return;
-    }
-
-    const selectors = [...presentation.querySelectorAll<HTMLButtonElement>("[data-work-view-key]")];
-    const activeIndex = selectors.findIndex((selector) => selector.getAttribute("aria-selected") === "true");
-    if (activeIndex < 0 || selectors.length < 2) return;
-    selectors[(activeIndex + direction + selectors.length) % selectors.length]!.click();
+    if (presentation) controllerForElement<{ toggleWorkPane(): void }>(presentation, "workspace-presentation")!.toggleWorkPane();
   }
 
   private scheduleShortcutOverlay(): void {
@@ -331,7 +315,6 @@ class KintsugiShortcutsController extends Controller<HTMLElement> {
       case "Period": return event.key === ".";
       case "Slash": return event.key === "/" || event.key === "?";
       case "Semicolon": return event.key === ";" || event.key === ":";
-      case "BracketLeft": return event.key === "[";
       case "BracketRight": return event.key === "]";
       default: return false;
     }
@@ -485,10 +468,10 @@ class KintsugiShortcutsController extends Controller<HTMLElement> {
   }
 
   private workspaceDestinationPaletteItems(fuzzyScore: (candidate: string) => number): WorkspacePaletteItem[] {
-    const resident = document.querySelector<HTMLElement>(".workspace-detail-resident.visible[data-workspace-id]");
-    if (!resident) return [];
-    const workspaceId = resident.dataset.workspaceId!;
-    return [...resident.querySelectorAll<HTMLButtonElement>("[data-work-view-key], [data-agent-id]")].map((destination) => {
+    const mount = document.querySelector<HTMLElement>(".workspace-detail-mount.visible[data-workspace-id]");
+    if (!mount) return [];
+    const workspaceId = mount.dataset.workspaceId!;
+    return [...mount.querySelectorAll<HTMLButtonElement>("[data-work-view-key], [data-agent-id]")].map((destination) => {
       const key = destination.dataset.workViewKey ?? destination.dataset.agentId!;
       const label = destination.textContent?.trim() || key;
       const visible = destination.getAttribute("aria-selected") === "true";
@@ -523,11 +506,11 @@ class KintsugiShortcutsController extends Controller<HTMLElement> {
 
   private visibleWorkspaceId(): string | undefined {
     return document.querySelector<HTMLElement>("[data-workspace-entry-id][aria-current=\"page\"][data-workspace-entry-id]")?.dataset.workspaceEntryId
-      ?? residencyController()?.visibleWorkspaceId();
+      ?? workspaceSelectionController()?.visibleWorkspaceId();
   }
 
   async openAttentionWorkspace(): Promise<void> {
-    const workspaceId = residencyController()?.oldestAttentionWorkspaceId();
+    const workspaceId = workspaceSelectionController()?.oldestAttentionWorkspaceId();
     if (workspaceId) await workspaceNavigationController()?.selectWorkspaceById(workspaceId);
   }
 

@@ -27,11 +27,12 @@
 .agent-code-block pre { width: auto; }
 .markdown pre { background: color-mix(in srgb, var(--bg) 45%, #000 14%); border: 1px solid var(--line); color: var(--text-bright); border-radius: var(--radius-control); padding: 12px; overflow-x: auto; margin: 6px 0 12px; }
 .markdown pre code { display: block; background: transparent; border: 0; border-radius: 0; padding: 0; color: inherit; font-size: var(--text-code); line-height: var(--leading-standard); }
-/* Enhanced fences also appear outside .markdown in the fullscreen viewer. */
-.markdown pre code, .agent-code-block pre code { white-space: pre-wrap; overflow-wrap: anywhere; }
 .markdown blockquote { border-left: 1px solid var(--line-strong); padding-left: 8px; color: var(--text-muted); }
 .markdown a { color: var(--accent); text-decoration: none; }
 .markdown a:hover { text-decoration: underline; }
+/* Commit links show the commit itself: its hash, then its subject or range size once loaded. */
+.markdown-commit-link-label:not(:empty) { margin-inline-start: .35em; }
+.markdown-commit-link[data-missing] { color: var(--text-muted); cursor: default; text-decoration: none; }
 .markdown :not(pre) > code {
   padding: .04em .2em;
   color: var(--accent);

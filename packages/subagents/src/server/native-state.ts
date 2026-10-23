@@ -22,8 +22,8 @@ export const Delegation = defineDoc<{
   receipts: Record<string, Receipt>;
   assignments: Record<string, { recipient: ConversationId; status: "pending" | "completed" | "failed" | "interrupted"; result?: string }>;
   operations: Record<string, { child?: string; previous?: import("@earendil-works/chord").JsonValue }>;
-}>({ kind: "kintsugi.delegation", version: 1, scope: "session", initial: () => ({ receipts: {}, assignments: {}, operations: {} }) });
-export const Mailbox = defineDoc<{ receipts: Receipt[] }>({ kind: "kintsugi.mailbox", version: 1, scope: "conversation", history: "latest", fork: "initial", initial: () => ({ receipts: [] }) });
+}>({ kind: "kintsugi.delegation", version: 1, scope: "session", initial: () => ({ receipts: {}, assignments: {}, operations: {} }), checkpointWhen: () => false, });
+export const Mailbox = defineDoc<{ receipts: Receipt[] }>({ kind: "kintsugi.mailbox", version: 1, scope: "conversation", history: "latest", fork: "initial", initial: () => ({ receipts: [] }), checkpointWhen: () => false, });
 
 /** Keep routing state, the recipient mailbox and transcript evidence in one commit. */
 export async function updateReceipt(tx: Tx, id: string, change: Partial<Receipt>) {

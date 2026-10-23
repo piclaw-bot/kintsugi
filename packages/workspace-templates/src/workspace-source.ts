@@ -16,7 +16,8 @@ import {
   type CommandResult,
 } from "@kintsugi/core";
 import { gitHostingGitConfiguration } from "@kintsugi/git-hosting";
-import { runHostObservableCommand, tailTerminalText } from "@kintsugi/observable-terminal/server";
+import { appTerminalProcesses, runTerminalProcess, tailTerminalOutput, tailTerminalText, terminalOutputDisplayBytes } from "@kintsugi/observable-terminal/server";
+import { appTerminalProcessSocketPath } from "@kintsugi/observable-terminal/shared";
 import { Type, type Static } from "typebox";
 import { Value } from "typebox/value";
 import { workspaceTemplateIdFromInit, workspaceTemplateIdOfInit, getWorkspaceTemplateConfiguration, listWorkspaceTemplates, isGitWorkspaceTemplateInit } from "./workspace-template.ts";
@@ -206,22 +207,17 @@ printf '%s\n' "$effective_branch" > "$effective_branch_file"
 `;
 
   const env = { ...options.sshEnv, ...credentials.environment };
-  const result = await runHostObservableCommand({
-    session: `kintsugi-provision-git-${crypto.randomUUID().slice(0, 8)}`,
-    cwd: dir,
-    command: script,
-    env,
-    onSessionStarted: async (session) => {
-      await options.events?.emit("workspace_provision_progress", { workspaceId: options.workspaceId, detail: "Clone repository", terminalSession: session });
-    },
+  const result = await runTerminalProcess(appTerminalProcesses(), { command: script, cwd: dir, env }, async (id) => {
+    await options.events?.emit("workspace_provision_progress", { workspaceId: options.workspaceId, detail: "Clone repository", terminalSocketPath: appTerminalProcessSocketPath(id) });
   });
-  await appendFile(options.logPath, result.output).catch(() => undefined);
+  await appendFile(options.logPath, result.output.text).catch(() => undefined);
+  await options.events?.emit("workspace_provision_progress", { workspaceId: options.workspaceId, output: tailTerminalOutput(result.output.ansi, terminalOutputDisplayBytes), terminalSocketPath: undefined });
   if (result.exitCode === branchNotFoundExitCode) {
     throw new KintsugiCoreError("branch_not_found", `Branch "${branch}" was not found. Open template settings and correct the branch after # in Repository, or remove it to use the default branch. Then create a new workspace.`);
   }
   if (result.exitCode !== 0) {
-    const detail = tailTerminalText(result.output) || `git provisioning failed with exit code ${result.exitCode}`;
-    const trustHelp = result.output.includes("Host key verification failed") ? "\nConfigure verified server keys in template settings → Trusted SSH servers, then retry workspace creation." : "";
+    const detail = tailTerminalText(result.output.text) || `git provisioning failed with exit code ${result.exitCode}`;
+    const trustHelp = result.output.text.includes("Host key verification failed") ? "\nConfigure verified server keys in template settings → Trusted SSH servers, then retry workspace creation." : "";
     throw new KintsugiCoreError("git_error", `${detail}${trustHelp}`);
   }
 
@@ -354,7 +350,6 @@ export async function prepareWorkspaceSource(options: { workspaceId: string; git
       };
       await writeFile(join(cleanupPath, "metadata.json"), `${JSON.stringify(metadata, null, 2)}\n`);
 
-      await options.events?.emit("workspace_provision_progress", { workspaceId: options.workspaceId, output: tailTerminalText(await readFile(logPath, "utf8").catch(() => "")) });
       return {
         workspaceId: options.workspaceId,
         worktreePath,
@@ -367,7 +362,6 @@ export async function prepareWorkspaceSource(options: { workspaceId: string; git
     } catch (error) {
       await stopWorkspaceSshAgent(options.workspaceId);
       await rm(tmpWorkPath, { recursive: true, force: true }).catch(() => undefined);
-      await options.events?.emit("workspace_provision_progress", { workspaceId: options.workspaceId, output: tailTerminalText(await readFile(logPath, "utf8").catch(() => "")) });
       throw error;
     }
   });

@@ -1,7 +1,7 @@
 import { isJsonObject } from "@kintsugi/core";
 import type { Message, Models } from "@earendil-works/pi-ai";
-import { GenerationTask, hook, type Harness, type ConversationId } from "@earendil-works/pi-durable";
-import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
+import { GenerationTask, hook, type ConversationId, type Harness } from "@earendil-works/pi-durable";
+import { BACKGROUND_CONTEXT, withAbortSignal } from "@earendil-works/chord/context";
 import { attribution, Delegation, updateReceipt } from "./native-state.ts";
 import { SubagentModelInput } from "./subagent-model-input.ts";
 import { withStreamSimple } from "@kintsugi/builtin-agent/server";
@@ -55,7 +55,7 @@ export function delegationModels(models: Models, harness: () => Harness): Models
             if (!receipt || marker.requestConversationId !== marker.conversationId || receipt.conversationId !== marker.conversationId || receipt.prepared) continue;
             await updateReceipt(tx, receipt.id, { prepared: { timestamp: Date.now(), format: model.api === "openai-codex-responses" ? "agent_message" : "user envelope" } });
           }
-        }, { ...BACKGROUND_CONTEXT, abortSignal: options?.signal });
+        }, options?.signal ? withAbortSignal(options.signal, BACKGROUND_CONTEXT) : BACKGROUND_CONTEXT);
         return transformed;
       },
     });

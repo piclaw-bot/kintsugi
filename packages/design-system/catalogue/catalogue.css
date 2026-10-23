@@ -33,7 +33,7 @@ main { margin-left: 230px; padding: 32px 40px 24px; max-width: 1250px; }
 .catalogue-reference-content { padding: 16px 0 0 22px; }
 .catalogue-reference-content > p, .catalogue-intro .disclosure-content > p { max-width: 80ch; line-height: var(--leading-copy); margin: 0 0 24px; }
 /* Disclosure styling and indicator rotation come from Content row and Icons. */
-.catalogue-code { overflow: auto; max-height: 560px; padding: 12px 0; margin: 0 0 24px; color: var(--text-bright); font: var(--text-code)/var(--leading-copy) var(--font-mono); tab-size: 2; white-space: pre-wrap; overflow-wrap: anywhere; }
+.catalogue-code { overflow: auto; max-height: 560px; padding: 12px 0; margin: 0 0 24px; color: var(--text-bright); font: var(--text-code)/var(--leading-copy) var(--font-mono); tab-size: 2; }
 .catalogue-code code { font: inherit; }
 .catalogue-intro code { font: inherit; color: var(--text-bright); }
 .catalogue-icon { width: 92px; display: grid; justify-items: center; gap: 8px; overflow-wrap: anywhere; }

@@ -8,11 +8,15 @@ import { createDeletionReviewController } from "./deletion-controller.ts";
 import type { CodeView, CodeViewItem, CodeViewOptions, CodeViewDiffItem, VirtualizedFileDiff, SelectedLineRange } from "@pierre/diffs";
 import { copyTextToClipboard, type WorkspaceClientModule, type WorkspaceClientControllerConstructor } from "@kintsugi/shared";
 import { createDiffEndpointsController } from "./diff-endpoints-controller.ts";
+import { createCommitLinkController } from "./commit-link-controller.ts";
 import { changesDiffOptions, wordDiffCSS } from "@kintsugi/syntax/diff-options";
 
 const layoutStorageKey = "kintsugi:changes-layout";
 const wrapStorageKey = "kintsugi:changes-wrap";
 const unchangedStorageKey = "kintsugi:changes-unchanged";
+const groupedStorageKey = "kintsugi:changes-grouped";
+// Git paths never start with a slash, so these can't collide with a file.
+const groupItemPrefix = "/changes-group/";
 
 // Media previews sit on a file’s only, empty line; its number means nothing there.
 const viewerCSS = `${wordDiffCSS} [data-diffs-header] { background: var(--bg); } :host([data-changes-media]) [data-line-number-content] { visibility: hidden; }`;
@@ -64,6 +68,10 @@ function createChangesController(Controller: WorkspaceClientControllerConstructo
     private wrap = true;
     private collapsed = false;
     private showUnchanged = false;
+    private grouped = false;
+    /** The group key of each changed file: "main" or its bucket's index. */
+    private groups = new Map<string, string>();
+    private groupHeadings = new Map<string, HTMLTemplateElement>();
     private unchanged?: string[];
     private headerTemplates = new Map<string, HTMLTemplateElement>();
     private media = new Map<string, HTMLTemplateElement>();
@@ -95,11 +103,23 @@ function createChangesController(Controller: WorkspaceClientControllerConstructo
       this.editable.clear();
     }
 
-    /** Show changed files, plus unchanged ones when asked, in path order. Unchanged files load once opened. */
+    /** Show changed files, plus unchanged ones when asked, in path order or grouped by bucket. Unchanged files load once opened. */
     private compose(): void {
-      const paths = [...this.files, ...(this.showUnchanged ? this.unchanged ?? [] : [])].sort((a, b) => a.localeCompare(b));
-      this.viewer!.setItems(paths.map((path): CodeViewItem<ChangesAnnotation> => this.viewer!.getItem(path)
-        ?? { id: path, type: "file", file: { name: path, contents: "Loading file…", lang: "text", cacheKey: `${this.snapshotIdValue}:loading:${path}` }, collapsed: true, version: 0 }));
+      const item = (path: string): CodeViewItem<ChangesAnnotation> => this.viewer!.getItem(path)
+        ?? { id: path, type: "file", file: { name: path, contents: "Loading file…", lang: "text", cacheKey: `${this.snapshotIdValue}:loading:${path}` }, collapsed: true, version: 0 };
+      const unchanged = this.showUnchanged ? this.unchanged ?? [] : [];
+      if (!this.grouped) {
+        this.viewer!.setItems([...this.files, ...unchanged].sort((a, b) => a.localeCompare(b)).map(item));
+        return;
+      }
+      // Headings are collapsed placeholder items: CodeView lays out only files, each with a same-height header.
+      const heading = (key: string): CodeViewItem<ChangesAnnotation> => ({ id: `${groupItemPrefix}${key}`, type: "file", file: { name: "", contents: "", lang: "text", cacheKey: `${this.snapshotIdValue}:group:${key}` }, collapsed: true, version: 0 });
+      const items: CodeViewItem<ChangesAnnotation>[] = [];
+      for (const key of this.groupHeadings.keys()) {
+        const paths = key === "unchanged" ? [...unchanged].sort((a, b) => a.localeCompare(b)) : [...this.files].filter(path => this.groups.get(path) === key);
+        if (paths.length) items.push(heading(key), ...paths.map(item));
+      }
+      this.viewer!.setItems(items);
     }
 
     private async loadUnchanged(signal: AbortSignal): Promise<void> {
@@ -124,13 +144,19 @@ function createChangesController(Controller: WorkspaceClientControllerConstructo
       this.layout = localStorage.getItem(layoutStorageKey) === "split" ? "split" : "unified";
       this.wrap = localStorage.getItem(wrapStorageKey) !== "false";
       this.showUnchanged = localStorage.getItem(unchangedStorageKey) === "true";
+      for (const template of this.element.querySelectorAll<HTMLTemplateElement>("template[data-changes-group]")) this.groupHeadings.set(template.dataset.changesGroup!, template);
+      const groupedToggle = this.element.querySelector('[data-action="changes#toggleGrouped"]');
+      // The option only exists when the workspace has buckets.
+      this.grouped = groupedToggle !== null && localStorage.getItem(groupedStorageKey) === "true";
+      groupedToggle?.setAttribute("aria-checked", String(this.grouped));
       for (const radio of this.element.querySelectorAll<HTMLElement>("[data-layout]")) radio.setAttribute("aria-checked", String(radio.dataset.layout === this.layout));
       this.element.querySelector('[data-action="changes#toggleWrap"]')!.setAttribute("aria-checked", String(this.wrap));
       this.element.querySelector('[data-action="changes#toggleUnchanged"]')!.setAttribute("aria-checked", String(this.showUnchanged));
       for (const template of this.element.querySelectorAll<HTMLTemplateElement>("template[data-changes-header]")) this.headerTemplates.set(template.dataset.changesHeader!, template);
       // SAFETY: renderChanges emits this private model with type-matched loading items.
-      const model = JSON.parse(this.modelTarget.textContent!) as { items: CodeViewItem<ChangesAnnotation>[]; files: { path: string }[] };
+      const model = JSON.parse(this.modelTarget.textContent!) as { items: CodeViewItem<ChangesAnnotation>[]; files: { path: string; bucket?: number }[] };
       this.files = new Set(model.files.map(file => file.path));
+      this.groups = new Map(model.files.map(file => [file.path, file.bucket === undefined ? "main" : String(file.bucket)]));
       for (const template of this.element.querySelectorAll<HTMLTemplateElement>("template[data-changes-media]")) this.media.set(template.dataset.changesMedia!, template);
       // SAFETY: The edit controller transfers only file disclosure booleans in this presentation model.
       const disclosure = new Map(Object.entries(JSON.parse(shell.dataset.changesFileCollapse ?? "{}") as Record<string, boolean>));
@@ -171,13 +197,15 @@ function createChangesController(Controller: WorkspaceClientControllerConstructo
           if (this.files.has(context.item.id) || !context.item.collapsed) void this.loadFile(context.item.id, abort.signal);
           if (context.type === "diff" && !this.element.dataset.codeEditing && this.loaded.has(context.item.id)) this.revealCommentLines(context.item, context.instance);
         },
-        renderCustomHeader: (_file, context) => this.header(context.item.id, context.item.collapsed === true),
+        renderCustomHeader: (_file, context) => context.item.id.startsWith(groupItemPrefix)
+          ? this.groupHeading(context.item.id.slice(groupItemPrefix.length))
+          : this.header(context.item.id, context.item.collapsed === true),
       };
       this.viewer = new CodeView<ChangesAnnotation, undefined>(this.options);
       this.viewer.setup(this.viewerTarget);
       if (this.hasEmptyTarget) this.viewHeaderTarget.prepend(this.emptyTarget);
       this.viewer.setItems(model.items.map((item) => ({ ...item, collapsed: disclosure.get(item.id) ?? this.collapsed })));
-      if (this.showUnchanged) this.compose();
+      if (this.showUnchanged || this.grouped) this.compose();
       const scroll = Number(shell.dataset.changesScroll ?? 0);
       delete shell.dataset.changesFileCollapse;
       delete shell.dataset.changesScroll;
@@ -226,6 +254,11 @@ function createChangesController(Controller: WorkspaceClientControllerConstructo
     }
 
     dismissError(): void { this.errorTarget.hidden = true; }
+
+    private groupHeading(key: string): HTMLElement {
+      // SAFETY: renderDiff emits each group heading template with one div root.
+      return this.groupHeadings.get(key)!.content.firstElementChild!.cloneNode(true) as HTMLElement;
+    }
 
     private header(path: string, collapsed: boolean): HTMLElement {
       const template = this.headerTemplates.get(path) ?? this.unchangedHeaderTarget;
@@ -556,6 +589,14 @@ function createChangesController(Controller: WorkspaceClientControllerConstructo
       if (this.viewer) this.compose();
     }
 
+    toggleGrouped(event: Event): void {
+      this.grouped = !this.grouped;
+      localStorage.setItem(groupedStorageKey, String(this.grouped));
+      // SAFETY: The grouping action is attached to the server-rendered checkbox menu item.
+      (event.currentTarget as HTMLButtonElement).setAttribute("aria-checked", String(this.grouped));
+      if (this.viewer) this.compose();
+    }
+
     toggleWrap(event: Event): void {
       this.wrap = !this.wrap;
       localStorage.setItem(wrapStorageKey, String(this.wrap));
@@ -592,6 +633,7 @@ export const kintsugiClientModule: WorkspaceClientModule = {
     application.register("review-copy", createReviewCopyController(Controller));
     application.register("review-send", createReviewSendController(Controller));
     application.register("changes-diff-endpoints", createDiffEndpointsController(Controller));
+    application.register("commit-link", createCommitLinkController(Controller));
     hooks.onBecomeVisible(({ pane }) => {
       // Let Stimulus connect newly inserted views before requesting the refresh.
       requestAnimationFrame(() => {

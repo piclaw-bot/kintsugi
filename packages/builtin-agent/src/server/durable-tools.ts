@@ -98,6 +98,6 @@ export function createDurableWorkspaceTools(workspaceId: string, models: Pick<Mo
     durableWorkspaceTool(createEditTool(workspaceRoot, operations.edit)),
     ...createKintsugiControlTools(workspaceId, { ...options, embeds: true }).map((tool) => durableWorkspaceTool(tool, "unsafe", resolveAgentId)),
     // Install createDurableBashExtension alongside these tools; it owns both
-    // the receipt-backed bash task and its tool registration.
+    // the bash task, backed by a terminal process, and its tool registration.
   ];
 }

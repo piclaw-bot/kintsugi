@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1-labs
-ARG ATELIER_RUNTIME_IMAGE=ghcr.io/lucasmeijer/agents-in-the-cloud-docker@sha256:149efe3189255442091157921511b6c122b0254bb07e24d08d24408b4b79deda
-FROM oven/bun:1.4.0 AS bun-dist
+ARG ATELIER_RUNTIME_IMAGE=ghcr.io/rcarmo/kintsugi-docker@sha256:927bea2d5276f87de04d7934b19124c48f9bd1c877743cace382bd5271ffbfe4
+FROM oven/bun:1.4.4 AS bun-dist
 
 FROM ubuntu:26.04 AS transcription-runtime
 ARG TARGETARCH
@@ -29,7 +29,7 @@ RUN --mount=type=cache,target=/root/.bun/install/cache \
     && rm -rf node_modules/.bun/@anthropic-ai+claude-agent-sdk-*
 
 FROM deps AS build
-COPY . .
+COPY --exclude=packages/workspace-helper/dist --exclude=packages/workspace-helper/workspace_tools . .
 RUN bun run --cwd apps/web build:client
 
 FROM ${ATELIER_RUNTIME_IMAGE} AS runtime
@@ -69,6 +69,8 @@ ENV ATELIER_DATA_DIR=/data/app
 
 COPY --from=deps /app/node_modules /app/node_modules
 COPY --from=build --exclude=node_modules /app /app
+ARG TARGETARCH
+COPY packages/workspace-helper/dist/linux-${TARGETARCH}/kintsugi-workspace-helper /app/packages/workspace-helper/workspace_tools/kintsugi-workspace-helper
 RUN printf '%s\n' '#!/usr/bin/env sh' 'exec /usr/local/bin/bun /app/packages/proxy-ingress/src/ingress/tailscale-serve-helper.ts "$@"' > /usr/local/bin/kintsugi-tailscale-serve-helper \
  && chmod 755 /usr/local/bin/kintsugi-tailscale-serve-helper /app/apps/web/docker-entrypoint.sh
 

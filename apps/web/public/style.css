@@ -63,7 +63,7 @@ turbo-frame { display: contents; }
   font-size: var(--text-body);
 }
 .fixed-shell-app { --fixed-workspace-width: 275px; --fixed-agent-width: 520px; --fixed-shell-gap: 8px; --fixed-shell-bg: var(--bg); --fixed-shell-raised: var(--panel); --fixed-shell-hover: var(--accent-soft); --fixed-shell-border: var(--line); position: relative; width: 100%; height: 100dvh; min-width: 0; min-height: 0; display: flex; gap: var(--fixed-shell-gap); overflow: clip; padding: var(--fixed-shell-gap); box-sizing: border-box; }
-.fixed-shell-app-main, .workspace-detail-host, .workspace-detail-resident { width: 100%; height: 100%; min-width: 0; min-height: 0; overflow: clip; }
+.fixed-shell-app-main, .workspace-detail-host, .workspace-detail-mount { width: 100%; height: 100%; min-width: 0; min-height: 0; overflow: clip; }
 .fixed-shell-app-main { min-width: 0; flex: 1; display: block; container: workspace-content / inline-size; }
 .workspace-detail-loading:not([hidden]) { width: 100%; height: 100%; display: grid; place-items: center; }
 .workspace-detail-loading-status { display: flex; align-items: center; gap: 8px; color: var(--text); }
@@ -79,8 +79,8 @@ turbo-frame { display: contents; }
 .workspace-empty-arrow path { fill: none; stroke: var(--accent); stroke-width: 2.5; stroke-linecap: round; }
 .workspace-empty-arrow marker path { fill: var(--accent); stroke: none; }
 .is-first-workspace-destination { color: var(--accent); background: color-mix(in srgb, var(--accent) 26%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 45%, transparent), 0 0 0 3px color-mix(in srgb, var(--accent) 12%, transparent); }
-.workspace-detail-resident:not(.visible) { display: none; }
-.workspace-detail-resident.visible { display: block; }
+.workspace-detail-mount:not(.visible) { display: none; }
+.workspace-detail-mount.visible { display: block; }
 .fixed-shell-work-pane .fixed-shell-live-body { background-image: var(--work-background-image); }
 .fixed-shell-live-body, .fixed-shell-live-body > * { width: 100%; height: 100%; min-width: 0; min-height: 0; }
 .fixed-shell-app *, .fixed-shell-app *::before, .fixed-shell-app *::after { box-sizing: border-box; }
@@ -273,7 +273,7 @@ html.software-keyboard-visible .fixed-shell-app .fixed-shell-mobile-nav { displa
   .fixed-shell-app {
     position: fixed; left: 0; right: 0; top: var(--software-keyboard-top, 0px); bottom: var(--software-keyboard-inset, 0px); height: auto;
   }
-  /* Resident workspaces own their bar; the overlaid workspace list uses the
+  /* Workspace mounts own their bar; the overlaid workspace list uses the
    * outer grid's Kintsugi-bar row independently. */
   .fixed-shell-app-main { grid-area: 1 / 1 / -1 / -1; }
   .fixed-workspace-presentation, .workspace-boot { display: grid; grid-template: minmax(0, 1fr) auto / minmax(0, 1fr); padding: 0; }
@@ -286,7 +286,7 @@ html.software-keyboard-visible .fixed-shell-app .fixed-shell-mobile-nav { displa
   .workspace-deletion-state { min-height: 0; overflow: auto; padding: 24px 16px; }
   .fixed-shell-workspace-pane, .fixed-shell-agent-pane, .fixed-shell-work-pane { position: absolute; inset: 0; width: 100%; max-width: none; min-width: 0; margin: 0 !important; border: 0; border-radius: 0; opacity: 0; visibility: hidden; pointer-events: none; transform: none; transition: opacity 150ms ease; }
   .fixed-shell-app > .fixed-shell-workspace-pane { position: relative; grid-area: 1 / 1; min-height: 0; z-index: 20; }
-  .fixed-shell-app:not(:has(.workspace-detail-resident.visible)):not(:has(.template-settings-host)) > .fixed-shell-workspace-pane,
+  .fixed-shell-app:not(:has(.workspace-detail-mount.visible)):not(:has(.template-settings-host)) > .fixed-shell-workspace-pane,
   .fixed-shell-app.is-mobile-workspace-pane-open > .fixed-shell-workspace-pane,
   .fixed-workspace-presentation[data-phone-destination="agents"] .fixed-shell-agent-pane,
   .fixed-workspace-presentation[data-phone-destination^="work:"] .fixed-shell-work-pane { opacity: 1; visibility: visible; pointer-events: auto; }
@@ -295,7 +295,7 @@ html.software-keyboard-visible .fixed-shell-app .fixed-shell-mobile-nav { displa
   .fixed-shell-work-resizer, [data-show-work-pane], [data-show-workspace-pane], [data-collapse-workspace-pane] { display: none; }
   .fixed-shell-mobile-nav { position: relative; grid-area: 2 / 1; z-index: 30; min-width: 0; display: flex; align-items: center; gap: 8px; margin-top: 2px; padding: 4px 4px calc(4px + env(safe-area-inset-bottom, 0px)); border-top: 1px solid var(--fixed-shell-border); background: var(--panel); }
   .fixed-shell-kintsugi-bar { display: none; align-items: center; }
-  .fixed-shell-app:where(.is-mobile-workspace-pane-open, :not(:has(.workspace-detail-resident.visible))) > .fixed-shell-kintsugi-bar { display: flex; }
+  .fixed-shell-app:where(.is-mobile-workspace-pane-open, :not(:has(.workspace-detail-mount.visible))) > .fixed-shell-kintsugi-bar { display: flex; }
   .fixed-shell-app.is-mobile-workspace-pane-open .fixed-shell-workspace-bar { visibility: hidden; pointer-events: none; }
   .workspace-empty-artwork { display: none; }
   /* Clearance inside the overflow strip also accommodates the pressed offset. */
@@ -360,7 +360,7 @@ button { border: 0; background: none; cursor: pointer; }
 .git-hosting-server-url { overflow-wrap: anywhere; color: var(--text); }
 .git-hosting-connect-controls { display: flex; align-items: center; gap: 8px; }
 .git-hosting-connect-controls .text-field { min-width: 0; flex: 1; }
-.settings-command { margin: 8px 0 12px; padding: 12px 12px; border: 1px solid var(--line); border-radius: var(--radius-surface); background: var(--bg); color: var(--text-bright); font-family: var(--font-mono); line-height: var(--leading-standard); white-space: pre-wrap; }
+.settings-command { margin: 8px 0 12px; padding: 12px 12px; border: 1px solid var(--line); border-radius: var(--radius-surface); background: var(--bg); color: var(--text-bright); font-family: var(--font-mono); line-height: var(--leading-standard); }
 .settings-error { color: var(--danger); background: var(--danger-soft); border-radius: var(--radius-surface); padding: 8px 8px; }
 .settings-link { color: var(--accent); text-decoration: underline; text-underline-offset: 2px; font-weight: var(--weight-bold); }
 .settings-link:hover { filter: brightness(1.08); text-decoration-thickness: 2px; }
@@ -489,7 +489,7 @@ html.software-keyboard-visible .composer.launch-composer :is(.agent-attach-row, 
 
 .live-connection-status:not([hidden]) { position: fixed; z-index: 10000; top: 12px; left: 50%; transform: translateX(-50%); display: flex; gap: 8px; align-items: center; padding: 10px 16px; border: 1px solid var(--line); border-radius: var(--radius-control); background: var(--panel); color: var(--text); box-shadow: 0 4px 18px #0002; }
 
-/* Template settings is a non-modal destination. Residents keep their dimensions underneath. */
+/* Template settings is a non-modal destination. Workspace mounts keep their dimensions underneath. */
 .fixed-shell-app-main { position: relative; }
 .template-settings-host { position: absolute; inset: 0; z-index: 8; display: flex; justify-content: center; background: var(--bg); min-width: 0; min-height: 0; }
 .template-settings-host > turbo-frame { display: flex; width: 100%; max-width: 960px; min-width: 0; min-height: 0; }

@@ -127,9 +127,9 @@ describe("Agent type app integration", () => {
 
   test("warning dismissal does not attach modules or list Agents", async () => {
     await withTestApp([{ id: "conversation-a", title: "Alpha" }], async ({ app, agent, registry, workspaceId }) => {
-      registry.setIssue(workspaceId, "readiness", "Gateway unavailable");
+      registry.setWarning(workspaceId, "preparation", "Gateway unavailable");
       const warning = workspaceWarnings(registry.get(workspaceId)!, undefined)[0]!;
-      const response = await app.fetch(new Request(`http://test.local/workspaces/${workspaceId}/warnings/readiness/dismiss`, {
+      const response = await app.fetch(new Request(`http://test.local/workspaces/${workspaceId}/warnings/preparation/dismiss`, {
         method: "POST",
         headers: { accept: "application/json", "content-type": "application/json" },
         body: JSON.stringify({ state: warning.state }),

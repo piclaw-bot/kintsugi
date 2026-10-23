@@ -13,20 +13,34 @@ async function scenario(script: string): Promise<void> {
       const calls = [];
       const launches = [];
       const preparations = [];
-      const commands = [];
-      const observableTerminal = await import("@kintsugi/observable-terminal/server");
-      const buildSessionCommand = observableTerminal.buildObservableSessionCommand;
-      mock.module("@kintsugi/observable-terminal/server", () => ({ ...observableTerminal, buildObservableSessionCommand: (options) => { commands.push(options.command); return buildSessionCommand(options); } }));
+      // Each Workspace's terminal processes: what was started and released, and each one's state.
+      const started = [];
+      const released = [];
+      const processStates = new Map();
+      let startError, releaseError;
+      const terminalProcesses = (workspaceId) => ({
+        async start(options) {
+          if (startError) throw startError;
+          started.push({ workspaceId, options });
+          processStates.set(workspaceId + ":" + options.id, { state: "running", interactive: true });
+        },
+        async state(id) { return processStates.get(workspaceId + ":" + id) ?? { state: "missing" }; },
+        async release(id) {
+          if (releaseError) throw releaseError;
+          released.push(id);
+          processStates.delete(workspaceId + ":" + id);
+        },
+      });
+      const setProcessState = (workspaceId, id, state) => processStates.set(workspaceId + ":" + id, state);
       let launchScript = "printf 'CLI started'";
       let setupError;
       let turnSettled = async () => true;
       let preparationError;
       let preparationDelay;
-      let inspectionResult;
       let result = { stdout: "", stderr: "", exitCode: 0, durationMs: 0 };
       const workspaceTitles = new Map();
       const agentsFiles = new Map();
-      mock.module("@kintsugi/workspace", () => ({ ...workspace, execWorkspaceCommand: async (_id, command) => ({ stdout: [...agentsFiles].find(([path]) => command[2].includes(path))?.[1] ?? "", stderr: "", exitCode: 0, durationMs: 0 }), getWorkspaceTitle: async (id) => workspaceTitles.get(id) ?? null, setWorkspaceTitle: async (id, title) => { workspaceTitles.set(id, title); return null; }, execWorkspaceShell: async (...args) => { calls.push(args); return args[1].includes("tmux list-panes") && inspectionResult ? inspectionResult : result; } }));
+      mock.module("@kintsugi/workspace", () => ({ ...workspace, execWorkspaceCommand: async (_id, command) => ({ stdout: [...agentsFiles].find(([path]) => command[2].includes(path))?.[1] ?? "", stderr: "", exitCode: 0, durationMs: 0 }), getWorkspaceTitle: async (id) => workspaceTitles.get(id) ?? null, setWorkspaceTitle: async (id, title) => { workspaceTitles.set(id, title); return null; }, execWorkspaceShell: async (...args) => { calls.push(args); return result; }, workspaceTerminalProcesses: terminalProcesses }));
       const slugSuggestion = await import("@kintsugi/agent/server/slug-suggestion");
       const slugRequests = [];
       let suggestedSlug;
@@ -71,17 +85,22 @@ test("creation materializes images and passes input and settings to the adapter 
   const settings = { input, model: "any-provider::model", thinkingLevel: "custom" };
   await agentType.launch.prepareWorkspace("initial", { agent: settings });
   const [tab] = await list("initial");
-  expect(calls).toHaveLength(4);
   const image = "/tmp/kintsugi-attachments/example-" + tab.id + "/0.png";
   expect(calls[0][1]).toContain(image);
   expect(calls[0][2]).toEqual({ stdin: "aW1hZ2U=" });
-  expect(calls[3][1]).toContain("tmux -N new-session");
+  const shellCalls = calls.length;
+  expect(started).toEqual([{ workspaceId: "initial", options: expect.objectContaining({ id: tab.id, cwd: "/work", interactive: true }) }]);
+  // A launch with a prompt runs the script in an outer shell whose trap finishes the pending turn.
+  expect(started[0].options.command).toStartWith("trap ");
+  expect(started[0].options.command).toContain("CLI started");
   expect(launches).toEqual([{ input, images: [image], settings }]);
   expect(preparations).toEqual(["initial"]);
   const [session] = (await saved("initial")).agents;
-  expect(session).toMatchObject({ id: tab.id, title: "Example CLI", input, kind: "example", model: settings.model, thinkingLevel: "custom", tmuxSession: "example-" + tab.id });
+  expect(session).toMatchObject({ id: tab.id, title: "Example CLI", input, kind: "example", model: settings.model, thinkingLevel: "custom" });
+  expect(session.tmuxSession).toBeUndefined();
   await list("initial");
-  expect(calls).toHaveLength(4);
+  expect(calls).toHaveLength(shellCalls);
+  expect(started).toHaveLength(1);
 `));
 
 test("a launch prompt names the tab with a suggested slug", () => scenario(`
@@ -161,7 +180,7 @@ test("CLI composer /name uses the saved prompt when no title is supplied", () =>
 `));
 
 test("startup failure leaves a durable tab with its actual error", () => scenario(`
-  result = { ...result, stderr: "tmux service unavailable", exitCode: 1 };
+  startError = new Error("tmux service unavailable");
   const id = await agentType.create({ workspaceId: "failure" });
   expect((await saved("failure")).agents[0]).toMatchObject({ id, error: "tmux service unavailable" });
   expect(await list("failure")).toEqual([{ id, title: "Example CLI" }]);
@@ -177,33 +196,37 @@ test("adapter preparation failures are retained without launching a process", ()
   expect(preparations).toHaveLength(1);
 `));
 
-test("ended process retains its terminal until the tab is closed", () => scenario(`
+test("an ended CLI keeps its process, and what it left, until the tab is closed", () => scenario(`
   const id = await agentType.create({ workspaceId: "ended" });
-  result = { ...result, stdout: "1:42\\n" };
+  const ended = { state: "exited", exitCode: 42, aborted: false, timedOut: false, output: { ansi: "install failed", text: "install failed" } };
+  setProcessState("ended", id, ended);
   const { createCliAgents } = await import(${JSON.stringify(join(import.meta.dir, "../src/server/agents.ts"))});
   const agents = createCliAgents(adapter);
-  expect(await agents.terminalState("ended", agents.get("ended", id))).toMatchObject({ ended: true, exitCode: 42 });
-  expect(calls.some(call => call[1].includes("kill-session"))).toBe(false);
+  expect(await agents.terminalState("ended", agents.get("ended", id))).toEqual(ended);
+  const tab = (await agentType.tabs.render({ workspaceId: "ended", agentId: id })).html;
+  expect(tab).toContain("Session ended (exit 42)");
+  expect(tab).toContain('<pre class="cli-terminal-output">install failed</pre>');
+  expect(tab).not.toContain("observable-terminal-host");
+  expect(tab).not.toContain("cli-agent-composer");
+  expect(released).toEqual([]);
   await agentType.tabs.close({ workspaceId: "ended", agentId: id });
-  expect(calls.at(-1)[1]).toContain("tmux kill-session");
+  expect(released).toEqual([id]);
   expect(await list("ended")).toEqual([]);
 `));
 
-test("missing session closes without restarting or trying to kill it", () => scenario(`
+test("closing an Agent whose process is gone releases it without restarting it", () => scenario(`
   const id = await agentType.create({ workspaceId: "missing" });
-  calls.length = 0;
-  result = { ...result, stderr: "can't find session", exitCode: 1 };
+  setProcessState("missing", id, { state: "lost" });
   await agentType.tabs.close({ workspaceId: "missing", agentId: id });
-  expect(calls).toHaveLength(1);
-  expect(calls[0][1]).toContain("tmux list-panes");
+  expect(released).toEqual([id]);
   expect(await list("missing")).toEqual([]);
   expect(launches).toHaveLength(1);
 `));
 
-test("unexpected inspection errors propagate and preserve the tab", () => scenario(`
+test("a failed release propagates and preserves the tab", () => scenario(`
   const id = await agentType.create({ workspaceId: "broken" });
-  result = { ...result, stderr: "container unavailable", exitCode: 125 };
-  await expect(agentType.tabs.close({ workspaceId: "broken", agentId: id })).rejects.toMatchObject({ code: "example_session_check_failed" });
+  releaseError = new Error("container unavailable");
+  await expect(agentType.tabs.close({ workspaceId: "broken", agentId: id })).rejects.toThrow("container unavailable");
   expect(await list("broken")).toHaveLength(1);
 `));
 
@@ -211,7 +234,7 @@ test("concurrent provisioning claims launch once, and recovery never resubmits",
   const context = { agent: { input: { text: "Only once", images: [], attachmentNotes: [] } } };
   await Promise.all([agentType.launch.prepareWorkspace("recovery", context), agentType.launch.prepareWorkspace("recovery", context)]);
   await createCliAgentModule(adapter).agentType.launch.prepareWorkspace("recovery", context);
-  expect(calls).toHaveLength(3);
+  expect(started).toHaveLength(1);
   expect(launches).toHaveLength(1);
   expect(await list("recovery")).toHaveLength(1);
 `));
@@ -237,7 +260,7 @@ test("existing CLI placeholders, Claude and Pi agents retain paths, IDs and tmux
     await legacy.launch.prepareWorkspace("legacy");
     expect(await Bun.file(path).json()).toEqual({ sessions: [session] });
     await legacy.tabs.close({ workspaceId: "legacy", agentId: session.id });
-    expect(calls.at(-1)[1]).toContain(id + "-existing");
+    expect(calls.at(-1)[1]).toContain("kill-session -t '=" + id + "-existing'");
   }
   expect(launches).toHaveLength(0);
   expect(preparations).toHaveLength(0);
@@ -267,34 +290,29 @@ test("launch settings are prepared by the adapter for both form and programmatic
   expect(launches).toHaveLength(1);
 `));
 
-test("starting claims are not ended, and socket admission waits for tmux creation", () => scenario(`
+test("an Agent reports starting until its process starts, and readiness waits for it", () => scenario(`
   const { createCliAgents } = await import(${JSON.stringify(join(import.meta.dir, "../src/server/agents.ts"))});
-  const { cliSocketHandler } = await import(${JSON.stringify(join(import.meta.dir, "../src/server/sockets.ts"))});
   const entered = Promise.withResolvers();
   const preparation = Promise.withResolvers();
   const agents = createCliAgents({ ...adapter, prepareWorkspace: async () => { entered.resolve(); await preparation.promise; } });
   const launch = agents.create("starting");
   await entered.promise;
   const [claim] = agents.list("starting");
-  expect(await agents.terminalState("starting", claim)).toEqual({ starting: true, exists: false, ended: false });
-  expect(calls).toHaveLength(0);
-  let ready = false, admitted = false;
+  expect(await agents.terminalState("starting", claim)).toEqual({ state: "starting" });
+  let ready = false;
   const readiness = agents.ready("starting", claim.id).then(session => { ready = true; return session; });
-  const socket = cliSocketHandler("example", agents)(new URL("http://localhost/workspaces/starting/example-agents/" + claim.id + "/ws")).then(connection => { admitted = true; return connection; });
   await Bun.sleep(10);
   expect(ready).toBe(false);
-  expect(admitted).toBe(false);
+  expect(started).toHaveLength(0);
   preparation.resolve();
   expect(await launch).toBe(claim.id);
   expect(await readiness).toBe(claim);
-  expect(await socket).toBeDefined();
-  expect(calls).toHaveLength(3);
-  expect(await agents.terminalState("starting", claim)).toMatchObject({ exists: true, ended: false });
+  expect(started).toHaveLength(1);
+  expect(await agents.terminalState("starting", claim)).toEqual({ state: "running", interactive: true });
 `));
 
-test("failed startup releases readiness waiters but rejects socket admission", () => scenario(`
+test("failed startup releases readiness waiters with its error, and starts no process", () => scenario(`
   const { createCliAgents } = await import(${JSON.stringify(join(import.meta.dir, "../src/server/agents.ts"))});
-  const { cliSocketHandler } = await import(${JSON.stringify(join(import.meta.dir, "../src/server/sockets.ts"))});
   const entered = Promise.withResolvers();
   const preparation = Promise.withResolvers();
   const agents = createCliAgents({ ...adapter, prepareWorkspace: async () => { entered.resolve(); await preparation.promise; throw new Error("preparation failed"); } });
@@ -302,13 +320,10 @@ test("failed startup releases readiness waiters but rejects socket admission", (
   await entered.promise;
   const [claim] = agents.list("failed-start");
   const readiness = agents.ready("failed-start", claim.id);
-  const socket = cliSocketHandler("example", agents)(new URL("http://localhost/workspaces/failed-start/example-agents/" + claim.id + "/ws"));
-  const rejection = socket.then(() => { throw new Error("Socket unexpectedly admitted"); }, error => error);
   preparation.resolve();
   await launch;
   expect((await readiness).error).toBe("preparation failed");
-  expect(await rejection).toMatchObject({ code: "agent_session_failed", message: "preparation failed" });
-  expect(calls).toHaveLength(0);
+  expect(started).toHaveLength(0);
 `));
 
 test("authenticated turn boundaries identify the exact CLI session and close revokes it", () => scenario(`
@@ -370,11 +385,15 @@ test("startup failure revokes credentials issued before adapter preparation", ()
 test("automatic recovery restores missing processes once without replaying saved input", () => scenario(`
   const { createCliAgents } = await import(${JSON.stringify(join(import.meta.dir, "../src/server/agents.ts"))});
   const resumed = [];
-  const agents = createCliAgents({ ...adapter, resumeScript: async (...args) => { resumed.push(args); inspectionResult = { ...result, stdout: "0:\\n" }; return "printf resumed"; } }, async () => {});
+  const agents = createCliAgents({ ...adapter, resumeScript: async (...args) => { resumed.push(args); return "printf resumed"; } }, async () => {});
   const settings = { model: "provider::saved", thinkingLevel: "high", input: { text: "NEVER REPLAY", images: [], attachmentNotes: ["original attachment"] } };
   const id = await agents.create("restore", settings);
-  inspectionResult = { ...result, exitCode: 1 };
+  // Its terminal went with the workspace's restart.
+  setProcessState("restore", id, { state: "lost" });
   await Promise.all([agents.restoreWorkspace("restore"), agents.restoreWorkspace("restore")]);
+  expect(released).toEqual([id]);
+  expect(started).toHaveLength(2);
+  expect(started[1].options.command).toBe("printf resumed");
   expect(resumed).toHaveLength(1);
   expect(resumed[0][0]).toBe("restore");
   expect(resumed[0][1]).toEqual({ model: settings.model, thinkingLevel: settings.thinkingLevel });
@@ -391,22 +410,26 @@ test("a renamed adapter keeps its earlier metadata file and restores agents of i
   const agent = (id, kind) => ({ id, title: "Existing tab", tmuxSession: "original-" + id, input: { text: "", images: [], attachmentNotes: [] }, kind });
   await Bun.write(path, JSON.stringify({ agents: [agent("earlier", "original"), agent("placeholder")] }));
   expect(agents.list("renamed").map(agent => agent.id)).toEqual(["earlier", "placeholder"]);
-  inspectionResult = { ...result, exitCode: 1 };
   await agents.restoreWorkspace("renamed");
   expect(resumed).toEqual(["earlier"]);
-  expect(calls.at(-1)[1]).toContain("original-earlier");
+  // Started before terminal processes: its CLI in tmux stops, and it resumes as a terminal process.
+  expect(calls.some(call => call[1].includes("kill-session -t '=original-earlier'"))).toBe(true);
+  const records = (await Bun.file(path).json()).agents;
+  expect(records.find(agent => agent.id === "earlier").tmuxSession).toBeUndefined();
+  expect(records.find(agent => agent.id === "placeholder").tmuxSession).toBe("original-placeholder");
   const id = await agents.create("renamed");
-  expect((await Bun.file(path).json()).agents.find(agent => agent.id === id)).toMatchObject({ kind: "renamed", tmuxSession: "renamed-" + id });
+  expect((await Bun.file(path).json()).agents.find(agent => agent.id === id)).toMatchObject({ kind: "renamed" });
 `));
 
-test("recovery leaves existing live and dead panes alone", () => scenario(`
+test("recovery leaves running and ended CLIs alone", () => scenario(`
   const { createCliAgents } = await import(${JSON.stringify(join(import.meta.dir, "../src/server/agents.ts"))});
   const agents = createCliAgents({ ...adapter, resumeScript: async () => { throw new Error("must not resume"); } }, async () => {});
-  await agents.create("existing");
-  for (const stdout of ["0:\\n", "1:42\\n"]) {
-    inspectionResult = { ...result, stdout };
+  const id = await agents.create("existing");
+  for (const state of [{ state: "running", interactive: true }, { state: "exited", exitCode: 42, aborted: false, timedOut: false, output: { ansi: "", text: "" } }]) {
+    setProcessState("existing", id, state);
     await agents.restoreWorkspace("existing");
   }
+  expect(released).toEqual([]);
   expect((await saved("existing")).agents[0].error).toBeUndefined();
   expect(launches).toHaveLength(1);
 `));
@@ -417,7 +440,8 @@ test("one restoration failure preserves its tab and does not block other agents"
   const agents = createCliAgents({ ...adapter, resumeScript: async (_workspaceId, _settings, session) => { resumed.push(session.id); if (resumed.length === 1) throw new Error("native history could not be loaded"); return "printf resumed"; } }, async () => {});
   const first = await agents.create("failure");
   const second = await agents.create("failure");
-  inspectionResult = { ...result, exitCode: 1 };
+  setProcessState("failure", first, { state: "lost" });
+  setProcessState("failure", second, { state: "lost" });
   await agents.restoreWorkspace("failure");
   expect(resumed).toEqual([first, second]);
   expect((await saved("failure")).agents[0]).toMatchObject({ id: first, error: "native history could not be loaded" });
@@ -532,7 +556,7 @@ test("the terminal reports installation failure even when the CLI script owns it
   const { shellQuote } = await import("@kintsugi/core");
   await Bun.write(signalScript, 'printf "%s" "$1" > ' + shellQuote(signalFile));
   // Run the actual terminal command, replacing only its authenticated relay script.
-  const command = commands[0].replaceAll("/home/agent/.local/share/kintsugi-agents/" + id + "/turn-signal.sh", signalScript);
+  const command = started[0].options.command.replaceAll("/home/agent/.local/share/kintsugi-agents/" + id + "/turn-signal.sh", signalScript);
   const child = Bun.spawn(["/bin/bash", "-c", command], { stdout: "pipe", stderr: "pipe" });
   const [code, stderr] = await Promise.all([child.exited, new Response(child.stderr).text()]);
   expect(code).toBe(7);
@@ -560,7 +584,7 @@ test("native prompt preparation includes shared and plugin guidance once per lau
   expect(prompts[0]).toContain("You are running inside of an online coding tool called Kintsugi.");
   expect(prompts[0]).toContain("Plugin guidance " + id + " revision 1");
   adapter.resumeScript = async () => "true";
-  inspectionResult = { ...result, exitCode: 1 };
+  setProcessState("native-prompt", id, { state: "lost" });
   const { createCliAgents } = await import(${JSON.stringify(join(import.meta.dir, "../src/server/agents.ts"))});
   await createCliAgents(adapter, async () => {}).restoreWorkspace("native-prompt");
   expect(prepared).toBe(2);

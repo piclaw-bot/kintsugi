@@ -1,5 +1,5 @@
 import { afterEach, expect, test } from "bun:test";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { BACKGROUND_CONTEXT as context } from "@earendil-works/chord/context";
@@ -10,7 +10,7 @@ import { Type } from "typebox";
 import { durableViewState, projectDurableTranscript } from "@kintsugi/builtin-agent/server";
 import { openDurableAgentRuntime, type DurableAgentRuntime } from "@kintsugi/builtin-agent/server/durable-runtime";
 import type { ToolView } from "@kintsugi/agent/server/transcript";
-import { codemodeTool } from "./support.ts";
+import { codemodeTool, localScriptFiles } from "./support.ts";
 import { createWorkspaceCodemodeExtension } from "../../src/server/extension.ts";
 
 const paths: string[] = [];
@@ -21,26 +21,34 @@ afterEach(async () => {
   await Promise.all(paths.splice(0).map((path) => rm(path, { recursive: true, force: true })));
 });
 
-/** Code mode with an `echo` tool, and a `hold` tool that runs until it is cancelled, whose start `held` reports. */
-async function setup() {
-  const path = await mkdtemp(join(tmpdir(), "kintsugi-codemode-"));
-  paths.push(path);
+/**
+ * Code mode with an `echo` tool, and a `hold` tool that runs until it is cancelled or released, whose start `held`
+ * reports. Reopening a suspended runtime's `path` picks up where it was.
+ */
+async function setup(reopen?: string) {
+  const path = reopen ?? await mkdtemp(join(tmpdir(), "kintsugi-codemode-"));
+  if (!reopen) paths.push(path);
   const models = createModels();
   const faux = fauxProvider({ tokensPerSecond: 100_000 });
   models.setProvider(faux.provider);
   const held = Promise.withResolvers<void>();
+  const released = Promise.withResolvers<void>();
   const registry = createRegistry();
-  registry.install(createWorkspaceCodemodeExtension("native-workspace", new CodemodeSandbox()));
+  registry.install(createWorkspaceCodemodeExtension("native-workspace", new CodemodeSandbox(), localScriptFiles));
   registry.install(defineExtension({ name: "codemode-test-tools", tools: [
     defineTool({
       name: "echo", description: "Echo text", parameters: Type.Object({ text: Type.String() }),
       async execute(args) { return { output: [{ type: "text", text: args.text }] }; },
     }),
     defineTool({
-      name: "hold", description: "Hold until cancelled", parameters: Type.Object({}),
+      name: "hold", description: "Hold until cancelled or released", parameters: Type.Object({}), replay: "safe",
       async execute(_args, _api, invocation) {
         held.resolve();
-        return await new Promise<never>((_resolve, reject) => invocation.abortSignal!.addEventListener("abort", () => reject(invocation.abortSignal!.reason), { once: true }));
+        await new Promise<void>((resolve, reject) => {
+          void released.promise.then(resolve);
+          invocation.abortSignal!.addEventListener("abort", () => reject(invocation.abortSignal!.reason), { once: true });
+        });
+        return { output: [{ type: "text", text: "released" }] };
       },
     }),
   ] }));
@@ -50,7 +58,7 @@ async function setup() {
     expand: async (_workspace, text) => text, validateModel: async () => {}, ready: async () => {},
   });
   runtimes.push(runtime);
-  return { runtime, faux, held, agent: await runtime.agent(record) };
+  return { runtime, faux, held, release: released.resolve, path, agent: await runtime.agent(record) };
 }
 
 type Agent = Awaited<ReturnType<DurableAgentRuntime["agent"]>>;
@@ -100,4 +108,63 @@ test("a stopped script keeps the calls it made, for the transcript and the model
   // What the model gets for the stopped script: which calls ran, and which one the stop cut off.
   expect(tool.resultText).toContain('started c1: echo {"text":"before the stop"}\nfinished c1: ok\nstarted c2: hold {}');
   expect(tool.resultText).not.toContain("finished c2");
+});
+
+test("a script can name a file to run, which a call runs as it was when the call started, also after a restart", async () => {
+  const { faux, agent, held, runtime, path } = await setup();
+  const file = join(path, "script.js");
+  await writeFile(file, "await tools.hold({});\nreturn await tools.echo({ text: 'first version' });\n");
+  faux.setResponses([
+    fauxAssistantMessage([fauxToolCall("codemode", { code: `// @options: {"timeout_ms": 60000}\n// @path: ${file}\n` })], { stopReason: "toolUse" }),
+  ]);
+  await agent.submit({ requestId: "script", text: "Run it" });
+  await held.promise;
+  await runtime.suspend();
+  await writeFile(file, "return await tools.echo({ text: 'second version' });\n");
+  const reopened = await setup(path);
+  reopened.faux.setResponses([fauxAssistantMessage("Done")]);
+  reopened.release();
+  await reopened.runtime.resume();
+  let tool = (await scriptTool(reopened.agent))!;
+  while (tool.status === "running") {
+    await Bun.sleep(20);
+    tool = (await scriptTool(reopened.agent))!;
+  }
+  expect(tool.nested!.map(call => call.resultText)).toEqual(["released", "first version"]);
+  expect(tool.scriptFile).toMatchObject({ path: file, code: expect.stringContaining("first version") });
+  expect(tool.resultText).toContain("first version");
+});
+
+test("a script file call can give the script input as JSON, which it gets as `input`", async () => {
+  const { faux, agent, path } = await setup();
+  const file = join(path, "script.js");
+  await writeFile(file, '// @options: {"timeout_ms": 60000}\nreturn await tools.echo({ text: `${input.scope} (${input.pushbacks.length})` });\n');
+  const request = { scope: "x".repeat(600), pushbacks: ["one", "two"] };
+  faux.setResponses([
+    fauxAssistantMessage([fauxToolCall("codemode", { code: `// @path: ${file}\n${JSON.stringify(request, null, 2)}\n` })], { stopReason: "toolUse" }),
+    fauxAssistantMessage("Done"),
+  ]);
+  expect((await (await agent.submit({ requestId: "script", text: "Run it" })).wait(context)).status).toBe("done");
+  const [echo] = (await scriptTool(agent))!.nested!;
+  expect(echo).toMatchObject({ status: "ok", resultText: `${request.scope} (2)` });
+});
+
+test.each([
+  ["a missing file", (file: string) => `// @path: ${file}.missing`, "Can't read script file"],
+  ["code after the path", (file: string) => `// @path: ${file}\nreturn 1;`, "can only have its input, as JSON"],
+  ["a path line after code", (file: string) => `return 1;\n// @path: ${file}`, "must start the script"],
+  ["a path line without a path", () => "// @path:", "needs the path of a script file"],
+  ["options in the call and the file", (file: string) => `// @options: {"timeout_ms": 1000}\n// @path: ${file}`, "Put options in the file or in the call, not both"],
+])("a script file call fails for %s", async (_name, code, error) => {
+  const { faux, agent, path } = await setup();
+  const file = join(path, "script.js");
+  await writeFile(file, '// @options: {"max_output_tokens": 100}\nreturn 1;\n');
+  faux.setResponses([
+    fauxAssistantMessage([fauxToolCall("codemode", { code: code(file) })], { stopReason: "toolUse" }),
+    fauxAssistantMessage("Done"),
+  ]);
+  expect((await (await agent.submit({ requestId: "script", text: "Run it" })).wait(context)).status).toBe("done");
+  const tool = (await scriptTool(agent))!;
+  expect(tool.status).toBe("error");
+  expect(tool.resultText).toContain(error);
 });

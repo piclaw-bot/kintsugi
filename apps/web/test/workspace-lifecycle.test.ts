@@ -45,7 +45,7 @@ describe("workspace lifecycle", () => {
     expect(registry.get(id)?.requestingAttention).toBe(false);
   });
 
-  test("provisioning waits for explicit confirmation after a recoverable failure", async () => {
+  test("provisioning waits for explicit confirmation after a failed step", async () => {
     const waiting = deferred();
     let finished = false;
     const { app, registry } = createTestApp({
@@ -81,7 +81,7 @@ describe("workspace lifecycle", () => {
     while (registry.get(id)?.phase.busy) await Bun.sleep(1);
     expect(finished).toBe(true);
     expect(registry.get(id)?.phase.kind).toBe("runningPhase");
-    expect(registry.get(id)?.issues).toEqual([{ kind: "readiness", message: "Run project setup: setup failed Continued despite this failure." }]);
+    expect(registry.get(id)?.warnings).toEqual([{ kind: "preparation", message: "Run project setup: setup failed Continued despite this failure." }]);
 
     const repeated = await app.fetch(new Request(`http://test.local/workspaces/${id}/provisioning/continue`, {
       method: "POST",
@@ -90,7 +90,7 @@ describe("workspace lifecycle", () => {
     expect(repeated.status).toBe(409);
   });
 
-  test("the recovery endpoint uses the executing step's retry policy, not its ID", async () => {
+  test("the continue endpoint uses the executing step's retry policy, not its ID", async () => {
     let attempts = 0;
     const { app, registry } = createTestApp({
       provision: async (_id, { run }) => {
@@ -111,7 +111,7 @@ describe("workspace lifecycle", () => {
     while (registry.get(id)?.phase.busy) await Bun.sleep(1);
     expect(attempts).toBe(2);
     expect(registry.get(id)).toMatchObject({ phase: { kind: "runningPhase" } });
-    expect(registry.get(id)?.issues).toBeUndefined();
+    expect(registry.get(id)?.warnings).toBeUndefined();
   });
 
   test("failed provisioning marks the workspace failed and needing attention", async () => {

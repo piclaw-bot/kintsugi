@@ -1064,6 +1064,41 @@ test.each([undefined, "   ", "  Try a narrower search instead.  "])("aborting on
   expect(await agent.abortTool(stopping.id)).toBe(false);
 });
 
+test("a follow-up promoted to steering joins the running turn after its current step", async () => {
+  const { runtime, faux, registry } = await setup();
+  const started = Promise.withResolvers<void>();
+  const release = Promise.withResolvers<void>();
+  registry.install(defineExtension({ name: "blocking-step", tools: [defineTool({
+    name: "block", description: "Wait", parameters: Type.Object({}),
+    async execute() {
+      started.resolve();
+      await release.promise;
+      return { output: [{ type: "text", text: "Step done" }] };
+    },
+  })] }));
+  faux.setResponses([
+    fauxAssistantMessage([fauxToolCall("block", {})], { stopReason: "toolUse" }),
+    request => {
+      const users = request.messages.filter(message => message.role === "user");
+      expect(JSON.stringify(users.at(-1))).toContain("Promote me");
+      return fauxAssistantMessage("Steered answer");
+    },
+  ]);
+  const agent = await runtime.agent(record);
+  const original = await agent.submit({ requestId: "original", text: "Start" });
+  await started.promise;
+  const promoted = await agent.submit({ requestId: "promoted", text: "Promote me", whenBusy: "followUp" });
+  const removed = await agent.submit({ requestId: "removed", text: "Remove me", whenBusy: "followUp" });
+  expect(await agent.steerQueuedInput(String(promoted.id))).toBe(true);
+  expect(await agent.steerQueuedInput(String(promoted.id))).toBe(false);
+  expect(await agent.cancelQueuedInput(String(removed.id))).toBe(true);
+  release.resolve();
+  expect((await original.wait(context)).status).toBe("done");
+  expect((await promoted.wait(context)).status).toBe("done");
+  expect(faux.state.callCount).toBe(2);
+  expect(JSON.stringify((await agent.context(context)).messages)).not.toContain("Remove me");
+});
+
 test("cancelling one queued input leaves the active turn and other steering intact", async () => {
   const { runtime, faux } = await setup();
   const entered = Promise.withResolvers<void>();
@@ -1093,3 +1128,128 @@ test("cancelling one queued input leaves the active turn and other steering inta
   expect(await agent.cancelQueuedInput(String(kept.id))).toBe(false);
   expect(JSON.stringify((await agent.context(context)).messages)).not.toContain("Remove me");
 });
+
+test("a follow-up left behind by a turn that failed is shown as not sent, and Steer sends it", async () => {
+  const { runtime, faux, registry } = await setup();
+  const started = Promise.withResolvers<void>();
+  const release = Promise.withResolvers<void>();
+  registry.install(defineExtension({ name: "blocking-step-fail", tools: [defineTool({
+    name: "block", description: "Wait", parameters: Type.Object({}),
+    async execute() {
+      started.resolve();
+      await release.promise;
+      return { output: [{ type: "text", text: "Step done" }] };
+    },
+  })] }));
+  faux.setResponses([
+    fauxAssistantMessage([fauxToolCall("block", {})], { stopReason: "toolUse" }),
+    fauxAssistantMessage("", { stopReason: "error", errorMessage: "Bad request: invalid" }),
+    fauxAssistantMessage("Would answer the follow-up"),
+  ]);
+  const agent = await runtime.agent(record);
+  const original = await agent.submit({ requestId: "original", text: "Start" });
+  await started.promise;
+  const followUp = await agent.submit({ requestId: "later", text: "Later please", whenBusy: "followUp" });
+  release.resolve();
+  expect((await original.wait(context)).status).toBe("unanswered");
+  const watch = await agent.watch(context);
+  const items = projectDurableTranscript(watch.value);
+  await watch.stop();
+  expect(items.filter(item => item.type === "user" && item.queued).map(item => item.type === "user" && item.queued)).toEqual([{ submissionId: String(followUp.id), mode: "followUp", stranded: true }]);
+  expect(await agent.steerQueuedInput(String(followUp.id))).toBe(true);
+  expect((await followUp.wait(context)).status).toBe("done");
+  expect(faux.state.callCount).toBe(3);
+  const after = await agent.watch(context);
+  // The bookkeeping write that resumed the queue shows nothing.
+  expect(projectDurableTranscript(after.value).map(item => item.type)).toEqual(["user", "working", "error", "user", "working", "text"]);
+  await after.stop();
+  expect(JSON.stringify((await agent.context(context)).messages)).toContain("Later please");
+});
+
+test("sending the newest of three follow-ups a failed turn left behind keeps them in the order they were written", async () => {
+  const { runtime, faux, registry } = await setup();
+  const started = Promise.withResolvers<void>();
+  const release = Promise.withResolvers<void>();
+  registry.install(defineExtension({ name: "blocking-step-order-three", tools: [defineTool({
+    name: "block", description: "Wait", parameters: Type.Object({}),
+    async execute() {
+      started.resolve();
+      await release.promise;
+      return { output: [{ type: "text", text: "Step done" }] };
+    },
+  })] }));
+  faux.setResponses([
+    fauxAssistantMessage([fauxToolCall("block", {})], { stopReason: "toolUse" }),
+    fauxAssistantMessage("", { stopReason: "error", errorMessage: "Bad request: invalid" }),
+    fauxAssistantMessage("Answer"),
+    fauxAssistantMessage("Answer"),
+    fauxAssistantMessage("Answer"),
+  ]);
+  const agent = await runtime.agent(record);
+  const original = await agent.submit({ requestId: "original", text: "Start" });
+  await started.promise;
+  const first = await agent.submit({ requestId: "first", text: "First follow-up", whenBusy: "followUp" });
+  const second = await agent.submit({ requestId: "second", text: "Second follow-up", whenBusy: "followUp" });
+  const third = await agent.submit({ requestId: "third", text: "Third follow-up", whenBusy: "followUp" });
+  release.resolve();
+  expect((await original.wait(context)).status).toBe("unanswered");
+  // Cmd+Enter in an empty composer sends the newest one shown.
+  expect(await agent.steerQueuedInput(String(third.id))).toBe(true);
+  for (const submission of [first, second, third]) expect((await submission.wait(context)).status).toBe("done");
+  const users = (await agent.context(context)).messages.filter(message => message.role === "user").map(message => JSON.stringify(message.content));
+  const at = ["First follow-up", "Second follow-up", "Third follow-up"].map(text => users.findIndex(user => user.includes(text)));
+  expect(at.every(index => index >= 0)).toBe(true);
+  expect(at).toEqual([...at].sort((a, b) => a - b));
+});
+
+test("work parked after repeated crashes shows as parked until it is retried", async () => {
+  const { utimes } = await import("node:fs/promises");
+  const path = await mkdtemp(join(tmpdir(), "kintsugi-durable-parked-"));
+  paths.push(path);
+  const journal = join(path, "journal");
+  const child = Bun.spawn([process.execPath, join(import.meta.dir, "fixtures/durable-runtime-crash.ts"), journal], { stdout: "pipe", stderr: "pipe" });
+  const reader = child.stdout.getReader();
+  let output = "";
+  while (!output.includes("crash now")) {
+    const chunk = await reader.read();
+    if (chunk.done) throw new Error(await new Response(child.stderr).text());
+    output += new TextDecoder().decode(chunk.value);
+  }
+  child.kill("SIGKILL");
+  await child.exited;
+  const expired = new Date(Date.now() - 60_000);
+  await utimes(`${journal}.lock`, expired, expired);
+
+  const models = createModels();
+  const faux = fauxProvider({ tokensPerSecond: 100_000 });
+  models.setProvider(faux.provider);
+  faux.setResponses([fauxAssistantMessage("Recovered")]);
+  const registry = createRegistry();
+  let executions = 0;
+  registry.install(defineExtension({ name: "crash-probe", tools: [defineTool({
+    name: "probe", description: "Recovers", parameters: Type.Object({}), replay: "safe",
+    async execute() { executions++; return { output: [{ type: "text", text: "Recovered tool" }] }; },
+  })] }));
+  const runtime = await openDurableAgentRuntime(journal, "native-workspace", {}, {
+    // One crash is enough to park here; the app keeps pi's default.
+    harness: async () => ({ models, registry, settings: { restartLimit: 1 } }),
+    prepare: async (): Promise<AgentChange> => { throw new Error("Must not reprepare"); },
+    expand: async (_workspace: string, text: string) => text,
+    validateModel: async () => {},
+    ready: async () => {},
+  });
+  runtimes.push(runtime);
+  const agent = await runtime.agent(record);
+  await runtime.resume();
+  expect(agent.hasParkedWork).toBe(true);
+  expect(agent.hasStoppableWork).toBe(true);
+  expect(executions).toBe(0);
+
+  const unparked = new Promise<void>(resolve => { const stop = agent.subscribeWork(() => { if (!agent.hasParkedWork) { stop(); resolve(); } }); });
+  expect(await agent.retryParkedWork()).toBe(true);
+  await unparked;
+  const submission = await agent.submit({ requestId: "crash", text: "Run the probe" });
+  expect((await submission.wait(context)).status).toBe("done");
+  expect(executions).toBe(1);
+  expect(await agent.retryParkedWork()).toBe(false);
+}, 30_000);

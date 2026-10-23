@@ -1,0 +1,247 @@
+// After changes, regenerate the Go code: bun run --cwd packages/workspace-helper generate
+syntax = "proto3";
+
+package kintsugi.workspace_helper.v1;
+
+option go_package = "kintsugi/workspace-helper/workspacehelperv1";
+
+// Runs inside a workspace and does the work the app used to do with `docker exec`.
+// The helper listens; the app is the client. The connection identifies the
+// workspace, so requests never name one.
+service WorkspaceHelper {
+  // Runs one process. The first request must be `start`; the last response is
+  // always `exited`, sent once the process has exited and its output has
+  // closed. Closing the request stream closes stdin. Cancelling the call or
+  // exceeding its deadline kills the process's whole process group, so nothing
+  // outlives an abandoned call. A process that can't start fails the call
+  // instead, e.g. with NOT_FOUND for a missing executable.
+  //
+  // A detached process (see `ExecStart.detached`) is the exception: it
+  // outlives the call, and the call behaves like an Attach from the start of
+  // its output.
+  rpc Exec(stream ExecRequest) returns (stream ExecResponse);
+
+  // Reconnects to a detached process. The first request must be `attach`. Output
+  // streams from the requested offsets and then follows the process live; the
+  // last response is `exited`, sent once the process has exited and all its
+  // output has been sent. After that the process is gone. Ending the call in
+  // any other way leaves the process running, and so does closing the request
+  // stream. Fails with NOT_FOUND when there is no such process: it was never
+  // started, its exit was already reported, or the workspace stopped. A later
+  // call to the same process, Exec or Attach, ends this one with ABORTED.
+  rpc Attach(stream AttachRequest) returns (stream ExecResponse);
+
+  // Reads a regular file as `user`, following symlinks, in chunks until EOF.
+  // Fails with NOT_FOUND, PERMISSION_DENIED, INVALID_ARGUMENT for a relative
+  // path, and FAILED_PRECONDITION for anything but a regular file, e.g.
+  // /dev/urandom. Cancel the call to stop early, e.g. at a size limit.
+  rpc ReadFile(ReadFileRequest) returns (stream FileData);
+
+  // Writes a file as `user`, atomically: data goes to a temporary file that
+  // replaces `path` once the client closes the request stream. Cancelling
+  // leaves `path` untouched. Follows symlinks, so a link's target is replaced;
+  // creates missing parent folders; keeps an existing file's mode, and gives a
+  // new one 0644. The first request must be `start`, the rest `data`.
+  // Fails with NOT_FOUND, PERMISSION_DENIED, INVALID_ARGUMENT, and
+  // FAILED_PRECONDITION when `path` is a folder or another non-regular file.
+  rpc WriteFile(stream WriteFileRequest) returns (WriteFileResponse);
+
+  // Describes each of `paths` as `user` sees it, following symlinks, with what
+  // the file system reports cheaply: a stat each, and an open without reading
+  // for regular files and folders, to tell whether `user` may read them.
+  // Fails with INVALID_ARGUMENT for a relative path.
+  rpc StatFiles(StatFilesRequest) returns (StatFilesResponse);
+}
+
+message StatFilesRequest {
+  User user = 1;
+  // Absolute.
+  repeated string paths = 2;
+}
+
+message StatFilesResponse {
+  // One for each requested path, in request order.
+  repeated FileStat stats = 1;
+}
+
+message FileStat {
+  FileKind kind = 1;
+  // The rest describe what is there, so they are only set for REGULAR,
+  // DIRECTORY and OTHER.
+  // The path itself is a symlink; the other fields describe its target.
+  bool symlink = 2;
+  uint64 size = 3;
+  int64 modified_unix_ms = 4;
+  // Opening it for reading as `user` succeeds. Always false for OTHER, which
+  // is never opened: opening a device or FIFO can have side effects.
+  bool readable = 5;
+}
+
+enum FileKind {
+  FILE_KIND_UNSPECIFIED = 0;
+  // Nothing there, a dangling symlink, or a symlink loop.
+  FILE_KIND_MISSING = 1;
+  // `user` may not look into a folder on the way.
+  FILE_KIND_INACCESSIBLE = 2;
+  FILE_KIND_REGULAR = 3;
+  FILE_KIND_DIRECTORY = 4;
+  // A device, FIFO or socket.
+  FILE_KIND_OTHER = 5;
+}
+
+message ReadFileRequest {
+  User user = 1;
+  // Absolute.
+  string path = 2;
+}
+
+message FileData {
+  bytes data = 1;
+}
+
+message WriteFileRequest {
+  oneof request {
+    WriteFileStart start = 1;
+    bytes data = 2;
+  }
+}
+
+message WriteFileStart {
+  User user = 1;
+  // Absolute.
+  string path = 2;
+}
+
+message WriteFileResponse {}
+
+message ExecRequest {
+  oneof request {
+    ExecStart start = 1;
+    // Written to the process's stdin, or typed into its terminal.
+    bytes stdin = 2;
+    // Closes stdin, so the process sees EOF. Only allowed with pipes; send
+    // `signal` HUP to hang up a terminal.
+    CloseStdin close_stdin = 3;
+    // Delivered to the process group.
+    Signal signal = 4;
+    // Only allowed with a terminal.
+    TerminalSize resize = 5;
+    // Only allowed with a detached process.
+    Acknowledge acknowledge = 6;
+  }
+}
+
+message ExecStart {
+  // argv[0] is resolved through PATH, as `docker exec` does. Must not be empty.
+  repeated string argv = 1;
+  User user = 2;
+  // Absolute path. Empty means /work.
+  string workdir = 3;
+  // Added to the workspace's environment. The helper sets HOME, USER and LOGNAME for `user`.
+  map<string, string> env = 4;
+  // How the process's stdio connects to the call, and so whether it outlives
+  // it. Required.
+  oneof stdio {
+    Pipes pipes = 5;
+    // Runs the process in a new session on a PTY, which always takes input.
+    // Output then arrives only as `stdout`.
+    TerminalSize terminal = 6;
+    Detached detached = 7;
+  }
+}
+
+// Stdio flows over the call, which the process can't outlive.
+message Pipes {
+  // Gives the process a stdin pipe; without one it reads /dev/null.
+  bool stdin = 1;
+}
+
+// The process outlives its call, so Attach can reconnect to it, e.g. after
+// the app restarts. Its stdout and stderr go straight to files on the
+// workspace's disk, and its stdin is a FIFO that never reports EOF, so
+// nothing about the process depends on the call or on the helper itself.
+// Stop it with `signal`.
+message Detached {
+  // How Attach finds the process: letters, digits and `._:-`, at most 128
+  // characters, not starting with a dot. Fails with ALREADY_EXISTS while a
+  // process with this name is running; one that has exited is replaced, along
+  // with any output it left unread.
+  string name = 1;
+  // Gives the process stdin; without it, it reads /dev/null.
+  bool stdin = 2;
+}
+
+message AttachRequest {
+  oneof request {
+    Attach attach = 1;
+    // Written to the process's stdin; fails the call when it has none.
+    bytes stdin = 2;
+    // Delivered to the process group.
+    Signal signal = 3;
+    Acknowledge acknowledge = 4;
+  }
+}
+
+message Attach {
+  string name = 1;
+  // Byte offsets to continue from: how much output the client had read before
+  // it last left. They acknowledge the output before them, as `acknowledge`
+  // does, so an acknowledgement lost when a call ends needs no resending.
+  // Fails with OUT_OF_RANGE before an acknowledged offset or beyond the output
+  // written so far.
+  uint64 stdout_offset = 2;
+  uint64 stderr_offset = 3;
+}
+
+// The client no longer needs the output before these offsets, so the helper
+// may free its disk space. Lets a long-lived call free output as it goes.
+// Offsets never move backwards, and must not go beyond the output written so far.
+message Acknowledge {
+  uint64 stdout_offset = 1;
+  uint64 stderr_offset = 2;
+}
+
+enum User {
+  USER_UNSPECIFIED = 0;
+  // The workspace's regular user, kintsugi.
+  USER_AGENT = 1;
+  USER_ROOT = 2;
+}
+
+message TerminalSize {
+  uint32 cols = 1;
+  uint32 rows = 2;
+}
+
+message CloseStdin {}
+
+enum Signal {
+  SIGNAL_UNSPECIFIED = 0;
+  SIGNAL_HUP = 1;
+  SIGNAL_INT = 2;
+  SIGNAL_TERM = 3;
+  SIGNAL_KILL = 4;
+}
+
+message ExecResponse {
+  reserved 1;
+  oneof response {
+    bytes stdout = 2;
+    bytes stderr = 3;
+    Exited exited = 4;
+  }
+}
+
+// Sent after all output.
+message Exited {
+  oneof status {
+    int32 exit_code = 1;
+    // Linux number of the signal that terminated the process, e.g. 9 for SIGKILL.
+    int32 signal = 2;
+    // Only for a detached process that exited while a restarted helper was no
+    // longer its parent, so nothing recorded how it ended.
+    Unknown unknown = 3;
+  }
+}
+
+message Unknown {}

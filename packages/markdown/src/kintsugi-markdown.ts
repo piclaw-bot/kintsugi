@@ -1,5 +1,7 @@
 import { posix } from "node:path";
-import { workspaceFileOpenUrl, workspaceProxyUrl, type WorkspaceFileTarget } from "@kintsugi/shared";
+import { parseFileReference, workspaceFileOpenUrl, workspaceProxyUrl, type WorkspaceFileTarget } from "@kintsugi/shared";
+
+const workspaceRoot = "/work";
 
 interface MarkdownFileTarget extends WorkspaceFileTarget {
   suffix: string;
@@ -28,7 +30,7 @@ function workspaceFileTarget(rawHref: string, sourcePath?: string): MarkdownFile
   if (!path || path.includes("\0")) return undefined;
 
   const target: MarkdownFileTarget = {
-    path: url ? path : posix.resolve(sourcePath ? posix.dirname(sourcePath) : "/work", path),
+    path: url ? path : posix.resolve(sourcePath ? posix.dirname(sourcePath) : workspaceRoot, path),
     suffix: url ? `${url.search}${url.hash}` : suffixStart < 0 ? "" : rawHref.slice(suffixStart),
   };
   for (const name of ["line", "column"] as const) {
@@ -38,9 +40,17 @@ function workspaceFileTarget(rawHref: string, sourcePath?: string): MarkdownFile
   return target;
 }
 
-export function kintsugiFileHref(workspaceId: string, rawHref: string, sourcePath?: string): string | undefined {
+export function kintsugiFileHref(workspaceId: string, rawHref: string, sourcePath?: string, filesViewId?: string): string | undefined {
   const target = workspaceFileTarget(rawHref, sourcePath);
-  return target ? workspaceFileOpenUrl(workspaceId, target.path, target) : undefined;
+  return target ? workspaceFileOpenUrl(workspaceId, target.path, target, filesViewId) : undefined;
+}
+
+/** Inline code naming a file, such as `src/main.ts:12`, with the absolute paths it may mean, most specific first. */
+export function inlineCodeFileReference(code: string, sourcePath?: string): Omit<WorkspaceFileTarget, "path"> & { candidates: string[] } | undefined {
+  const reference = parseFileReference(code.trim());
+  if (!reference) return undefined;
+  const bases = reference.path.startsWith("/") ? ["/"] : [sourcePath ? posix.dirname(sourcePath) : workspaceRoot, workspaceRoot];
+  return { line: reference.line, column: reference.column, candidates: [...new Set(bases.map((base) => posix.resolve(base, reference.path)))] };
 }
 
 export function workspaceFileImageSrc(workspaceId: string, rawSrc: string, sourcePath?: string): string | undefined {

@@ -12,6 +12,7 @@
     "@kintsugi/core": "workspace:*",
     "@kintsugi/design-system": "workspace:*",
     "@kintsugi/shared": "workspace:*",
-    "@gespenst/core": "catalog:"
+    "@gespenst/core": "catalog:",
+    "@kintsugi/workspace-helper": "workspace:*"
   }
 }

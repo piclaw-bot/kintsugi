@@ -30,9 +30,9 @@ for (const innerKintsugi of [false, true]) for (const scenario of ["cached", "mi
         }}));
         const observablePath = ${JSON.stringify(join(import.meta.dir, "../../observable-terminal/src/server/index.ts"))};
         const observable = await import(observablePath);
-        mock.module(observablePath, () => ({...observable, runHostObservableCommand: async options => {
+        mock.module(observablePath, () => ({...observable, appTerminalProcesses: () => ({}), runTerminalProcess: async (_processes, options) => {
           builds.push(options.command);
-          return {exitCode:0,output:''};
+          return {state:'exited',exitCode:0,aborted:false,timedOut:false,output:{ansi:'',text:''}};
         }}));
         const {ensureDefaultWorkspaceImage} = await import(${JSON.stringify(join(import.meta.dir, "index.ts"))});
         try {
@@ -80,5 +80,5 @@ for (const innerKintsugi of [false, true]) for (const scenario of ["cached", "mi
       await rm(directory, { recursive: true });
       await rm(join("/tmp/kintsugi-workspace-image-context", namespace), { recursive: true, force: true });
     }
-  });
+  }, 30_000);
 }

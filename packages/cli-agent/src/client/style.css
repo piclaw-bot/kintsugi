@@ -5,6 +5,8 @@
 /* The terminal frame fixes the host's size; the stage clips it from the top. */
 .cli-agent-body .observable-terminal-host { position:absolute; left:0; bottom:0; min-height:0; overflow:hidden; touch-action:none; }
 /* Overlay the banner: taking rows from the terminal would resize the PTY on every (re)connect. */
+/* What an ended CLI left on its terminal, such as why it couldn't start. */
+.cli-terminal-output { position:absolute; inset:0; margin:0; padding:12px 20px; overflow:auto; color:var(--text); font:var(--text-code)/var(--leading-standard) var(--font-mono); }
 .cli-agent-stage > .observable-terminal-connection { position:absolute; top:0; left:0; right:0; z-index:2; }
 .cli-agent-body .cli-transcript-view { display:none; position:absolute; inset:0; overflow-y:auto; padding-bottom:128px; }
 .cli-agent-body.cli-transcript-mode .observable-terminal-host { visibility:hidden; pointer-events:none; }

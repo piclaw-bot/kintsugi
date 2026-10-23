@@ -1,7 +1,7 @@
 import { attributeModelToolUsage } from "@kintsugi/builtin-agent/server/model-tool-usage";
 import type { JsonValue } from "@earendil-works/chord";
-import { type Extension, type NestedToolExecutionResult } from "@earendil-works/pi-durable";
-import { CODEMODE_TOOL_NAME, createCodemodeExtension } from "@earendil-works/pi-durable/codemode";
+import { defineEntry, type Extension, type JsonObject, type NestedToolExecutionResult, type ToolExecutionApi } from "@earendil-works/pi-durable";
+import { CODEMODE_TOOL_NAME, createCodemodeExtension, type CodemodeToolInput } from "@earendil-works/pi-durable/codemode";
 import { err, FileError, ok, type ExecutionEnv } from "@earendil-works/pi-durable/env";
 import type { CodemodeSandbox } from "@earendil-works/pi-codemode";
 import { Type } from "typebox";
@@ -9,6 +9,7 @@ import { Value } from "typebox/value";
 import { isJsonObject } from "@kintsugi/core";
 import { isToolViewDetails, toolOutcomeLabel, type ToolViewDetails } from "@kintsugi/agent/server/transcript";
 import { execWorkspaceCommand } from "@kintsugi/workspace";
+import { resolveScript, scriptFileDescription, type ReadScriptFile } from "./script-file.ts";
 
 const textSchema = Type.String();
 /** A tool with a structured output schema whose value carries its output, such as bash's. */
@@ -81,35 +82,47 @@ function workspaceOutputFiles(workspaceId: string): Pick<ExecutionEnv, "createTe
   };
 }
 
+/** A code mode call's API, recording each call its script makes, with a line of running output as it starts and ends. */
+function recordingCalls(api: ToolExecutionApi): ToolExecutionApi {
+  return {
+    ...api,
+    async executeTool(name, toolArgs, callContext, options) {
+      // Code mode names each call `c<VM call id>`, so a rerun after a restart reattaches to it.
+      const key = options?.key;
+      if (key === undefined) throw new Error("Code mode calls tools by key");
+      const record = (data: CallStart | CallEnd) => api.commit(async tx => {
+        await tx.appendEntry(codemodeCallEntry, api.conversationId, { data: { callId: api.callId, key, ...data } });
+      }, callContext);
+      const argumentsJson = displayJson(toolArgs);
+      await record(callStart(name, argumentsJson));
+      api.output(`started ${key}: ${name} ${argumentsJson.slice(0, 200)}\n`);
+      const result = await api.executeTool(name, toolArgs, callContext, options);
+      const end = callEnd(result);
+      await record(end);
+      api.output(`finished ${key}: ${endSummary(end)}\n`);
+      return result;
+    },
+  };
+}
+
 /**
- * The code mode extension, with its tool saving script output files in the workspace and recording
- * each call its scripts make. Each call also gets a line of running output, which a stopped
+ * The code mode extension, with its tool running a script file a call names, saving script output files in the
+ * workspace, and recording each call its scripts make. Each call also gets a line of running output, which a stopped
  * script's result keeps: the model then knows which calls ran, since their effects stay.
  */
-export function createWorkspaceCodemodeExtension(workspaceId: string, sandbox: CodemodeSandbox): Extension {
+export function createWorkspaceCodemodeExtension(workspaceId: string, sandbox: CodemodeSandbox, readScriptFile: ReadScriptFile): Extension {
   const extension = createCodemodeExtension({ sandbox });
   // SAFETY: code mode uses only createTempDir and writeFile of its environment.
   const env = workspaceOutputFiles(workspaceId) as ExecutionEnv;
   return { ...extension, tools: extension.tools?.map(attributeModelToolUsage).map(tool => tool.name !== CODEMODE_TOOL_NAME ? tool : {
     ...tool,
-    execute: (args, api, context) => tool.execute(args, {
-      ...api, env,
-      async executeTool(name, toolArgs, callContext, options) {
-        // Code mode names each call `c<VM call id>`, so a rerun after a restart reattaches to it.
-        const key = options?.key;
-        if (key === undefined) throw new Error("Code mode calls tools by key");
-        const record = (data: CallStart | CallEnd) => api.commit(async tx => {
-          await tx.appendEntry(codemodeCallEntry, api.conversationId, { data: { callId: api.callId, key, ...data } });
-        }, callContext);
-        const argumentsJson = displayJson(toolArgs);
-        await record(callStart(name, argumentsJson));
-        api.output(`started ${key}: ${name} ${argumentsJson.slice(0, 200)}\n`);
-        const result = await api.executeTool(name, toolArgs, callContext, options);
-        const end = callEnd(result);
-        await record(end);
-        api.output(`finished ${key}: ${endSummary(end)}\n`);
-        return result;
-      },
-    }, context),
+    description: `${tool.description}\n\n${scriptFileDescription}`,
+    execute: async (args, api, context) => {
+      // SAFETY: the harness checked the arguments against the tool's parameters.
+      const input = args as CodemodeToolInput;
+      const script = await resolveScript(readScriptFile, input.code, api, context);
+      if ("error" in script) return script.error;
+      return await tool.execute({ code: script.code }, recordingCalls({ ...api, env }), context);
+    },
   }) };
 }

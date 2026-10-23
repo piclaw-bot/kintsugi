@@ -50,6 +50,7 @@ export function integrationTranscript(view: ConversationView): AgentTranscriptSn
     rows: parts.flatMap(part => part.rows ?? []),
     anchors: parts.flatMap(part => part.anchors ?? []),
     nested: parts.flatMap(part => part.nested ?? []),
+    scriptFiles: parts.flatMap(part => part.scriptFiles ?? []),
     inheritedContext: parts.find(part => part.inheritedContext)?.inheritedContext,
   };
 }

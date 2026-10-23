@@ -87,11 +87,11 @@ test("canonical paths cannot replace the isolated redirect authority", async () 
       expect(response.status).toBe(302);
       expect(new URL(response.headers.get("location")!).hostname).toBe("localhost");
     }
-    expect(await handleCanonicalWorkspaceRequest(new Request("https://management.example/host/terminals"), ingress)).toBeUndefined();
+    expect(await handleCanonicalWorkspaceRequest(new Request("https://management.example/host/sample"), ingress)).toBeUndefined();
   } finally { await ingress.stopAll(); }
 });
 
-test("published file origin cannot dispatch host terminal POST or WebSocket handshakes", async () => {
+test("published file origin cannot dispatch privileged POSTs or terminal WebSocket handshakes", async () => {
   const dispatched: string[] = [];
   const ingress = createWorkspaceIngress({ hostname: "127.0.0.1", resolveWorkspace() {}, resolveApp() { return { kind: "fetch", fetch: () => new Response("artifact") }; } });
   const management = Bun.serve({ hostname: "127.0.0.1", port: 0,
@@ -111,15 +111,15 @@ test("published file origin cannot dispatch host terminal POST or WebSocket hand
     await redirect.text();
     for (const headers of [new Headers({ origin: artifactOrigin }), new Headers({ origin: artifactOrigin, upgrade: "websocket", connection: "Upgrade", "sec-websocket-version": "13", "sec-websocket-key": "dGhlIHNhbXBsZSBub25jZQ==" })]) {
       const websocket = headers.has("upgrade");
-      const response = await fetch(`${origin}/host/terminals${websocket ? "/host-demo/ws" : ""}`, { method: websocket ? "GET" : "POST", headers });
+      const response = await fetch(`${origin}${websocket ? "/terminal-processes/demo/ws" : "/host/sample"}`, { method: websocket ? "GET" : "POST", headers });
       expect(response.status).toBe(403);
       await response.text();
     }
     expect(dispatched).toEqual([]);
-    const legitimate = await fetch(`${origin}/host/terminals`, { method: "POST", headers: { origin } });
+    const legitimate = await fetch(`${origin}/host/sample`, { method: "POST", headers: { origin } });
     expect(legitimate.status).toBe(200);
     await legitimate.text();
-    expect(dispatched).toEqual(["/host/terminals"]);
+    expect(dispatched).toEqual(["/host/sample"]);
   } finally { management.stop(true); await ingress.stopAll(); }
 });
 
@@ -159,7 +159,7 @@ test("two ingress hops preserve artifact-origin denial for terminal HTTP and Web
           headers.set("sec-websocket-version", "13");
           headers.set("sec-websocket-key", "dGhlIHNhbXBsZSBub25jZQ==");
         }
-        const response = await fetch(`${origin}/host/terminals${websocket ? "/host-demo/ws" : ""}`, { method: websocket ? "GET" : "POST", headers });
+        const response = await fetch(`${origin}${websocket ? "/terminal-processes/demo/ws" : "/host/sample"}`, { method: websocket ? "GET" : "POST", headers });
         // Upstream rejected upgrades are reported as an ingress failure; the
         // management handler must still never dispatch them.
         expect(response.status).toBe(websocket ? 503 : 403);
@@ -168,7 +168,7 @@ test("two ingress hops preserve artifact-origin denial for terminal HTTP and Web
     }
     expect(dispatched).toBe(0);
     expect(denied).toEqual([artifactOrigin, artifactOrigin, `http://localhost:${management.port}`, `http://localhost:${management.port}`, "null", "null"]);
-    const legitimate = await fetch(`${origin}/host/terminals`, { method: "POST", headers: { origin } });
+    const legitimate = await fetch(`${origin}/host/sample`, { method: "POST", headers: { origin } });
     expect(legitimate.status).toBe(200);
     await legitimate.text();
     expect(dispatched).toBe(1);

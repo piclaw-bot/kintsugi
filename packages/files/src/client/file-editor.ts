@@ -3,17 +3,12 @@
 import { isDelimitedPath } from "../delimited.ts";
 import { setToggleValue, type ToggleChangeEvent } from "@kintsugi/design-system/toggle/client";
 import { errorMessage, type WorkspaceClientControllerConstructor } from "@kintsugi/shared";
-import { closeBrackets, closeBracketsKeymap } from "@codemirror/autocomplete";
-import { defaultKeymap, history, historyKeymap, indentWithTab } from "@codemirror/commands";
-import { bracketMatching, HighlightStyle, indentOnInput, syntaxHighlighting } from "@codemirror/language";
-import { highlightSelectionMatches, searchKeymap } from "@codemirror/search";
-import { Compartment, EditorState } from "@codemirror/state";
-import { drawSelection, EditorView, highlightActiveLine, keymap } from "@codemirror/view";
-import { tags } from "@lezer/highlight";
-import { editFileText, editorText, type FileTextChange } from "../editable-text.ts";
+import { pierreHighlightOptions } from "@kintsugi/syntax/diff-options";
+import type { CodeView, CodeViewFileItem, CodeViewOptions } from "@pierre/diffs";
+import type { Editor, EditorChangeEvent, EditorType } from "@pierre/diffs/edit";
+import { editFileText, editorText } from "../editable-text.ts";
 import { FileDraft } from "../file-draft.ts";
 import { parseEditableFileResponse, parseFileSaveResponse, type EditableFileResponse } from "../protocol.ts";
-import { languageExtension } from "./editor-language.ts";
 
 // Retain drafts and in-flight writes across Turbo frame replacements.
 const drafts = new Map<string, FileDraft>();
@@ -63,26 +58,21 @@ function fileDraft(url: string, file: EditableFileResponse): FileDraft {
   return draft;
 }
 
-const editorHighlightStyle = HighlightStyle.define([
-  { tag: [tags.keyword, tags.operatorKeyword, tags.modifier], color: "var(--syntax-keyword)" },
-  { tag: [tags.string, tags.special(tags.string), tags.regexp], color: "var(--syntax-string)" },
-  { tag: [tags.number, tags.bool, tags.null], color: "var(--syntax-number)" },
-  { tag: [tags.comment, tags.meta], color: "var(--syntax-comment)", fontStyle: "italic" },
-  { tag: [tags.function(tags.variableName), tags.definition(tags.propertyName), tags.heading], color: "var(--syntax-function)" },
-  { tag: [tags.variableName, tags.propertyName, tags.attributeName], color: "var(--syntax-variable)" },
-  { tag: [tags.typeName, tags.className, tags.tagName], color: "var(--syntax-type)" },
-]);
+// Tint the caret's line instead of Pierre's outline. Unsafe CSS sits in a lower cascade
+// layer than Pierre's editor styles, so the overrides must be important.
+const editorCSS = `[data-line][data-editor-active-line]::after { box-shadow: none !important; } [data-line][data-editor-active-line] { background-color: color-mix(in srgb, var(--diffs-fg) 4%, transparent) !important; }`;
 
 type EditorRefreshDetail = { workspaceId: string };
 
 export function createFileEditorController(Controller: WorkspaceClientControllerConstructor): WorkspaceClientControllerConstructor {
   return class FileEditorController extends Controller {
-    static values = { workspaceId: String, path: String, contentUrl: String, line: Number, column: Number, positionRequest: String };
+    static values = { workspaceId: String, path: String, filesView: String, contentUrl: String, line: Number, column: Number, positionRequest: String };
     static targets = ["host", "loading", "status", "conflict", "conflictMine", "conflictTheirs", "renderedMarkdown", "markdownDisplayOptions", "copyButton", "wrapToggle"];
 
     declare readonly element: HTMLElement;
     declare readonly workspaceIdValue: string;
     declare readonly pathValue: string;
+    declare readonly filesViewValue: string;
     declare readonly contentUrlValue: string;
     declare readonly lineValue: number;
     declare readonly columnValue: number;
@@ -98,8 +88,12 @@ export function createFileEditorController(Controller: WorkspaceClientController
     declare readonly wrapToggleTarget: HTMLButtonElement;
     declare readonly hasRenderedMarkdownTarget: boolean;
 
-    private view?: EditorView;
-    private readonly wrapping = new Compartment();
+    private viewer?: CodeView;
+    private editor?: Editor<EditorType>;
+    private options: CodeViewOptions<undefined, undefined> = {};
+    private text = "";
+    private writable = false;
+    private version = 0;
     private wrap = true;
     private connection!: AbortController;
     private markdownRenderSequence = 0;
@@ -145,8 +139,9 @@ export function createFileEditorController(Controller: WorkspaceClientController
         if (!draft.dirty && draft.listeners.size === 1 && drafts.get(this.contentUrlValue) === draft) drafts.delete(this.contentUrlValue);
       });
       this.saveTimer = undefined;
-      this.view?.destroy();
-      this.view = undefined;
+      this.viewer?.cleanUp();
+      this.viewer = undefined;
+      this.editor = undefined;
       this.conflictTarget.close();
     }
 
@@ -166,7 +161,8 @@ export function createFileEditorController(Controller: WorkspaceClientController
       this.wrap = !this.wrap;
       localStorage.setItem(wrapStorageKey, String(this.wrap));
       this.wrapToggleTarget.setAttribute("aria-checked", String(this.wrap));
-      this.view?.dispatch({ effects: this.wrapping.reconfigure(this.wrap ? EditorView.lineWrapping : []) });
+      this.options = { ...this.options, overflow: this.wrap ? "wrap" : "scroll" };
+      this.viewer?.setOptions(this.options);
     }
 
     useTheirs(): void {
@@ -180,50 +176,39 @@ export function createFileEditorController(Controller: WorkspaceClientController
     }
 
     private async load(signal: AbortSignal): Promise<void> {
-      const [file, language] = await Promise.all([this.fetchFile(signal), languageExtension(this.pathValue)]);
+      const [file, [{ CodeView }, { Editor }]] = await Promise.all([
+        this.fetchFile(signal),
+        Promise.all([import("@pierre/diffs"), import("@pierre/diffs/edit"), import("@kintsugi/syntax/pierre")]),
+      ]);
       if (!this.isCurrentConnection(signal)) return;
       this.draft = fileDraft(this.contentUrlValue, file);
       this.loadingTarget.hidden = true;
-      this.view = new EditorView({
-        parent: this.hostTarget,
-        state: EditorState.create({
-          doc: editorText(this.draft.content),
-          extensions: [
-            this.wrapping.of(this.wrap ? EditorView.lineWrapping : []),
-            history(),
-            drawSelection(),
-            highlightActiveLine(),
-            indentOnInput(),
-            bracketMatching(),
-            closeBrackets(),
-            highlightSelectionMatches(),
-            syntaxHighlighting(editorHighlightStyle),
-            language,
-            EditorState.readOnly.of(!file.writable),
-            EditorView.editable.of(file.writable),
-            EditorView.domEventHandlers({
-              focus: () => { this.showSource(); },
-            }),
-            EditorView.updateListener.of((update) => {
-              if (!update.docChanged) return;
-              // A response belongs to the document and editing choice that requested it.
-              if (this.applyingDisk) {
-                this.invalidateMarkdownRender();
-                return;
-              }
-              this.showSource();
-              const changes: FileTextChange[] = [];
-              update.changes.iterChanges((from, to, _fromB, _toB, inserted) => {
-                changes.push({ from, to, insert: inserted.toString() });
-              });
-              this.draft!.edit(editFileText(this.draft!.content, changes));
-              if (this.saveTimer) clearTimeout(this.saveTimer);
-              this.saveTimer = setTimeout(() => void this.save(), 500);
-            }),
-            keymap.of([...closeBracketsKeymap, ...defaultKeymap, ...searchKeymap, ...historyKeymap, indentWithTab]),
-          ],
-        }),
-      });
+      this.text = editorText(this.draft.content);
+      this.writable = file.writable;
+      this.options = {
+        ...pierreHighlightOptions,
+        overflow: this.wrap ? "wrap" : "scroll",
+        disableFileHeader: true,
+        disableLineNumbers: true,
+        layout: { paddingTop: 12, paddingBottom: 40, gap: 0 },
+        unsafeCSS: editorCSS,
+        createEditor: (type, options, key) => new Editor(type, {
+          ...options,
+          // Rounded selections paint concave corners in an opaque editor background; ours is transparent.
+          roundedSelection: false,
+          onAttach: (editor) => {
+            const first = !this.editor;
+            this.editor = editor;
+            // Positions requested before the editor attached are applied once it can place the caret.
+            if (first) requestAnimationFrame(() => this.jumpTo(this.lineValue, this.columnValue));
+          },
+          onFocus: () => { this.showSource(); },
+        }, key),
+        onItemEditChange: (event) => this.edited(event),
+      };
+      this.viewer = new CodeView(this.options);
+      this.viewer.setup(this.hostTarget);
+      this.viewer.setItems([this.item()]);
       this.draft.listeners.add(this.renderDraft);
       this.renderDraft();
       if (this.draft.dirty && !this.draft.conflict) void this.save();
@@ -231,6 +216,24 @@ export function createFileEditorController(Controller: WorkspaceClientController
       if (!file.writable) this.setStatus("Read only", "");
       this.jumpTo(this.lineValue, this.columnValue);
       if (this.hasRenderedMarkdownTarget && this.lineValue < 1) await this.showRenderedMarkdown();
+    }
+
+    private item(): CodeViewFileItem {
+      return { id: this.pathValue, type: "file", file: { name: this.pathValue, contents: this.text }, edit: this.writable, version: ++this.version };
+    }
+
+    private edited(event: EditorChangeEvent<EditorType, undefined, undefined>): void {
+      this.text = event.file.contents;
+      // A response belongs to the document and editing choice that requested it.
+      if (this.applyingDisk) {
+        this.invalidateMarkdownRender();
+        return;
+      }
+      this.showSource();
+      // Pierre reports sorted, non-overlapping changes against the previous document.
+      this.draft!.edit(editFileText(this.draft!.content, event.changes.map(({ start, end, text }) => ({ from: start, to: end, insert: text }))));
+      if (this.saveTimer) clearTimeout(this.saveTimer);
+      this.saveTimer = setTimeout(() => void this.save(), 500);
     }
 
     private readonly refreshRequested = (event: CustomEvent<EditorRefreshDetail>): void => {
@@ -247,7 +250,7 @@ export function createFileEditorController(Controller: WorkspaceClientController
     };
 
     private async checkDisk(signal: AbortSignal): Promise<void> {
-      if (!this.view) return;
+      if (!this.viewer) return;
       const sequence = ++this.diskSequence;
       const saveSequence = this.saveSequence;
       const revision = this.draft!.revision;
@@ -268,13 +271,11 @@ export function createFileEditorController(Controller: WorkspaceClientController
     }
 
     private readonly renderDraft = (): void => {
-      if (!this.view || !this.isCurrentConnection(this.connection.signal)) return;
+      if (!this.viewer || !this.isCurrentConnection(this.connection.signal)) return;
       const draft = this.draft!;
       const content = editorText(draft.content);
-      if (this.view.state.doc.toString() !== content) {
-        this.applyingDisk = true;
-        this.view.dispatch({ changes: { from: 0, to: this.view.state.doc.length, insert: content } });
-        this.applyingDisk = false;
+      if (this.text !== content) {
+        this.replaceText(content);
         if (this.hasRenderedMarkdownTarget && !this.renderedMarkdownTarget.hidden) void this.showRenderedMarkdown();
       }
       this.copyButtonTarget.dataset.copyText = draft.content;
@@ -295,6 +296,24 @@ export function createFileEditorController(Controller: WorkspaceClientController
       else this.setStatus("Saved", "saved");
     };
 
+    // Replace only the differing middle so the caret and scroll position survive disk updates.
+    private replaceText(content: string): void {
+      const previous = this.text;
+      this.text = content;
+      if (!this.editor) {
+        this.viewer!.updateItem(this.item());
+        return;
+      }
+      let start = 0;
+      while (start < previous.length && start < content.length && previous[start] === content[start]) start++;
+      let end = 0;
+      while (end < previous.length - start && end < content.length - start && previous[previous.length - 1 - end] === content[content.length - 1 - end]) end++;
+      const doc = this.editor.getEditState()!.document;
+      this.applyingDisk = true;
+      this.editor.applyEdits([{ range: { start: doc.positionAt(start), end: doc.positionAt(previous.length - end) }, newText: content.slice(start, content.length - end) }], false);
+      this.applyingDisk = false;
+    }
+
     private async fetchFile(signal: AbortSignal): Promise<EditableFileResponse> {
       const response = await fetch(this.contentUrlValue, { signal, headers: { "accept": "application/json" } });
       if (!response.ok) throw new Error(await response.text());
@@ -307,12 +326,12 @@ export function createFileEditorController(Controller: WorkspaceClientController
       this.setMarkdownRenderBusy(true);
       try {
         const renderer = isDelimitedPath(this.pathValue) ? "render-table" : "render-markdown";
-        const renderPreviewUrl = `/workspaces/${encodeURIComponent(this.workspaceIdValue)}/files-view/${renderer}?${new URLSearchParams({ path: this.pathValue })}`;
+        const renderPreviewUrl = `/workspaces/${encodeURIComponent(this.workspaceIdValue)}/files-view/${renderer}?${new URLSearchParams({ path: this.pathValue, filesView: this.filesViewValue })}`;
         const response = await fetch(renderPreviewUrl, {
           method: "POST",
           signal,
           headers: { "content-type": "text/plain; charset=utf-8", "accept": "text/html" },
-          body: this.view!.state.doc.toString(),
+          body: this.text,
         });
         if (sequence !== this.markdownRenderSequence || !this.isCurrentConnection(signal)) return;
         if (!response.ok) throw new Error(await response.text());
@@ -357,12 +376,11 @@ export function createFileEditorController(Controller: WorkspaceClientController
     }
 
     private jumpTo(line: number, column = 1): void {
-      if (!this.view || line < 1) return;
+      if (!this.viewer || line < 1) return;
       this.showSource();
-      const targetLine = this.view.state.doc.line(Math.min(line, this.view.state.doc.lines));
-      const position = Math.min(targetLine.to, targetLine.from + Math.max(0, column - 1));
-      this.view.dispatch({ selection: { anchor: position }, effects: EditorView.scrollIntoView(position, { y: "center" }) });
-      this.view.focus();
+      const lineNumber = Math.min(line, this.text.split("\n").length);
+      if (this.editor) this.editor.focus({ lineNumber, character: Math.max(0, column - 1) });
+      else this.viewer.scrollTo({ type: "line", id: this.pathValue, lineNumber, align: "center" });
     }
 
     private showLoadError(error: Error): void {

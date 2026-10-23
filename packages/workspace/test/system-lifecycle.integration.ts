@@ -17,7 +17,7 @@ const marker = `kintsugi-lifecycle-${randomUUID()}`;
 const repository = `/data/app/${marker}`;
 const fixtures: string[] = [];
 let workspaceTemplateId: string | undefined;
-interface Workspace { id: string; phase: { kind: string; status?: string; busy: boolean }; parked?: boolean; error?: string; issues?: unknown[]; }
+interface Workspace { id: string; phase: { kind: string; status?: string; busy: boolean }; parked?: boolean; error?: string; warnings?: unknown[]; }
 interface Container {
   Id: string; Name: string; Image: string; State: { Running: boolean };
   HostConfig: { NetworkMode: string; PortBindings: Record<string, { HostIp: string; HostPort: string }[]> | null };
@@ -48,7 +48,7 @@ async function waitFor(description: string, check: () => Promise<boolean>, timeo
 async function ready(id: string) {
   await waitFor(`workspace ${id} ready`, async () => {
     const { workspace } = await api<{ workspace: Workspace }>(`/workspaces/${id}`);
-    if (workspace.phase.status === "failed" || workspace.issues?.length) throw new Error(`Workspace ${id}: ${JSON.stringify(workspace)}`);
+    if (workspace.phase.status === "failed" || workspace.warnings?.length) throw new Error(`Workspace ${id}: ${JSON.stringify(workspace)}`);
     return workspace.phase.kind === "runningPhase" && !workspace.parked;
   }, 900_000);
 }
@@ -131,14 +131,13 @@ async function terminalChecks(workspaceId: string, container: string) {
   assert(!(await metadata()).some((terminal) => terminal.id === attached.id));
   await docker("exec", "--user", "agent", container, "tmux", "has-session", "-t", externalSession);
   await docker("exec", "--user", "agent", container, "tmux", "kill-session", "-t", externalSession);
-  const title = `owned-${randomUUID()}`;
-  const created = await api<{ command: { workView: { type: "terminal"; terminalId: string } } }>(`/workspaces/${workspaceId}/commands/terminal.create`, { title, cwd: "/work" });
-  const owned = (await metadata()).find((terminal) => terminal.id === created.command.workView.terminalId);
-  assert(owned && owned.sessionRelationship === "owned" && owned.tmuxSession === title);
-  await docker("exec", "--user", "agent", container, "tmux", "has-session", "-t", title);
+  const created = await api<{ command: { workView: { type: "terminal"; terminalId: string } } }>(`/workspaces/${workspaceId}/commands/terminal.create`, { title: `process-${randomUUID()}`, cwd: "/work" });
+  const started = (await metadata()).find((terminal) => terminal.id === created.command.workView.terminalId);
+  assert(started && started.sessionRelationship === "process");
+  await docker("exec", "--user", "agent", container, "tmux", "has-session", "-t", started.tmuxSession);
   await api(`/workspaces/${workspaceId}/work-views/close`, { reference: created.command.workView });
-  assert(!(await metadata()).some((terminal) => terminal.id === owned.id));
-  assert.notEqual((await run(["docker", "exec", "--user", "agent", container, "tmux", "has-session", "-t", title], false)).code, 0, "closing owned terminal kills its tmux session");
+  assert(!(await metadata()).some((terminal) => terminal.id === started.id));
+  assert.notEqual((await run(["docker", "exec", "--user", "agent", container, "tmux", "has-session", "-t", started.tmuxSession], false)).code, 0, "closing a terminal releases its process");
 }
 async function digest(path: string) { return createHash("sha256").update(await readFile(path)).digest("hex"); }
 async function replaceApp() {

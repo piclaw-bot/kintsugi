@@ -11,17 +11,18 @@ export const WorkspaceAdmission = defineDoc<{
   version: 1,
   scope: "session",
   initial: () => ({ deleted: false, closed: [] }),
+  checkpointWhen: () => false,
 });
 
 /** Exact work at the Stop boundary, not a permanent conversation admission gate. */
 export const WorkspaceStops = defineDoc<{ tasks: Record<string, TaskId[]> }>({
-  kind: "kintsugi.stops", version: 1, scope: "session", initial: () => ({ tasks: {} }),
+  kind: "kintsugi.stops", version: 1, scope: "session", initial: () => ({ tasks: {} }), checkpointWhen: () => false,
 });
 
 /** A background dispatcher can admit native input after its own task was captured
  * by Stop. Retain that relationship so cleanup fences the resulting run too. */
 export const DurableTaskAdmissions = defineDoc<{ requests: Record<string, { conversationId: ConversationId; requestId: string }> }>({
-  kind: "kintsugi.task-admissions", version: 1, scope: "session", initial: () => ({ requests: {} }),
+  kind: "kintsugi.task-admissions", version: 1, scope: "session", initial: () => ({ requests: {} }), checkpointWhen: () => false,
 });
 
 /**
@@ -30,6 +31,12 @@ export const DurableTaskAdmissions = defineDoc<{ requests: Record<string, { conv
  * model payload, like the timing entries.
  */
 export const durableStopEntry = defineEntry<{ at: number }>("kintsugi.stop");
+
+/**
+ * Resumes input a failed turn left queued: pi-durable only places queued input at a boundary, and an idle
+ * conversation runs one when something is submitted. Bookkeeping with an empty model payload.
+ */
+export const durableQueueResumeEntry = defineEntry("kintsugi.queue-resume");
 
 /** Refuses a tool's effect once its conversation is closed, or the work it belongs to was stopped. */
 export async function assertDurableToolAdmission(tx: Tx, api: Pick<ToolExecutionApi, "conversationId" | "taskId">) {

@@ -9,3 +9,6 @@ apps/web/public/assets-manifest.json
 apps/web/src/server/workspace-modules.generated.ts
 
 apps/web/public/drawio/
+
+packages/workspace-helper/workspace_tools/
+packages/workspace-helper/dist/

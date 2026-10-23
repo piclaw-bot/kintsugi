@@ -5,7 +5,7 @@ import { Type } from "typebox";
 import { Value } from "typebox/value";
 
 /** Canonical pi.usage.tools groups by tool name, not model. Preserve the model at the actual model-call boundary. */
-export const ModelToolUsage = defineDoc<{ models: Record<string, JsonRepresentation<Usage>>; calls: Record<string, true> }>({
+export const ModelToolUsage = defineDoc<{ models: Record<string, JsonRepresentation<Usage>>; calls: Record<string, true> }>({ checkpointWhen: () => false,
   kind: "kintsugi.model-tool-usage", version: 1, scope: "conversation", history: "latest", fork: "initial",
   initial: () => ({ models: {}, calls: {} }),
 });

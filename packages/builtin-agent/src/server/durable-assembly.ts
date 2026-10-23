@@ -30,7 +30,10 @@ export function createDurableWorkspaceRegistry(workspaceId: string, models: Pick
 }
 
 /** No AgentSession, delegation coordinator, or host-local filesystem environment. */
-export async function createDurableHarnessOptions(workspaceId: string, options: WorkspaceAgentToolOptions, writeTiming: WriteDurableTiming, harness: () => Harness): Promise<HarnessOptions> {
+/** Our Harness always gets one `Models`, never a function returning the current one. */
+export type DurableHarnessOptions = HarnessOptions & { models: Models };
+
+export async function createDurableHarnessOptions(workspaceId: string, options: WorkspaceAgentToolOptions, writeTiming: WriteDurableTiming, harness: () => Harness): Promise<DurableHarnessOptions> {
   const models = await createPiModelRuntime();
   const registry = createDurableWorkspaceRegistry(workspaceId, models, options, createNativeAgentIdentityResolver(workspaceId, harness));
   registry.install(defineExtension({ name: "kintsugi.history-search", tools: [createHistorySearchTool(workspaceId, harness)] }));
@@ -48,6 +51,8 @@ export async function createDurableHarnessOptions(workspaceId: string, options: 
     registry,
     // Evict unobserved document caches after a minute; storage and provider caches are unchanged.
     settings: { documentRetentionMs: 60_000, compaction: { enabled: true, keepRecentTokens: 6000 } },
+    // Faulted, parked and unmigratable tasks, and failing extension code, are otherwise invisible.
+    onReport: (error, info) => console.error(`Agent work report (${info.type})`, error),
   };
 }
 

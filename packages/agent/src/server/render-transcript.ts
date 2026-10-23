@@ -1,13 +1,14 @@
 import { disclosureHtml, type DisclosureSummary } from "@kintsugi/design-system/disclosure";
 import { buttonHtml } from "@kintsugi/design-system/button";
+import { destructiveConfirmationHtml } from "@kintsugi/design-system/destructive-confirmation";
 import { Icons } from "@kintsugi/design-system/icons";
 import { renderStreamingMarkdownSnapshot } from "@kintsugi/markdown";
 import type { ModelRef } from "@kintsugi/llm/server";
-import { escapeHtml } from "@kintsugi/shared";
+import { domId, escapeHtml } from "@kintsugi/shared";
 import { agentPath, commentaryContext, ids, sessionImageUrl, transcriptItemPath, type AgentRenderContext } from "./render-context.ts";
 import { codeBlockHtml, detailFullscreen, fullscreenAttributes, markdown, renderMarkdownRow, transcriptRowContent, transcriptRow } from "./render-markup.ts";
 import { renderToolCard, renderToolDetail } from "./render-tool.ts";
-import { formatDuration, formatTokens, type TranscriptItem, type WorkingTranscriptItem } from "./transcript.ts";
+import { formatDuration, formatTokens, unfencedJson, type QueuedInput, type TranscriptItem, type WorkingTranscriptItem } from "./transcript.ts";
 
 interface AgentToolDefinitionView {
   name: string;
@@ -30,7 +31,7 @@ export function renderIdleSeparator(items: readonly TranscriptItem[], busy: bool
   const latest = (items: readonly TranscriptItem[]): number => {
     let last = 0;
     for (const item of items) {
-      if (item.type === "inherited-context" || item.type === "extension" || (item.type === "user" && item.pending)) continue;
+      if (item.type === "inherited-context" || item.type === "extension" || (item.type === "user" && item.queued)) continue;
       // Some native harnesses expose only turn-level dates, not per-message dates.
       const timestamp = item.type === "working" ? latest(item.items) || item.completedAt || item.stoppedAt : item.timestamp;
       if (timestamp !== undefined && Number.isFinite(timestamp) && timestamp > last && timestamp <= 8.64e15) last = timestamp;
@@ -65,10 +66,29 @@ export function renderModelContextDetailFrame(ctx: AgentRenderContext, modelCont
 
 function renderUserMessage(ctx: AgentRenderContext, user: Extract<TranscriptItem, { type: "user" }>): string {
   const images = user.images.length ? `<div class="agent-user-attachments">${user.images.map((image) => `<img${fullscreenAttributes("attachment", "media")} src="${escapeHtml(sessionImageUrl(ctx, image))}" alt="attachment" loading="lazy">`).join("")}</div>` : "";
-  const label = user.pending ? "Queued · awaiting consumption" : user.steering ? "Steering" : "";
-  const cancel = user.queuedSubmissionId && !ctx.readOnly
-    ? `<form method="post" action="${escapeHtml(agentPath(ctx, `/queued-inputs/${encodeURIComponent(user.queuedSubmissionId)}/cancel`))}">${buttonHtml({ type: "submit", variant: "secondary", content: { kind: "icon-only", iconHtml: Icons.Close, label: "Cancel queued message" } })}</form>` : "";
-  return transcriptRow(`<div class="agent-user" data-agent-user-text="${escapeHtml(user.text)}"><div class="agent-user-bubble markdown">${label ? `<div class="agent-user-label">${label}${cancel}</div>` : ""}${markdown(ctx, user.text)}${images}</div></div>`);
+  const label = user.queued?.stranded ? "Not sent · the turn ended early"
+    : user.queued?.mode === "followUp" ? "Follow-up · after this turn"
+    : user.queued ? "Steering · after this step"
+    : user.steering ? "Steering" : "";
+  const actions = user.queued && !ctx.readOnly ? renderQueuedInputActions(ctx, user.key, user.queued) : "";
+  return transcriptRow(`<div class="agent-user" data-agent-user-text="${escapeHtml(user.text)}"><div class="agent-user-bubble markdown">${label ? `<div class="agent-user-label"><span>${label}</span>${actions}</div>` : ""}${markdown(ctx, user.text)}${images}</div></div>`);
+}
+
+/**
+ * A follow-up can be promoted to steering, and input a failed turn left behind can be sent now;
+ * ⌘/Ctrl+Enter in an empty composer does that to the newest one.
+ */
+function renderQueuedInputActions(ctx: AgentRenderContext, key: string, queued: QueuedInput): string {
+  const path = (action: string) => escapeHtml(agentPath(ctx, `/queued-inputs/${encodeURIComponent(queued.submissionId)}/${action}`));
+  const steer = queued.mode === "followUp" || queued.stranded
+    ? buttonHtml({ type: "submit", variant: "secondary", content: { kind: "caption", caption: queued.stranded ? "Send now" : "Steer" }, attributesHtml: `formaction="${path("steer")}" data-agent-queued-steer="${escapeHtml(queued.submissionId)}" data-agent-pane-target="queuedSteer" aria-keyshortcuts="Meta+Enter Control+Enter"` }) : "";
+  const cancel = destructiveConfirmationHtml({
+    id: domId(ids.item(ctx, key), "cancel"),
+    trigger: { type: "button", variant: "secondary", content: { kind: "icon-only", iconHtml: Icons.Close, label: "Remove queued message" } },
+    confirmCaption: "Remove message",
+    cancelCaption: "Keep",
+  });
+  return `<form class="agent-user-queued-actions" method="post" action="${path("cancel")}">${steer}${cancel}</form>`;
 }
 
 function renderStreamingTextBody(ctx: AgentRenderContext, key: string, text: string, className: string): string {
@@ -87,6 +107,7 @@ export function renderTranscriptItem(ctx: AgentRenderContext, item: TranscriptIt
     body = renderLazyTranscriptEntry(ctx, item.key, label);
   } else if (item.type === "user") body = renderUserMessage(ctx, item);
   else if (item.type === "thinking") body = renderThinkingItem(ctx, item);
+  else if (item.type === "text" && item.final && ctx.jsonFinalAnswers) body = renderJsonFinalAnswer(ctx, item.text, Boolean(item.live));
   else if (item.type === "text") {
     const className = item.final ? "markdown agent-final" : "markdown agent-itext-md";
     body = item.live
@@ -100,7 +121,20 @@ export function renderTranscriptItem(ctx: AgentRenderContext, item: TranscriptIt
       : renderMarkdownRow(ctx, item.text, `agent-note ${escapeHtml(item.tone)}`);
   }
   else body = transcriptRow(`<div class="agent-error">${escapeHtml(item.text)}</div>`);
-  return `<div class="agent-item" id="${id}" data-transcript-key="${escapeHtml(item.key)}"${item.anchor ? ` data-transcript-anchor="${escapeHtml(item.anchor)}"` : ""}>${body}</div>`;
+  return `<div class="agent-item" id="${id}" data-transcript-key="${escapeHtml(item.key)}"${item.anchor ? ` data-transcript-anchor="${escapeHtml(item.anchor)}"` : ""}${item.type === "tool" ? ` data-tool-call-id="${escapeHtml(item.tool.callId)}"` : ""}>${body}</div>`;
+}
+
+/** A JSON final answer, formatted once it parses. A streaming answer shows as written; one that isn't JSON, as markdown. */
+function renderJsonFinalAnswer(ctx: AgentRenderContext, text: string, live: boolean): string {
+  let code = unfencedJson(text);
+  if (!live) {
+    try { code = JSON.stringify(JSON.parse(code), null, 2); }
+    catch (error) {
+      if (!(error instanceof SyntaxError)) throw error;
+      return renderMarkdownRow(ctx, text, "markdown agent-final");
+    }
+  }
+  return transcriptRow(`<div class="agent-final">${codeBlockHtml(code, "answer.json", "agent-tool-code agent-final-json")}</div>`);
 }
 
 function renderWorkingContent(ctx: AgentRenderContext, section: WorkingTranscriptItem, options: { live?: boolean; open?: boolean } = {}): string {

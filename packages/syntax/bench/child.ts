@@ -82,8 +82,15 @@ switch (path) {
     break;
   }
   case "editor": {
-    const { highlightEditorSource } = await import("../../files/bench/highlight.ts");
-    run = (text) => highlightEditorSource(fixture, text);
+    const { FileRenderer } = await import("@pierre/diffs");
+    const { pierreHighlightOptions } = await import("../src/diff-options.ts");
+    await import("../src/pierre.ts");
+    run = async (text) => {
+      const renderer = new FileRenderer(pierreHighlightOptions);
+      try {
+        await renderer.asyncRender({ name: fixture, contents: text });
+      } finally { renderer.cleanUp(); }
+    };
     break;
   }
   default: throw new Error(`Unknown highlighting path: ${path}`);

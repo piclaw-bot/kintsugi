@@ -21,7 +21,16 @@ for (const id of ["codex-cli", "claude-cli", "pi"]) {
         const calls = [];
         const credentials = [];
         let authChecks = 0;
-        mock.module("@kintsugi/workspace", () => ({ ...workspace, execWorkspaceShell: async (...args) => { calls.push(args); return { exitCode: 0, stdout: "", stderr: "", durationMs: 0 }; } }));
+        const started = [], released = [];
+        mock.module("@kintsugi/workspace", () => ({
+          ...workspace,
+          execWorkspaceShell: async (...args) => { calls.push(args); return { exitCode: 0, stdout: "", stderr: "", durationMs: 0 }; },
+          workspaceTerminalProcesses: () => ({
+            async start(options) { started.push(options); },
+            async state() { return { state: "running", interactive: true }; },
+            async release(id) { released.push(id); },
+          }),
+        }));
         mock.module("@kintsugi/llm/server", () => ({ ...llm, installSubscriptionCli: async (workspaceId) => credentials.push(workspaceId), requireProviderSubscription: async (_runtime, provider) => { expect(provider).toBe(${JSON.stringify(id === "codex-cli" ? "openai-codex" : "anthropic")}); authChecks++; } }));
         const cliAgent = await import("@kintsugi/cli-agent/server");
         mock.module("@kintsugi/cli-agent/server", () => ({ ...cliAgent, createCliModelSettings: () => ({ prepare: async (settings = {}) => settings, renderFooter: async () => "" }) }));
@@ -39,21 +48,23 @@ for (const id of ["codex-cli", "claude-cli", "pi"]) {
         await agentType.launch.prepareWorkspace("adapter", context);
         expect(authChecks).toBe(2);
         expect(credentials).toEqual(["adapter"]);
-        expect(calls).toHaveLength(3);
-        expect(calls.at(-1)[1]).toContain(${JSON.stringify(launchMarker)});
-        expect(calls.at(-1)[1]).toContain("${id}-");
-        expect(calls.at(-1)[1]).toContain("/home/agent");
-        expect(calls.at(-1)[1]).not.toContain("test-credential");
+        expect(calls).toHaveLength(2);
         const [tab] = await agentType.tabs.list({ workspaceId: "adapter" });
+        expect(started).toHaveLength(1);
+        const [launch] = started;
+        expect(launch).toMatchObject({ id: tab.id, interactive: true, env: { HOME: "/home/agent" } });
+        expect(launch.command).toContain(${JSON.stringify(launchMarker)});
+        expect(launch.command).not.toContain("test-credential");
         const mcpSetup = calls.find((call) => call[1].includes(${JSON.stringify(mcpConfigMarker)}));
         expect(mcpSetup).toBeDefined();
         expect(mcpSetup[2].stdin).toContain("test-credential");
-        if (${id === "codex-cli"}) expect(calls.at(-1)[1]).toContain("sqlite_home=" + JSON.stringify("/home/agent/.local/share/kintsugi-agents/" + tab.id + "/codex"));
-        if (${id === "pi"}) expect(calls.at(-1)[1]).toContain("/pi-kintsugi/extension.mjs");
+        if (${id === "codex-cli"}) expect(launch.command).toContain("sqlite_home=" + JSON.stringify("/home/agent/.local/share/kintsugi-agents/" + tab.id + "/codex"));
+        if (${id === "pi"}) expect(launch.command).toContain("/pi-kintsugi/extension.mjs");
         await agentType.launch.prepareWorkspace("adapter", context);
-        expect(calls).toHaveLength(3);
+        expect(started).toHaveLength(1);
         await agentType.tabs.close({ workspaceId: "adapter", agentId: tab.id });
         expect(revoked).toEqual([["adapter", tab.id]]);
+        expect(released).toEqual([tab.id]);
       `], { cwd: join(import.meta.dir, ".."), env: { ...process.env, ATELIER_DATA_DIR: directory }, stdout: "pipe", stderr: "pipe" });
       const [code, stdout, stderr] = await Promise.all([child.exited, new Response(child.stdout).text(), new Response(child.stderr).text()]);
       expect({ code, stdout, stderr }).toEqual({ code: 0, stdout: "", stderr: "" });

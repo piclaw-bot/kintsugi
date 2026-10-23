@@ -14,7 +14,7 @@ import { posix } from "node:path";
 import type { FileEntry } from "./files.ts";
 import { isImageFile } from "../image-file.ts";
 import type { FilePreviewKind } from "./file-preview.ts";
-import { defaultFilesViewId, filesDiskGeneration, filesNavigationRequest, type FilesView } from "./state.ts";
+import { defaultFilesViewId, filesDiskGeneration, filesNavigationRequest, type FilesHistoryDirection, type FilesView } from "./state.ts";
 
 function filesTreeFrameId(workspaceId: string, viewId: string): string {
   return domId("workspace", workspaceId, "files", viewId, "tree");
@@ -53,6 +53,27 @@ function refreshButton(): string {
     content: { kind: "icon-only", iconHtml: Icons.Refresh, label: "Refresh files" },
     attributesHtml: 'data-action="files-view#refresh"',
   });
+}
+
+function historyStep(workspaceId: string, view: FilesView, direction: FilesHistoryDirection): string {
+  const target = view[direction]?.at(-1);
+  const caption = direction === "back" ? "Back" : "Forward";
+  const button = buttonHtml({
+    type: "submit",
+    variant: "secondary",
+    disabled: !target,
+    content: { kind: "icon-only", iconHtml: direction === "back" ? Icons.Back : Icons.Forward, label: target ? `${caption} to ${posix.basename(target)}` : caption },
+  });
+  return `<form method="post" action="/workspaces/${encodeURIComponent(workspaceId)}/files-view/history" data-turbo-stream="true">
+    <input type="hidden" name="filesView" value="${escapeHtml(view.id)}"><input type="hidden" name="direction" value="${direction}">
+    ${button}
+  </form>`;
+}
+
+function editorToolbarLeading(workspaceId: string, view: FilesView): string {
+  const history = buttonGroupHtml({ orientation: "horizontal", semantics: "group", label: "File history", itemsHtml: historyStep(workspaceId, view, "back") + historyStep(workspaceId, view, "forward") });
+  const path = view.path ? `<span class="file-editor-path" title="${escapeHtml(view.path)}">${escapeHtml(view.path)}</span>` : '<span class="file-editor-path">Choose a file</span>';
+  return `<span class="file-editor-toolbar-leading">${history}${path}</span>`;
 }
 
 function directoryToggleUrl(workspaceId: string, viewId: string, path: string, expand: boolean): string {
@@ -235,7 +256,7 @@ function displayMenu(workspaceId: string, viewId: string): string {
 
 export function renderFilesEditorFrame(workspaceId: string, view: FilesView, previewKind: FilePreviewKind = isImageFile(view.path ?? "") ? "image" : "text", previewError?: string): string {
   const frameId = filesEditorFrameId(workspaceId, view.id);
-  if (!view.path) return `<turbo-frame id="${frameId}" class="files-editor-frame"><section class="file-editor-pane files-editor-empty"><header class="file-editor-toolbar work-view-toolbar"><span class="file-editor-path">Choose a file</span>${filesNavigatorToggle("expand")}</header><p>Select a file to view or edit. Drop files into the Files navigator to upload, or create them in Terminal and choose Refresh.</p></section></turbo-frame>`;
+  if (!view.path) return `<turbo-frame id="${frameId}" class="files-editor-frame"><section class="file-editor-pane files-editor-empty"><header class="file-editor-toolbar work-view-toolbar">${editorToolbarLeading(workspaceId, view)}${filesNavigatorToggle("expand")}</header><p>Select a file to view or edit. Drop files into the Files navigator to upload, or create them in Terminal and choose Refresh.</p></section></turbo-frame>`;
   if (previewKind !== "text") {
     const name = posix.basename(view.path);
     const mediaUrl = escapeHtml(workspaceProxyUrl(workspaceId, "file", view.path));
@@ -251,7 +272,7 @@ export function renderFilesEditorFrame(workspaceId: string, view: FilesView, pre
           : `<p class="empty-state">${previewKind === "large-text" ? "This text file is too large to edit here." : "No preview available for this file."} Download it to open it elsewhere.</p>`;
     const fullscreenButton = buttonHtml({ type: "button", variant: "secondary", content: { kind: "caption", caption: "Fullscreen" }, attributesHtml: 'data-action="kintsugi-fullscreen#open"' });
     return `<turbo-frame id="${frameId}" class="files-editor-frame"><section class="file-editor-pane" data-controller="kintsugi-fullscreen" data-kintsugi-fullscreen-mode-value="media" data-kintsugi-fullscreen-title-value="${escapeHtml(name)}">
-      <header class="file-editor-toolbar work-view-toolbar"><span class="file-editor-path" title="${escapeHtml(view.path)}">${escapeHtml(view.path)}</span><span class="file-editor-toolbar-actions">${fullscreen ? fullscreenButton : ""}${selectedFileActions(workspaceId, view, true)}${filesNavigatorToggle("expand")}</span></header>
+      <header class="file-editor-toolbar work-view-toolbar">${editorToolbarLeading(workspaceId, view)}<span class="file-editor-toolbar-actions">${fullscreen ? fullscreenButton : ""}${selectedFileActions(workspaceId, view, true)}${filesNavigatorToggle("expand")}</span></header>
       <div class="file-media-preview">${preview}</div>
     </section></turbo-frame>`;
   }
@@ -266,9 +287,9 @@ export function renderFilesEditorFrame(workspaceId: string, view: FilesView, pre
   const delimited = isDelimitedPath(view.path);
   const rendered = delimited || /\.(?:md|markdown)$/i.test(view.path);
   const editorId = `${frameId}_${Bun.hash(view.path).toString(16)}`;
-  return `<turbo-frame id="${frameId}" class="files-editor-frame" data-controller="file-editor-navigation" data-file-editor-navigation-editor-value="${escapeHtml(editorId)}" data-file-editor-navigation-request-value="${filesNavigationRequest(workspaceId, view.id)}" data-file-editor-navigation-line-value="${view.line ?? 0}" data-file-editor-navigation-column-value="${view.column ?? 0}"><section class="file-editor-pane" id="${escapeHtml(editorId)}" data-turbo-permanent data-controller="file-editor" data-file-editor-workspace-id-value="${escapeHtml(workspaceId)}" data-file-editor-path-value="${escapeHtml(view.path)}" data-file-editor-content-url-value="${escapeHtml(contentUrl)}" data-file-editor-line-value="${view.line ?? 0}" data-file-editor-column-value="${view.column ?? 0}">
-    <header class="file-editor-toolbar work-view-toolbar"><span class="file-editor-path" title="${escapeHtml(view.path)}">${escapeHtml(view.path)}</span><span class="file-editor-toolbar-actions">${rendered ? markdownDisplayToggle(delimited ? "Table" : "Markdown") : ""}<span class="file-editor-status" data-file-editor-target="status">Loading…</span>${refreshButton()}${displayMenu(workspaceId, view.id)}${selectedFileActions(workspaceId, view)}${filesNavigatorToggle("expand")}</span></header>
-    <div class="file-editor-host" data-file-editor-target="host"><div class="file-editor-loading" data-file-editor-target="loading" role="status"><i class="status-spinner sm" aria-hidden="true"></i><span>Loading file…</span></div></div>
+  return `<turbo-frame id="${frameId}" class="files-editor-frame" data-controller="file-editor-navigation" data-file-editor-navigation-editor-value="${escapeHtml(editorId)}" data-file-editor-navigation-request-value="${filesNavigationRequest(workspaceId, view.id)}" data-file-editor-navigation-line-value="${view.line ?? 0}" data-file-editor-navigation-column-value="${view.column ?? 0}"><section class="file-editor-pane" id="${escapeHtml(editorId)}" data-turbo-permanent data-controller="file-editor" data-file-editor-workspace-id-value="${escapeHtml(workspaceId)}" data-file-editor-files-view-value="${escapeHtml(view.id)}" data-file-editor-path-value="${escapeHtml(view.path)}" data-file-editor-content-url-value="${escapeHtml(contentUrl)}" data-file-editor-line-value="${view.line ?? 0}" data-file-editor-column-value="${view.column ?? 0}">
+    <header class="file-editor-toolbar work-view-toolbar">${editorToolbarLeading(workspaceId, view)}<span class="file-editor-toolbar-actions">${rendered ? markdownDisplayToggle(delimited ? "Table" : "Markdown") : ""}<span class="file-editor-status" data-file-editor-target="status">Loading…</span>${refreshButton()}${displayMenu(workspaceId, view.id)}${selectedFileActions(workspaceId, view)}${filesNavigatorToggle("expand")}</span></header>
+    <div class="file-editor-host kintsugi-pierre-host" data-file-editor-target="host"><div class="file-editor-loading" data-file-editor-target="loading" role="status"><i class="status-spinner sm" aria-hidden="true"></i><span>Loading file…</span></div></div>
     ${rendered ? `<div class="file-editor-rendered-markdown${delimited ? " file-editor-rendered-table" : " markdown"}" data-file-editor-target="renderedMarkdown" hidden></div>` : ""}
     ${fileConflictDialog()}
   </section></turbo-frame>`;

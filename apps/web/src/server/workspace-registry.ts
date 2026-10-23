@@ -10,8 +10,8 @@ export type WorkspacePhase =
   | { kind: "runningPhase"; busy: boolean; error?: never; deletion?: never }
   | { kind: "deletingPhase"; busy: boolean; deletion: WorkspaceDeletionState; error?: never };
 export type WorkspaceDeletionState = Static<typeof workspaceDeletionStateSchema>;
-export type WorkspaceIssueKind = "readiness" | "image" | "naming";
-export interface WorkspaceIssue { kind: WorkspaceIssueKind; message: string }
+export type WorkspaceWarningKind = "preparation" | "image" | "naming";
+export interface WorkspaceEntryWarning { kind: WorkspaceWarningKind; message: string }
 export interface WorkspaceEntry {
   id: string;
   title: string | null;
@@ -22,12 +22,12 @@ export interface WorkspaceEntry {
   init: WorkspaceInitInstruction | undefined;
   parked: boolean;
   imageOutdated: boolean;
-  issues?: WorkspaceIssue[];
+  warnings?: WorkspaceEntryWarning[];
 }
 export interface SurfaceState { requestingAttention: boolean; attentionSequence?: number }
 export interface AgentState extends SurfaceState { busy: boolean }
 export interface WorkspaceRegistryCallbacks {
-  rowChanged?(entry: WorkspaceEntry, context: { viewKey?: string; phaseChanged?: boolean; issuesChanged?: boolean }): void;
+  rowChanged?(entry: WorkspaceEntry, context: { viewKey?: string; phaseChanged?: boolean; warningsChanged?: boolean }): void;
   parkedChanged?(entry: WorkspaceEntry): void;
   listChanged?(): void;
   removed?(id: string): void;
@@ -107,7 +107,7 @@ export interface WorkspaceRegistry {
   startRunning(id: string): void;
   setDeletion(id: string, deletion: WorkspaceDeletionState): void;
   cancelDeletion(id: string): void;
-  setIssue(id: string, kind: WorkspaceIssueKind, message?: string): void;
+  setWarning(id: string, kind: WorkspaceWarningKind, message?: string): void;
   setImageOutdated(id: string, outdated: boolean): void;
   setTitle(id: string, title: string | null): void;
   setParked(id: string, parked: boolean): void;
@@ -256,22 +256,22 @@ export function createWorkspaceRegistry(options: WorkspaceRegistryOptions = {}):
         : { kind: "runningPhase", busy: (busyAgents.get(id)?.size ?? 0) > 0 });
       if (provisioningError) requestAttention(id);
     },
-    setIssue(id, kind, message) {
+    setWarning(id, kind, message) {
       const entry = requireEntry(id);
-      const issues = (entry.issues ?? []).filter((issue) => issue.kind !== kind);
-      if (message !== undefined) issues.push({ kind, message });
-      entry.issues = issues.length ? issues : undefined;
-      callbacks.rowChanged?.(entry, { issuesChanged: true });
+      const warnings = (entry.warnings ?? []).filter((warning) => warning.kind !== kind);
+      if (message !== undefined) warnings.push({ kind, message });
+      entry.warnings = warnings.length ? warnings : undefined;
+      callbacks.rowChanged?.(entry, { warningsChanged: true });
     },
-    setImageOutdated(id, outdated) { const entry = requireEntry(id); entry.imageOutdated = outdated; callbacks.rowChanged?.(entry, { issuesChanged: true }); },
+    setImageOutdated(id, outdated) { const entry = requireEntry(id); entry.imageOutdated = outdated; callbacks.rowChanged?.(entry, { warningsChanged: true }); },
     setTitle(id, title) {
       const entry = requireEntry(id); if (entry.title === title) return;
       entry.title = title;
       // A failed naming attempt stops mattering once the workspace has a name.
-      const issues = title ? entry.issues?.filter((issue) => issue.kind !== "naming") : entry.issues;
-      const issuesChanged = issues?.length !== entry.issues?.length;
-      entry.issues = issues?.length ? issues : undefined;
-      callbacks.rowChanged?.(entry, { issuesChanged });
+      const warnings = title ? entry.warnings?.filter((warning) => warning.kind !== "naming") : entry.warnings;
+      const warningsChanged = warnings?.length !== entry.warnings?.length;
+      entry.warnings = warnings?.length ? warnings : undefined;
+      callbacks.rowChanged?.(entry, { warningsChanged });
     },
     setParked(id, parked) {
       const entry = requireEntry(id); if (entry.parked === parked) return;

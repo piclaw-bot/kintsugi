@@ -209,7 +209,6 @@ async function outside(systemImage: string, base: string) {
     for (const address of ["10.201.0.2/32", "169.254.169.254/32"]) await docker("exec", name, "ip", "route", "add", address, "via", "11.201.0.2");
     await docker("exec", name, "mkdir", "/audit");
     await docker("cp", join(directory, "test.js"), `${name}:/audit/test.js`);
-    await docker("cp", new URL("../../observable-terminal/src/server/host-command-process.ts", import.meta.url).pathname, `${name}:/audit/host-command-process.ts`);
     // Bundling relocates repository-builder.ts's relative runtime-image URL.
     await docker("cp", new URL("../runtime-image", import.meta.url).pathname, `${name}:/runtime-image`);
     await command(["bash", "-o", "pipefail", "-c", `docker save ${shellQuote(base)} | docker exec -i ${shellQuote(name)} docker load`]);

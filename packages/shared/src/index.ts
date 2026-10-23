@@ -11,7 +11,8 @@ export { isHopByHopHeader, stripHopByHopHeaders } from "./proxy-headers.ts";
 
 export const kintsugiName = "Kintsugi" as const;
 
-export { parseWorkspaceFileTarget, workspaceFileOpenUrl, type WorkspaceFileTarget } from "./file-target.ts";
+export { fileReferencesIn, parseFileReference, parseWorkspaceFileTarget, workspaceFileOpenUrl, type WorkspaceFileTarget } from "./file-target.ts";
+export { changesCommitUrl, commitLinkPrefix, isCommitHash, parseCommitLinkHref, parseCommitLinkSpec, shortCommit, type CommitLinkTarget } from "./commit-target.ts";
 
 export function domId(...parts: string[]): string {
   return parts.join("_").replace(/[^a-zA-Z0-9_-]/g, "_");
@@ -114,7 +115,7 @@ type WorkspaceWorkViewAvailability =
   | { phase: "opening"; detail?: string }
   | { phase: "live" }
   | { phase: "reconnecting"; detail?: string }
-  | { phase: "unavailable"; detail: string; recoveryHtml?: string };
+  | { phase: "unavailable"; detail: string };
 
 export function workspaceWorkViewLabelDomId(workspaceId: string, key: string): string {
   return domId("work_view_label", workspaceId, key);
@@ -266,12 +267,12 @@ export type WorkspaceServerAppResolver = (
   requestUrl: URL,
 ) => Promise<WorkspaceAppBackend | undefined> | WorkspaceAppBackend | undefined;
 
-export type WorkspaceProvisionRecovery = "continue" | "retry" | "retry-or-continue";
+export type WorkspaceProvisionFailurePolicy = "continue" | "retry" | "retry-or-continue";
 
 export interface WorkspaceServerProvisioningHook {
   id: string;
   label: string;
-  recovery?: WorkspaceProvisionRecovery;
+  failurePolicy?: WorkspaceProvisionFailurePolicy;
   run(context: { workspaceId: string; creationContext?: WorkspaceCreationContext; events?: KintsugiEventBus }): Promise<void> | void;
 }
 
@@ -401,8 +402,8 @@ export function composerSubmitKey(event: Pick<KeyboardEvent, "key" | "metaKey" |
 }
 
 export function isWorkspacePaneVisible(element: Element): boolean {
-  const resident = element.closest(".workspace-detail-resident");
-  if (resident && !resident.classList.contains("visible")) return false;
+  const mount = element.closest(".workspace-detail-mount");
+  if (mount && !mount.classList.contains("visible")) return false;
   const presentationPane = element.closest<HTMLElement>("[data-workspace-pane-role][data-workspace-pane-id]");
   if (presentationPane) {
     if (!presentationPane.classList.contains("is-active")) return false;

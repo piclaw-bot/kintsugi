@@ -2,7 +2,7 @@ import { createKintsugiEventBus } from "@kintsugi/core";
 import type { WorkspaceWorkViewReference } from "@kintsugi/shared";
 import { describe, expect, test } from "bun:test";
 import { kintsugiServerModule } from "../src/server/index.ts";
-import { closeFilesView, createFilesView, deleteFilesViewState, filesDiskGeneration, listFilesViews, setFilesViewFile } from "../src/server/state.ts";
+import { closeFilesView, createFilesView, deleteFilesViewState, filesDiskGeneration, filesView, forgetFilesPath, listFilesViews, navigateFilesViewHistory, setFilesViewFile } from "../src/server/state.ts";
 
 describe("Files view integration", () => {
   test("embed-style links select the file in the default Files view", async () => {
@@ -52,6 +52,28 @@ describe("Files view integration", () => {
       setFilesViewFile(workspaceId, first.id, "/work/other.ts");
       closeFilesView(workspaceId, first.id);
       expect(listFilesViews(workspaceId).find((view) => view.id === second.id)).toMatchObject({ path: "/work/README.md", line: 9 });
+    } finally {
+      deleteFilesViewState(workspaceId);
+    }
+  });
+
+  test("Files views keep back and forward history per view", () => {
+    const workspaceId = "workspace-history";
+    try {
+      const view = createFilesView(workspaceId);
+      for (const path of ["/work/a.md", "/work/b.md", "/work/b.md", "/work/c.md"]) setFilesViewFile(workspaceId, view.id, path);
+      expect(filesView(workspaceId, view.id)).toMatchObject({ path: "/work/c.md", back: ["/work/a.md", "/work/b.md"], forward: [] });
+      navigateFilesViewHistory(workspaceId, view.id, "back");
+      navigateFilesViewHistory(workspaceId, view.id, "back");
+      expect(filesView(workspaceId, view.id)).toMatchObject({ path: "/work/a.md", back: [], forward: ["/work/c.md", "/work/b.md"] });
+      navigateFilesViewHistory(workspaceId, view.id, "back");
+      expect(filesView(workspaceId, view.id).path).toBe("/work/a.md");
+      navigateFilesViewHistory(workspaceId, view.id, "forward");
+      expect(filesView(workspaceId, view.id)).toMatchObject({ path: "/work/b.md", back: ["/work/a.md"], forward: ["/work/c.md"] });
+      setFilesViewFile(workspaceId, view.id, "/work/d.md");
+      expect(filesView(workspaceId, view.id)).toMatchObject({ back: ["/work/a.md", "/work/b.md"], forward: [] });
+      forgetFilesPath(workspaceId, "/work/a.md");
+      expect(filesView(workspaceId, view.id).back).toEqual(["/work/b.md"]);
     } finally {
       deleteFilesViewState(workspaceId);
     }

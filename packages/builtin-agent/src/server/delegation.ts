@@ -3,6 +3,7 @@ import type { Extension, Harness, ConversationId, EntryRecord } from "@earendil-
 import { KintsugiCoreError } from "@kintsugi/core";
 import { listWorkspaceAgents, type WorkspaceAgentInfo } from "./agent-store.ts";
 import { durableWorkspaceOwner } from "./runtime.ts";
+import { isOneShotAgent } from "./durable-workspace.ts";
 
 export interface AgentDelegation {
   create(models: Models, harness: () => Harness): { extension: Extension; models: Models };
@@ -23,6 +24,6 @@ export async function resolveAgent(workspaceId: string, agentId: string): Promis
   if (root) return root;
   // A child agent, such as a subagent or a script's one-shot agent, shares its root's journal.
   const child = (await (await durableWorkspaceOwner(workspaceId)).catalog()).find(record => record.parentId && record.agentId === agentId);
-  if (child) return { ...child, workspaceId, path: "", storage: "durable" };
+  if (child) return { ...child, workspaceId, path: "", storage: "durable", oneShot: isOneShotAgent(child) };
   throw new KintsugiCoreError("agent_not_found", `Agent not found: ${agentId}`);
 }

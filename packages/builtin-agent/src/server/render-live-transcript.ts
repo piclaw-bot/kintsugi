@@ -17,7 +17,7 @@ export class LiveTranscriptRenderer {
         commentaryIslands = collection.html;
         children.push(collection);
       }
-      const rendering = item.type === "text" && item.live ? ctx.streamingText!(item.key, item.text) : undefined;
+      const rendering = item.type === "text" && item.live && !(item.final && ctx.jsonFinalAnswers) ? ctx.streamingText!(item.key, item.text) : undefined;
       const key = ids.item(ctx, item.key);
       const fingerprint = item.type === "working" || item.type === "extension" ? undefined : JSON.stringify(rendering ? { ...item, text: "" } : item);
       const cached = this.cache.get(key);

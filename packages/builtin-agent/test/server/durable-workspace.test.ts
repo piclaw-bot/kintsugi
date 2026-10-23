@@ -302,7 +302,7 @@ test("previous workspace journal catalog retains native history while renaming A
   const previousCatalog = defineDoc<{
     workspaceId: string;
     conversations: { conversationId: string; durableId: number; label: string; title: string; branches: number[] }[];
-  }>({ kind: "kintsugi.workspace", version: 1, scope: "session", initial: () => ({ workspaceId: "workspace-1", conversations: [] }) });
+  }>({ kind: "kintsugi.workspace", version: 1, scope: "session", initial: () => ({ workspaceId: "workspace-1", conversations: [] }), checkpointWhen: () => false, });
   const harness = await Harness.open(await openNodeJsonlStorage(path, context), options, context);
   const id = await harness.commit(async tx => {
     const created = await tx.createConversation({ ownership: { kind: "ownerless" } });

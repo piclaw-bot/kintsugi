@@ -150,7 +150,7 @@ export function createWebApp(deps: WebAppDeps): WebApp {
     const pane = await workspacePaneCollections("");
     return [...workspacePaneCollectionsRegions(pane), ...[...globalRegions.values()].flat(),
       { target: "global_sidebar_contributions", html: renderGlobalSidebarContributions() },
-      { target: "workspace_residents", html: workspaceMounts() },
+      { target: "workspace_mounts", html: workspaceMounts() },
       { target: "workspace_empty_artwork", html: emptyWorkspaceArtworkHtml(pane), action: "replace" as const },
       { target: themeRegionId, html: themeRegionHtml() },
     ];
@@ -187,11 +187,11 @@ export function createWebApp(deps: WebAppDeps): WebApp {
             return { kind: "workspace", presentation };
           } catch (error) {
             logError(`Workspace ${workspaceId} is unavailable: ${errorMessage(error)}`);
-            return { kind: "regions", regions: [{ target: workspaceResidentId(workspaceId), html: workspaceUnavailableHtml(entry, errorMessage(error)) }] };
+            return { kind: "regions", regions: [{ target: workspaceMountId(workspaceId), html: workspaceUnavailableHtml(entry, errorMessage(error)) }] };
           }
         }
-        return { kind: "regions", regions: [{ target: workspaceResidentId(workspaceId), html: entry.phase.deletion
-          ? deletionPresentation(entry, entry.phase.deletion) : workspaceBootResidentHtml(entry) }] };
+        return { kind: "regions", regions: [{ target: workspaceMountId(workspaceId), html: entry.phase.deletion
+          ? deletionPresentation(entry, entry.phase.deletion) : workspaceBootMountHtml(entry) }] };
       }, state => state.kind === "workspace"
         ? workspaceRegions(state.presentation)
         : state.regions, reportPresentationError);
@@ -244,8 +244,8 @@ export function createWebApp(deps: WebAppDeps): WebApp {
     createAgentWorkspace: (workspaceTemplate, request) => createAgentWorkspaceFromForm(request, { workspaceTemplate }),
   });
 
-  function workspaceResidentId(id: string): string {
-    return domId("workspace_resident", id);
+  function workspaceMountId(id: string): string {
+    return domId("workspace_mount", id);
   }
 
   const globalRegions = new Map<string, readonly LiveRegion[]>();
@@ -331,7 +331,7 @@ export function createWebApp(deps: WebAppDeps): WebApp {
   }
 
   // ---------------------------------------------------------------------------
-  // Workspace detail residency host
+  // Workspace detail mount host
   // ---------------------------------------------------------------------------
 
   async function attachWorkspaceModules(workspaceId: string): Promise<WorkspaceAttachment[]> {
@@ -383,7 +383,7 @@ export function createWebApp(deps: WebAppDeps): WebApp {
         lastActivityAt: entry.lastActivityAt,
         busyAgentKeys: registry.busyAgents(entry.id),
         outdated: entry.imageOutdated,
-        issues: entry.issues,
+        warnings: entry.warnings,
       };
     });
     return { workspaceTemplates, workspaces };
@@ -489,7 +489,7 @@ export function createWebApp(deps: WebAppDeps): WebApp {
   function workspaceRegions(presentation: FixedWorkspacePresentation): readonly LiveRegion[] {
     const workspaceId = presentation.workspace.id;
     return [{
-      target: workspaceResidentId(workspaceId),
+      target: workspaceMountId(workspaceId),
       html: renderWorkspacePresentation(presentation),
       children: [
         ...presentation.agents.flatMap(agent => agent.pane === undefined ? [] : [{ target: agentContentId(workspaceId, agent.id), html: agent.pane.html }]),
@@ -524,29 +524,29 @@ export function createWebApp(deps: WebAppDeps): WebApp {
     return presentation;
   }
 
-  function workspaceBootResidentHtml(entry: WorkspaceEntry): string {
+  function workspaceBootMountHtml(entry: WorkspaceEntry): string {
     const workspaceTemplateId = workspaceTemplateIdOfInit(entry.init);
     const snapshot = provisioning.snapshot(entry.id);
     const failed = entry.phase.kind === "provisioningPhase" && entry.phase.status === "failed";
-    // Waiting means a step failed and needs a recovery decision; done is not a failure.
-    const needsRecovery = failed || snapshot?.status === "failed" || snapshot?.status === "waiting";
+    // Waiting means a step failed and needs a decision; done is not a failure.
+    const needsDecision = failed || snapshot?.status === "failed" || snapshot?.status === "waiting";
     const deleteButton = buttonHtml({ type: "submit", variant: "danger", content: { kind: "caption", caption: "Delete workspace" } });
-    const deleteAction = needsRecovery ? `<form class="workspace-boot-actions" method="post" action="/workspaces/${encodeURIComponent(entry.id)}/delete">${deleteButton}</form>` : "";
+    const deleteAction = needsDecision ? `<form class="workspace-boot-actions" method="post" action="/workspaces/${encodeURIComponent(entry.id)}/delete">${deleteButton}</form>` : "";
     const sourceFailure = snapshot?.steps.find((step) => step.id === "workspace.source" && step.status === "failed");
     const sourceError = `${sourceFailure?.output ?? ""}\n${sourceFailure?.error ?? ""}`;
     const needsSshKey = !!sourceFailure?.error && isSshAuthenticationFailure(sourceFailure.error);
     const hostFailure = sourceFailure && sshHostTrustFailure(sourceError);
     const missingHost = hostFailure && !hostFailure.changed ? hostFailure : undefined;
     const changedHost = hostFailure?.changed ?? sourceError.includes("REMOTE HOST IDENTIFICATION HAS CHANGED");
-    const recoveryActions = (failed || sourceFailure) && workspaceTemplateId
+    const failureActionsHtml = (failed || sourceFailure) && workspaceTemplateId
       ? actionLinkHtml({ href: hostFailure ? `/workspaces/${encodeURIComponent(entry.id)}/ssh-trust` : `/workspace-templates/${encodeURIComponent(workspaceTemplateId)}/settings?section=${needsSshKey || changedHost ? "ssh-keys" : "repository"}`, variant: "primary", content: { kind: "caption", caption: hostFailure ? changedHost ? "Investigate changed SSH identity" : "Review SSH server identity" : needsSshKey ? "Add an SSH key" : "Open template settings" }, attributesHtml: 'data-turbo-stream="true"' })
       : "";
-    const recovery = sourceFailure ? {
+    const sourceFailureActions = sourceFailure ? {
       stepId: sourceFailure.id,
       description: missingHost ? `Kintsugi does not yet trust ${missingHost.host}. Verify its fingerprint before trusting it and retrying.` : changedHost ? "The server's identity changed. Do not retry until your administrator verifies the new key. Update Trusted SSH servers in template settings only after verification." : needsSshKey ? "SSH authentication failed. An SSH key with access to this repository may resolve this. Add it to this template, then retry." : undefined,
-      actionsHtml: recoveryActions,
+      actionsHtml: failureActionsHtml,
     } : undefined;
-    const inner = `${renderWorkspaceProvisioning(entry.id, snapshot, { failed, error: entry.phase.error, recovery })}${sourceFailure ? "" : recoveryActions}${deleteAction}`;
+    const inner = `${renderWorkspaceProvisioning(entry.id, snapshot, { failed, error: entry.phase.error, failureActions: sourceFailureActions })}${sourceFailure ? "" : failureActionsHtml}${deleteAction}`;
     const trustPanel = hostTrustPanels.get(entry.id);
     const overlay = trustPanel ? sshTrustPanel(entry.id, trustPanel.records, trustPanel.host, trustPanel.port, changedHost, `/workspaces/${encodeURIComponent(entry.id)}/ssh-trust`) : "";
     return `<div class="workspace-boot"><div class="main"${trustPanel ? " inert" : ""}><div class="body"><div class="workspace-boot-progress"><div class="workspace-boot-content">${inner}</div></div>${provisioningLaunchPanels.get(entry.id) ?? ""}</div></div>${renderMobileWorkspaceBar("", "", !!trustPanel)}${overlay}</div>`;
@@ -564,9 +564,9 @@ export function createWebApp(deps: WebAppDeps): WebApp {
   }
 
   function workspaceMounts(selectedId?: string, selection?: FixedWorkspacePresentation["initialSelection"]): string {
-    // Residents are invisible siblings, not the sorted workspace list. Keep their DOM order stable
+    // Mounts are invisible siblings, not the sorted workspace list. Keep their DOM order stable
     // when attention clears and the list reorders; moving a permanent mount disconnects it.
-    return registry.list().filter(entry => !entry.parked).sort((a, b) => a.id.localeCompare(b.id)).map(entry => `<div id="${workspaceResidentId(entry.id)}" class="workspace-detail-resident${entry.id === selectedId ? " visible" : ""}" data-turbo-permanent data-workspace-residency-target="resident" data-workspace-id="${escapeHtml(entry.id)}" data-controller="live-surface" data-live-surface-workspace-value="${escapeHtml(entry.id)}" data-live-surface-kind-value="workspace" data-live-surface-eager-value="${entry.id === selectedId}" data-live-surface-agent-value="${entry.id === selectedId ? escapeHtml(selection?.agent ?? "") : ""}" data-live-surface-work-value="${entry.id === selectedId ? escapeHtml(selection?.workView ?? "") : ""}"></div>`).join("");
+    return registry.list().filter(entry => !entry.parked).sort((a, b) => a.id.localeCompare(b.id)).map(entry => `<div id="${workspaceMountId(entry.id)}" class="workspace-detail-mount${entry.id === selectedId ? " visible" : ""}" data-turbo-permanent data-workspace-selection-target="mount" data-workspace-id="${escapeHtml(entry.id)}" data-controller="live-surface" data-live-surface-workspace-value="${escapeHtml(entry.id)}" data-live-surface-kind-value="workspace" data-live-surface-eager-value="${entry.id === selectedId}" data-live-surface-agent-value="${entry.id === selectedId ? escapeHtml(selection?.agent ?? "") : ""}" data-live-surface-work-value="${entry.id === selectedId ? escapeHtml(selection?.workView ?? "") : ""}"></div>`).join("");
   }
 
   function workspaceUnavailableHtml(entry: WorkspaceEntry, message?: string): string {
@@ -582,11 +582,11 @@ export function createWebApp(deps: WebAppDeps): WebApp {
     // Its existing live surface loads the selected workspace after the shell is usable.
     const selectedHtml = !entry ? "" : entry.phase.kind === "runningPhase"
       ? workspaceUnavailableHtml(entry)
-      : workspaceBootResidentHtml(entry);
-    return `<div id="workspace_detail" class="workspace-detail-host" data-controller="workspace-residency" data-workspace-residency-max-resident-value="5">
-      <div class="workspace-detail-empty" data-workspace-residency-target="empty"${selectedId ? " hidden" : ""}>${emptyWorkspaceArtworkHtml(pane)}</div>
-      <div class="workspace-detail-loading" data-workspace-residency-target="loading" hidden><div class="workspace-detail-loading-status" role="status"><span class="status-spinner" aria-hidden="true"></span> Loading workspace…</div></div>
-      <div id="workspace_residents" style="display:contents">${entry ? placeLiveRegions(workspaceMounts(selectedId, initialSelection), [{target: workspaceResidentId(entry.id), html: selectedHtml}], workspaceResidentId(entry.id)) : workspaceMounts(selectedId, initialSelection)}</div>
+      : workspaceBootMountHtml(entry);
+    return `<div id="workspace_detail" class="workspace-detail-host" data-controller="workspace-selection" data-workspace-selection-max-preloaded-value="5">
+      <div class="workspace-detail-empty" data-workspace-selection-target="empty"${selectedId ? " hidden" : ""}>${emptyWorkspaceArtworkHtml(pane)}</div>
+      <div class="workspace-detail-loading" data-workspace-selection-target="loading" hidden><div class="workspace-detail-loading-status" role="status"><span class="status-spinner" aria-hidden="true"></span> Loading workspace…</div></div>
+      <div id="workspace_mounts" style="display:contents">${entry ? placeLiveRegions(workspaceMounts(selectedId, initialSelection), [{target: workspaceMountId(entry.id), html: selectedHtml}], workspaceMountId(entry.id)) : workspaceMounts(selectedId, initialSelection)}</div>
     </div>`;
   }
 
@@ -655,17 +655,21 @@ export function createWebApp(deps: WebAppDeps): WebApp {
     return views.map((view) => ({ key: workViewKey(view.reference), ...view, ...registry.surfaceState(id, workViewKey(view.reference)) }));
   }
 
-  async function workspaceJson(id: string): Promise<Response> {
-    const entry = requireWorkspace(id);
-    const workspace: Pick<WorkspaceEntry, "id" | "phase" | "parked" | "requestingAttention" | "issues"> & { title: string; url: string } = {
+  function workspaceSummary(entry: WorkspaceEntry) {
+    const workspace: Pick<WorkspaceEntry, "id" | "phase" | "parked" | "requestingAttention" | "warnings"> & { title: string; workspaceTemplateId?: string } = {
       id: entry.id,
       title: workspaceTitle(entry),
       phase: entry.phase,
       parked: entry.parked,
       requestingAttention: entry.requestingAttention,
-      url: `/workspaces/${encodeURIComponent(entry.id)}`,
     };
-    if (entry.issues?.length) workspace.issues = entry.issues;
+    if (entry.warnings?.length) workspace.warnings = entry.warnings;
+    return workspace;
+  }
+
+  async function workspaceJson(id: string): Promise<Response> {
+    const entry = requireWorkspace(id);
+    const workspace = { ...workspaceSummary(entry), url: `/workspaces/${encodeURIComponent(entry.id)}` };
     if (entry.parked || entry.phase.kind !== "runningPhase") return jsonResponse({ workspace });
 
     const { presentation, commandContributions, storedWorkViews, warningState } = await workspacePresentationBundle(id);
@@ -688,14 +692,7 @@ export function createWebApp(deps: WebAppDeps): WebApp {
   function workspaceListEndpoint(request: Request, url: URL): Response {
     if (!requestAcceptsJson(request)) return Response.redirect(new URL("/", url).toString(), 302);
     return jsonResponse({ workspaces: registry.list().map((entry) => {
-      const workspace: Pick<WorkspaceEntry, "id" | "phase" | "parked" | "requestingAttention" | "issues"> & { title: string; workspaceTemplateId?: string } = {
-        id: entry.id,
-        title: workspaceTitle(entry),
-        phase: entry.phase,
-        parked: entry.parked,
-      requestingAttention: entry.requestingAttention,
-      };
-      if (entry.issues?.length) workspace.issues = entry.issues;
+      const workspace = workspaceSummary(entry);
       if (isGitWorkspaceTemplateInit(entry.init)) workspace.workspaceTemplateId = workspaceTemplateIdFromInit(entry.init);
       return workspace;
     }) });
@@ -721,7 +718,7 @@ export function createWebApp(deps: WebAppDeps): WebApp {
         const entry = registry.get(id);
         if (!entry || entry.phase.deletion) return;
         const warnings = provisioning.snapshot(id)!.steps.filter((step) => step.status === "warning");
-        if (warnings.length) registry.setIssue(id, "readiness", warnings.map((step) => `${step.label}: ${step.error} Continued despite this failure.`).join("\n"));
+        if (warnings.length) registry.setWarning(id, "preparation", warnings.map((step) => `${step.label}: ${step.error} Continued despite this failure.`).join("\n"));
         if (options.title) await setWorkspaceTitle(id, options.title);
         registry.startRunning(id);
         const launchPrompt = options.context?.agent?.initialPrompt?.trim();
@@ -729,7 +726,7 @@ export function createWebApp(deps: WebAppDeps): WebApp {
           maybeNameWorkspaceFromPrompt(id, launchPrompt, {
             events: deps.events,
             agentModel: options.context?.agent?.model ? parseModelRef(options.context.agent.model) : undefined,
-            onFailure: (message) => { if (registry.get(id)) registry.setIssue(id, "naming", `Couldn't name this workspace (${message}). You can name it with /name in the Kintsugi composer.`); },
+            onFailure: (message) => { if (registry.get(id)) registry.setWarning(id, "naming", `Couldn't name this workspace (${message}). You can name it with /name in the Kintsugi composer.`); },
           });
         }
         if (options.context?.agent?.initialPrompt !== undefined && !options.context.agent.initialPrompt.trim()) registry.requestAttention(id);
@@ -904,7 +901,7 @@ export function createWebApp(deps: WebAppDeps): WebApp {
       hostTrustPanels.delete(id);
     } else hostTrustPanels.set(id, await scanSshHost(address.host, address.port));
     invalidateWorkspace(id);
-    return wantsStream(request) ? turboStreamResponse(replace(workspaceResidentId(id), workspaceBootResidentHtml(entry))) : workspacePage(id, request);
+    return wantsStream(request) ? turboStreamResponse(replace(workspaceMountId(id), workspaceBootMountHtml(entry))) : workspacePage(id, request);
   }
 
   async function workspaceRuntimeSshTrustEndpoint(id: string, trustId: string, request: Request, reject = false): Promise<Response> {
@@ -942,7 +939,7 @@ export function createWebApp(deps: WebAppDeps): WebApp {
 
   function cancelWorkspaceDeletionEndpoint(id: string, request: Request): Response {
     if (!deletion.cancel(id)) return turboStreamResponse("", { status: 409 });
-    // The registry phase change restores the resident through the same path as startup.
+    // The registry phase change restores the mount through the same path as startup.
     return requestAcceptsJson(request) ? jsonResponse({ cancelled: true }) : turboStreamResponse("");
   }
 
@@ -980,8 +977,8 @@ export function createWebApp(deps: WebAppDeps): WebApp {
         if (parked && entry.phase.kind !== "runningPhase") registry.startRunning(id);
         suppressParkedStateCallbacks = false;
       }
-      const parkedResident = parked ? dismissWorkspaceParkConfirmationTurboStream(id) : "";
-      const stream = `${parkedResident}`;
+      const parkConfirmationDismissal = parked ? dismissWorkspaceParkConfirmationTurboStream(id) : "";
+      const stream = `${parkConfirmationDismissal}`;
       invalidatePresentation();
       return { kind: "updated" as const, stream };
     };

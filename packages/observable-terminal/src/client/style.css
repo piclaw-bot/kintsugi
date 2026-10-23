@@ -21,7 +21,7 @@
 [data-terminal-key] { touch-action: manipulation; user-select: none; -webkit-user-select: none; }
 /* All three are required: software keyboard, terminal focus, and editable input. */
 html.software-keyboard-visible :is(.terminal-view, .cli-agent-body:not(.cli-transcript-mode)):has(.gespenst__input:focus:not([readonly]):not(:disabled)) > .terminal-key-bar {
-  display: grid; flex: 0 0 auto; grid-template-columns: repeat(6, minmax(0, 1fr));
+  display: grid; flex: 0 0 auto; grid-template-columns: repeat(7, minmax(0, 1fr));
   gap: 6px; padding: 6px 2px 2px; border-top: 1px solid var(--line-strong); background: var(--bg);
 }
 

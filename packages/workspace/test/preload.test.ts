@@ -314,10 +314,10 @@ test("cache waiters receive shared progress and cancellation detaches their repo
   const started = deferred();
   const release = deferred();
   const preloader = createImagePreloader(f.run, f.docker, await directory(), undefined, async (_args, report) => {
-    report({ terminalSession: "kintsugi-provision-image-cache-shared", output: undefined });
+    report({ terminalSocketPath: "/terminal-processes/shared/ws", output: undefined });
     started.resolve();
     await release.promise;
-    report({ terminalSession: undefined, output: "Built 1 layer" });
+    report({ terminalSocketPath: undefined, output: "Built 1 layer" });
   }, storage);
   const images = [{ requested: postgres, reference: `${postgres}@${digestA}` }];
   const firstProgress: unknown[] = [];
@@ -329,15 +329,15 @@ test("cache waiters receive shared progress and cancellation detaches their repo
   const attached = deferred();
   const second = preloader.install(images, "two", () => {}, progress => { secondProgress.push(progress); attached.resolve(); });
   await attached.promise;
-  expect(secondProgress).toContainEqual({ terminalSession: "kintsugi-provision-image-cache-shared", output: undefined });
+  expect(secondProgress).toContainEqual({ terminalSocketPath: "/terminal-processes/shared/ws", output: undefined });
   controller.abort(new Error("cancelled"));
   expect(await first).toMatchObject({ message: "cancelled" });
   const count = firstProgress.length;
   release.resolve();
   await second;
   expect(firstProgress).toHaveLength(count);
-  expect(secondProgress).toContainEqual({ terminalSession: undefined, output: "Built 1 layer" });
-  expect(secondProgress.at(-1)).toEqual({ terminalSession: undefined, output: undefined });
+  expect(secondProgress).toContainEqual({ terminalSocketPath: undefined, output: "Built 1 layer" });
+  expect(secondProgress.at(-1)).toEqual({ terminalSocketPath: undefined, output: undefined });
   expect(details.some(detail => detail.includes("Waiting for image cache preparation queue"))).toBe(true);
   expect(details.some(detail => detail.includes("0/1 layers cached"))).toBe(true);
 });

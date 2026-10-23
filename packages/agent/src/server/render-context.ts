@@ -20,6 +20,8 @@ export interface AgentRenderContext {
   inlineWorkingItems?: boolean;
   /** Load completed working items through the transcript detail route when opened. */
   lazyCompletedWorkingItems?: boolean;
+  /** Final answers are JSON, as a script's one-shot agent's are, and show as code. */
+  jsonFinalAnswers?: boolean;
 }
 
 export function commentaryContext(ctx: AgentRenderContext): AgentRenderContext {

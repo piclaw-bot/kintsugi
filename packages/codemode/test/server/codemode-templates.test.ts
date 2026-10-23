@@ -13,8 +13,8 @@ import { openDurableAgentRuntime, type DurableAgentRuntime } from "@kintsugi/bui
 import { assertNoTemplateAttachments, codemodeTemplateResponse, createCodemodeTemplates } from "@kintsugi/builtin-agent/server/durable-codemode-templates";
 import { durableViewState, projectDurableTranscript } from "@kintsugi/builtin-agent/server";
 import { createWorkspaceCodemodeExtension } from "../../src/server/extension.ts";
-// Transcripts show each script's calls as code mode records them.
-import "./support.ts";
+// Importing support also makes transcripts show each script's calls as code mode records them.
+import { localScriptFiles } from "./support.ts";
 
 const context = BACKGROUND_CONTEXT;
 const paths: string[] = [];
@@ -41,7 +41,7 @@ async function setup() {
   const echoed: string[] = [];
   const held = Promise.withResolvers<void>();
   const released = Promise.withResolvers<void>();
-  registry.install(createWorkspaceCodemodeExtension("native-workspace", new CodemodeSandbox()));
+  registry.install(createWorkspaceCodemodeExtension("native-workspace", new CodemodeSandbox(), localScriptFiles));
   registry.install(defineExtension({ name: "codemode-template-test-tools", tools: [
     defineTool({
       name: "echo", description: "Echo text", parameters: Type.Object({ text: Type.String() }),

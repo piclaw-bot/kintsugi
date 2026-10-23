@@ -36,7 +36,7 @@ export function createDeletionReviewController(Controller: WorkspaceClientContro
       const template = container.querySelector<HTMLTemplateElement>(":scope > template[shadowrootmode]");
       const prerenderedHTML = template?.innerHTML;
       template?.remove();
-      const instance = new FileDiff<never>({ ...changesDiffOptions, overflow: "wrap" });
+      const instance = new FileDiff<never>(changesDiffOptions);
       instance.hydrate({ fileContainer: container, fileDiff: model.fileDiff, lineAnnotations: [], prerenderedHTML });
       this.instances.push(instance);
     }

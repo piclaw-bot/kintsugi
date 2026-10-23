@@ -12,7 +12,6 @@ export function formatShortcutBinding(binding: string): string {
       case "Semicolon": return ";";
       case "Backslash": return "\\";
       case "Backspace": return "⌫";
-      case "BracketLeft": return "[";
       case "BracketRight": return "]";
       default: return part.replace(/^Key/, "");
     }

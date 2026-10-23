@@ -4,7 +4,7 @@ import { Value } from "typebox/value";
 import { defineDoc, defineExtension, GenerationTask, hook, UsageDoc, type TaskId, type Tx } from "@earendil-works/pi-durable";
 
 /** Count live owning tool tasks, including calls not yet submitting their first prompt. */
-const OneShotAdmissions = defineDoc<{ tasks: TaskId[] }>({
+const OneShotAdmissions = defineDoc<{ tasks: TaskId[] }>({ checkpointWhen: () => false,
   kind: "kintsugi.one-shot-admissions", version: 1, scope: "session", initial: () => ({ tasks: [] }),
 });
 export async function admitOneShotAgent(tx: Tx, taskId: TaskId) {
@@ -18,7 +18,7 @@ export async function admitOneShotAgent(tx: Tx, taskId: TaskId) {
   state.tasks = [...live, taskId];
 }
 
-export const OneShotBudget = defineDoc<{ startedAt: number }>({
+export const OneShotBudget = defineDoc<{ startedAt: number }>({ checkpointWhen: () => false,
   kind: "kintsugi.one-shot-budget", version: 1, scope: "conversation", history: "latest", fork: "initial", initial: () => ({ startedAt: 0 }),
 });
 /** Checked between requests; a provider request may cross the output-token threshold. */

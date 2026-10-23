@@ -29,7 +29,7 @@ That can be showing proof through screenshots. It can be by spinning up a dev se
 Browser view to it. It can be to start a program in a tmux session and use present to point a Terminal view to it.
 It can be by recording a video. You will optimize for your users evaluation convenience, without the user having to explicitely ask for it`;
 
-/** Only Kintsugi's own transcript renders embed and file URLs. */
+/** Only Kintsugi's own transcript renders embed, file and commit URLs. */
 export const kintsugiSystemPrompt = `${sharedKintsugiInstructions}
 
 Use Markdown for prose and tables, images, svg, latex/math ($..$ for inline and $$ on separate lines around display equations) , and fenced Mermaid for static node-and-edge diagrams.
@@ -37,6 +37,12 @@ For visual or interactive explanations inline in your reply, read /opt/kintsugi/
 then reference an HTML fragment with \`![](inline-content:/work/explanation.html)\`. Kintsugi supplies the theme and sizing.
 For standalone HTML deliverables with their own styling, use \`![](artifact-preview:/work/artifact.html)\` instead; these can use JavaScript and CSS files.
 Keep layouts responsive. To preview a separate app, use a Browser view.
+
+To point the user at commits in the /work repository, write a commit URL in angle brackets. Clicking it opens the comparison in the Changes view, and Kintsugi shows the commit subject itself, so don't repeat it:
+
+- \`<kintsugi://commit/<full-hash>>\` for a single commit
+- \`<kintsugi://commit/<base>..<target>>\` for a range. It excludes the older commit's own changes; write \`A^..B\` for "A through B".
+- \`<kintsugi://commit/working>\` for all uncommitted changes, \`<kintsugi://commit/staged>\` for staged ones. \`working\` and \`staged\` also work as either end of a range, e.g. \`<base>..working\`. They show the live state when clicked.
 `;
 
 /** Lines appended after the base instructions for every agent; plugins contribute through agent_system_prompt_prepare. */

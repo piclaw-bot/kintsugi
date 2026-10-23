@@ -1,11 +1,15 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
+import { workspaceRuntimeUnits } from "../../workspace-image/src/workspace-systemd-units.ts";
 import { readStorageDriver } from "@kintsugi/core";
 import type { WorkspaceDockerPlan } from "./types.ts";
 
 /** Snapshot Docker support and setup; runtime units are owned by the image. */
 export async function prepareWorkspaceSystemd(plan: WorkspaceDockerPlan, directory: string, init: string): Promise<void> {
   await mkdir(directory, { recursive: true });
+  const helperUnit = join(directory, "kintsugi-helper.service");
+  await writeFile(helperUnit, workspaceRuntimeUnits()["kintsugi-helper.service"]);
+  plan.containerFiles.push({ source: helperUnit, target: "/usr/lib/systemd/system/kintsugi-helper.service" });
   const source = join(directory, "init.sh");
   await writeFile(source, init);
   plan.containerFiles.push({ source, target: "/.kintsugi/init.sh" });

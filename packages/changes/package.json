@@ -9,8 +9,9 @@
     "@kintsugi/shared": "workspace:*",
     "@kintsugi/syntax": "workspace:*",
     "@kintsugi/workspace": "workspace:*",
+    "@kintsugi/workspace-templates": "workspace:*",
     "@hotwired/turbo": "8.0.13",
-    "@pierre/diffs": "1.5.2",
+    "@pierre/diffs": "1.6.1",
     "typebox": "^1.0.57",
     "@kintsugi/agent": "workspace:*"
   }

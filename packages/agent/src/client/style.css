@@ -75,11 +75,13 @@
   padding: 8px 12px;
 }
 .agent-user-label { display: flex; align-items: center; justify-content: space-between; gap: 12px; color: var(--text-muted); font-size: var(--text-code); margin-bottom: 4px; }
+.agent-user-queued-actions { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
 .agent-user-attachments { display: flex; gap: 6px; margin-top: 6px; flex-wrap: wrap; }
 .agent-user-attachments img { max-height: 90px; max-width: 160px; border-radius: var(--radius-control); border: 1px solid var(--line); }
 
 /* assistant final message: plain typeset text, no bubble */
 .agent-final:empty { display: none; }
+.agent-final-json { margin: 0; padding: 8px 10px; border: 1px solid var(--line); border-radius: var(--radius-control); }
 
 .agent-error { color: var(--danger); background: var(--danger-soft); border: 1px solid color-mix(in srgb, var(--danger) 45%, var(--line)); border-radius: var(--radius-control); padding: 6px 8px; }
 
@@ -127,13 +129,12 @@
 .agent-mermaid-canvas[aria-busy="true"]::after { content: "Rendering diagram…"; color: var(--text-muted); }
 .agent-mermaid-canvas svg { display: block; width: min(100%, var(--agent-mermaid-natural-width, 100%)); height: auto; margin: auto; }
 .agent-mermaid-canvas svg text { font-family: var(--font-sans); }
-.agent-mermaid-error { width: 100%; margin: 0; padding: 10px; overflow: auto; white-space: pre-wrap; color: var(--danger); font: var(--text-code)/var(--leading-standard) var(--font-mono); }
+.agent-mermaid-error { width: 100%; margin: 0; padding: 10px; overflow: auto; color: var(--danger); font: var(--text-code)/var(--leading-standard) var(--font-mono); }
 .kintsugi-fullscreen-html:has(> .agent-mermaid-diagram-fullscreen) { padding: 0; }
 .agent-mermaid-diagram-fullscreen, .agent-mermaid-diagram-fullscreen .agent-mermaid-canvas { width: 100%; height: 100%; min-height: 100%; }
 .agent-mermaid-diagram-fullscreen svg { width: 100%; height: 100%; max-height: 100%; }
 .agent-tool-code { font-family: var(--font-mono); font-size: var(--text-code); }
 .agent-tool-code .language-regex { color: var(--syntax-string); }
-.agent-tool-code .language-regex .syntax-keyword,
 .agent-tool-code .agent-bash-and { color: var(--warning); }
 .agent-tool-code .agent-bash-or { color: var(--text); }
 
@@ -145,7 +146,7 @@
 .agent-notices:empty { display: none; }
 .agent-noticeline { display: flex; align-items: flex-start; gap: 8px; font-size: var(--text-body); color: var(--text); padding: 4px 8px; border: 1px solid var(--line); background: var(--panel); border-radius: var(--radius-control); margin-bottom: 6px; animation: agent-notice-in .15s ease-out; }
 .agent-noticeline > span { flex: 1; min-width: 0; overflow-wrap: anywhere; }
-.agent-noticeline > button { flex-shrink: 0; }
+.agent-noticeline > button, .agent-noticeline > form { flex-shrink: 0; }
 @keyframes agent-notice-in { from { opacity: 0; transform: translateY(-3px); } }
 .agent-noticeline.error { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 45%, var(--line)); background: var(--danger-soft); }
 
@@ -179,7 +180,7 @@
 @keyframes agent-spin { to { transform: rotate(360deg); } }
 .content-row__icon .agent-slash-command-source-icon { display: flex; align-items: center; justify-content: center; width: 20px; height: 20px; }
 .content-row__icon .agent-slash-command-source-icon :is(img, svg) { width: 20px; height: 20px; }
-.agent-slash-command-preview { margin: 0; padding: 12px; white-space: pre-wrap; font-family: var(--font-mono); line-height: var(--leading-standard); color: var(--text-bright); background: var(--panel); }
+.agent-slash-command-preview { margin: 0; padding: 12px; font-family: var(--font-mono); line-height: var(--leading-standard); color: var(--text-bright); background: var(--panel); }
 .kintsugi-fullscreen-html .agent-slash-command-preview { max-width: 980px; margin: 0 auto; background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius-surface); }
 .agent-stat { height: 24px; display: inline-flex; align-items: center; gap: 4px; line-height: 24px; white-space: nowrap; }
 .agent-stat b { color: inherit; font: inherit; }
@@ -242,18 +243,18 @@
 .agent-source-region, .agent-tool-region { margin: 0; padding: 0; }
 .agent-tool-region + .agent-tool-region { border-top: 1px solid color-mix(in srgb, var(--text-bright) 15%, transparent); }
 .agent-bash-detail > :is(.agent-tool-region, .agent-detail-fullscreen) + :is(.agent-tool-region, .agent-detail-fullscreen) { border-top: 1px solid color-mix(in srgb, var(--text-bright) 15%, transparent); }
-.agent-tool-detail .agent-tool-code { margin: 0; padding: 8px; max-height: 330px; overflow: auto; border: 0; border-radius: 0; white-space: pre; color: var(--text-bright); background: color-mix(in srgb, var(--bg) 72%, #000 8%); }
+.agent-tool-detail .agent-tool-code { margin: 0; padding: 8px; max-height: 330px; overflow: auto; border: 0; border-radius: 0; color: var(--text-bright); background: color-mix(in srgb, var(--bg) 72%, #000 8%); }
 .agent-tool-detail .agent-tool-region-body { padding: 8px; color: var(--text-bright); background: color-mix(in srgb, var(--bg) 58%, #000 12%); font-family: var(--font-mono); font-size: var(--text-code); }
-.agent-bash-command .agent-tool-code { max-height: none; overflow: visible; white-space: pre-wrap; overflow-wrap: anywhere; }
+.agent-bash-command .agent-tool-code { max-height: none; overflow: visible; }
 .agent-codemode-detail { margin: 2px 0 8px; }
-.agent-script .agent-tool-code { max-height: none; overflow: visible; white-space: pre-wrap; overflow-wrap: anywhere; }
+.agent-script .agent-tool-code { max-height: none; overflow: visible; }
 .agent-codemode-call-list { padding: 2px 0 6px; }
 .agent-codemode-call-list > .agent-tool + .agent-tool { margin-top: 2px; }
 .agent-terminal-viewport { overflow: auto; background: color-mix(in srgb, var(--bg) 70%, #000 7%); }
 /* The bash visualizer is display-only: dragging it should scroll the transcript,
    not start a Gespenst text selection (or block touch panning). */
 .agent-tool-term .gespenst { pointer-events: none; }
-.agent-tool-result { margin: 0; padding: 8px 8px; max-height: 330px; overflow: auto; white-space: pre; color: var(--text-bright); background: color-mix(in srgb, var(--bg) 58%, #000 12%); font-family: var(--font-mono); font-size: var(--text-code); }
+.agent-tool-result { margin: 0; padding: 8px 8px; max-height: 330px; overflow: auto; color: var(--text-bright); background: color-mix(in srgb, var(--bg) 58%, #000 12%); font-family: var(--font-mono); font-size: var(--text-code); }
 .agent-tail-output { max-height: 330px; overflow: auto; background: color-mix(in srgb, var(--bg) 58%, #000 12%); }
 .agent-tail-output > .agent-tool-result, .agent-tail-output > .agent-tool-code { max-height: none; overflow: visible; }
 .agent-region-pane { display: none; }
@@ -278,7 +279,7 @@
 .agent-thinking-text:focus-visible { outline: 1px solid var(--accent); outline-offset: 3px; border-radius: var(--radius-indicator); }
 .agent-tool-images { padding: 8px; display: flex; flex-direction: column; gap: 8px; }
 .agent-tool-images .agent-tool-image { width: auto; max-width: 100%; max-height: none; margin: 0; }
-.agent-tool-note { margin: 0; padding: 8px 8px; color: var(--text); white-space: pre-wrap; font-family: var(--font-mono); font-size: var(--text-code); }
+.agent-tool-note { margin: 0; padding: 8px 8px; color: var(--text); font-family: var(--font-mono); font-size: var(--text-code); }
 .agent-tool-error-output { margin: 0; padding: 8px 8px; color: var(--danger); background: color-mix(in srgb, var(--danger) 8%, var(--bg)); font-family: var(--font-mono); font-size: var(--text-code); }
 
 .agent-edit-details { background: var(--panel); }
@@ -288,7 +289,7 @@
 .kintsugi-fullscreen-html .agent-tool-code, .kintsugi-fullscreen-html .agent-tool-result { max-height: none; }
 .kintsugi-fullscreen-html .agent-detail-fullscreen { max-width: 1100px; margin: 0 auto; border: 1px solid var(--line); border-radius: var(--radius-control); overflow: hidden; }
 
-.agent-tool.tool-write.active .agent-tool-code { max-height: none; overflow: visible; white-space: pre-wrap; }
+.agent-tool.tool-write.active .agent-tool-code { max-height: none; overflow: visible; }
 /* Keep the terminal laid out for rendering while its first printable frame is pending. */
 .agent-bash-output.agent-terminal-awaiting-output { border-top: 0; }
 .agent-bash-output.agent-terminal-awaiting-output .agent-region-header { display: none; }

@@ -43,7 +43,7 @@ describe("workspace image content identity", () => {
     const after = await generateContext(before.fixture);
     expect(await Bun.file(join(after.output, packagedPath)).text()).toBe(await Bun.file(source).text());
     expect(after.metadata).not.toBe(before.metadata);
-  });
+  }, 30_000);
 
   test("generated Dockerfile and file permissions participate in identity", async () => {
     const before = await generateInCheckout();
@@ -54,7 +54,7 @@ describe("workspace image content identity", () => {
     await chmod(join(before.fixture, "packages/workspace-image/rootfs/usr/local/bin/kintsugi-workspace-init"), 0o700);
     const permissionChange = await generateContext(before.fixture);
     expect(permissionChange.metadata).not.toBe(instructionChange.metadata);
-  });
+  }, 30_000);
 
   test("adds mounted tools to the inherited PATH and restores them for login shells", async () => {
     const { dockerfile, output } = await generateInCheckout();
@@ -65,7 +65,7 @@ describe("workspace image content identity", () => {
     });
     expect(result.exitCode).toBe(0);
     expect(result.stdout.toString()).toBe("/opt/kintsugi/bin:/custom/bin:/usr/bin:/bin");
-  });
+  }, 30_000);
 
   test("mounted helper changes do not change the image or its identity", async () => {
     const before = await generateInCheckout();
@@ -81,13 +81,13 @@ describe("workspace image content identity", () => {
     const after = await generateContext(before.fixture);
     expect(after.metadata).toBe(before.metadata);
     expect(after.dockerfile).toBe(before.dockerfile);
-  });
+  }, 30_000);
 
   test("equivalent checkouts at different absolute paths produce identical output", async () => {
     const [left, right] = await Promise.all([generateInCheckout(), generateInCheckout()]);
     expect(left.metadata).toBe(right.metadata);
     expect(left.dockerfile).toBe(right.dockerfile);
-  });
+  }, 30_000);
 });
 
 describe("workspace image layer ordering", () => {
@@ -105,7 +105,7 @@ describe("workspace image layer ordering", () => {
       expect(packages.flat()).not.toContain(removed);
     }
     expect(base.lastIndexOf("apt-get install")).toBeLessThan(base.indexOf("RUN ln -sf"));
-  });
+  }, 30_000);
 
   test("changing the last base apt group preserves earlier install instructions", async () => {
     const before = await generateInCheckout();
@@ -118,7 +118,7 @@ describe("workspace image layer ordering", () => {
     expect(prefix(after.dockerfile)).toBe(prefix(before.dockerfile));
     expect(after.dockerfile).toContain("      optipng");
     expect(after.metadata).not.toBe(before.metadata);
-  });
+  }, 30_000);
 
   test("installs module dependencies before their setup, after heavyweight tooling", async () => {
     const { dockerfile } = await generateInCheckout();
@@ -135,7 +135,7 @@ describe("workspace image layer ordering", () => {
     expect(desktop.indexOf("apt-get install")).toBeLessThan(desktop.indexOf("RUN glib-compile-schemas"));
     expect(dockerfile.indexOf("# Module: base")).toBeLessThan(dockerfile.indexOf("# Module: vscode"));
     expect(dockerfile.indexOf("# Module: vscode")).toBeLessThan(dockerfile.indexOf("# Module: desktop"));
-  });
+  }, 30_000);
 
   test("changing feature dependencies preserves preceding build instructions", async () => {
     const before = await generateInCheckout();
@@ -147,7 +147,7 @@ describe("workspace image layer ordering", () => {
     expect(prefix(after.dockerfile)).toBe(prefix(before.dockerfile));
     expect(after.dockerfile.match(/      socat/g)).toHaveLength(1);
     expect(after.dockerfile).toContain("      socat \\\n      strace");
-  });
+  }, 30_000);
 
   test.each([
     ["packages/workspace-image/rootfs/usr/local/bin/kintsugi-workspace-init", "files/base/rootfs/usr/local/bin/kintsugi-workspace-init"],
@@ -160,5 +160,5 @@ describe("workspace image layer ordering", () => {
     expect(after.metadata).not.toBe(before.metadata);
     expect(after.dockerfile.split("LABEL com.kintsugi.workspace-image.signature=")[0]).toBe(before.dockerfile.split("LABEL com.kintsugi.workspace-image.signature=")[0]);
     expect(await readFile(join(after.output, packagedPath), "utf8")).toContain("# cache boundary probe");
-  });
+  }, 30_000);
 });

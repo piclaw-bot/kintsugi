@@ -1,7 +1,7 @@
 import { recentWorkspaceTemplateStorageKey } from "@kintsugi/shared";
 import { slidePageChange } from "@kintsugi/design-system/page-slide/client";
 import { Controller } from "@hotwired/stimulus";
-import { registerWorkspaceControllers, residencyController } from "./workspace-controller-registry.ts";
+import { registerWorkspaceControllers, workspaceSelectionController } from "./workspace-controller-registry.ts";
 import { markActiveWorkspaceRow } from "./workspace-presentation.ts";
 
 /** Points from the artwork to the first-workspace action. */
@@ -209,24 +209,24 @@ class WorkspaceNavigationController extends Controller<HTMLElement> {
 
   connect(): void {
     this.scrollTarget.addEventListener("scroll", this.scrolled, { passive: true });
-    this.element.addEventListener("kintsugi:mobile-resident-destination-selected", this.mobileResidentDestinationSelected);
+    this.element.addEventListener("kintsugi:workspace-mobile-destination-selected", this.workspaceMobileDestinationSelected);
     document.addEventListener("kintsugi:workspace-pane-changed", this.workspacePaneChanged);
     const scroll = Number(localStorage.getItem("kintsugi:workspace-pane-scroll"));
     if (Number.isFinite(scroll)) this.scrollTarget.scrollTop = scroll;
-    this.setWorkspacePaneOpen(!this.element.querySelector(".workspace-detail-resident.visible"));
+    this.setWorkspacePaneOpen(!this.element.querySelector(".workspace-detail-mount.visible"));
     this.setWorkspacePaneCollapsed(sessionStorage.getItem("kintsugi:workspace-pane-collapsed") === "true" && Boolean(this.visibleWorkspacePaneToggle()));
   }
 
   disconnect(): void {
     this.scrollTarget.removeEventListener("scroll", this.scrolled);
-    this.element.removeEventListener("kintsugi:mobile-resident-destination-selected", this.mobileResidentDestinationSelected);
+    this.element.removeEventListener("kintsugi:workspace-mobile-destination-selected", this.workspaceMobileDestinationSelected);
     document.removeEventListener("kintsugi:workspace-pane-changed", this.workspacePaneChanged);
     if (this.scrollTimer) clearTimeout(this.scrollTimer);
   }
 
   closeWorkspacePane(): void {
     this.setWorkspacePaneOpen(false);
-    this.element.querySelector<HTMLElement>(".workspace-detail-resident.visible [data-show-workspace-list]")!.focus();
+    this.element.querySelector<HTMLElement>(".workspace-detail-mount.visible [data-show-workspace-list]")!.focus();
   }
 
   showWorkspacePane(): void {
@@ -249,7 +249,7 @@ class WorkspaceNavigationController extends Controller<HTMLElement> {
   }
 
   private visibleWorkspacePaneToggle(): HTMLButtonElement | null {
-    return this.element.querySelector<HTMLButtonElement>(".workspace-detail-resident.visible [data-show-workspace-pane]");
+    return this.element.querySelector<HTMLButtonElement>(".workspace-detail-mount.visible [data-show-workspace-pane]");
   }
 
   private setWorkspacePaneOpen(open: boolean): void {
@@ -257,9 +257,9 @@ class WorkspaceNavigationController extends Controller<HTMLElement> {
     document.dispatchEvent(new CustomEvent("kintsugi:mobile-workspace-pane-changed"));
   }
 
-  private readonly mobileResidentDestinationSelected = (): void => this.setWorkspacePaneOpen(false);
+  private readonly workspaceMobileDestinationSelected = (): void => this.setWorkspacePaneOpen(false);
   private readonly workspacePaneChanged = (): void => {
-    this.setActiveWorkspace(residencyController()?.visibleWorkspaceId());
+    this.setActiveWorkspace(workspaceSelectionController()?.visibleWorkspaceId());
   };
 
   async selectWorkspace(event: Event): Promise<void> {
@@ -270,7 +270,7 @@ class WorkspaceNavigationController extends Controller<HTMLElement> {
 
   async selectWorkspaceById(workspaceId: string): Promise<void> {
     this.setWorkspacePaneOpen(false);
-    await residencyController()?.selectWorkspace(workspaceId, `/workspaces/${encodeURIComponent(workspaceId)}`);
+    await workspaceSelectionController()?.selectWorkspace(workspaceId, `/workspaces/${encodeURIComponent(workspaceId)}`);
   }
 
   async parkWorkspace(event: Event): Promise<void> {

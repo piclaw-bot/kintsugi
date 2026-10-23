@@ -15,6 +15,7 @@ import { formatShortcutBinding } from "../shortcut-binding.ts";
 import { renderAgentPane, renderMobileAgentAttention, type AgentPaneContribution } from "./agent-pane.ts";
 import { renderPwaReminder } from "./pwa-reminder.ts";
 import type { WorkspaceDeletionState } from "./workspace-registry.ts";
+import { outdatedImageMessage } from "./workspace-warnings.ts";
 import type { WorkspaceWorkViewState } from "@kintsugi/workspace";
 import { barButton, behaviorTurboStream, busyAttentionIndicator, fullscreenViewAttributes, selectorCloseForm, type ViewCloseAction } from "./workspace-view-markup.ts";
 
@@ -22,7 +23,7 @@ export type WorkViewAvailability =
   | { phase: "opening"; detail?: string }
   | { phase: "live" }
   | { phase: "reconnecting"; detail?: string }
-  | { phase: "unavailable"; detail: string; recoveryHtml?: string };
+  | { phase: "unavailable"; detail: string };
 
 export interface WorkspacePaneEntry {
   id: string;
@@ -36,7 +37,7 @@ export interface WorkspacePaneEntry {
   lastActivityAt?: number;
   busyAgentKeys?: readonly string[];
   outdated?: boolean;
-  issues?: readonly { message: string }[];
+  warnings?: readonly { message: string }[];
 }
 
 export interface WorkspacePaneWorkspaceTemplate {
@@ -91,10 +92,10 @@ function renderWorkspaceRowStatus(workspace: WorkspacePaneEntry): string {
   if (workspace.busy || workspace.requestingAttention) {
     return workspaceStatusSlot(busyAttentionIndicator(workspace));
   }
-  const issues = (workspace.issues ?? []).map((issue) => issue.message);
-  if (workspace.outdated) issues.push("New workspaces get a newer image, after an Kintsugi update or a Dockerfile change. Make a new workspace to use it.");
-  return issues.length
-    ? workspaceStatusSlot(`<i class="fixed-shell-workspace-warning" aria-label="${escapeHtml(issues.join("\n"))}" title="${escapeHtml(issues.join("\n"))}">⚠︎</i>`)
+  const warnings = (workspace.warnings ?? []).map((warning) => warning.message);
+  if (workspace.outdated) warnings.push(outdatedImageMessage);
+  return warnings.length
+    ? workspaceStatusSlot(`<i class="fixed-shell-workspace-warning" aria-label="${escapeHtml(warnings.join("\n"))}" title="${escapeHtml(warnings.join("\n"))}">⚠︎</i>`)
     : "";
 }
 
@@ -246,7 +247,7 @@ function renderAvailability(view: WorkPaneContribution): string {
   const label = availability.phase === "opening" ? "Opening" : availability.phase === "reconnecting" ? "Reconnecting" : "Unavailable";
   const detail = availability.detail ?? (availability.phase === "opening" ? `Opening ${view.label}…` : `Reconnecting ${view.label}…`);
   return `<div class="fixed-shell-availability empty-state fixed-shell-availability-${availability.phase}" role="${availability.phase === "unavailable" ? "alert" : "status"}">
-    <span class="fixed-shell-availability-mark" aria-hidden="true"></span><strong>${label}</strong><p>${escapeHtml(detail)}</p>${availability.phase === "unavailable" ? availability.recoveryHtml ?? "" : ""}
+    <span class="fixed-shell-availability-mark" aria-hidden="true"></span><strong>${label}</strong><p>${escapeHtml(detail)}</p>
   </div>`;
 }
 

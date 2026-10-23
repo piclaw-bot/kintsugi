@@ -29,8 +29,7 @@ export function cliComposerRoutes(providerId: string, agents: CliAgents) {
       return new Response(null, { status: 204 });
     }
     if (request.method !== "POST" || operation) return undefined;
-    const terminal = await agents.terminalState(workspaceId, session);
-    if (session.error || !terminal.exists || terminal.ended) return new Response("Terminal unavailable", { status: 409 });
+    if (session.error || (await agents.terminalState(workspaceId, session)).state !== "running") return new Response("Terminal unavailable", { status: 409 });
     const form = await request.formData();
     if (form.get("attachmentDraft") !== draftId) return new Response("Invalid draft", { status: 422 });
     const nameResult = await runAgentNameCommand(String(form.get("text") ?? ""), {

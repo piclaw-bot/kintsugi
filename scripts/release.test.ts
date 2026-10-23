@@ -185,6 +185,10 @@ test(`image build CLI pairs images from its working checkout, not its tooling ch
   const docker = join(directory, "docker");
   writeFileSync(docker, `#!/usr/bin/env bun\nimport { appendFileSync } from 'node:fs';\nconst args = process.argv.slice(2);\nappendFileSync(${JSON.stringify(log)}, JSON.stringify(args) + '\\n');\nif (args.includes('{{json .Manifest}}')) { console.log(JSON.stringify({digest: '${digest}'})); process.exit(0); }\nif (args.includes('inspect')) process.exit(1);\n`);
   chmodSync(docker, 0o755);
+  const go = join(directory, "go");
+  const goLog = join(directory, "go.jsonl");
+  writeFileSync(go, `#!/usr/bin/env bun\nimport {appendFileSync, mkdirSync, writeFileSync} from "node:fs";\nimport {dirname} from "node:path";\nconst args=process.argv.slice(2);\nappendFileSync(${JSON.stringify(goLog)}, JSON.stringify({cwd:process.cwd(),args})+"\\n");\nconst output=args[args.indexOf("-o")+1]; mkdirSync(dirname(output),{recursive:true}); writeFileSync(output,"helper fixture");\n`);
+  chmodSync(go, 0o755);
   try {
     const checkout = join(directory, "source");
     cpSync(join(import.meta.dir, "../packages"), join(checkout, "packages"), {
@@ -206,6 +210,9 @@ test(`image build CLI pairs images from its working checkout, not its tooling ch
     const [code, stderr] = await Promise.all([process.exited, new Response(process.stderr).text(), new Response(process.stdout).text()]);
     expect(stderr).not.toContain("error:");
     expect(code).toBe(0);
+    const helperBuilds = readFileSync(goLog, "utf8").trim().split("\n").map(line => JSON.parse(line));
+    expect(helperBuilds.map(call => call.cwd)).toEqual([join(checkout, "packages/workspace-helper/helper"), join(checkout, "packages/workspace-helper/helper")]);
+    expect(helperBuilds.map(call => call.args[call.args.indexOf("-o") + 1])).toEqual(["linux-amd64", "linux-arm64"].map(platform => join(checkout, "packages/workspace-helper/dist", platform, "kintsugi-workspace-helper")));
     const commands: string[][] = readFileSync(log, "utf8").trim().split("\n").map((line) => JSON.parse(line));
     const builds = commands.filter((args) => args.includes("buildx") && args.includes("build"));
     expect(builds).toHaveLength(split ? 4 : 2);

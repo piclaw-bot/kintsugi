@@ -52,6 +52,7 @@ export const WorkspaceAgents = defineDoc<WorkspaceAgentCatalog>({
   version: 2,
   scope: "session",
   initial: () => ({ workspaceId: "", agents: [] }),
+  checkpointWhen: () => false,
   migrate(value, fromVersion) {
     if (fromVersion !== 1) throw new Error(`Unsupported workspace catalog version: ${fromVersion}`);
     Value.Assert(previousWorkspaceAgentsSchema, value);

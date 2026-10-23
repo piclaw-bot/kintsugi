@@ -2,8 +2,8 @@
 import { visit } from "@hotwired/turbo";
 import { Controller } from "@hotwired/stimulus";
 import type { SettingsEditorController, SettingsEditorLoadedEvent } from "./settings-editor-controller.ts";
-import type { WorkspaceSelectionEvent } from "./workspace-residency.ts";
-import { residencyController } from "./workspace-controller-registry.ts";
+import type { WorkspaceSelectionEvent } from "./workspace-selection.ts";
+import { workspaceSelectionController } from "./workspace-controller-registry.ts";
 
 const templateSettingsPath = /^\/workspace-templates\/[^/]+\/settings$/;
 
@@ -31,7 +31,7 @@ export class TemplateSettingsController extends Controller<HTMLElement> {
 
   connect(): void {
     this.opener = document.activeElement instanceof HTMLElement ? document.activeElement : undefined;
-    const workspaceId = residencyController()?.visibleWorkspaceId();
+    const workspaceId = workspaceSelectionController()?.visibleWorkspaceId();
     this.returnUrl = location.pathname.includes("/workspace-templates/") ? workspaceId ? `/workspaces/${encodeURIComponent(workspaceId)}` : "/" : location.href;
     this.currentUrl = new URL(this.element.querySelector<HTMLElement>("[data-settings-editor-location]")!.dataset.settingsEditorLocation!, location.href).href;
     if (!templateSettingsPath.test(location.pathname)) history.pushState({}, "", this.currentUrl);
@@ -45,7 +45,7 @@ export class TemplateSettingsController extends Controller<HTMLElement> {
     document.addEventListener("click", this.navigate, true);
     document.addEventListener("turbo:before-visit", this.beforeVisit);
     document.addEventListener("turbo:before-render", this.beforeRender);
-    document.addEventListener("workspace-residency:before-select", this.beforeWorkspaceSelection);
+    document.addEventListener("workspace-selection:before-select", this.beforeWorkspaceSelection);
     window.addEventListener("beforeunload", this.beforeUnload);
     window.addEventListener("popstate", this.historyChanged, true);
   }
@@ -54,7 +54,7 @@ export class TemplateSettingsController extends Controller<HTMLElement> {
     document.removeEventListener("click", this.navigate, true);
     document.removeEventListener("turbo:before-visit", this.beforeVisit);
     document.removeEventListener("turbo:before-render", this.beforeRender);
-    document.removeEventListener("workspace-residency:before-select", this.beforeWorkspaceSelection);
+    document.removeEventListener("workspace-selection:before-select", this.beforeWorkspaceSelection);
     window.removeEventListener("beforeunload", this.beforeUnload);
     window.removeEventListener("popstate", this.historyChanged, true);
     const replacement = document.getElementById(this.element.id);
@@ -139,7 +139,7 @@ export class TemplateSettingsController extends Controller<HTMLElement> {
   private readonly beforeWorkspaceSelection = (event: Event): void => {
     if (!this.element.isConnected) return;
     event.preventDefault();
-    // SAFETY: Workspace residency owns the event and its continuation contract.
+    // SAFETY: Workspace selection owns the event and its continuation contract.
     const selection = event as WorkspaceSelectionEvent;
     this.guard(() => { this.leave(); void selection.detail.resume(); });
   };
