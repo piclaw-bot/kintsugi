@@ -217,6 +217,8 @@ else
   viewers="set-option -t =$session: window-size manual"
 fi
 # Older tmux versions apply history-limit only when a pane is created.
+# A discard pipe also makes tmux drain unread PTY bytes before pane-died:
+# its exit-readiness check only checks FIONREAD while a pipe is installed.
 tmux -N set-option -g history-limit "$history" || exit 1
 if ! pid=$(tmux -N new-session -d -P -F '#{pane_pid}' -s "$session" -x "$cols" -y "$rows" -c "$cwd" "$@" "$pane" \\; \\
   set-option -t "=$session:" status off \\; \\
@@ -224,6 +226,7 @@ if ! pid=$(tmux -N new-session -d -P -F '#{pane_pid}' -s "$session" -x "$cols" -
   set-option -t "=$session:" history-limit "$history" \\; \\
   set-option -p -t "=$session:" remain-on-exit on \\; \\
   set-option -p -t "=$session:" remain-on-exit-format '' \\; \\
+  pipe-pane -O -t "=$session:" 'cat >/dev/null' \\; \\
   set-hook -p -t "=$session:" pane-died "$hook"); then
   rm -rf "$dir"
   exit 1
