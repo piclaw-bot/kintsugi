@@ -2,7 +2,9 @@ import { createServer } from "node:net";
 import { createInterface } from "node:readline";
 import { chmod, mkdir, rm } from "node:fs/promises";
 import { dirname } from "node:path";
-import { attachHostObservableTerminal, buildObservableSessionCommand, type ObservableTerminalConnection } from "@kintsugi/observable-terminal/server";
+// System ships a standalone bundle, without the app's terminal CSS/node_modules.
+import { attachHostObservableTerminal, type ObservableTerminalConnection } from "../../../observable-terminal/src/server/attach.ts";
+import { buildObservableSessionCommand } from "../../../observable-terminal/src/server/tmux.ts";
 import { parseObservableTerminalMessage } from "@kintsugi/observable-terminal/shared";
 import { hostSocketPath, parseHostRequest, parseHostInput, terminalSize, validTerminalId, type HostReply, type HostResult, type HostCommand, type HostSample, type HostTerminal } from "../protocol.ts";
 import { command } from "./command.ts";
