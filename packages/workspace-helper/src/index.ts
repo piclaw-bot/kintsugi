@@ -1,6 +1,8 @@
 import { Client, credentials, Metadata, status, type ClientDuplexStream, type ClientWritableStream, type ServiceDefinition, type ServiceError } from "@grpc/grpc-js";
-import { loadSync } from "@grpc/proto-loader";
-import { fileURLToPath } from "node:url";
+import { fromJSON } from "@grpc/proto-loader";
+import { parse } from "protobufjs";
+// Bundled runtimes must carry the schema instead of resolving a source-tree file.
+import protoSource from "../proto/workspace_helper.proto" with { type: "text" };
 
 
 export type WorkspaceHelperUser = "agent" | "root";
@@ -103,7 +105,7 @@ type ExecResponse =
 type HelperCall<Request> = ClientDuplexStream<Request, ExecResponse>;
 type WriteFileRequest = { start: { user: string; path: string } } | { data: Uint8Array };
 
-const definition = loadSync(fileURLToPath(new URL("../proto/workspace_helper.proto", import.meta.url)), { longs: Number, enums: String, defaults: false, oneofs: true });
+const definition = fromJSON(parse(protoSource).root.toJSON(), { longs: Number, enums: String, defaults: false, oneofs: true });
 // SAFETY: workspace_helper.proto defines WorkspaceHelper as a service whose Exec and Attach stream ExecRequest and AttachRequest to ExecResponse, decoded with the options above.
 const service = definition["kintsugi.workspace_helper.v1.WorkspaceHelper"] as ServiceDefinition;
 const execMethod = service.Exec!;

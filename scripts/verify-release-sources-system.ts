@@ -22,6 +22,7 @@ async function run(args: string[], input?: string) {
   return stdout.trim();
 }
 const exec = (...args: string[]) => run(["docker", "exec", name, ...args]);
+const containment = ["--memory=4g", "--memory-swap=4g", "--cpus=2", "--pids-limit=4096"];
 async function until(check: () => Promise<boolean>, label: string, milliseconds = 180_000) {
   const end = Date.now() + milliseconds;
   while (Date.now() < end) { if (await check()) return; await Bun.sleep(500); }
@@ -32,7 +33,7 @@ try {
   if (!Value.Check(Type.Array(Type.String({ minLength: 1 }), { minItems: 1 }), preloads)) throw new Error("App image must declare its baked workspace image, or use an image built by this repository");
   const workspaceImage = values.workspace ?? preloads[0]!;
   // Start only dockerd for preloading, as in the existing System bootstrap test.
-  await run(["docker", "run", "-d", "--name", name, "--privileged", "--cgroupns=host", "--tmpfs", "/run", "--mount", `source=${volume},target=/data`, "--entrypoint", "/usr/local/bin/kintsugi-dockerd", values.system!, "dockerd"]);
+  await run(["docker", "run", "-d", "--name", name, ...containment, "--privileged", "--cgroupns=host", "--tmpfs", "/run", "--mount", `source=${volume},target=/data`, "--entrypoint", "/usr/local/bin/kintsugi-dockerd", values.system!, "dockerd"]);
   await until(async () => (await exec("docker", "info").then(() => true, () => false)), "inner Docker daemon");
   const save = Bun.spawn(["docker", "save", values.app!, workspaceImage], { stdout: "pipe", stderr: "pipe" });
   const load = Bun.spawn(["docker", "exec", "-i", name, "docker", "load"], { stdin: save.stdout, stdout: "pipe", stderr: "pipe" });
@@ -41,10 +42,11 @@ try {
   // These are local, preloaded images, not registry releases: suppress eager pulls in this disposable fixture.
   await run(["docker", "exec", "-i", name, "docker", "build", "-t", fixtureApp, "-"], `FROM ${values.app}\nLABEL eagerly-preload="[]"\n`);
   await run(["docker", "stop", "--time", "60", name]); await run(["docker", "rm", name]);
-  await run(["docker", "run", "-d", "--name", name, "--privileged", "--cgroupns=host", "--tmpfs", "/run", "--publish", `127.0.0.1:${hostPort}:3443`, "--publish", `127.0.0.1:${hostPort + 1}:3080`, "--mount", `source=${volume},target=/data`, values.system!, "--app-image", fixtureApp, "--access-mode", "localhost"]);
+  await run(["docker", "run", "-d", "--name", name, ...containment, "--privileged", "--cgroupns=host", "--tmpfs", "/run", "--publish", `127.0.0.1:${hostPort}:3443`, "--publish", `127.0.0.1:${hostPort + 1}:3080`, "--mount", `source=${volume},target=/data`, values.system!, "--app-image", fixtureApp, "--access-mode", "localhost"]);
   const localPort = Number(await run(["docker", "inspect", "--format", '{{(index (index .HostConfig.PortBindings "3080/tcp") 0).HostPort}}', name]));
   await until(async () => (await exec("bun", "-e", `const r=await fetch("http://127.0.0.1:3001/access",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({mode:"localhost",localPort:${localPort}})});process.exit(r.ok?0:1);`).then(() => true, () => false)), "installer local-port registration");
   await until(async () => (await exec("bun", "-e", 'const r=await fetch("http://127.0.0.1:3001/status");process.exit((await r.json()).healthy?0:1)').then(() => true, () => false)), "real System app health");
+  console.log("PASS: packaged System entrypoint and real app /up are healthy without a source-checkout mount");
   const mappingTemplate = '{{range $port, $bindings := .HostConfig.PortBindings}}{{if ne $port "3080/tcp"}}{{range $bindings}}{{.HostIp}}:{{.HostPort}}:{{$port}}{{println}}{{end}}{{end}}{{end}}';
   const mapping = await run(["docker", "inspect", "--format", mappingTemplate, name]);
   async function api(path: string, method = "GET", body = "") {
@@ -112,6 +114,9 @@ try {
   await run(["docker", "stop", "--time", "60", name]);
   assert.equal(await run(["docker", "inspect", "--format", mappingTemplate, name]), mapping, "persistent mappings survive stopped System");
   console.log("PASS: real System release operations and stopped-container publication persistence");
+} catch (error) {
+  console.error(await run(["docker", "logs", "--tail", "100", name]).catch(() => "Disposable System container did not reach startup"));
+  throw error;
 } finally {
   await run(["docker", "rm", "-f", name]).catch(() => {});
   await run(["docker", "volume", "rm", volume]).catch(() => {});

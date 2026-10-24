@@ -433,6 +433,25 @@ jobs:
       - name: Smoke-test native app
         if: needs.prepare.outputs.app_exists != 'true'
         run: bash scripts/ci-smoke-app.sh 'ghcr.io/${{ github.repository_owner }}/kintsugi:sha-${{ needs.prepare.outputs.commit }}-${{ matrix.arch }}' '${{ matrix.machine }}'
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: 1.4.4
+      - name: Boot packaged System and app without a source-checkout mount
+        timeout-minutes: 12
+        run: |
+          sudo modprobe erofs
+          sudo modprobe loop
+          bun ci
+          system='${{ needs.prepare.outputs.system_ref }}'
+          if [ -z "$system" ]; then
+            system='ghcr.io/${{ github.repository_owner }}/kintsugi-system:content-${{ needs.prepare.outputs.system_signature }}-${{ matrix.arch }}'
+          fi
+          workspace='${{ steps.dependency.outputs.ref }}'
+          docker pull "$system"
+          docker pull "$workspace"
+          bun scripts/verify-release-sources-system.ts \
+            --app 'ghcr.io/${{ github.repository_owner }}/kintsugi:sha-${{ needs.prepare.outputs.commit }}-${{ matrix.arch }}' \
+            --system "$system" --workspace "$workspace"
       - name: Save verified native slice
         if: inputs.publish
         run: |

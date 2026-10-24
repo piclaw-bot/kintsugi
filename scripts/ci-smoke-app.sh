@@ -16,11 +16,12 @@ bun -e '
   import { existsSync } from "node:fs";
   import { parseAssetManifest } from "./apps/web/src/server/asset-manifest.ts";
   await import("@kintsugi/core");
+  await import("@kintsugi/workspace-helper");
   const manifest = parseAssetManifest(await Bun.file("apps/web/public/assets-manifest.json").text());
   for (const path of Object.values(manifest)) {
     if (!existsSync(`apps/web/public${path}`)) throw new Error(`Missing client asset: ${path}`);
   }
-  console.log("Native core modules and compiled client assets verified");
+  console.log("Native core/helper modules, embedded schema and compiled client assets verified");
 '
 SMOKE
 )

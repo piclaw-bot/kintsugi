@@ -6,9 +6,10 @@
     ".": "./src/index.ts"
   },
   "dependencies": {
-    "@kintsugi/core": "workspace:*",
     "@grpc/grpc-js": "1.14.6",
-    "@grpc/proto-loader": "0.8.1"
+    "@grpc/proto-loader": "0.8.1",
+    "@kintsugi/core": "workspace:*",
+    "protobufjs": "7.6.2"
   },
   "scripts": {
     "build": "bun scripts/build.ts",
