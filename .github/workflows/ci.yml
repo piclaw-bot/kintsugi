@@ -108,6 +108,20 @@ jobs:
           fi
           test "$(id -u agent)" = "$(id -u)"
         if: "steps.changes.outputs.required == 'true'"
+      - name: Match the shipped tmux runtime
+        if: "steps.changes.outputs.required == 'true'"
+        run: |
+          # Ubuntu 24.04 supplies 3.4; release images use Ubuntu 26.04's 3.6a.
+          sudo apt-get update
+          sudo apt-get install -y libevent-dev libncurses-dev bison
+          curl --fail --location --silent --show-error https://github.com/tmux/tmux/releases/download/3.6a/tmux-3.6a.tar.gz -o "$RUNNER_TEMP/tmux.tar.gz"
+          echo "b6d8d9c76585db8ef5fa00d4931902fa4b8cbe8166f528f44fc403961a3f3759  $RUNNER_TEMP/tmux.tar.gz" | sha256sum --check
+          tar -xzf "$RUNNER_TEMP/tmux.tar.gz" -C "$RUNNER_TEMP"
+          cd "$RUNNER_TEMP/tmux-3.6a"
+          ./configure --prefix=/usr/local
+          make -j2
+          sudo make install
+          test "$(tmux -V)" = 'tmux 3.6a'
       - name: Run the full test suite
         run: |
           bun run generate:workspace-modules
