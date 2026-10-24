@@ -25,7 +25,11 @@ const exec = (...args: string[]) => run(["docker", "exec", name, ...args]);
 const containment = ["--memory=4g", "--memory-swap=4g", "--cpus=2", "--pids-limit=4096"];
 async function until(check: () => Promise<boolean>, label: string, milliseconds = 180_000) {
   const end = Date.now() + milliseconds;
-  while (Date.now() < end) { if (await check()) return; await Bun.sleep(500); }
+  while (Date.now() < end) {
+    if (await check()) return;
+    if (await run(["docker", "inspect", "--format", "{{.State.Running}}", name]) !== "true") throw new Error(`Disposable System exited while waiting for ${label}`);
+    await Bun.sleep(500);
+  }
   throw new Error(`Timed out: ${label}`);
 }
 try {
@@ -45,7 +49,11 @@ try {
   await run(["docker", "run", "-d", "--name", name, ...containment, "--privileged", "--cgroupns=host", "--tmpfs", "/run", "--publish", `127.0.0.1:${hostPort}:3443`, "--publish", `127.0.0.1:${hostPort + 1}:3080`, "--mount", `source=${volume},target=/data`, values.system!, "--app-image", fixtureApp, "--access-mode", "localhost"]);
   const localPort = Number(await run(["docker", "inspect", "--format", '{{(index (index .HostConfig.PortBindings "3080/tcp") 0).HostPort}}', name]));
   await until(async () => (await exec("bun", "-e", `const r=await fetch("http://127.0.0.1:3001/access",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({mode:"localhost",localPort:${localPort}})});process.exit(r.ok?0:1);`).then(() => true, () => false)), "installer local-port registration");
-  await until(async () => (await exec("bun", "-e", 'const r=await fetch("http://127.0.0.1:3001/status");process.exit((await r.json()).healthy?0:1)').then(() => true, () => false)), "real System app health");
+  await until(async () => {
+    const state = JSON.parse(await exec("bun", "-e", 'console.log(JSON.stringify(await (await fetch("http://127.0.0.1:3001/status")).json()))'));
+    if (state.state === "failed") throw new Error(`Packaged System startup failed: ${state.failure ?? "see fixture logs"}`);
+    return state.healthy === true;
+  }, "real System app health");
   console.log("PASS: packaged System entrypoint and real app /up are healthy without a source-checkout mount");
   const mappingTemplate = '{{range $port, $bindings := .HostConfig.PortBindings}}{{if ne $port "3080/tcp"}}{{range $bindings}}{{.HostIp}}:{{.HostPort}}:{{$port}}{{println}}{{end}}{{end}}{{end}}';
   const mapping = await run(["docker", "inspect", "--format", mappingTemplate, name]);
@@ -115,7 +123,8 @@ try {
   assert.equal(await run(["docker", "inspect", "--format", mappingTemplate, name]), mapping, "persistent mappings survive stopped System");
   console.log("PASS: real System release operations and stopped-container publication persistence");
 } catch (error) {
-  console.error(await run(["docker", "logs", "--tail", "100", name]).catch(() => "Disposable System container did not reach startup"));
+  const logs = Bun.spawnSync(["docker", "logs", "--tail", "100", name], { timeout: 5000 });
+  console.error(logs.stdout.toString() + logs.stderr.toString());
   throw error;
 } finally {
   await run(["docker", "rm", "-f", name]).catch(() => {});
