@@ -49,7 +49,7 @@ async function execLogs(container: string) {
   return logs.stdout + logs.stderr;
 }
 async function start(container: string, readonly: boolean) {
-  await command(["docker", "run", "--detach", "--privileged", "--platform", platform,
+  await command(["docker", "run", "--detach", "--privileged", "--cgroupns=host", "--platform", platform,
     "--name", container, "--mount", `type=volume,src=${container}-data,dst=/data`,
     "--mount", `type=volume,src=${cache},dst=/data/erofs-cache${readonly ? ",readonly" : ""}`,
     image]);
@@ -149,7 +149,10 @@ exec sleep infinity
   for (let attempt = 0; ; attempt++) {
     const ready = await command(["docker", "exec", consumer, "docker", "exec", "exec-cgroup-check", "test", "-f", "/tmp/exec-cgroup-ready"], false);
     if (ready.code === 0) break;
-    assert(attempt < 30, `cgroup exec fixture failed: ${ready.stderr}`);
+    if (attempt >= 30) {
+      const logs = await command(["docker", "exec", consumer, "docker", "logs", "exec-cgroup-check"], false);
+      assert.fail(`cgroup exec fixture failed: ${ready.stderr}\n${logs.stdout}\n${logs.stderr}`);
+    }
     await Bun.sleep(100);
   }
   for (let attempt = 0; attempt < 3; attempt++) {
